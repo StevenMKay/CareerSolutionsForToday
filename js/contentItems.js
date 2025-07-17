@@ -1,5 +1,38 @@
-const contentItems = [
+
+   
+  /* - Template for content items
     {
+      section: 'Videos',
+program: {
+name: 'YouTube',
+image: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png'
+},
+
+      title: 'Modern Resume Tips',
+      description: 'Step-by-step guide to resume writing strategies and a provided template.',
+      thumbnail: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8f7a31e22e2ef623ad6b605b1f8d06a0c71b24a3/Thumbnail%20Modern%20Resume%20Video.png',
+      link: 'https://youtu.be/0YgpqxPWmoc',
+related: {
+text: 'Modern resume template',
+url: 'https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx'
+},
+    },  
+  */
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  window.contentItems = [
+
+
+  {
       section: 'Practice Documents',
 program: {
 name: 'Excel',
@@ -20,9 +53,10 @@ image: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49a
 
 {
   section: 'Practice Documents',
-program: {
-name: 'Excel',
-image: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png'},
+  program: {
+    name: 'Excel',
+    image: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png'
+  },
   title: 'Practice Workbook - Dynamic Text Filter',
   description: 'A downloadable spreadsheet to practice the dynamic text filter capability.',
   thumbnail: 'https://img.icons8.com/color/96/000000/microsoft-excel-2019--v1.png',
@@ -34,7 +68,8 @@ image: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49a
 },
 
 
-    {
+
+{
       section: 'Videos',
 program: {
 name: 'YouTube',
@@ -49,7 +84,9 @@ related: {
 text: 'Modern resume template',
 url: 'https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx'
 },
-    },
+},
+    
+
 {
   section: 'Templates',
   program: {
@@ -74,4 +111,5 @@ url: 'https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/e
   thumbnail: 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6bcca2d9951dd2fa2acfdd7037e3da74f59f025f/Thumbnail%20-%20Modern%20Resume%20Template%20with%20Photo.png',
   link: 'https://docs.google.com/presentation/d/1hnGjNDEAXbPqIY6b_9niedbhqE8wJFdG/export?format=pptx'
 }
-  ];
+];
+
