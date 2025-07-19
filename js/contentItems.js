@@ -121,9 +121,6 @@ function getTopicFromTitle(title) {
   return 'General';
 }
 
-// Call this after window.contentItems is defined:
-assignTopicsToContentItems();
-
 
 // 1) First declare your static items:
 window.contentItems = [
