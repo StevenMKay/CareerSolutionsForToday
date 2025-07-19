@@ -16,19 +16,119 @@ window.PROGRAM_ICONS = {
 };
 
 
+function getTopicFromTitle(title) {
+  title = (title || '').toLowerCase();
+  if (title.includes('resume')) return 'Resume';
+  if (title.includes('sheet list')) return 'Sheets';
+  if (title.includes('sheet')) return 'Sheets';
+  if (title.includes('google sheets')) return 'Google Sheets';
+  if (title.includes('powerpoint')) return 'PowerPoint';
+  if (title.includes('word')) return 'Word';
+  if (title.includes('outlook')) return 'Outlook';
+  if (title.includes('teams')) return 'Teams';
+  if (title.includes('sql')) return 'SQL';
+  if (title.includes('vlookup')) return 'VLOOKUP';
+  if (title.includes('xlookup')) return 'XLOOKUP';
+  if (title.includes('filter')) return 'Filter';
+  if (title.includes('flash fill') || title.includes('ctrl + e')) return 'Flash Fill';
+  if (title.includes('calendar')) return 'Calendar';
+  if (title.includes('dropdown')) return 'Dropdown';
+  if (title.includes('pivot')) return 'Pivot Table';
+  if (title.includes('barcode')) return 'Barcode';
+  if (title.includes('chart')) return 'Chart';
+  if (title.includes('dashboard')) return 'Dashboard';
+  if (title.includes('email')) return 'Email';
+  if (title.includes('format')) return 'Formatting';
+  if (title.includes('clean')) return 'Cleaning';
+  if (title.includes('highlight')) return 'Highlighting';
+  if (title.includes('sumif')) return 'SUMIF';
+  if (title.includes('sumifs')) return 'SUMIFS';
+  if (title.includes('sum')) return 'SUM';
+  if (title.includes('average')) return 'Average';
+  if (title.includes('countif')) return 'COUNTIF';
+  if (title.includes('count')) return 'Counting';
+  if (title.includes('unique')) return 'Unique';
+  if (title.includes('duplicate')) return 'Duplicates';
+  if (title.includes('remove blank')) return 'Blanks';
+  if (title.includes('split')) return 'Splitting';
+  if (title.includes('combine')) return 'Combining';
+  if (title.includes('sequence')) return 'Sequence';
+  if (title.includes('row') && title.includes('column')) return 'Rows & Columns';
+  if (title.includes('row')) return 'Rows';
+  if (title.includes('column')) return 'Columns';
+  if (title.includes('tab')) return 'Tabs';
+  if (title.includes('protect')) return 'Protection';
+  if (title.includes('checkbox')) return 'Checkbox';
+  if (title.includes('bio')) return 'Bio';
+  if (title.includes('announcement')) return 'Announcement';
+  if (title.includes('language')) return 'Language';
+  if (title.includes('windows')) return 'Windows';
+  if (title.includes('chrome')) return 'Chrome';
+  if (title.includes('firefox')) return 'Firefox';
+  if (title.includes('edge')) return 'Edge';
+  if (title.includes('snipping tool')) return 'Snipping Tool';
+  if (title.includes('pdf')) return 'PDF';
+  if (title.includes('signature')) return 'Signature';
+  if (title.includes('background')) return 'Background';
+  if (title.includes('icon')) return 'Icon';
+  if (title.includes('career')) return 'Career';
+  if (title.includes('coding') || title.includes('programming')) return 'Coding';
+  if (title.includes('list')) return 'List';
+  if (title.includes('search')) return 'Search';
+  if (title.includes('translate')) return 'Translation';
+  if (title.includes('importrange')) return 'Importing';
+  if (title.includes('trendline')) return 'Trendline';
+  if (title.includes('pareto')) return 'Pareto';
+  if (title.includes('heat map')) return 'Heat Map';
+  if (title.includes('timeline')) return 'Timeline';
+  if (title.includes('group')) return 'Group';
+  if (title.includes('random')) return 'Random';
+  if (title.includes('progress')) return 'Progress';
+  if (title.includes('waffle')) return 'Waffle';
+  if (title.includes('transpose')) return 'Transpose';
+  if (title.includes('wraprows')) return 'WrapRows';
+  if (title.includes('tocol')) return 'TOCOL';
+  if (title.includes('datedif')) return 'DATEDIF';
+  if (title.includes('networkdays')) return 'NETWORKDAYS';
+  if (title.includes('sumproduct')) return 'SUMPRODUCT';
+  if (title.includes('iferror')) return 'IFERROR';
+  if (title.includes('if function')) return 'IF';
+  if (title.includes('match')) return 'MATCH';
+  if (title.includes('index')) return 'INDEX';
+  if (title.includes('remove')) return 'Removing';
+  if (title.includes('add')) return 'Adding';
+  if (title.includes('delete')) return 'Deleting';
+  if (title.includes('move')) return 'Moving';
+  if (title.includes('copy')) return 'Copying';
+  if (title.includes('insert')) return 'Inserting';
+  if (title.includes('freeze')) return 'Freezing';
+  if (title.includes('sort')) return 'Sorting';
+  if (title.includes('lock')) return 'Locking';
+  if (title.includes('unhide')) return 'Unhiding';
+  if (title.includes('hide')) return 'Hiding';
+  if (title.includes('link')) return 'Linking';
+  if (title.includes('record')) return 'Recording';
+  if (title.includes('slicer')) return 'Slicer';
+  if (title.includes('table')) return 'Table';
+  if (title.includes('data')) return 'Data';
+  if (title.includes('formula')) return 'Formula';
+  if (title.includes('function')) return 'Function';
+  if (title.includes('shortcut')) return 'Shortcut';
+  if (title.includes('keyboard')) return 'Shortcut';
+  if (title.includes('video')) return 'Video';
+  if (title.includes('template')) return 'Template';
+  if (title.includes('excel')) return 'Excel';
+  return 'General';
+}
+
+// Call this after window.contentItems is defined:
+assignTopicsToContentItems();
+
+
 // 1) First declare your static items:
 window.contentItems = [
  
-   {
-    section: 'Learning', // <--- Add this
-    program: { name: 'Excel', image: '...' },
-    title: 'Excel Beginner Guide',
-    description: 'A complete beginner guide for Excel.',
-    thumbnail: '...',
-    link: '...',
-    // ...other fields...
-  },
- 
+
   {
     section: 'Practice Documents',
     program: {
@@ -3649,6 +3749,13 @@ window.contentItems = [
   ];  // <-- close the array here
 
 // ...existing code...
+
+
+// Add topic to each static item at definition time
+window.contentItems.forEach(function(item) {
+  item.topic = getTopicFromTitle(item.title ? item.title : '');
+});
+
 
 window.updateYouTubeContentItems = async function() {
   const API_KEY     = 'AIzaSyAsoqLIWCHLTCs35HsqDgbZuhgnymwjuKY';
