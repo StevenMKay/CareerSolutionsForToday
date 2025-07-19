@@ -16,111 +16,6 @@ window.PROGRAM_ICONS = {
 };
 
 
-function getTopicFromTitle(title) {
-  title = (title || '').toLowerCase();
-  if (title.includes('resume')) return 'Resume';
-  if (title.includes('sheet list')) return 'Sheets';
-  if (title.includes('sheet')) return 'Sheets';
-  if (title.includes('google sheets')) return 'Google Sheets';
-  if (title.includes('powerpoint')) return 'PowerPoint';
-  if (title.includes('word')) return 'Word';
-  if (title.includes('outlook')) return 'Outlook';
-  if (title.includes('teams')) return 'Teams';
-  if (title.includes('sql')) return 'SQL';
-  if (title.includes('vlookup')) return 'VLOOKUP';
-  if (title.includes('xlookup')) return 'XLOOKUP';
-  if (title.includes('filter')) return 'Filter';
-  if (title.includes('flash fill') || title.includes('ctrl + e')) return 'Flash Fill';
-  if (title.includes('calendar')) return 'Calendar';
-  if (title.includes('dropdown')) return 'Dropdown';
-  if (title.includes('pivot')) return 'Pivot Table';
-  if (title.includes('barcode')) return 'Barcode';
-  if (title.includes('chart')) return 'Chart';
-  if (title.includes('dashboard')) return 'Dashboard';
-  if (title.includes('email')) return 'Email';
-  if (title.includes('format')) return 'Formatting';
-  if (title.includes('clean')) return 'Cleaning';
-  if (title.includes('highlight')) return 'Highlighting';
-  if (title.includes('sumif')) return 'SUMIF';
-  if (title.includes('sumifs')) return 'SUMIFS';
-  if (title.includes('sum')) return 'SUM';
-  if (title.includes('average')) return 'Average';
-  if (title.includes('countif')) return 'COUNTIF';
-  if (title.includes('count')) return 'Counting';
-  if (title.includes('unique')) return 'Unique';
-  if (title.includes('duplicate')) return 'Duplicates';
-  if (title.includes('remove blank')) return 'Blanks';
-  if (title.includes('split')) return 'Splitting';
-  if (title.includes('combine')) return 'Combining';
-  if (title.includes('sequence')) return 'Sequence';
-  if (title.includes('row') && title.includes('column')) return 'Rows & Columns';
-  if (title.includes('row')) return 'Rows';
-  if (title.includes('column')) return 'Columns';
-  if (title.includes('tab')) return 'Tabs';
-  if (title.includes('protect')) return 'Protection';
-  if (title.includes('checkbox')) return 'Checkbox';
-  if (title.includes('bio')) return 'Bio';
-  if (title.includes('announcement')) return 'Announcement';
-  if (title.includes('language')) return 'Language';
-  if (title.includes('windows')) return 'Windows';
-  if (title.includes('chrome')) return 'Chrome';
-  if (title.includes('firefox')) return 'Firefox';
-  if (title.includes('edge')) return 'Edge';
-  if (title.includes('snipping tool')) return 'Snipping Tool';
-  if (title.includes('pdf')) return 'PDF';
-  if (title.includes('signature')) return 'Signature';
-  if (title.includes('background')) return 'Background';
-  if (title.includes('icon')) return 'Icon';
-  if (title.includes('career')) return 'Career';
-  if (title.includes('coding') || title.includes('programming')) return 'Coding';
-  if (title.includes('list')) return 'List';
-  if (title.includes('search')) return 'Search';
-  if (title.includes('translate')) return 'Translation';
-  if (title.includes('importrange')) return 'Importing';
-  if (title.includes('trendline')) return 'Trendline';
-  if (title.includes('pareto')) return 'Pareto';
-  if (title.includes('heat map')) return 'Heat Map';
-  if (title.includes('timeline')) return 'Timeline';
-  if (title.includes('group')) return 'Group';
-  if (title.includes('random')) return 'Random';
-  if (title.includes('progress')) return 'Progress';
-  if (title.includes('waffle')) return 'Waffle';
-  if (title.includes('transpose')) return 'Transpose';
-  if (title.includes('wraprows')) return 'WrapRows';
-  if (title.includes('tocol')) return 'TOCOL';
-  if (title.includes('datedif')) return 'DATEDIF';
-  if (title.includes('networkdays')) return 'NETWORKDAYS';
-  if (title.includes('sumproduct')) return 'SUMPRODUCT';
-  if (title.includes('iferror')) return 'IFERROR';
-  if (title.includes('if function')) return 'IF';
-  if (title.includes('match')) return 'MATCH';
-  if (title.includes('index')) return 'INDEX';
-  if (title.includes('remove')) return 'Removing';
-  if (title.includes('add')) return 'Adding';
-  if (title.includes('delete')) return 'Deleting';
-  if (title.includes('move')) return 'Moving';
-  if (title.includes('copy')) return 'Copying';
-  if (title.includes('insert')) return 'Inserting';
-  if (title.includes('freeze')) return 'Freezing';
-  if (title.includes('sort')) return 'Sorting';
-  if (title.includes('lock')) return 'Locking';
-  if (title.includes('unhide')) return 'Unhiding';
-  if (title.includes('hide')) return 'Hiding';
-  if (title.includes('link')) return 'Linking';
-  if (title.includes('record')) return 'Recording';
-  if (title.includes('slicer')) return 'Slicer';
-  if (title.includes('table')) return 'Table';
-  if (title.includes('data')) return 'Data';
-  if (title.includes('formula')) return 'Formula';
-  if (title.includes('function')) return 'Function';
-  if (title.includes('shortcut')) return 'Shortcut';
-  if (title.includes('keyboard')) return 'Shortcut';
-  if (title.includes('video')) return 'Video';
-  if (title.includes('template')) return 'Template';
-  if (title.includes('excel')) return 'Excel';
-  return 'General';
-}
-
 
 
 // 1) First declare your static items:
@@ -139,7 +34,7 @@ window.contentItems = [
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2b848924357fae50ad8b97a184b023721eb27c65/Thumbnails/Thumbnail%20Image%20Cleaning%20Spreadsheets.png",
         hoverVideo:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2b848924357fae50ad8b97a184b023721eb27c65/Thumbnails/Excel%20-%20Cleaning%20Spreadsheets%20Thumbnail%20Video.mp4",
         link:"https://docs.google.com/spreadsheets/d/1nKJyR_6HYp-Spdruv048tgdeXU3_f3CB/export?format=xlsx",
-        topic:"Sheets"
+        topic:"Cleaning Spreadsheets",
     },
     {
         section:"Practice Documents",
@@ -155,12 +50,12 @@ window.contentItems = [
             text:"Video explaining function",
             url:"https://youtu.be/sdall4s4_RY"
         },
-        topic:"Filter"
+        topic:"Dynamic Text Filter"
     },
     {
         section:"Videos",
         program:{
-            name:"YouTube",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Modern Resume Tips",
@@ -171,31 +66,31 @@ window.contentItems = [
             text:"Modern resume template",
             url:"https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx"
         },
-        topic:"Resume"
+        topic:"Resumes"
     },
     {
         section:"Templates",
         program:{
-            name:"PowerPoint",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
         },
         title:"Modern Resume Template",
         description:"Fillable modern resume template with sections including skills, education, and more.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/Thumbnail%20-%20Modern%20Resume%20Template.png",
         link:"https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx",
-        topic:"Resume"
+        topic:"Resumes"
     },
     {
         section:"Templates",
         program:{
-            name:"PowerPoint",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
         },
         title:"Modern Resume Template with Photo",
         description:"A PowerPoint resume layout that includes a space for your photo and personalized details.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6bcca2d9951dd2fa2acfdd7037e3da74f59f025f/Thumbnail%20-%20Modern%20Resume%20Template%20with%20Photo.png",
         link:"https://docs.google.com/presentation/d/1hnGjNDEAXbPqIY6b_9niedbhqE8wJFdG/export?format=pptx",
-        topic:"Resume"
+        topic:"Resumes"
     },
     {
         section:[
@@ -203,7 +98,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Short Tips - Dynamic Sheet List Function | No VBA or Code",
@@ -214,7 +109,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/tjtS3Ja_SP4"
         },
-        topic:"Sheets"
+        topic:"Sheet List"
     },
     {
         section:[
@@ -222,7 +117,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Dynamic Sheet List Function | No VBA or Code",
@@ -233,7 +128,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/X6if1vTKeSk"
         },
-        topic:"Sheets"
+        topic:"Sheet List"
     },
     {
         section:[
@@ -241,7 +136,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - One Click to Highlight Active Row and Column | Focus Cell",
@@ -252,7 +147,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/KRFFp6QdsQQ"
         },
-        topic:"Highlighting"
+        topic:"Highlight Active Row and Column"
     },
     {
         section:[
@@ -260,7 +155,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Short Tips - Dynamically Clean Spreadsheets in One Click",
@@ -271,7 +166,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/Ph1Gqj1CqWY"
         },
-        topic:"Sheets"
+        topic:"Scripts"
     },
     {
         section:[
@@ -279,7 +174,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Excel's Most Powerful Tool | Flash Fill",
@@ -298,7 +193,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Separate Lines in a Cell | Bullet Points",
@@ -309,7 +204,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/aWBFwCf7O9Q"
         },
-        topic:"Excel"
+        topic:"Separating Lines"
     },
     {
         section:[
@@ -317,7 +212,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Cleaning Data Quickly | Shortcuts Included",
@@ -328,7 +223,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/R70Yl525oE0"
         },
-        topic:"Cleaning"
+        topic:"Cleaning Data"
     },
     {
         section:[
@@ -336,7 +231,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Addition with SUM and AUTOSUM",
@@ -347,7 +242,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/h5H9ZBU4HXI"
         },
-        topic:"SUM"
+        topic:"SUM and AUTOSUM Functions"
     },
     {
         section:[
@@ -355,7 +250,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Separate Data In Rows Into Columns",
@@ -366,7 +261,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/e-YkzESGL3A"
         },
-        topic:"Rows & Columns"
+        topic:"Separating Data"
     },
     {
         section:[
@@ -374,7 +269,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"PowerPoint",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"PowerPoint Tips - Change Image to Any Shape",
@@ -385,7 +280,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/n5mDgSyTfyY"
         },
-        topic:"PowerPoint"
+        topic:"Change Image Shape"
     },
     {
         section:[
@@ -393,7 +288,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"PowerPoint",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"PowerPoint Tips - Essential Tips for Creating Professional Slides",
@@ -404,7 +299,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/Ymu6KYe9iwk"
         },
-        topic:"PowerPoint"
+        topic:"Professional Slides"
     },
     {
         section:[
@@ -412,7 +307,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - XLOOKUP Multiple Criteria",
@@ -423,7 +318,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/HxTNSkemz0Y"
         },
-        topic:"XLOOKUP"
+        topic:"XLOOKUP Function"
     },
     {
         section:[
@@ -431,7 +326,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Word",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Word Tips - Multi Level Lists | Creation and Customization",
@@ -442,7 +337,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/XvBHMHOpdP0"
         },
-        topic:"Word"
+        topic:"Multi Level Lists"
     },
     {
         section:[
@@ -450,7 +345,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Compare Tabs Side by Side from Same Workbook",
@@ -461,7 +356,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/r4YhBzpa-so"
         },
-        topic:"Tabs"
+        topic:"Compare Tabs"
     },
     {
         section:[
@@ -469,7 +364,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Custom Date Filter Dropdowns Using FILTER Function",
@@ -480,7 +375,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/bvSKXhOZiDM"
         },
-        topic:"Filter"
+        topic:"Customer Date Filters"
     },
     {
         section:[
@@ -488,7 +383,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Split Cells",
@@ -499,7 +394,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/nvdDiwkaIWM"
         },
-        topic:"Splitting"
+        topic:"Split Cells"
     },
     {
         section:[
@@ -507,7 +402,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Create Dynamic Calendars",
@@ -518,7 +413,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/7fPOHl8-LeM"
         },
-        topic:"Calendar"
+        topic:"Calendar Creation"
     },
     {
         section:[
@@ -526,7 +421,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Get Data from Photo or Image",
@@ -537,7 +432,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/7I0HTYe8Cbo"
         },
-        topic:"Data"
+        topic:"Data Extraction"
     },
     {
         section:[
@@ -545,7 +440,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"PowerPoint",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"PowerPoint Tips - Best Way to Create Circle Images",
@@ -556,7 +451,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/-DAH69fESn4"
         },
-        topic:"PowerPoint"
+        topic:"Circle Images"
     },
     {
         section:[
@@ -564,7 +459,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Dynamic Row Sequences | Basic and Advanced",
@@ -575,7 +470,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/DIf7uuLJnd8"
         },
-        topic:"Sequence"
+        topic:"Row Sequences"
     },
     {
         section:[
@@ -583,7 +478,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Word",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Word Tips - Delete Pages | Specific Pages | Extra Blank Pages",
@@ -594,7 +489,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/ZhoWngQOgJg"
         },
-        topic:"Word"
+        topic:"Delete Pages"
     },
     {
         section:[
@@ -602,7 +497,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Inserting Clickable Documents",
@@ -613,7 +508,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/1XpLmGzu0_U"
         },
-        topic:"Inserting"
+        topic:"Inserting Documents"
     },
     {
         section:[
@@ -621,7 +516,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Helpful Websites",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Helpful Websites - Learn Coding and Programming | HackerRank",
@@ -640,7 +535,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Removing Multiple Filters | Pro Tip",
@@ -651,7 +546,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/3wvkVOj4m00"
         },
-        topic:"Filter"
+        topic:"Filter Removal"
     },
     {
         section:[
@@ -659,7 +554,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Move Formulas Without Changing Cell References",
@@ -670,7 +565,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/y6D2LQb-qEE"
         },
-        topic:"Moving"
+        topic:"Moving Formulas"
     },
     {
         section:[
@@ -678,7 +573,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Compare Columns | Match and Exact Match",
@@ -689,7 +584,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/ZNSlE2kS2NQ"
         },
-        topic:"Columns"
+        topic:"Compare Columns"
     },
     {
         section:[
@@ -697,7 +592,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Combine Workbooks | Easy Method",
@@ -708,7 +603,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/QrtlHWP3a0s"
         },
-        topic:"Combining"
+        topic:"Combining Workbooks"
     },
     {
         section:[
@@ -716,7 +611,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - 5 Ways to Clean Your Spreadsheets",
@@ -727,7 +622,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/cUUdtC8xVfE"
         },
-        topic:"Sheets"
+        topic:"Cleaning Data"
     },
     {
         section:[
@@ -735,7 +630,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Track Any Changes Made to Your Workbook | No VBA",
@@ -746,7 +641,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/b7nR4sse6O8"
         },
-        topic:"Excel"
+        topic:"Track Changes"
     },
     {
         section:[
@@ -754,7 +649,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Create Group Email Link",
@@ -765,7 +660,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/fpKmgDwLgOc"
         },
-        topic:"Email"
+        topic:"Email Group Link"
     },
     {
         section:[
@@ -773,7 +668,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Inserts Watermarks into Your Spreadsheet",
@@ -784,7 +679,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/pxb7q7TLJho"
         },
-        topic:"Sheets"
+        topic:"Watermarks"
     },
     {
         section:[
@@ -792,7 +687,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Windows",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Windows Tips - Screenshot Active Application",
@@ -803,7 +698,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/VN8Y4l0_4Ys"
         },
-        topic:"Windows"
+        topic:"Screenshot Tips"
     },
     {
         section:[
@@ -811,7 +706,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Career Tips - Professional Modern Resume Template and Tips",
@@ -822,7 +717,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/0YgpqxPWmoc"
         },
-        topic:"Resume"
+        topic:"Resumes"
     },
     {
         section:[
@@ -830,7 +725,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Find and Remove Duplicate Data and Utilize the UNIQUE Function for Unique Lists",
@@ -841,7 +736,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/lcVWz9exVkE"
         },
-        topic:"Unique"
+        topic:"Remove Duplicates"
     },
     {
         section:[
@@ -849,7 +744,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - FILTER Function Basics and Multiple Criteria with Column Select",
@@ -860,7 +755,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/fNVSIowXGec"
         },
-        topic:"Filter"
+        topic:"FILTER Function"
     },
     {
         section:[
@@ -868,7 +763,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Word",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Word Tips - Remove Extra Spaces",
@@ -879,7 +774,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/0TiDOZ9tBIY"
         },
-        topic:"Word"
+        topic:"Removing Extra Spaces"
     },
     {
         section:[
@@ -887,7 +782,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Removes Extra Spaces | TRIM Function",
@@ -898,7 +793,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/NGCifPT7wRY"
         },
-        topic:"Removing"
+        topic:"Removing Extra Spaces"
     },
     {
         section:[
@@ -906,7 +801,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Fast Chart Options | Quick Analysis Tool",
@@ -917,7 +812,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/cDgl1Nm46Z0"
         },
-        topic:"Chart"
+        topic:"Charts"
     },
     {
         section:[
@@ -925,7 +820,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Create Calendars | No Formulas Needed",
@@ -936,7 +831,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/T1d3w3hLw6g"
         },
-        topic:"Calendar"
+        topic:"Calendar Creation"
     },
     {
         section:[
@@ -944,7 +839,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Date Sorting | Multiple Methods Included",
@@ -955,7 +850,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/pyRKPNpfmow"
         },
-        topic:"Sorting"
+        topic:"Date Sorting"
     },
     {
         section:[
@@ -963,7 +858,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"SharePoint",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"SharePoint 365 Tips - Create Sections and Columns in Your List Form",
@@ -974,7 +869,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/dQWwjyRwSbA"
         },
-        topic:"Columns"
+        topic:"List Sections"
     },
     {
         section:[
@@ -982,7 +877,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Search Box with Conditional Formatting",
@@ -993,7 +888,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/nuYWqOWO59Y"
         },
-        topic:"Formatting"
+        topic:"Custom Search Box"
     },
     {
         section:[
@@ -1001,7 +896,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - SUBTOTAL Function Details and How it Can Help",
@@ -1012,7 +907,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/Awlb8aLvosw"
         },
-        topic:"Function"
+        topic:"SUBTOTAL FUNCTION"
     },
     {
         section:[
@@ -1020,7 +915,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Create Custom Tabs and Groups",
@@ -1031,7 +926,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/eFJJXGoQGDU"
         },
-        topic:"Tabs"
+        topic:"Custom Tabs and Groupd"
     },
     {
         section:[
@@ -1039,7 +934,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - For Autofitting Columns and Rows | Multiple Methods",
@@ -1050,7 +945,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/aPAc4XHKn2A"
         },
-        topic:"Rows & Columns"
+        topic:"Autofit Rows and Columns"
     },
     {
         section:[
@@ -1058,7 +953,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Filling in Dates | Different Fill Types",
@@ -1069,7 +964,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/S_uGHrkv0_s"
         },
-        topic:"Excel"
+        topic:"Date Filling"
     },
     {
         section:[
@@ -1077,7 +972,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Autofit Column Width | Apply to Specified Range Example",
@@ -1088,7 +983,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/A8TYqvf05GU"
         },
-        topic:"Columns"
+        topic:"Autofit Column Width"
     },
     {
         section:[
@@ -1096,7 +991,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - TEXTSPLIT Function to Separate Strings with Multiple Delimiters into Columns and Rows",
@@ -1107,7 +1002,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/37l9gngeQOg"
         },
-        topic:"Splitting"
+        topic:"TEXTSPLIT"
     },
     {
         section:[
@@ -1115,7 +1010,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Display Image When Hovering Over A Cell",
@@ -1126,7 +1021,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/q8EX0IAW9HU"
         },
-        topic:"Excel"
+        topic:"Display Image on Hover"
     },
     {
         section:[
@@ -1134,7 +1029,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Calculating Average | 3 Easy Methods",
@@ -1145,7 +1040,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/ixIR0ZP414A"
         },
-        topic:"Average"
+        topic:"Averages"
     },
     {
         section:[
@@ -1153,7 +1048,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Calculating Percent of Total | Quick Analysis Shortcut",
@@ -1164,7 +1059,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/J2POjkEkPnI"
         },
-        topic:"Shortcut"
+        topic:"Quick Analysis"
     },
     {
         section:[
@@ -1172,7 +1067,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - Dropdown Lists | Custom or From a Range | Selecting Colors",
@@ -1183,7 +1078,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/1vMW1x8UiC8"
         },
-        topic:"Sheets"
+        topic:"Dropdown Lists"
     },
     {
         section:[
@@ -1191,7 +1086,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Windows",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Installing New Languages | Text or Speech to Text | Windows 11",
@@ -1202,7 +1097,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/lKMFbOEcT-E"
         },
-        topic:"Language"
+        topic:"Languages"
     },
     {
         section:[
@@ -1210,7 +1105,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Create Email Hyperlinks that Dynamically Include Recipient, CC Line, Subject and Body",
@@ -1229,7 +1124,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - GOOGLETRANSLATE Helps You Translate Text | Other Languages",
@@ -1240,7 +1135,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/CwPyt2skqmw"
         },
-        topic:"Sheets"
+        topic:"GOOGLETRANSLATE"
     },
     {
         section:[
@@ -1248,7 +1143,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Autofit Row Height to Cell Contents | Auto Text Wrap | Apply to Specified Range Example",
@@ -1267,7 +1162,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - IMPORTRANGE Function | Add or Combine Data",
@@ -1286,7 +1181,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Text Search Box | Dynamic Filtering | One or Multiple Columns",
@@ -1305,7 +1200,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - Freeze Columns and Rows",
@@ -1324,7 +1219,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - INDEX And MATCH Functions | Simple and Complex Examples",
@@ -1343,7 +1238,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - 10 Important Functions and Formulas",
@@ -1362,7 +1257,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - Dynamic Search Box Creation | One or Multiple Columns",
@@ -1381,7 +1276,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Combine First and Last Names | Two Methods Shared",
@@ -1400,7 +1295,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Restore Previous Save Files or Versions | Microsoft Applications",
@@ -1419,7 +1314,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Creating a Pie Chart in Excel | Formatting Tips and Tricks",
@@ -1438,7 +1333,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - Find and Remove Duplicates",
@@ -1457,7 +1352,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Calculating Time Difference | Hours Worked",
@@ -1476,7 +1371,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - IF Function Explained | Multiple Examples | AND/OR Statements | Nested IF Function",
@@ -1495,7 +1390,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Remove Blank Rows | 3 Methods Included",
@@ -1514,7 +1409,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Sheets",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Sheets - Checkboxes That Insert Current Date and Time",
@@ -1533,7 +1428,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Unhide Columns | Ctrl + Shift + 0 Not Working | Windows 11",
@@ -1552,7 +1447,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Progress Bars That Dynamically Update | Easy",
@@ -1571,7 +1466,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Building Interactive Dashboards",
@@ -1590,7 +1485,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Use Timeline Filters to Make Date Filtering Simple",
@@ -1609,7 +1504,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - IF Function with Nested VLOOKUP",
@@ -1628,7 +1523,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Find and Fill All Blank Cells",
@@ -1647,7 +1542,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Format Entire Row Based on Cell Criteria",
@@ -1666,7 +1561,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Combine Multiple Tabs or Worksheets into One | Power Query",
@@ -1685,7 +1580,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Automatically Highlight Active Row and Column | Based on Cell Selection",
@@ -1704,7 +1599,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Free Background Remover Tool | Remove Photo Background | Adobe",
@@ -1723,7 +1618,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Automatically Highlight Active Row | Based on Cell Selection",
@@ -1742,7 +1637,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Windows",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"How to Hide Folders on Your Desktop | Windows",
@@ -1761,7 +1656,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Best Way to Create Row Numbers | Include Text",
@@ -1780,7 +1675,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"How to Convert PDF to Excel | Excel 365",
@@ -1799,7 +1694,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Sorting Data in Excel | Sorting by Multiple Columns",
@@ -1818,7 +1713,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Clear Cache, Cookies, and Search History | Chrome | Firefox | Edge",
@@ -1837,7 +1732,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Google Chrome",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Google Chrome - Clear Cache, Cookies, and Search History",
@@ -1856,7 +1751,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Windows Edge",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Windows Edge - Clear Cache, Cookies, and Search History",
@@ -1875,7 +1770,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Firefox",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Firefox - Clear Cache, Cookies, and Search History",
@@ -1894,7 +1789,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Apply Conditional Formatting When You Select a Checkbox",
@@ -1913,7 +1808,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Pull In Data From Another Report",
@@ -1932,7 +1827,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Randomize Your Data | RAND Function | Easy",
@@ -1951,7 +1846,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - SUM and AutoSum Tips for Addition | Keyboard Shortcuts",
@@ -1970,7 +1865,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - FILTER Function Using Cell Range Instead of Multiple OR Statements",
@@ -1989,7 +1884,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Creating Pivot Tables",
@@ -2008,7 +1903,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Highlight Dates Coming Soon or Past Due | Project Due Dates",
@@ -2027,7 +1922,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Creating Your Professional Bio | Guidelines and Example Included | Executive Bio",
@@ -2046,7 +1941,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Best Way to Create Dynamic Dropdown Lists | No Spaces | Alphabetized | Excel 365",
@@ -2065,7 +1960,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Word",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"How to Convert PDF to Word | Edit PDF File",
@@ -2084,7 +1979,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Find and Remove Duplicate Values | UNIQUE Function",
@@ -2103,7 +1998,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Windows",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Speech to Text - Free Windows Feature",
@@ -2122,7 +2017,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Reveal Formulas in Your Workbook",
@@ -2141,7 +2036,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"How to Create Electronic or Digital Signature with No Background | Easy | Free",
@@ -2160,7 +2055,7 @@ window.contentItems = [
             "Videos"
         ],
         program:{
-            name:"YouTube",
+            name:"PowerPoint",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"PowerPoint Tips - Adding Music | Audio to Your Presentation | Formatting Audio Icon",
