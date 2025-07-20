@@ -83,7 +83,7 @@ Object.keys(topics).sort().forEach(topic => {
           <div class="info">
             <h4>${highlightMatches(item.title, filter)}</h4>
             <p>${highlightMatches(item.description, filter)}</p>
-            <a href="${item.link}" target="_blank">${pageType === 'videos' ? 'Watch Video' : pageType === 'templates' ? 'View Template' : 'View Resource'}</a>
+            
             ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
           </div>
         </div>
@@ -106,7 +106,7 @@ items.forEach(item => {
       <div class="info">
         <h4>${highlightMatches(item.title, filter)}</h4>
         <p>${highlightMatches(item.description, filter)}</p>
-        <a href="${item.link}" target="_blank">${pageType === 'videos' ? 'Watch Video' : pageType === 'templates' ? 'View Template' : 'View Resource'}</a>
+       
         ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
       </div>
     </div>
