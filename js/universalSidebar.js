@@ -67,41 +67,18 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderProgramCards(program, filter = '') {
     const groups = groupByProgramAndTopic(getAllItems());
     const topics = groups[program]?.topics || {};
-    resultsContainer.innerHTML = '';
-    Object.keys(topics).sort().forEach(topic => {
-      const topicId = `topic-${program.replace(/\s+/g, '_')}-${topic.replace(/\s+/g, '_')}`;
-      resultsContainer.innerHTML += `<div class="topic-anchor" id="${topicId}" style="padding-top: 1px; margin-top: -1px;"></div>`;
-      resultsContainer.innerHTML += `<h3 class="topic-header" data-topic="${topic}">${topic}</h3>`;
-      topics[topic].forEach(item => {
-        const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
-        if (!filter || searchText.includes(filter.toLowerCase())) {
-          resultsContainer.innerHTML += `
-            <div class="frosted-card" data-search="${searchText}" data-topic="${topic}">
-              <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
-              <div class="info">
-                <h4>${highlightMatches(item.title, filter)}</h4>
-                <p>${highlightMatches(item.description, filter)}</p>
-                <a href="${item.link}" target="_blank">${pageType === 'videos' ? 'Watch Video' : pageType === 'templates' ? 'View Template' : 'View Resource'}</a>
-                ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
-              </div>
-            </div>
-          `;
-        }
-      });
-    });
-    if (!resultsContainer.innerHTML.trim()) {
-      resultsContainer.innerHTML = `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
-    }
-    setupScrollTopicHighlight(program);
-  }
-
-  // Render all cards for the page (all programs), with highlight support
-  function renderAllCards(items, filter = '') {
-    resultsContainer.innerHTML = '';
-    items.forEach(item => {
-      const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
-      resultsContainer.innerHTML += `
-        <div class="frosted-card" data-search="${searchText}">
+   
+   
+   let html = '';
+Object.keys(topics).sort().forEach(topic => {
+  const topicId = `topic-${program.replace(/\s+/g, '_')}-${topic.replace(/\s+/g, '_')}`;
+  html += `<div class="topic-anchor" id="${topicId}" style="padding-top: 1px; margin-top: -1px;"></div>`;
+  html += `<h3 class="topic-header" data-topic="${topic}">${topic}</h3>`;
+  topics[topic].forEach(item => {
+    const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+    if (!filter || searchText.includes(filter.toLowerCase())) {
+      html += `
+        <div class="frosted-card" data-search="${searchText}" data-topic="${topic}">
           <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
           <div class="info">
             <h4>${highlightMatches(item.title, filter)}</h4>
@@ -111,11 +88,33 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
       `;
-    });
-    if (!items.length) {
-      resultsContainer.innerHTML = `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
     }
+  });
+});
+resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+    setupScrollTopicHighlight(program);
   }
+
+  // Render all cards for the page (all programs), with highlight support
+  function renderAllCards(items, filter = '') {
+   let html = '';
+items.forEach(item => {
+  const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+  html += `
+    <div class="frosted-card" data-search="${searchText}">
+      <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+      <div class="info">
+        <h4>${highlightMatches(item.title, filter)}</h4>
+        <p>${highlightMatches(item.description, filter)}</p>
+        <a href="${item.link}" target="_blank">${pageType === 'videos' ? 'Watch Video' : pageType === 'templates' ? 'View Template' : 'View Resource'}</a>
+        ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
+      </div>
+    </div>
+  `;
+});
+resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+    }
+  
 
   function filterAndHighlightCards(filter) {
     if (currentProgram) {
