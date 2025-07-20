@@ -26,10 +26,11 @@
     </div>
   </nav>
   <div class="container">
-    <aside class="sidebar" id="videosSidebar">
-      <h2>Programs</h2>
-      <!-- Sidebar content will be injected here -->
-    </aside>
+<aside class="sidebar" id="videosSidebar">
+  <div id="desktopSidebar"></div>
+  <div class="programs-row" id="programsRow" style="display:none;"></div>
+  <div class="topics-row" id="topicsRow" style="display:none;"></div>
+</aside>
     <div class="main-content">
       <div class="sticky-filter">
         <input type="text" id="videosSearch" class="search-filter" placeholder="Filter content..." />
@@ -45,57 +46,119 @@
   <script src="backgrounds.js"></script>
   
 
-  <script>
-  const videosResults = document.getElementById('videosResults');
-  const videosSidebar = document.getElementById('videosSidebar');
-  const searchInput = document.getElementById('videosSearch');
-  let sidebarState = {};
+ <script>
+const videosResults = document.getElementById('videosResults');
+const videosSidebar = document.getElementById('videosSidebar');
+const searchInput = document.getElementById('videosSearch');
+let sidebarState = {};
 
-  function getAllVideoItems() {
-    return (window.contentItems || []).filter(item =>
-      (Array.isArray(item.section) && item.section.includes('Videos')) ||
-      item.section === 'Videos'
-    );
+function isMobile() {
+  return window.innerWidth <= 700;
+}
+
+function getAllVideoItems() {
+  return (window.contentItems || []).filter(item =>
+    (Array.isArray(item.section) && item.section.includes('Videos')) ||
+    item.section === 'Videos'
+  );
+}
+
+function groupVideosByProgramAndTopic(items) {
+  const groups = {};
+  items.forEach(item => {
+    const program = item.program?.name || 'Other';
+    const topic = item.topic || 'General';
+    if (!groups[program]) groups[program] = { image: item.program?.image || '', topics: {} };
+    if (!groups[program].topics[topic]) groups[program].topics[topic] = [];
+    groups[program].topics[topic].push(item);
+  });
+  return groups;
+}
+
+// DESKTOP SIDEBAR
+function renderSidebar(groups) {
+  if (isMobile()) return;
+  let html = '<h2>Programs</h2>';
+  Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
+    const expanded = sidebarState[program]?.expanded || false;
+    html += `
+      <div class="sidebar-program" data-program="${program}">
+       ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}">` : ''}
+        <span>${program}</span>
+        <span style="margin-left:auto;">${expanded ? '▼' : '▶'}</span>
+      </div>
+      <ul class="sidebar-topics${expanded ? ' expanded' : ''}" data-program="${program}" style="display:${expanded ? 'block' : 'none'};">
+        ${Object.keys(groups[program].topics).sort((a, b) => a.localeCompare(b)).map(topic => {
+          return `
+            <li class="sidebar-topic" data-program="${program}" data-topic="${topic}">
+              <a href="#program=${encodeURIComponent(program)}&topic=${encodeURIComponent(topic)}">${topic}</a>
+            </li>
+          `;
+        }).join('')}
+      </ul>
+    `;
+  });
+  document.getElementById('desktopSidebar').innerHTML = html;
+}
+
+// MOBILE SIDEBAR
+function renderMobileSidebar(groups) {
+  const programsRow = document.getElementById('programsRow');
+  const topicsRow = document.getElementById('topicsRow');
+  if (!programsRow || !topicsRow) return;
+  if (!isMobile()) {
+    programsRow.style.display = 'none';
+    topicsRow.style.display = 'none';
+    return;
   }
+  programsRow.style.display = '';
+  topicsRow.style.display = '';
 
-  function groupVideosByProgramAndTopic(items) {
-    const groups = {};
-    items.forEach(item => {
-      const program = item.program?.name || 'Other';
-      const topic = item.topic || 'General';
-      if (!groups[program]) groups[program] = { image: item.program?.image || '', topics: {} };
-      if (!groups[program].topics[topic]) groups[program].topics[topic] = [];
-      groups[program].topics[topic].push(item);
+  // Render program buttons
+  programsRow.innerHTML = Object.keys(groups).sort().map((program, idx) => `
+    <button class="sidebar-program${idx === 0 ? ' active' : ''}" data-program="${program}">
+      ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}" style="height:20px;vertical-align:middle;margin-right:6px;">` : ''}
+      ${program}
+    </button>
+  `).join('');
+
+  // Only show topics for the active program
+  function showTopicsFor(program) {
+    topicsRow.innerHTML = Object.keys(groups[program].topics).sort().map(topic => `
+      <button class="sidebar-topic" data-program="${program}" data-topic="${topic}">${topic}</button>
+    `).join('');
+    // Add topic click handlers
+    topicsRow.querySelectorAll('.sidebar-topic').forEach(topicBtn => {
+      topicBtn.onclick = function() {
+        renderVideoItems(getVideosByProgramAndTopic(program, this.getAttribute('data-topic')));
+        topicsRow.querySelectorAll('.sidebar-topic').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+      };
     });
-    return groups;
   }
 
-  function renderSidebar(groups) {
-    let html = '<h2>Programs</h2>';
-    Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
-      const expanded = sidebarState[program]?.expanded || false;
-      html += `
-        <div class="sidebar-program" data-program="${program}">
-         ${window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}">` : ''}
-          <span>${program}</span>
-          <span style="margin-left:auto;">${expanded ? '▼' : '▶'}</span>
-        </div>
-        <ul class="sidebar-topics${expanded ? ' expanded' : ''}" data-program="${program}" style="display:${expanded ? 'block' : 'none'};">
-          ${Object.keys(groups[program].topics).sort((a, b) => a.localeCompare(b)).map(topic => {
-            const topicExpanded = sidebarState[program]?.topics?.[topic] ?? true;
-            return `
-              <li class="sidebar-topic${topicExpanded ? ' expanded' : ''}" data-program="${program}" data-topic="${topic}">
-                <span>${topic}</span>
-              </li>
-            `;
-          }).join('')}
-        </ul>
-      `;
-    });
-    videosSidebar.innerHTML = html;
-  }
+  // Set up program click handlers
+  programsRow.querySelectorAll('.sidebar-program').forEach(btn => {
+    btn.onclick = function() {
+      programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      showTopicsFor(this.getAttribute('data-program'));
+      topicsRow.style.display = '';
+    };
+  });
 
- 
+  // Show topics for the first program by default
+  const firstProgram = programsRow.querySelector('.sidebar-program.active')?.getAttribute('data-program') || Object.keys(groups)[0];
+  showTopicsFor(firstProgram);
+}
+
+function getVideosByProgramAndTopic(program, topic) {
+  return getAllVideoItems().filter(item => {
+    const prog = item.program?.name || 'Other';
+    const top = item.topic || 'General';
+    return prog === program && top === topic;
+  });
+}
 
 function renderVideoItems(items) {
   videosResults.innerHTML = '';
@@ -118,91 +181,122 @@ function renderVideoItems(items) {
   });
 }
 
-  function showPlaceholder() {
-    videosResults.innerHTML = '<div id="videosPlaceholder">Use the sidebar to select a program/topic, or type in the filter box to find instructional videos.</div>';
-  }
+function showPlaceholder() {
+  videosResults.innerHTML = '<div id="videosPlaceholder">Use the sidebar to select a program/topic, or type in the filter box to find instructional videos.</div>';
+}
 
-  function getFilteredVideos(filter = '') {
-    return getAllVideoItems().filter(item =>
-      item.title.toLowerCase().includes(filter.toLowerCase()) ||
-      item.description.toLowerCase().includes(filter.toLowerCase())
-    );
-  }
+function getFilteredVideos(filter = '') {
+  return getAllVideoItems().filter(item =>
+    item.title.toLowerCase().includes(filter.toLowerCase()) ||
+    item.description.toLowerCase().includes(filter.toLowerCase())
+  );
+}
 
-  function getVideosByProgramAndTopic(program, topic) {
-    return getAllVideoItems().filter(item => {
-      const prog = item.program?.name || 'Other';
-      const top = item.topic || 'General';
-      return prog === program && top === topic;
-    });
-  }
-
-  function handleSidebarClick(e) {
-    const progEl = e.target.closest('.sidebar-program');
-    const topicEl = e.target.closest('.sidebar-topic');
-    if (progEl) {
-      const program = progEl.getAttribute('data-program');
-      sidebarState[program] = sidebarState[program] || { expanded: false, topics: {} };
-      sidebarState[program].expanded = !sidebarState[program].expanded;
-      renderSidebar(groupVideosByProgramAndTopic(getAllVideoItems()));
-      showPlaceholder();
-      return;
-    }
-    if (topicEl) {
-      const program = topicEl.getAttribute('data-program');
-      const topic = topicEl.getAttribute('data-topic');
-      sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
-      sidebarState[program].topics = sidebarState[program].topics || {};
-      sidebarState[program].topics[topic] = !(sidebarState[program].topics[topic] ?? true);
-      if (sidebarState[program].topics[topic]) {
-        renderVideoItems(getVideosByProgramAndTopic(program, topic));
-      } else {
-        showPlaceholder();
-      }
-      renderSidebar(groupVideosByProgramAndTopic(getAllVideoItems()));
-      setTimeout(() => {
-        document.querySelectorAll('.sidebar-topic').forEach(el => {
-          el.classList.toggle('active',
-            el.getAttribute('data-program') === program && el.getAttribute('data-topic') === topic && sidebarState[program].topics[topic]
-          );
-        });
-      }, 0);
-      return;
-    }
-  }
-
-  function handleFilterInput() {
-    const filter = searchInput.value.trim();
-    if (filter.length === 0) {
-      showPlaceholder();
-    } else {
-      renderVideoItems(getFilteredVideos(filter));
-    }
-    document.querySelectorAll('.sidebar-topic').forEach(el => el.classList.remove('active'));
-  }
-
-  function initializeVideosPage() {
-    sidebarState = {};
+function handleSidebarClick(e) {
+  const progEl = e.target.closest('.sidebar-program');
+  const topicEl = e.target.closest('.sidebar-topic');
+  if (progEl) {
+    const program = progEl.getAttribute('data-program');
+    sidebarState[program] = sidebarState[program] || { expanded: false, topics: {} };
+    sidebarState[program].expanded = !sidebarState[program].expanded;
     renderSidebar(groupVideosByProgramAndTopic(getAllVideoItems()));
     showPlaceholder();
-    videosSidebar.addEventListener('click', handleSidebarClick);
-    searchInput.addEventListener('input', handleFilterInput);
+    return;
   }
+  if (topicEl) {
+    const program = topicEl.getAttribute('data-program');
+    const topic = topicEl.getAttribute('data-topic');
+    sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
+    sidebarState[program].topics = sidebarState[program].topics || {};
+    sidebarState[program].topics[topic] = !(sidebarState[program].topics[topic] ?? true);
+    if (sidebarState[program].topics[topic]) {
+      renderVideoItems(getVideosByProgramAndTopic(program, topic));
+    } else {
+      showPlaceholder();
+    }
+    renderSidebar(groupVideosByProgramAndTopic(getAllVideoItems()));
+    setTimeout(() => {
+      document.querySelectorAll('.sidebar-topic').forEach(el => {
+        el.classList.toggle('active',
+          el.getAttribute('data-program') === program && el.getAttribute('data-topic') === topic && sidebarState[program].topics[topic]
+        );
+      });
+    }, 0);
+    return;
+  }
+}
 
-  document.addEventListener('DOMContentLoaded', () => {
-    window.addEventListener('contentItemsLoaded', initializeVideosPage);
-    if (window.contentItems && window.contentItems.length) initializeVideosPage();
+function handleFilterInput() {
+  const filter = searchInput.value.trim();
+  if (filter.length === 0) {
+    showPlaceholder();
+  } else {
+    renderVideoItems(getFilteredVideos(filter));
+  }
+  document.querySelectorAll('.sidebar-topic').forEach(el => el.classList.remove('active'));
+}
+
+function initializeVideosPage() {
+  sidebarState = {};
+  renderSidebar(groupVideosByProgramAndTopic(getAllVideoItems()));
+  showPlaceholder();
+  videosSidebar.addEventListener('click', handleSidebarClick);
+  searchInput.addEventListener('input', handleFilterInput);
+}
+
+function loadSectionFromHash() {
+  const hash = window.location.hash.slice(1);
+  const params = new URLSearchParams(hash.replace(/&/g, '&'));
+  const program = params.get('program');
+  const topic = params.get('topic');
+  if (program && topic) {
+    sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
+    sidebarState[program].expanded = true;
+    sidebarState[program].topics = sidebarState[program].topics || {};
+    sidebarState[program].topics[topic] = true;
+    renderSidebar(groupVideosByProgramAndTopic(getAllVideoItems()));
+    renderVideoItems(getVideosByProgramAndTopic(program, topic));
+    setTimeout(() => {
+      document.querySelectorAll('.sidebar-topic').forEach(el => {
+        el.classList.toggle('active',
+          el.getAttribute('data-program') === program && el.getAttribute('data-topic') === topic
+        );
+      });
+    }, 0);
+  }
+}
+
+window.addEventListener('hashchange', loadSectionFromHash);
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.addEventListener('contentItemsLoaded', initializeVideosPage);
+  if (window.contentItems && window.contentItems.length) initializeVideosPage();
+
+  // Mobile sidebar rendering on load and resize
+  const items = getAllVideoItems();
+  const groups = groupVideosByProgramAndTopic(items);
+  renderMobileSidebar(groups);
+
+  window.addEventListener('resize', () => {
+    const items = getAllVideoItems();
+    const groups = groupVideosByProgramAndTopic(items);
+    renderMobileSidebar(groups);
   });
 
-  // Hamburger menu toggle
-  const hamburgerBtn = document.getElementById('hamburgerBtn');
-  const navLinks = document.getElementById('navLinks');
-  hamburgerBtn.addEventListener('click', () => {
-    navLinks.classList.toggle('open');
+  loadSectionFromHash();
+});
+
+// Hamburger menu toggle
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const navLinks = document.getElementById('navLinks');
+hamburgerBtn.addEventListener('click', () => {
+  navLinks.classList.toggle('open');
+});
+navLinks.querySelectorAll('a').forEach(link => {
+  link.addEventListener('click', () => {
+    navLinks.classList.remove('open');
   });
-  navLinks.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
-      navLinks.classList.remove('open');
-    });
-  });
+});
 </script>
+</body>
+</html>
