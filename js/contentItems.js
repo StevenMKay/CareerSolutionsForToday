@@ -3853,34 +3853,24 @@ window.contentItems = [
 
 
 
-
 window.updateYouTubeContentItems = async function() {
-  const API_KEY     = 'AIzaSyAsoqLIWCHLTCs35HsqDgbZuhgnymwjuKY';
   const CHANNEL_ID  = 'UCY_eFbgvDBsEmY10mtFNLNw';
   const UPLOADS_PLAYLIST_ID = 'UU' + CHANNEL_ID.slice(2);
 
-  async function fetchAllPlaylistItems(playlistId, apiKey) {
-    let items = [];
-    let pageToken = '';
-    do {
-      const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=50&key=${apiKey}` +
-        (pageToken ? `&pageToken=${pageToken}` : '');
-      const res = await fetch(url).then(r => r.json());
-      items = items.concat(res.items);
-      pageToken = res.nextPageToken;
-    } while (pageToken);
-    return items;
-  }
+  // Fetch playlist items from your backend proxy
+  const response = await fetch(`http://localhost:3001/api/youtube?playlistId=${UPLOADS_PLAYLIST_ID}&maxResults=50`);
+  const data = await response.json();
+  const plResItems = data.items || [];
 
-  const plResItems = await fetchAllPlaylistItems(UPLOADS_PLAYLIST_ID, API_KEY);
   const videoIdList = plResItems.map(i => i.snippet.resourceId.videoId);
   let allVidItems = [];
   for (let i = 0; i < videoIdList.length; i += 50) {
     const batchIds = videoIdList.slice(i, i + 50).join(',');
+    // Fetch video details from your backend proxy
     const batchRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${batchIds}&key=${API_KEY}`
+      `http://localhost:3001/api/youtube?playlistId=${UPLOADS_PLAYLIST_ID}&maxResults=50&id=${batchIds}`
     ).then(r => r.json());
-    allVidItems = allVidItems.concat(batchRes.items);
+    allVidItems = allVidItems.concat(batchRes.items || []);
   }
 
   // Get a Set of all existing YouTube video links
