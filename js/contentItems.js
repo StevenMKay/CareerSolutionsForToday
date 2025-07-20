@@ -935,7 +935,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/eFJJXGoQGDU"
         },
-        topic:"Custom Tabs and Groupd"
+        topic:"Custom Tabs and Groups"
     },
     {
         section:[
