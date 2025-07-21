@@ -73,7 +73,7 @@ window.contentItems = [
         title:"Modern Resume Tips",
         description:"Step-by-step guide to resume writing strategies and a provided template.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8f7a31e22e2ef623ad6b605b1f8d06a0c71b24a3/Thumbnail%20Modern%20Resume%20Video.png",
-        link:"https://youtu.be/0YgpqxPWmoc",
+        link:"https://youtu.be/b-UlEXG_msU",
         related:{
             text:"Modern resume template",
             url:"https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx"
@@ -735,7 +735,7 @@ window.contentItems = [
         link:"https://youtu.be/0YgpqxPWmoc",
         related:{
             text:"Check it out on YouTube",
-            url:"https://youtu.be/0YgpqxPWmoc"
+            url:"https://youtu.be/b-UlEXG_msU"
         },
         topic:"Resumes"
     },
