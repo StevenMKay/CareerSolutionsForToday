@@ -63,58 +63,116 @@ document.addEventListener('DOMContentLoaded', () => {
     return text.replace(regex, '<span class="highlight-match">$1</span>');
   }
 
+  // Section order and sort helper
+  const SECTION_ORDER = ['Videos', 'Templates', 'Practice', 'Documents', 'Other', 'Learning'];
+  function sectionSort(a, b) {
+    // Remove "Learning," and ",Learning" for sorting
+    const cleanA = a.replace(/^Learning,/, '').replace(/,Learning$/, '').trim();
+    const cleanB = b.replace(/^Learning,/, '').replace(/,Learning$/, '').trim();
+    const idxA = SECTION_ORDER.indexOf(cleanA) === -1 ? 999 : SECTION_ORDER.indexOf(cleanA);
+    const idxB = SECTION_ORDER.indexOf(cleanB) === -1 ? 999 : SECTION_ORDER.indexOf(cleanB);
+    return idxA - idxB;
+  }
+
   // Render all cards for a program, grouped by topic, with topic anchors
   function renderProgramCards(program, filter = '') {
     const groups = groupByProgramAndTopic(getAllItems());
     const topics = groups[program]?.topics || {};
-   
-   
-   let html = '';
-Object.keys(topics).sort().forEach(topic => {
-  const topicId = `topic-${program.replace(/\s+/g, '_')}-${topic.replace(/\s+/g, '_')}`;
-  html += `<div class="topic-anchor" id="${topicId}" style="padding-top: 1px; margin-top: -1px;"></div>`;
-  html += `<h3 class="topic-header" data-topic="${topic}">${topic}</h3>`;
-  topics[topic].forEach(item => {
-    const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
-    if (!filter || searchText.includes(filter.toLowerCase())) {
-      html += `
-        <div class="frosted-card" data-search="${searchText}" data-topic="${topic}">
-          <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
-          <div class="info">
-            <h4>${highlightMatches(item.title, filter)}</h4>
-            <p>${highlightMatches(item.description, filter)}</p>
-            
-            ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
-          </div>
-        </div>
-      `;
-    }
-  });
-});
-resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+
+    // 1. Gather all filtered items and group by section, then by topic
+    const sectionGroups = {};
+    Object.keys(topics).forEach(topic => {
+      const filteredItems = topics[topic].filter(item => {
+        const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+        return !filter || searchText.includes(filter.toLowerCase());
+      });
+      filteredItems.forEach(item => {
+        const section = item.section || 'Learning';
+        if (!sectionGroups[section]) sectionGroups[section] = {};
+        if (!sectionGroups[section][topic]) sectionGroups[section][topic] = [];
+        sectionGroups[section][topic].push(item);
+      });
+    });
+
+    let html = '';
+    Object.keys(sectionGroups).sort(sectionSort).forEach(section => {
+      let displaySection = section;
+      if (displaySection.startsWith('Learning,')) {
+        displaySection = displaySection.replace(/^Learning,/, '').trim();
+      }
+      if (displaySection.endsWith(',Learning')) {
+        displaySection = displaySection.replace(/,Learning$/, '').trim();
+      }
+      if (displaySection === 'Learning' || displaySection === '') return; // skip header for pure Learning or empty
+
+      html += `<h4 class="section-header">${displaySection}</h4><div class="section-divider"></div>`;
+
+      // Now, for each topic in this section:
+      Object.keys(sectionGroups[section]).sort().forEach(topic => {
+        const items = sectionGroups[section][topic];
+        if (items.length > 0) {
+          const topicId = `topic-${program.replace(/\s+/g, '_')}-${topic.replace(/\s+/g, '_')}`;
+          html += `<div class="topic-anchor" id="${topicId}" style="padding-top: 1px; margin-top: -1px;"></div>`;
+          html += `<h3 class="topic-header" data-topic="${topic}">${topic}</h3>`;
+          items.forEach(item => {
+            const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+            html += `
+              <div class="frosted-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
+                <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+                <div class="info">
+                  <h4>${highlightMatches(item.title, filter)}</h4>
+                  <p>${highlightMatches(item.description, filter)}</p>
+                  ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
+                </div>
+              </div>
+            `;
+          });
+        }
+      });
+    });
+
+    resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
     setupScrollTopicHighlight(program);
   }
 
   // Render all cards for the page (all programs), with highlight support
   function renderAllCards(items, filter = '') {
-   let html = '';
-items.forEach(item => {
-  const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
-  html += `
-    <div class="frosted-card" data-search="${searchText}">
-      <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
-      <div class="info">
-        <h4>${highlightMatches(item.title, filter)}</h4>
-        <p>${highlightMatches(item.description, filter)}</p>
-       
-        ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
-      </div>
-    </div>
-  `;
-});
-resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
-    }
-  
+    let html = '';
+    // Group items by section (default to 'Learning' if missing)
+    const sectionGroups = {};
+    items.forEach(item => {
+      const section = item.section || 'Learning';
+      if (!sectionGroups[section]) sectionGroups[section] = [];
+      sectionGroups[section].push(item);
+    });
+
+    Object.keys(sectionGroups).sort(sectionSort).forEach(section => {
+      let displaySection = section;
+      if (displaySection.startsWith('Learning,')) {
+        displaySection = displaySection.replace(/^Learning,/, '').trim();
+      }
+      if (displaySection.endsWith(',Learning')) {
+        displaySection = displaySection.replace(/,Learning$/, '').trim();
+      }
+      if (displaySection === 'Learning' || displaySection === '') return; // skip header for pure Learning or empty
+      html += `<h3 class="section-header">${displaySection}</h3><div class="section-divider"></div>`;
+      sectionGroups[section].forEach(item => {
+        const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+        html += `
+          <div class="frosted-card" data-search="${searchText}">
+            <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+            <div class="info">
+              <h4>${highlightMatches(item.title, filter)}</h4>
+              <p>${highlightMatches(item.description, filter)}</p>
+              ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
+            </div>
+          </div>
+        `;
+      });
+    });
+
+    resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+  }
 
   function filterAndHighlightCards(filter) {
     if (currentProgram) {
@@ -178,70 +236,60 @@ resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;t
     }
   }
 
+  function renderMobileSidebar(groups) {
+    const programsRow = document.getElementById('programsRow');
+    const topicsRow = document.getElementById('topicsRow');
+    if (!programsRow || !topicsRow) return;
+    if (!isMobile()) {
+      programsRow.style.display = 'none';
+      topicsRow.style.display = 'none';
+      return;
+    }
+    programsRow.style.display = '';
+    topicsRow.style.display = '';
 
-
-function renderMobileSidebar(groups) {
-  const programsRow = document.getElementById('programsRow');
-  const topicsRow = document.getElementById('topicsRow');
-  if (!programsRow || !topicsRow) return;
-  if (!isMobile()) {
-    programsRow.style.display = 'none';
-    topicsRow.style.display = 'none';
-    return;
-  }
-  programsRow.style.display = '';
-  topicsRow.style.display = '';
-
-  // Render program buttons
-  programsRow.innerHTML = Object.keys(groups).sort().map((program) => `
-    <button class="sidebar-program${currentProgram === program ? ' active' : ''}" data-program="${program}">
-      ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}" style="height:20px;vertical-align:middle;margin-right:6px;">` : ''}
-      ${program}
-    </button>
-  `).join('');
-
-  // Helper to show topics for a program
-  function showTopicsFor(program) {
-    topicsRow.innerHTML = Object.keys(groups[program].topics).sort().map(topic => `
-      <button class="sidebar-topic${currentTopic === topic ? ' active' : ''}" data-program="${program}" data-topic="${topic}">${topic}</button>
+    // Render program buttons
+    programsRow.innerHTML = Object.keys(groups).sort().map((program) => `
+      <button class="sidebar-program${currentProgram === program ? ' active' : ''}" data-program="${program}">
+        ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}" style="height:20px;vertical-align:middle;margin-right:6px;">` : ''}
+        ${program}
+      </button>
     `).join('');
-    // Topic click handlers
-    topicsRow.querySelectorAll('.sidebar-topic').forEach(topicBtn => {
-      topicBtn.onclick = function() {
-        currentProgram = program;
-        currentTopic = this.getAttribute('data-topic');
-        searchInput.value = '';
-        const items = getItemsByProgramAndTopic(program, currentTopic);
-        renderAllCards(items);
-        showTopicsFor(program); // update highlight
+
+    // Helper to show topics for a program
+    function showTopicsFor(program) {
+      topicsRow.innerHTML = Object.keys(groups[program].topics).sort().map(topic => `
+        <button class="sidebar-topic${currentTopic === topic ? ' active' : ''}" data-program="${program}" data-topic="${topic}">${topic}</button>
+      `).join('');
+      // Topic click handlers
+      topicsRow.querySelectorAll('.sidebar-topic').forEach(topicBtn => {
+        topicBtn.onclick = function() {
+          currentProgram = program;
+          currentTopic = this.getAttribute('data-topic');
+          searchInput.value = '';
+          const items = getItemsByProgramAndTopic(program, currentTopic);
+          renderAllCards(items);
+          showTopicsFor(program); // update highlight
+        };
+      });
+    }
+
+    // Program click handlers
+    programsRow.querySelectorAll('.sidebar-program').forEach(btn => {
+      btn.onclick = function() {
+        programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        currentProgram = this.getAttribute('data-program');
+        currentTopic = null;
+        renderProgramCards(currentProgram);
+        showTopicsFor(currentProgram);
       };
     });
+
+    // Show topics for the selected or first program by default
+    const firstProgram = currentProgram || Object.keys(groups)[0];
+    showTopicsFor(firstProgram);
   }
-
-  // Program click handlers
-  programsRow.querySelectorAll('.sidebar-program').forEach(btn => {
-    btn.onclick = function() {
-      programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      currentProgram = this.getAttribute('data-program');
-      currentTopic = null;
-      renderProgramCards(currentProgram);
-      showTopicsFor(currentProgram);
-    };
-  });
-
-  // Show topics for the selected or first program by default
-  const firstProgram = currentProgram || Object.keys(groups)[0];
-  showTopicsFor(firstProgram);
-}
-
-
-
-
-
-
-
-
 
   function getItemsByProgramAndTopic(program, topic) {
     return getAllItems().filter(item => {
@@ -306,7 +354,21 @@ function renderMobileSidebar(groups) {
 
   function handleFilterInput() {
     const filter = searchInput.value.trim();
-    filterAndHighlightCards(filter);
+    const expandedPrograms = Object.keys(sidebarState).filter(p => sidebarState[p].expanded);
+    if (expandedPrograms.length === 0) {
+      currentProgram = null;
+      filterAndHighlightCards(searchInput.value.trim());
+    }
+
+    if (expandedPrograms.length === 1) {
+      // Only one program open: filter within that program
+      currentProgram = expandedPrograms[0];
+      renderProgramCards(currentProgram, filter);
+    } else {
+      // None or multiple open: filter all programs
+      currentProgram = null;
+      filterAndHighlightCards(filter);
+    }
     document.querySelectorAll('.sidebar-topic').forEach(el => el.classList.remove('active'));
   }
 
