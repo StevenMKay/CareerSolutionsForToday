@@ -62,7 +62,10 @@ window.contentItems = [
         topic:"Dynamic Text Filter"
     },
     {
-        section:"Videos",
+         section:[
+            "Learning",
+            "Videos"
+        ],
         program:{
             name:"General",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
@@ -87,6 +90,10 @@ window.contentItems = [
         description:"Fillable modern resume template with sections including skills, education, and more.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/Thumbnail%20-%20Modern%20Resume%20Template.png",
         link:"https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx",
+          related:{
+            text:"Modern resume template",
+            url:"https://docs.google.com/presentation/d/1q56RDcpNKYnM69j6ElT9LfV04faAcRDu/export?format=pptx"
+        },
         topic:"Resumes"
     },
     {
@@ -99,6 +106,10 @@ window.contentItems = [
         description:"A PowerPoint resume layout that includes a space for your photo and personalized details.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6bcca2d9951dd2fa2acfdd7037e3da74f59f025f/Thumbnail%20-%20Modern%20Resume%20Template%20with%20Photo.png",
         link:"https://docs.google.com/presentation/d/1hnGjNDEAXbPqIY6b_9niedbhqE8wJFdG/export?format=pptx",
+        related:{
+            text:"Modern resume template with Photo",
+            url:"https://docs.google.com/presentation/d/1hnGjNDEAXbPqIY6b_9niedbhqE8wJFdG/export?format=pptx"
+        },
         topic:"Resumes"
     },
     {
@@ -1068,7 +1079,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/J2POjkEkPnI"
         },
-        topic:"Quick Analysis"
+        topic:"Percent of Total Quick Analysis"
     },
     {
         section:[
@@ -1106,7 +1117,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/lKMFbOEcT-E"
         },
-        topic:"Languages"
+        topic:"Installing New Languages"
     },
     {
         section:[
@@ -1125,7 +1136,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/XteFDykFGH4"
         },
-        topic:"Email"
+        topic:"Email Hyperlinks"
     },
     {
         section:[
@@ -1144,7 +1155,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/CwPyt2skqmw"
         },
-        topic:"GOOGLETRANSLATE"
+        topic:"GOOGLETRANSLATE Function"
     },
     {
         section:[
@@ -1163,7 +1174,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/vwQ7ebaZTmM"
         },
-        topic:"Rows"
+        topic:"Autofit Row Height"
     },
     {
         section:[
@@ -1201,7 +1212,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/sdall4s4_RY"
         },
-        topic:"Filter"
+        topic:"Dynamic Text Filter"
     },
     {
         section:[
@@ -1220,7 +1231,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/4Xtd_Wzr6H8"
         },
-        topic:"Sheets"
+        topic:"Freeze Columns and Rows"
     },
     {
         section:[
@@ -1239,7 +1250,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/lSU0Nf2y154"
         },
-        topic:"MATCH"
+        topic:"INDEX and MATCH Function"
     },
     {
         section:[
@@ -1258,7 +1269,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/K4eIUNwejcM"
         },
-        topic:"Formula"
+        topic:"Important Formulas"
     },
     {
         section:[
@@ -1277,7 +1288,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/6rWE9mygXPA"
         },
-        topic:"Sheets"
+        topic:"Dynamic Search Box"
     },
     {
         section:[
@@ -1296,7 +1307,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/tEAw-J6fKcE"
         },
-        topic:"Combining"
+        topic:"Combining Names"
     },
     {
         section:[
@@ -1315,7 +1326,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/H21LSC1V36s"
         },
-        topic:"Excel"
+        topic:"Restore Previous Versions"
     },
     {
         section:[
@@ -1353,7 +1364,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/iZIeDN8m86k"
         },
-        topic:"Sheets"
+        topic:"Find and Remove Duplicates"
     },
     {
         section:[
@@ -1372,7 +1383,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/U2QAEGZrdvI"
         },
-        topic:"Excel"
+        topic:"Calculating Time Differences | Hours Worked"
     },
     {
         section:[
@@ -1410,7 +1421,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/ngMbmmKYMnM"
         },
-        topic:"Blanks"
+        topic:"Remove Blank Rows"
     },
     {
         section:[
@@ -1429,7 +1440,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/gLV30MN76ds"
         },
-        topic:"Sheets"
+        topic:"Checkboxes to Insert Date and Time"
     },
     {
         section:[
@@ -1448,7 +1459,7 @@ window.contentItems = [
             text:"Check it out on YouTube",
             url:"https://youtu.be/JpMyIZxHAS0"
         },
-        topic:"Columns"
+        topic:"Unhide Columns"
     },
     {
         section:[
