@@ -31,7 +31,8 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 window.contentItems = [
  
 {
-section:"Videos",
+section:"Learning",
+            "Videos"
         program:{
             name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
