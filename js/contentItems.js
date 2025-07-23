@@ -29,6 +29,8 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 
 // 1) First declare your static items:
 window.contentItems = [
+
+{
  section:[
             "Learning",
             "Videos"
