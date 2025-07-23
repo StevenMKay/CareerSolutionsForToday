@@ -30,6 +30,28 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 // 1) First declare your static items:
 window.contentItems = [
 
+
+{
+  
+        section:"Templates",
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
+        link:"https://youtube.com/shorts/TCMYpQUytOM",
+        title:"Professional Bio Template",
+        description:"This is a professional bio template you can download and fill out for your needs.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
+       link:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx",
+        topic:"Professional Bio Template",
+    },
+
+
+
+
+
+  
 {
  section:[
             "Learning",
