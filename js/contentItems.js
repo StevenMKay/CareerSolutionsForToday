@@ -1,3 +1,4 @@
+
 window.PROGRAM_ICONS = {
   Outlook:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/outlookicon.png",
  'Google Chrome':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a4f299d05ef28e41160723f72b439f29a3868b0a/chromeicon.png",
@@ -30,6 +31,28 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 // 1) First declare your static items:
 window.contentItems = [
 
+
+
+
+
+
+
+{
+       section:"Practice Documents",
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png"
+        },
+        title:"Practice Workbook - Dependent Dropdown Lists",
+        description:"Step-by-step guide to creating dependent dropdown lists in Excel using data validation for up to 3 levels and multi-word scenarios.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png",
+        link:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png",
+  related:{
+            text:"Dependent Dropdown Lists",
+            url:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png"
+        },
+        topic:"Dependent Dropdown Lists"
+    },
 
 {
   
@@ -92,7 +115,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         title:"Practice Workbook - Dynamic Text Filter",
         description:"A downloadable spreadsheet to practice the dynamic text filter capability.",
-        thumbnail:"https://img.icons8.com/color/96/000000/microsoft-excel-2019--v1.png",
+        thumbnail:"https://i.ytimg.com/vi/sdall4s4_RY/hqdefault.jpg",
         link:"https://docs.google.com/spreadsheets/d/1taPzeomXBu-O1G-FmmVhlBmBYNeqMTu5/export?format=xlsx",
         related:{
             text:"Video explaining function",
@@ -1244,7 +1267,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Text Search Box | Dynamic Filtering | One or Multiple Columns",
-        description:"Hey team,\n\nThis video will show you how to create a text search box in Excel that can dynamically filter one or multiple columns.\n\nChapters:\n0:00 Introduction\n0:17 Filter Basics | One Column\n1:30 Filter Advanced | Multiple Columns\n\nPractice workbook link: https://docs.google.com/spreadsheets/d/1taPzeomXBu-O1G-FmmVhlBmBYNeqMTu5/export?format=xlsx\n\nVideo to filter using conditional formatting: https://youtu.be/nuYWqOWO59Y",
+        description:"This video will show you how to create a text search box in Excel that can dynamically filter one or multiple columns.",
         thumbnail:"https://i.ytimg.com/vi/sdall4s4_RY/hqdefault.jpg",
         link:"https://youtu.be/sdall4s4_RY",
         related:{
