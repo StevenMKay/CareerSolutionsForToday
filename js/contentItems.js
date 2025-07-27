@@ -34,6 +34,46 @@ window.contentItems = [
 
 
 
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
+https:"https://youtu.be/r4iBjEWwZ74",
+ title:"Highlight Every Other Row",
+        description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
+       link:"https://youtu.be/r4iBjEWwZ74",
+        topic:"Highlight Every Other Row",
+    },
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
+https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
+ title:"Shorts - Highlight Every Other Row",
+        description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
+       link:"https://www.youtube.com/shorts/fzTXUBWDCA4",
+        topic:"Highlight Every Other Row",
+    },
+
 
 
 
