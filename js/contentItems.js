@@ -31,6 +31,22 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 // 1) First declare your static items:
 window.contentItems = [
 
+    {
+        section:"Templates",
+        program:{
+            name:"General",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png"
+        },
+        title:"Classic Resume Template",
+        description:"Fillable classic resume template with sections including skills, education, and more.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/classicres.png",
+        link:"https://docs.google.com/document/d/10qH5epMz5GTIDCll2VBeHhtUhKlRCx4I/export?format=docx",
+          related:{
+            text:"Classic resume template",
+            url:"https://docs.google.com/document/d/10qH5epMz5GTIDCll2VBeHhtUhKlRCx4I/export?format=docx"
+        },
+        topic:"Resumes"
+    },
 
 
 
