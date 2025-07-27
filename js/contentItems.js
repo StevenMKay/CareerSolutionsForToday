@@ -65,6 +65,10 @@ https:"https://youtu.be/r4iBjEWwZ74",
         description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
        link:"https://youtu.be/r4iBjEWwZ74",
+       related:{
+            text:"Check it out on Youtube",
+            url:"https://youtu.be/r4iBjEWwZ74"
+        },
         topic:"Highlight Every Other Row",
     },
 
@@ -87,6 +91,10 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
         description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
        link:"https://www.youtube.com/shorts/fzTXUBWDCA4",
+     related:{
+            text:"Check it out on Youtube",
+            url:"https://www.youtube.com/shorts/fzTXUBWDCA4"
+        },
         topic:"Highlight Every Other Row",
     },
 
@@ -146,6 +154,10 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         description:"This quick video will show you how to hide or remove all unused columns or rows in Excel to create a clean view for your users. We will also cover how to unhide or restore the hidden columns and rows.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
        link:"https://youtube.com/shorts/TCMYpQUytOM",
+       related:{
+            text:"Check it out on Youtube",
+            url:"https://youtube.com/shorts/TCMYpQUytOM"
+        },
         topic:"Hiding All Columns and Rows",
     },
 
