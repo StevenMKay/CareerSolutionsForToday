@@ -822,6 +822,9 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Screenshot Tips"
     },
+
+
+  
     {
         section:[
             "Learning",
@@ -832,15 +835,17 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Career Tips - Professional Modern Resume Template and Tips",
-        description:"Hey team,\n\nIn this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin\n\nLink to buy template: https://www.ebay.com/itm/335704148896",
-        thumbnail:"https://i.ytimg.com/vi/0YgpqxPWmoc/hqdefault.jpg",
-        link:"https://youtu.be/0YgpqxPWmoc",
+        description:"In this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin\n\nLink to buy template: https://www.ebay.com/itm/335704148896",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8f7a31e22e2ef623ad6b605b1f8d06a0c71b24a3/Thumbnail%20Modern%20Resume%20Video.png",
+        link:"ttps://youtu.be/b-UlEXG_msU",
         related:{
             text:"Check it out on YouTube",
             url:"https://youtu.be/b-UlEXG_msU"
         },
         topic:"Resumes"
     },
+
+  
     {
         section:[
             "Learning",
