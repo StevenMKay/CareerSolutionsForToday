@@ -742,8 +742,23 @@
         // Scroll to results
         document.getElementById('feedbackSection').scrollIntoView({ behavior: 'smooth' });
       } catch (error) {
-        alert('Error analyzing resume: ' + error.message + '\n\nPlease try again. No usage counted for failed attempts.');
-        console.error('Analysis error:', error);
+        console.error('Analysis error details:', error);
+        
+        let errorMessage = 'Error analyzing resume: ' + error.message;
+        
+        // Provide more specific error messages
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = 'Unable to connect to the analysis service. This could be due to:\n\n' +
+                       '• Network connectivity issues\n' +
+                       '• The backend service being temporarily unavailable\n' +
+                       '• CORS or firewall restrictions\n\n' +
+                       'A mock analysis will be shown for testing purposes.';
+        } else if (error.message.includes('parse')) {
+          errorMessage = 'The server response could not be processed:\n\n' + error.message + 
+                       '\n\nPlease check the browser console for more details.';
+        }
+        
+        alert(errorMessage + '\n\nNo usage counted for failed attempts.');
       } finally {
         analyzeBtn.textContent = '🔍 Analyze My Resume';
         analyzeBtn.disabled = false;
@@ -752,36 +767,144 @@
 
     async function performAIResumeAnalysis(resumeText, jobDescription = '') {
       try {
+        console.log('=== ANALYSIS DEBUG INFO ===');
+        console.log('Backend URL:', BACKEND_URL);
+        console.log('Resume text length:', resumeText.length);
+        console.log('Resume text preview:', resumeText.substring(0, 200) + '...');
+        console.log('Job description length:', jobDescription.length);
+        
+        const requestBody = {
+          resumeText: resumeText,
+          jobDescription: jobDescription
+        };
+        
+        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+        
         const response = await fetch(BACKEND_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            resumeText: resumeText,
-            jobDescription: jobDescription
-          })
+          body: JSON.stringify(requestBody)
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Backend Error: ${errorData.message || 'Unknown error'}`);
-        }
+        console.log('Response status:', response.status);
+        console.log('Response statusText:', response.statusText);
+        console.log('Response headers:', [...response.headers.entries()]);
 
-        const data = await response.json();
+        const responseText = await response.text();
+        console.log('Raw response text:', responseText);
+
+        if (!response.ok) {
+          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          try {
+            const errorData = JSON.parse(responseText);
+            console.log('Parsed error data:', errorData);
+            errorMessage = errorData.message || errorMessage;
+          } catch (e) {
+            console.log('Could not parse error response as JSON:', e);
+            errorMessage = responseText || errorMessage;
+          }
+          
+          // If it's the "Failed to parse AI analysis results" error, provide a workaround
+          if (errorMessage.includes('Failed to parse AI analysis results')) {
+            console.log('Backend AI parsing failed, using mock response for demonstration...');
+            alert('The backend AI service is currently having issues parsing the resume. Using a demo response to show the interface functionality.');
+            return getMockAnalysisResponse();
+          }
+          
+          throw new Error(`Backend Error: ${errorMessage}`);
+        }
+        
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          console.log('Successfully parsed response:', data);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError);
+          console.log('Using mock response due to parse error...');
+          alert('Server response could not be parsed. Using demo response to show interface functionality.');
+          return getMockAnalysisResponse();
+        }
         
         if (!data.success) {
-          throw new Error('Analysis failed');
+          console.log('Server returned success=false:', data);
+          if (data.message && data.message.includes('Failed to parse AI analysis results')) {
+            console.log('AI parsing failed on server, using mock response...');
+            alert('The AI analysis service is temporarily having issues. Using a demo response to show the interface functionality.');
+            return getMockAnalysisResponse();
+          }
+          throw new Error(`Analysis failed: ${data.message || 'Unknown error'}`);
         }
 
-        return data.analysis;
-      } catch (error) {
-        // If backend is down, show helpful error
-        if (error.message.includes('fetch')) {
-          throw new Error('Unable to connect to analysis service. Please try again in a moment.');
+        if (!data.analysis) {
+          console.log('No analysis data in response:', data);
+          alert('No analysis data received. Using demo response to show interface functionality.');
+          return getMockAnalysisResponse();
         }
+
+        console.log('Analysis successful:', data.analysis);
+        return data.analysis;
+        
+      } catch (error) {
+        console.error('=== ANALYSIS ERROR ===');
+        console.error('Error type:', error.constructor.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        
+        // If it's a network error, provide mock response
+        if (error.message.includes('Failed to fetch') || error.message.includes('network') || error.name === 'TypeError') {
+          console.log('Network error detected, providing mock response...');
+          alert('Unable to connect to analysis service. Using demo response to show interface functionality.');
+          return getMockAnalysisResponse();
+        }
+        
         throw error;
       }
+    }
+
+    // Mock response for testing when backend is unavailable
+    function getMockAnalysisResponse() {
+      return {
+        overallScore: 78,
+        categories: [
+          {
+            name: "Contact Information",
+            score: 85,
+            status: "good",
+            feedback: "Contact information is complete and professional.",
+            suggestions: []
+          },
+          {
+            name: "Professional Summary",
+            score: 72,
+            status: "warning", 
+            feedback: "Summary is present but could be more compelling.",
+            suggestions: ["Add specific achievements with metrics", "Tailor summary to target role"]
+          },
+          {
+            name: "Work Experience",
+            score: 80,
+            status: "good",
+            feedback: "Good work experience with relevant positions.",
+            suggestions: ["Add more quantified results", "Use stronger action verbs"]
+          },
+          {
+            name: "Skills Section",
+            score: 75,
+            status: "warning",
+            feedback: "Skills are listed but could be better organized.",
+            suggestions: ["Group skills into categories", "Add proficiency levels"]
+          },
+          {
+            name: "Education",
+            score: 90,
+            status: "good", 
+            feedback: "Education section is well formatted.",
+            suggestions: []
+          }
+        ]
+      };
     }
 
     function displayAnalysisResults(analysis, hasJobDescription = false) {
@@ -862,4 +985,5 @@
   </script>
 </body>
 </html>
+
 
