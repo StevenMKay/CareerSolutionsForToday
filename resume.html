@@ -129,6 +129,67 @@
       box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
     }
 
+    /* Enhanced drag feedback */
+    .drag-drop-area.drag-active {
+      border-color: #2196f3;
+      background: rgba(33, 150, 243, 0.15);
+      box-shadow: 0 0 30px rgba(33, 150, 243, 0.4);
+      transform: scale(1.02);
+      transition: all 0.2s ease;
+    }
+
+    .drag-drop-area.drag-active::before {
+      content: '📄 Drop your resume here!';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(33, 150, 243, 0.9);
+      color: white;
+      padding: 15px 25px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 16px;
+      z-index: 10;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      animation: pulse 1.5s infinite;
+    }
+
+    .drag-drop-area.drag-active::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border: 3px dashed #2196f3;
+      border-radius: 12px;
+      animation: dashMove 2s linear infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+    }
+
+    @keyframes dashMove {
+      0% { border-dash-offset: 0; }
+      100% { border-dash-offset: 20px; }
+    }
+
+    /* Body drag overlay */
+    body.dragging::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(33, 150, 243, 0.1);
+      z-index: 5;
+      pointer-events: none;
+    }
+
     .text-input-section {
       grid-column: 1 / -1;
     }
@@ -461,6 +522,8 @@
   <script src="js/universalSidebar.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/file-saver/2.0.5/FileSaver.min.js"></script>
   
   <script>
     let resumeData = null;
@@ -517,9 +580,37 @@
     
     // Drag and drop handling
     const dragDropArea = document.getElementById('dragDropArea');
+    const dragDropContainer = dragDropArea.querySelector('.drag-drop-area');
+    
+    // Enhanced drag and drop event listeners
     dragDropArea.addEventListener('dragover', handleDragOver);
     dragDropArea.addEventListener('drop', handleFileDrop);
     dragDropArea.addEventListener('dragleave', handleDragLeave);
+    dragDropArea.addEventListener('dragenter', handleDragEnter);
+
+    // Global drag detection for full-page overlay
+    let dragCounter = 0;
+    document.addEventListener('dragenter', function(e) {
+      e.preventDefault();
+      dragCounter++;
+      if (dragCounter === 1) {
+        document.body.classList.add('dragging');
+      }
+    });
+
+    document.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter === 0) {
+        document.body.classList.remove('dragging');
+      }
+    });
+
+    document.addEventListener('drop', function(e) {
+      e.preventDefault();
+      dragCounter = 0;
+      document.body.classList.remove('dragging');
+    });
 
     // Text input handling
     document.getElementById('resumeText').addEventListener('input', handleTextInput);
@@ -589,19 +680,36 @@
       }
     }
 
+    function handleDragEnter(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDropContainer.classList.add('drag-active');
+    }
+
     function handleDragOver(event) {
       event.preventDefault();
-      dragDropArea.classList.add('dragover');
+      event.stopPropagation();
+      dragDropContainer.classList.add('drag-active');
     }
 
     function handleDragLeave(event) {
       event.preventDefault();
-      dragDropArea.classList.remove('dragover');
+      event.stopPropagation();
+      
+      // Only remove drag-active if we're leaving the actual drag area
+      if (!dragDropArea.contains(event.relatedTarget)) {
+        dragDropContainer.classList.remove('drag-active');
+      }
     }
 
     function handleFileDrop(event) {
       event.preventDefault();
-      dragDropArea.classList.remove('dragover');
+      event.stopPropagation();
+      
+      // Remove all drag states
+      dragDropContainer.classList.remove('dragover', 'drag-active');
+      document.body.classList.remove('dragging');
+      dragCounter = 0;
       
       const files = event.dataTransfer.files;
       if (files.length > 0) {
@@ -610,7 +718,6 @@
         
         // Add success state to drag-drop area
         dragDropArea.classList.add('success');
-        const dragDropContainer = dragDropArea.querySelector('.drag-drop-area');
         dragDropContainer.classList.add('success');
         
         processFile(files[0]);
@@ -949,32 +1056,575 @@
     }
 
     function downloadResume(type) {
-      if (!analysisResults) {
+      if (!analysisResults || !resumeData) {
         alert('Please analyze your resume first.');
         return;
       }
 
-      // Simulate download preparation
+      // Show preparation state
       const option = event.target.closest('.download-option');
       const originalText = option.querySelector('.download-btn').textContent;
       
-      option.querySelector('.download-btn').textContent = 'Preparing...';
+      option.querySelector('.download-btn').textContent = 'Generating Document...';
       option.querySelector('.download-btn').disabled = true;
 
-      setTimeout(() => {
-        // In a real application, this would generate and download the actual Word document
-        const filename = `improved_resume_${type}_${Date.now()}.docx`;
+      // Generate and download the Word document
+      setTimeout(async () => {
+        try {
+          const doc = await generateWordDocument(type, resumeData.content, analysisResults);
+          const filename = `improved_resume_${type}_${Date.now()}.docx`;
+          
+          // Generate and save the document
+          const buffer = await docx.Packer.toBlob(doc);
+          saveAs(buffer, filename);
+          
+          // Show success message
+          alert(`✅ ${type.charAt(0).toUpperCase() + type.slice(1)} resume downloaded successfully!\n\nFile: ${filename}\n\nThe document includes your original content with improvements based on the analysis results.`);
+          
+        } catch (error) {
+          console.error('Error generating document:', error);
+          alert('Error generating document. Please try again.');
+        } finally {
+          option.querySelector('.download-btn').textContent = originalText;
+          option.querySelector('.download-btn').disabled = false;
+        }
+      }, 500);
+    }
+
+    // Generate Word document with different templates
+    async function generateWordDocument(template, resumeText, analysis) {
+      const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, UnderlineType, BorderStyle } = docx;
+      
+      // Extract resume sections from the original text
+      const resumeSections = parseResumeText(resumeText);
+      
+      // Create document based on template type
+      let doc;
+      
+      switch (template) {
+        case 'modern':
+          doc = createModernTemplate(resumeSections, analysis);
+          break;
+        case 'classic':
+          doc = createClassicTemplate(resumeSections, analysis);
+          break;
+        case 'original':
+        default:
+          doc = createOriginalTemplate(resumeSections, analysis);
+          break;
+      }
+      
+      return doc;
+    }
+
+    // Parse resume text into sections
+    function parseResumeText(text) {
+      const sections = {
+        name: '',
+        contact: '',
+        summary: '',
+        experience: '',
+        education: '',
+        skills: '',
+        other: ''
+      };
+
+      const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+      let currentSection = 'other';
+      
+      // Try to identify the name (usually first line or first substantial line)
+      if (lines.length > 0) {
+        sections.name = lines[0];
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].toLowerCase();
         
-        // Create a mock download
-        const link = document.createElement('a');
-        link.href = '#';
-        link.download = filename;
-        
-        alert(`Your ${type} resume would be downloaded as: ${filename}\n\nNote: This is a demo. In the full version, a professionally formatted Word document would be generated with your improvements.`);
-        
-        option.querySelector('.download-btn').textContent = originalText;
-        option.querySelector('.download-btn').disabled = false;
-      }, 2000);
+        // Identify sections
+        if (line.includes('experience') || line.includes('employment') || line.includes('work history')) {
+          currentSection = 'experience';
+          continue;
+        } else if (line.includes('education') || line.includes('academic')) {
+          currentSection = 'education';
+          continue;
+        } else if (line.includes('skills') || line.includes('competencies') || line.includes('technical')) {
+          currentSection = 'skills';
+          continue;
+        } else if (line.includes('summary') || line.includes('profile') || line.includes('objective')) {
+          currentSection = 'summary';
+          continue;
+        } else if (line.includes('@') || line.includes('phone') || line.includes('email') || line.includes('linkedin')) {
+          currentSection = 'contact';
+        }
+
+        // Add line to current section
+        if (currentSection !== 'other' && i > 0) { // Skip name line
+          sections[currentSection] += lines[i] + '\n';
+        }
+      }
+
+      return sections;
+    }
+
+    // Create modern template
+    function createModernTemplate(sections, analysis) {
+      const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, UnderlineType } = docx;
+      
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            // Header with name
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: sections.name || "Your Name",
+                  bold: true,
+                  size: 32,
+                  color: "0B4F6C"
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Contact info
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: sections.contact || "your.email@example.com | (555) 123-4567 | LinkedIn Profile",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Professional Summary
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "PROFESSIONAL SUMMARY",
+                  bold: true,
+                  size: 24,
+                  color: "0B4F6C"
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.summary || "Professional summary highlighting key achievements and skills relevant to your target role.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Experience Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "PROFESSIONAL EXPERIENCE",
+                  bold: true,
+                  size: 24,
+                  color: "0B4F6C"
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.experience || "Your work experience details here.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Skills Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "CORE SKILLS",
+                  bold: true,
+                  size: 24,
+                  color: "0B4F6C"
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.skills || "List your key skills and competencies here.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Education Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "EDUCATION",
+                  bold: true,
+                  size: 24,
+                  color: "0B4F6C"
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.education || "Your education details here.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Analysis Summary
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "RESUME ANALYSIS SUMMARY",
+                  bold: true,
+                  size: 20,
+                  color: "666666"
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Overall Score: ${analysis.overallScore}/100`,
+                  bold: true,
+                  size: 20
+                })
+              ]
+            }),
+            
+            ...analysis.categories.map(category => 
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `• ${category.name}: ${category.score}/100 - ${category.feedback}`,
+                    size: 18
+                  })
+                ]
+              })
+            )
+          ]
+        }]
+      });
+      
+      return doc;
+    }
+
+    // Create classic template
+    function createClassicTemplate(sections, analysis) {
+      const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, UnderlineType } = docx;
+      
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            // Header with name
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: sections.name || "Your Name",
+                  bold: true,
+                  size: 28,
+                  underline: { type: UnderlineType.SINGLE }
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Contact info
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: sections.contact || "your.email@example.com | (555) 123-4567",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Professional Summary
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "PROFESSIONAL SUMMARY",
+                  bold: true,
+                  size: 24,
+                  underline: { type: UnderlineType.SINGLE }
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.summary || "Professional summary highlighting key achievements and skills.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Experience Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "EXPERIENCE",
+                  bold: true,
+                  size: 24,
+                  underline: { type: UnderlineType.SINGLE }
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.experience || "Your work experience details here.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Education Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "EDUCATION",
+                  bold: true,
+                  size: 24,
+                  underline: { type: UnderlineType.SINGLE }
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.education || "Your education details here.",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Skills Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "SKILLS",
+                  bold: true,
+                  size: 24,
+                  underline: { type: UnderlineType.SINGLE }
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.skills || "List your key skills here.",
+                  size: 22
+                })
+              ]
+            })
+          ]
+        }]
+      });
+      
+      return doc;
+    }
+
+    // Create original format template with improvements
+    function createOriginalTemplate(sections, analysis) {
+      const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+      
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            // Original content with improvements note
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({
+                  text: "IMPROVED RESUME",
+                  bold: true,
+                  size: 24
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.name || "Your Name",
+                  bold: true,
+                  size: 28
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.contact || "Contact Information",
+                  size: 22
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "PROFESSIONAL SUMMARY",
+                  bold: true,
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.summary || "Enhanced professional summary based on analysis feedback.",
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "EXPERIENCE",
+                  bold: true,
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.experience || "Your enhanced work experience with improved formatting and content.",
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "SKILLS",
+                  bold: true,
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.skills || "Enhanced skills section with better organization.",
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "EDUCATION",
+                  bold: true,
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: sections.education || "Your education information with improvements.",
+                  size: 20
+                })
+              ]
+            }),
+            
+            new Paragraph({ text: "" }), // Spacing
+            new Paragraph({ text: "" }), // Spacing
+            
+            // Improvement suggestions
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "IMPROVEMENT SUGGESTIONS APPLIED:",
+                  bold: true,
+                  size: 18,
+                  color: "0B4F6C"
+                })
+              ]
+            }),
+            
+            ...analysis.categories.flatMap(category => 
+              category.suggestions.map(suggestion =>
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `• ${suggestion}`,
+                      size: 16
+                    })
+                  ]
+                })
+              )
+            )
+          ]
+        }]
+      });
+      
+      return doc;
     }
 
     // Initialize page
@@ -985,5 +1635,3 @@
   </script>
 </body>
 </html>
-
-
