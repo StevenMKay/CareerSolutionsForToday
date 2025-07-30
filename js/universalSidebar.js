@@ -2,6 +2,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let pageType = null;
   let sidebar, searchInput, resultsContainer, getAllItems, groupByProgramAndTopic, placeholderText;
 
+  // Scroll detection variables
+  let lastScrollTop = 0;
+  let scrollDirection = 'up';
+  const stickyFilter = document.querySelector('.sticky-filter');
+
+  // Section collapse state
+  let sectionCollapseState = {};
+
   if (document.getElementById('learnSidebar')) {
     pageType = 'learn';
     sidebar = document.getElementById('learnSidebar');
@@ -39,6 +47,31 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTopic = null;
   let lastScrollTopic = null;
 
+  // Scroll detection for search bar visibility
+  function initScrollDetection() {
+    if (!stickyFilter) return;
+
+    window.addEventListener('scroll', () => {
+      const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      
+      if (currentScrollTop > lastScrollTop && currentScrollTop > 100) {
+        // Scrolling down
+        if (scrollDirection !== 'down') {
+          scrollDirection = 'down';
+          stickyFilter.classList.add('scroll-hidden');
+        }
+      } else if (currentScrollTop < lastScrollTop) {
+        // Scrolling up
+        if (scrollDirection !== 'up') {
+          scrollDirection = 'up';
+          stickyFilter.classList.remove('scroll-hidden');
+        }
+      }
+      
+      lastScrollTop = currentScrollTop <= 0 ? 0 : currentScrollTop;
+    });
+  }
+
   function isMobile() {
     return window.innerWidth <= 700;
   }
@@ -59,8 +92,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function highlightMatches(text, filter) {
     if (!filter) return text;
-    const regex = new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const regex = new RegExp(`(${filter.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')})`, 'gi');
     return text.replace(regex, '<span class="highlight-match">$1</span>');
+  }
+
+  // NEW: Function to render related links (supports both array and single object)
+  function renderRelatedLinks(related, filter = '') {
+    if (!related) return '';
+    
+    // Handle both array and single object formats
+    const relatedArray = Array.isArray(related) ? related : [related];
+    
+    return relatedArray.map(item => 
+      `<p><a href="${item.url}" target="_blank">${highlightMatches(item.text, filter)}</a></p>`
+    ).join('');
   }
 
   // Section order and sort helper
@@ -74,6 +119,45 @@ document.addEventListener('DOMContentLoaded', () => {
     return idxA - idxB;
   }
 
+  // Section collapse functionality
+  function toggleSection(sectionId) {
+    const isCollapsed = sectionCollapseState[sectionId] || false;
+    sectionCollapseState[sectionId] = !isCollapsed;
+    
+    const header = document.querySelector(`[data-section-id="${sectionId}"]`);
+    const content = document.querySelector(`[data-section-content="${sectionId}"]`);
+    
+    if (header && content) {
+      if (sectionCollapseState[sectionId]) {
+        header.classList.add('collapsed');
+        content.classList.add('collapsed');
+        content.style.maxHeight = '0px';
+      } else {
+        header.classList.remove('collapsed');
+        content.classList.remove('collapsed');
+        content.style.maxHeight = content.scrollHeight + 'px';
+        
+        // Reset to auto after animation
+        setTimeout(() => {
+          if (!content.classList.contains('collapsed')) {
+            content.style.maxHeight = 'auto';
+          }
+        }, 400);
+      }
+    }
+  }
+
+  // Add section collapse handlers
+  function addSectionCollapseHandlers() {
+    document.querySelectorAll('.section-header[data-section-id]').forEach(header => {
+      header.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sectionId = header.getAttribute('data-section-id');
+        toggleSection(sectionId);
+      });
+    });
+  }
+
   // Render all cards for a program, grouped by topic, with topic anchors
   function renderProgramCards(program, filter = '') {
     const groups = groupByProgramAndTopic(getAllItems());
@@ -83,7 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sectionGroups = {};
     Object.keys(topics).forEach(topic => {
       const filteredItems = topics[topic].filter(item => {
-        const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+        // UPDATED: Support array of related items for search
+        const searchText = [item.title, item.description, ...(Array.isArray(item.related) ? item.related.map(r => r.text) : item.related?.text ? [item.related.text] : [])].filter(Boolean).join(' ').toLowerCase();
         return !filter || searchText.includes(filter.toLowerCase());
       });
       filteredItems.forEach(item => {
@@ -105,33 +190,108 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (displaySection === 'Learning' || displaySection === '') return; // skip header for pure Learning or empty
 
-      html += `<h4 class="section-header">${displaySection}</h4><div class="section-divider"></div>`;
-
+      const sectionId = `section-${displaySection.replace(/\\s+/g, '-').toLowerCase()}`;
+      const isCollapsed = sectionCollapseState[sectionId] || false;
+      
+      html += `<h4 class="section-header${isCollapsed ? ' collapsed' : ''}" data-section-id="${sectionId}">
+        ${displaySection}
+        <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+      </h4>`;
+      html += `<div class="section-divider"></div>`;
+      
+      // Create section content wrapper
+      let sectionContent = '';
+      
       // Now, for each topic in this section:
       Object.keys(sectionGroups[section]).sort().forEach(topic => {
         const items = sectionGroups[section][topic];
         if (items.length > 0) {
-          const topicId = `topic-${program.replace(/\s+/g, '_')}-${topic.replace(/\s+/g, '_')}`;
-          html += `<div class="topic-anchor" id="${topicId}" style="padding-top: 1px; margin-top: -1px;"></div>`;
-          html += `<h3 class="topic-header" data-topic="${topic}">${topic}</h3>`;
+          const topicId = `topic-${program.replace(/\\s+/g, '_')}-${topic.replace(/\\s+/g, '_')}`;
+          sectionContent += `<div class="topic-anchor" id="${topicId}" style="padding-top: 1px; margin-top: -1px;"></div>`;
+          sectionContent += `<h3 class="topic-header" data-topic="${topic}">${topic}</h3>`;
           items.forEach(item => {
-            const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
-            html += `
-              <div class="frosted-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
-                <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
-                <div class="info">
-                  <h4>${highlightMatches(item.title, filter)}</h4>
-                  <p>${highlightMatches(item.description, filter)}</p>
-                  ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
+            // UPDATED: Support array of related items for search
+            const searchText = [item.title, item.description, ...(Array.isArray(item.related) ? item.related.map(r => r.text) : item.related?.text ? [item.related.text] : [])].filter(Boolean).join(' ').toLowerCase();
+            
+            // Check if this is a CSS item with demo code
+            if (item.demoHtml && item.demoCss) {
+              const uniqueId = Date.now() + Math.random();
+              sectionContent += `
+                <div class="css-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
+                  <div class="css-demo-container">
+                    <div class="css-demo-header">
+                      <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                      <div class="info">
+                        <h4>${highlightMatches(item.title, filter)}</h4>
+                        <p>${highlightMatches(item.description, filter)}</p>
+                        ${renderRelatedLinks(item.related, filter)}
+                      </div>
+                    </div>
+                    
+                    <div class="css-demo-content">
+                      <!-- Live Preview -->
+                      <div class="css-preview-section">
+                        <h5>✨ Live Preview (Hover the card below):</h5>
+                        <div class="css-live-preview" id="preview-${uniqueId}">
+                          ${item.demoHtml}
+                        </div>
+                      </div>
+                      
+                      <!-- Code Editors -->
+                      <div class="css-code-section">
+                        <div class="css-code-buttons">
+                          <button class="copy-btn" onclick="copyCode('html-${uniqueId}')">📋 Copy HTML</button>
+                          <button class="copy-btn" onclick="copyCode('css-${uniqueId}')">📋 Copy CSS</button>
+                          <button class="copy-btn" onclick="copyCode('both-${uniqueId}')">📋 Copy Both</button>
+                        </div>
+                        
+                        <div class="code-editors">
+                          <div class="code-editor-section">
+                            <h6>HTML:</h6>
+                            <textarea class="code-editor html-editor" id="html-${uniqueId}" oninput="updatePreview()">${item.demoHtml}</textarea>
+                          </div>
+                          
+                          <div class="code-editor-section">
+                            <h6>CSS:</h6>
+                            <textarea class="code-editor css-editor" id="css-${uniqueId}" oninput="updatePreview()">${item.demoCss}</textarea>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <style>${item.demoCss}</style>
                 </div>
-              </div>
-            `;
+              `;
+            } else {
+              // Regular card for non-CSS items
+              sectionContent += `
+                <div class="frosted-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
+                  <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+                  <div class="info">
+                    <h4>${highlightMatches(item.title, filter)}</h4>
+                    <p>${highlightMatches(item.description, filter)}</p>
+                    ${renderRelatedLinks(item.related, filter)}
+                  </div>
+                </div>
+              `;
+            }
           });
         }
       });
+      
+      // Wrap section content with collapsible container
+      html += `<div class="section-content${isCollapsed ? ' collapsed' : ''}" data-section-content="${sectionId}" style="max-height: ${isCollapsed ? '0px' : 'auto'}">
+        ${sectionContent}
+      </div>`;
     });
 
     resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+    
+    // Add collapse handlers after rendering
+    setTimeout(() => {
+      addSectionCollapseHandlers();
+    }, 100);
+    
     setupScrollTopicHighlight(program);
   }
 
@@ -155,23 +315,97 @@ document.addEventListener('DOMContentLoaded', () => {
         displaySection = displaySection.replace(/,Learning$/, '').trim();
       }
       if (displaySection === 'Learning' || displaySection === '') return; // skip header for pure Learning or empty
-      html += `<h3 class="section-header">${displaySection}</h3><div class="section-divider"></div>`;
+      
+      const sectionId = `section-${displaySection.replace(/\\s+/g, '-').toLowerCase()}`;
+      const isCollapsed = sectionCollapseState[sectionId] || false;
+      
+      html += `<h3 class="section-header${isCollapsed ? ' collapsed' : ''}" data-section-id="${sectionId}">
+        ${displaySection}
+        <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+      </h3>`;
+      html += `<div class="section-divider"></div>`;
+      
+      let sectionContent = '';
       sectionGroups[section].forEach(item => {
-        const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
-        html += `
-          <div class="frosted-card" data-search="${searchText}">
-            <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
-            <div class="info">
-              <h4>${highlightMatches(item.title, filter)}</h4>
-              <p>${highlightMatches(item.description, filter)}</p>
-              ${item.related ? `<p><a href="${item.related.url}" target="_blank">${highlightMatches(item.related.text, filter)}</a></p>` : ''}
+        // UPDATED: Support array of related items for search
+        const searchText = [item.title, item.description, ...(Array.isArray(item.related) ? item.related.map(r => r.text) : item.related?.text ? [item.related.text] : [])].filter(Boolean).join(' ').toLowerCase();
+        
+        // Check if this is a CSS item with demo code
+        if (item.demoHtml && item.demoCss) {
+          const uniqueId = Date.now() + Math.random();
+          sectionContent += `
+            <div class="css-interactive-card" data-search="${searchText}">
+              <div class="css-demo-container">
+                <div class="css-demo-header">
+                  <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                  <div class="info">
+                    <h4>${highlightMatches(item.title, filter)}</h4>
+                    <p>${highlightMatches(item.description, filter)}</p>
+                    ${renderRelatedLinks(item.related, filter)}
+                  </div>
+                </div>
+                
+                <div class="css-demo-content">
+                  <!-- Live Preview -->
+                  <div class="css-preview-section">
+                    <h5>✨ Live Preview (Hover the card below):</h5>
+                    <div class="css-live-preview" id="preview-${uniqueId}">
+                      ${item.demoHtml}
+                    </div>
+                  </div>
+                  
+                  <!-- Code Editors -->
+                  <div class="css-code-section">
+                    <div class="css-code-buttons">
+                      <button class="copy-btn" onclick="copyCode('html-${uniqueId}')">📋 Copy HTML</button>
+                      <button class="copy-btn" onclick="copyCode('css-${uniqueId}')">📋 Copy CSS</button>
+                      <button class="copy-btn" onclick="copyCode('both-${uniqueId}')">📋 Copy Both</button>
+                    </div>
+                    
+                    <div class="code-editors">
+                      <div class="code-editor-section">
+                        <h6>HTML:</h6>
+                        <textarea class="code-editor html-editor" id="html-${uniqueId}" oninput="updatePreview()">${item.demoHtml}</textarea>
+                      </div>
+                      
+                      <div class="code-editor-section">
+                        <h6>CSS:</h6>
+                        <textarea class="code-editor css-editor" id="css-${uniqueId}" oninput="updatePreview()">${item.demoCss}</textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <style>${item.demoCss}</style>
             </div>
-          </div>
-        `;
+          `;
+        } else {
+          // Regular card for non-CSS items
+          sectionContent += `
+            <div class="frosted-card" data-search="${searchText}">
+              <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
+              <div class="info">
+                <h4>${highlightMatches(item.title, filter)}</h4>
+                <p>${highlightMatches(item.description, filter)}</p>
+                ${renderRelatedLinks(item.related, filter)}
+              </div>
+            </div>
+          `;
+        }
       });
+      
+      // Wrap section content with collapsible container
+      html += `<div class="section-content${isCollapsed ? ' collapsed' : ''}" data-section-content="${sectionId}" style="max-height: ${isCollapsed ? '0px' : 'auto'}">
+        ${sectionContent}
+      </div>`;
     });
 
     resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+    
+    // Add collapse handlers after rendering
+    setTimeout(() => {
+      addSectionCollapseHandlers();
+    }, 100);
   }
 
   function filterAndHighlightCards(filter) {
@@ -179,7 +413,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderProgramCards(currentProgram, filter);
     } else {
       const filtered = getAllItems().filter(item => {
-        const searchText = [item.title, item.description, item.related?.text].filter(Boolean).join(' ').toLowerCase();
+        // UPDATED: Support array of related items for search
+        const searchText = [item.title, item.description, ...(Array.isArray(item.related) ? item.related.map(r => r.text) : item.related?.text ? [item.related.text] : [])].filter(Boolean).join(' ').toLowerCase();
         return !filter || searchText.includes(filter.toLowerCase());
       });
       renderAllCards(filtered, filter);
@@ -380,6 +615,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderAllCards(getAllItems());
     sidebar.addEventListener('click', handleSidebarClick);
     searchInput.addEventListener('input', debounce(handleFilterInput, 120));
+    
+    // Initialize scroll detection
+    initScrollDetection();
   }
 
   function loadSectionFromHash() {
