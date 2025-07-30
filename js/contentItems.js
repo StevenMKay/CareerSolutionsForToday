@@ -31,6 +31,98 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 // 1) First declare your static items:
 window.contentItems = [
 
+
+
+
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Holographic Hover Effect",
+    description: "Learn how to create a stunning holographic hover effect using pure CSS. This modern effect uses gradients, transforms, and transitions to create an eye-catching holographic shine animation on hover. Perfect for cards, buttons, or any interactive elements. Includes complete HTML and CSS code examples that you can copy and use in your projects.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "#css-holographic-demo",
+    related: {
+        text: "Try the Live Demo",
+        url: "#css-holographic-demo"
+    },
+    topic: "CSS Hover Effects",
+    demoHtml: `<div class="holographic-container" style="height:220px;">
+  <div class="holographic-card">
+    <h2>Hover Here</h2>
+  </div>
+</div>`,
+    demoCss: `/* CSS Holographic Hover Effect */
+.holographic-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 220px;
+  background: #000;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.holographic-card {
+  width: 300px;
+  height: 200px;
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 15px;
+  transition: all 0.5s ease;
+  cursor: pointer;
+}
+
+.holographic-card h2 {
+  color: #0ff;
+  font-size: 2rem;
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  text-shadow: 0 0 10px rgba(0,255,255,0.5);
+}
+
+.holographic-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    0deg, 
+    transparent, 
+    transparent 30%, 
+    rgba(0,255,255,0.3)
+  );
+  transform: rotate(-45deg);
+  transition: all 0.5s ease;
+  opacity: 0;
+}
+
+.holographic-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(0,255,255,0.5);
+}
+
+.holographic-card:hover::before {
+  opacity: 1;
+  transform: rotate(-45deg) translateY(100%);
+}`
+},
+
+
+
+
+
+
     {
         section:"Templates",
         program:{
@@ -50,6 +142,24 @@ window.contentItems = [
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 {
  section:[
             "Learning",
@@ -65,10 +175,6 @@ https:"https://youtu.be/r4iBjEWwZ74",
         description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
        link:"https://youtu.be/r4iBjEWwZ74",
-       related:{
-            text:"Check it out on Youtube",
-            url:"https://youtu.be/r4iBjEWwZ74"
-        },
         topic:"Highlight Every Other Row",
     },
 
@@ -91,12 +197,16 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
         description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
        link:"https://www.youtube.com/shorts/fzTXUBWDCA4",
-     related:{
-            text:"Check it out on Youtube",
-            url:"https://www.youtube.com/shorts/fzTXUBWDCA4"
-        },
         topic:"Highlight Every Other Row",
     },
+
+
+
+
+
+
+
+
 
 
 
@@ -111,12 +221,18 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
         description:"Step-by-step guide to creating dependent dropdown lists in Excel using data validation for up to 3 levels and multi-word scenarios.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png",
         link:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png",
-  related:{
+  related:[
+    {
             text:"Dependent Dropdown Lists",
             url:"https://docs.google.com/spreadsheets/d/1V6aiXCT9yt8mpSfaMsUY4gMSu3B7xASq/export?format=xlsx"
         },
+        {text:"Video explaining function",
+            url: "https://youtu.be/pl6pn_UBp-c"
+        }
+    ],
         topic:"Dependent Dropdown Lists"
     },
+
 
 {
   
@@ -131,10 +247,6 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
         description:"This is a professional bio template you can download and fill out for your needs.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
        link:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx",
-    related:{
-            text:"Dependent Dropdown Lists",
-            url:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx"
-        },
         topic:"Professional Bio Template",
     },
 
@@ -158,10 +270,6 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         description:"This quick video will show you how to hide or remove all unused columns or rows in Excel to create a clean view for your users. We will also cover how to unhide or restore the hidden columns and rows.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
        link:"https://youtube.com/shorts/TCMYpQUytOM",
-       related:{
-            text:"Check it out on Youtube",
-            url:"https://youtube.com/shorts/TCMYpQUytOM"
-        },
         topic:"Hiding All Columns and Rows",
     },
 
@@ -854,9 +962,6 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Screenshot Tips"
     },
-
-
-  
     {
         section:[
             "Learning",
@@ -867,17 +972,15 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Career Tips - Professional Modern Resume Template and Tips",
-        description:"In this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin\n\nLink to buy template: https://www.ebay.com/itm/335704148896",
+        description:"Hey team,\n\nIn this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8f7a31e22e2ef623ad6b605b1f8d06a0c71b24a3/Thumbnail%20Modern%20Resume%20Video.png",
-        link:"ttps://youtu.be/b-UlEXG_msU",
+        link:"https://youtu.be/b-UlEXG_msU",
         related:{
             text:"Check it out on YouTube",
             url:"https://youtu.be/b-UlEXG_msU"
         },
         topic:"Resumes"
     },
-
-  
     {
         section:[
             "Learning",
