@@ -176,7 +176,7 @@ https:"https://youtu.be/r4iBjEWwZ74",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
        link:"https://youtu.be/r4iBjEWwZ74",
     related:{
-            text:"Highlight Every Other Row",
+            text:"Check it out on YouTube",
             url:"https://youtu.be/r4iBjEWwZ74"
         },
         topic:"Highlight Every Other Row"
