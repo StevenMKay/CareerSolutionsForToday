@@ -200,8 +200,13 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
         description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
        link:"https://www.youtube.com/shorts/fzTXUBWDCA4",
-        topic:"Highlight Every Other Row",
+       related:{
+           text:"Check it out on YouTube",
+           url:"https://www.youtube.com/shorts/fzTXUBWDCA4"
+       },
+       topic:"Highlight Every Other Row"
     },
+
 
 
 
