@@ -255,7 +255,11 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
         description:"This is a professional bio template you can download and fill out for your needs.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
        link:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx",
-        topic:"Professional Bio Template",
+         related:{
+           text:"Professional Bio Template",
+           url:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx"
+       },
+       topic:"Professional Bio Template",
     },
 
 
