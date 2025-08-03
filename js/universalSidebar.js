@@ -511,10 +511,10 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
       const expanded = sidebarState[program]?.expanded || false;
       html += `
-        <div class="sidebar-program${currentProgram === program ? ' active-program' : ''}" data-program="${program}">
+        <div class="practice-language-btn${currentProgram === program && expanded ? ' active' : ''}" data-program="${program}">
          ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}">` : ''}
           <span>${program}</span>
-          <span style="margin-left:auto;">${expanded ? '▼' : '▶'}</span>
+
         </div>
         <ul class="sidebar-topics${expanded ? ' expanded' : ''}" data-program="${program}" style="display:${expanded ? 'block' : 'none'};">
           ${Object.keys(groups[program].topics).sort((a, b) => a.localeCompare(b)).map(topic => {
@@ -696,7 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleSidebarClick(e) {
-    const progEl = e.target.closest('.sidebar-program');
+    const progEl = e.target.closest('.practice-language-btn');
     const topicEl = e.target.closest('.sidebar-topic');
     if (progEl) {
       const program = progEl.getAttribute('data-program');
