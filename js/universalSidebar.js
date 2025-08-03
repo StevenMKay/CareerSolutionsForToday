@@ -216,8 +216,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if this is a CSS item with demo code
             if (item.demoHtml && item.demoCss) {
               const uniqueId = Date.now() + Math.random();
+              // Extract anchor ID from item.link or item.related.url if they exist
+              let anchorId = '';
+              if (item.link) {
+                // Check if link contains an anchor (either #anchor or page.html#anchor)
+                const hashIndex = item.link.indexOf('#');
+                if (hashIndex !== -1) {
+                  anchorId = item.link.substring(hashIndex + 1);
+                }
+              } else if (item.related && item.related.url) {
+                const hashIndex = item.related.url.indexOf('#');
+                if (hashIndex !== -1) {
+                  anchorId = item.related.url.substring(hashIndex + 1);
+                }
+              }
               sectionContent += `
-                <div class="css-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
+                <div class="css-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
                   <div class="css-demo-container">
                     <div class="css-demo-header">
                       <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -333,8 +347,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if this is a CSS item with demo code
         if (item.demoHtml && item.demoCss) {
           const uniqueId = Date.now() + Math.random();
+          // Extract anchor ID from item.link or item.related.url if they exist
+          let anchorId = "";
+          if (item.link) {
+            // Check if link contains an anchor (either #anchor or page.html#anchor)
+            const hashIndex = item.link.indexOf("#");
+            if (hashIndex !== -1) {
+              anchorId = item.link.substring(hashIndex + 1);
+            }
+          } else if (item.related && item.related.url) {
+            const hashIndex = item.related.url.indexOf("#");
+            if (hashIndex !== -1) {
+              anchorId = item.related.url.substring(hashIndex + 1);
+            }
+          }
           sectionContent += `
-            <div class="css-interactive-card" data-search="${searchText}">
+            <div class="css-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}>
               <div class="css-demo-container">
                 <div class="css-demo-header">
                   <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -660,11 +688,36 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMobileSidebar(groups);
       });
       loadSectionFromHash();
+      
+      // Handle direct anchor navigation for CSS items
+      handleDirectAnchorNavigation();
     } else {
       setTimeout(tryInit, 50);
     }
   }
   tryInit();
+  
+  // Function to handle direct anchor navigation to CSS items
+  function handleDirectAnchorNavigation() {
+    const hash = window.location.hash;
+    if (hash) {
+      // Wait a bit for content to be rendered, then scroll to the element
+      setTimeout(() => {
+        const targetElement = document.querySelector(hash);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Add a highlight effect to draw attention
+          targetElement.style.boxShadow = '0 0 20px rgba(11, 79, 108, 0.5)';
+          setTimeout(() => {
+            targetElement.style.boxShadow = '';
+          }, 3000);
+        }
+      }, 500);
+    }
+  }
+  
+  // Handle hash changes for navigation within the page
+  window.addEventListener('hashchange', handleDirectAnchorNavigation);
 
   // Hamburger menu toggle (if present)
   const hamburgerBtn = document.getElementById('hamburgerBtn');
