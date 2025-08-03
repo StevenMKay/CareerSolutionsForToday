@@ -44,10 +44,10 @@ window.contentItems = [
     title: "CSS Holographic Hover Effect",
     description: "Learn how to create a stunning holographic hover effect using pure CSS. This modern effect uses gradients, transforms, and transitions to create an eye-catching holographic shine animation on hover. Perfect for cards, buttons, or any interactive elements. Includes complete HTML and CSS code examples that you can copy and use in your projects.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
-    link: "#css-holographic-demo",
+    link: "Learn.html#css-holographic-demo",
     related: {
         text: "Try the Live Demo",
-        url: "#css-holographic-demo"
+        url: "Learn.html#css-holographic-demo"
     },
     topic: "CSS Hover Effects",
     demoHtml: `<div class="holographic-container" style="height:220px;">
@@ -175,12 +175,15 @@ https:"https://youtu.be/r4iBjEWwZ74",
         description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
        link:"https://youtu.be/r4iBjEWwZ74",
-    related:{
+
+
+  related:{
             text:"Check it out on YouTube",
             url:"https://youtu.be/r4iBjEWwZ74"
         },
         topic:"Highlight Every Other Row"
     },
+
 
 
 
@@ -206,7 +209,6 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
        },
        topic:"Highlight Every Other Row"
     },
-
 
 
 
@@ -261,6 +263,8 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
        },
        topic:"Professional Bio Template",
     },
+
+       
 
 
 
