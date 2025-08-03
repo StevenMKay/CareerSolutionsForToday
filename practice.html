@@ -45,9 +45,15 @@
       <span>JavaScript</span>
     </div>
   </div>
-  <div class="programs-row" id="programsRow" style="display:none;"></div>
-  <div class="topics-row" id="topicsRow" style="display:none;"></div>
   
+  <!-- Topic Filter - Only shows when language is selected -->
+  <div class="topic-filter" id="topicFilter" style="display: none;">
+    <h3 style="color: white; margin: 20px 0 10px 0; font-size: 16px;">Topics</h3>
+    <div class="topic-buttons" id="topicButtons">
+      <!-- Topics will be populated dynamically -->
+    </div>
+  </div>
+
   <!-- Difficulty Filter -->
   <div class="difficulty-filter">
     <h3 style="color: white; margin: 20px 0 10px 0; font-size: 16px;">Difficulty</h3>
@@ -219,7 +225,14 @@ function filterProblemsBySearch(searchTerm) {
 
 function renderAllProblems(difficulty = 'all') {
   const resultsContainer = document.getElementById('practiceResults');
+  const topicFilter = document.getElementById('topicFilter');
   const problems = window.practiceProblems || [];
+  
+  // Hide topic filter when showing all languages
+  topicFilter.style.display = 'none';
+  
+  // Clear language selection
+  document.querySelectorAll('.practice-language-btn').forEach(btn => btn.classList.remove('active'));
   
   // Filter by difficulty only
   let filteredProblems = problems;
@@ -343,9 +356,171 @@ function selectLanguage(language) {
   document.querySelectorAll('.practice-language-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelector(`[data-language="${language}"]`).classList.add('active');
   
+  // Show and populate topic filter for selected language
+  showTopicFilter(language);
+  
   // Render problems for selected language
   const difficulty = getCurrentDifficulty();
   renderPracticeProblems(language, difficulty);
+}
+
+// Topic data for each language
+const languageTopics = {
+  'SQL': [
+    'Basic Queries',
+    'Joins & Relations', 
+    'Aggregation & Grouping',
+    'Data Manipulation',
+    'Subqueries',
+    'Window Functions',
+    'Advanced Topics'
+  ],
+  'Python': [
+    'Basic Syntax',
+    'Data Structures',
+    'Algorithms',
+    'String Manipulation', 
+    'Functions & Logic',
+    'Object-Oriented',
+    'Advanced Concepts'
+  ],
+  'JavaScript': [
+    'Basic Functions',
+    'Arrays & Objects',
+    'Async Programming',
+    'Functional Programming',
+    'DOM & Events',
+    'ES6+ Features',
+    'Design Patterns'
+  ]
+};
+
+// Show topic filter and populate with language-specific topics
+function showTopicFilter(language) {
+  const topicFilter = document.getElementById('topicFilter');
+  const topicButtons = document.getElementById('topicButtons');
+  
+  // Show the topic filter
+  topicFilter.style.display = 'block';
+  
+  // Clear existing topics
+  topicButtons.innerHTML = '';
+  
+  // Add "All Topics" option
+  const allTopicsBtn = document.createElement('div');
+  allTopicsBtn.className = 'topic-btn active';
+  allTopicsBtn.setAttribute('data-topic', 'all');
+  allTopicsBtn.onclick = () => selectTopic('all', language);
+  allTopicsBtn.innerHTML = '<span>All Topics</span>';
+  topicButtons.appendChild(allTopicsBtn);
+  
+  // Add language-specific topics
+  const topics = languageTopics[language] || [];
+  topics.forEach(topic => {
+    const topicBtn = document.createElement('div');
+    topicBtn.className = 'topic-btn';
+    topicBtn.setAttribute('data-topic', topic);
+    topicBtn.onclick = () => selectTopic(topic, language);
+    topicBtn.innerHTML = `<span>${topic}</span>`;
+    topicButtons.appendChild(topicBtn);
+  });
+}
+
+// Topic selection function
+function selectTopic(topic, language) {
+  console.log('Selected topic:', topic, 'for language:', language);
+  
+  // Update active state for topic buttons
+  document.querySelectorAll('.topic-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector(`[data-topic="${topic}"]`).classList.add('active');
+  
+  // Get current difficulty
+  const difficulty = getCurrentDifficulty();
+  
+  // Filter and render problems
+  if (topic === 'all') {
+    renderPracticeProblems(language, difficulty);
+  } else {
+    renderPracticeProblemsWithTopic(language, topic, difficulty);
+  }
+}
+
+// Enhanced render function with topic filtering
+function renderPracticeProblemsWithTopic(language, topic, difficulty = 'all') {
+  const resultsContainer = document.getElementById('practiceResults');
+  window.currentPracticeProgram = language;
+  
+  // Filter problems by language
+  let filteredProblems = window.practiceProblems.filter(p => p.language === language);
+  
+  // Filter by topic (map topics to problem characteristics)
+  filteredProblems = filteredProblems.filter(problem => {
+    return matchesTopic(problem, topic);
+  });
+  
+  // Filter by difficulty
+  if (difficulty !== 'all') {
+    filteredProblems = filteredProblems.filter(p => p.difficulty === difficulty);
+  }
+  
+  // Randomize the filtered results
+  filteredProblems = shuffleArray(filteredProblems);
+  
+  if (filteredProblems.length === 0) {
+    resultsContainer.innerHTML = `
+      <div style="color: white; text-align: center; margin-top: 50px;">
+        <h3>No ${difficulty === 'all' ? '' : difficulty} problems found for ${topic} in ${language}</h3>
+        <p>Try selecting a different topic or difficulty level.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = `<h2 style="color: white; text-align: center; margin-bottom: 30px;">${language} - ${topic}</h2>`;
+  
+  filteredProblems.forEach(problem => {
+    html += renderProblemCard(problem);
+  });
+  
+  resultsContainer.innerHTML = html;
+}
+
+// Function to match problems to topics based on their content
+function matchesTopic(problem, topic) {
+  const title = problem.title.toLowerCase();
+  const description = problem.description.toLowerCase();
+  
+  const topicMap = {
+    // SQL Topics
+    'Basic Queries': ['select', 'find all', 'employees', 'filter', 'where', 'basic'],
+    'Joins & Relations': ['join', 'inner join', 'left join', 'relationship', 'tables'],
+    'Aggregation & Grouping': ['count', 'sum', 'average', 'group by', 'having', 'max', 'min'],
+    'Data Manipulation': ['insert', 'update', 'delete', 'modify', 'change'],
+    'Subqueries': ['subquery', 'nested', 'select.*select', 'higher', 'more than'],
+    'Window Functions': ['row_number', 'rank', 'over', 'partition', 'window'],
+    'Advanced Topics': ['recursive', 'cte', 'pivot', 'running total', 'hierarchy'],
+    
+    // Python Topics  
+    'Basic Syntax': ['reverse', 'palindrome', 'factorial', 'basic', 'simple'],
+    'Data Structures': ['list', 'array', 'dictionary', 'merge', 'structure'],
+    'Algorithms': ['search', 'sort', 'two sum', 'algorithm', 'binary', 'quick'],
+    'String Manipulation': ['string', 'anagram', 'character', 'word', 'text'],
+    'Functions & Logic': ['function', 'fizzbuzz', 'logic', 'condition'],
+    'Object-Oriented': ['class', 'object', 'design', 'oop'],
+    'Advanced Concepts': ['recursion', 'dynamic', 'cache', 'lru', 'complex'],
+    
+    // JavaScript Topics
+    'Basic Functions': ['function', 'basic', 'array sum', 'reverse', 'filter'],
+    'Arrays & Objects': ['array', 'object', 'property', 'flatten', 'chunk'],
+    'Async Programming': ['promise', 'async', 'await', 'timeout', 'debounce'],
+    'Functional Programming': ['map', 'reduce', 'filter', 'curry', 'functional'],
+    'DOM & Events': ['dom', 'event', 'observer', 'intersection'],
+    'ES6+ Features': ['arrow', 'spread', 'destructure', 'template'],
+    'Design Patterns': ['observer', 'emitter', 'pattern', 'bind', 'prototype']
+  };
+  
+  const keywords = topicMap[topic] || [];
+  return keywords.some(keyword => title.includes(keyword) || description.includes(keyword));
 }
 
 // Difficulty selection function for new button-style filters
@@ -360,7 +535,19 @@ function selectDifficulty(difficulty) {
   const activeLanguageBtn = document.querySelector('.practice-language-btn.active');
   if (activeLanguageBtn) {
     const currentLanguage = activeLanguageBtn.getAttribute('data-language');
-    renderPracticeProblems(currentLanguage, difficulty);
+    
+    // Check if a topic is selected
+    const activeTopicBtn = document.querySelector('.topic-btn.active');
+    if (activeTopicBtn) {
+      const currentTopic = activeTopicBtn.getAttribute('data-topic');
+      if (currentTopic === 'all') {
+        renderPracticeProblems(currentLanguage, difficulty);
+      } else {
+        renderPracticeProblemsWithTopic(currentLanguage, currentTopic, difficulty);
+      }
+    } else {
+      renderPracticeProblems(currentLanguage, difficulty);
+    }
   } else {
     // No specific language selected, render all languages with difficulty filter
     renderAllProblems(difficulty);
