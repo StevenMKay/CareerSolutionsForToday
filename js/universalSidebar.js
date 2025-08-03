@@ -18,6 +18,14 @@ document.addEventListener('DOMContentLoaded', () => {
     getAllItems = () => window.contentItems || [];
     groupByProgramAndTopic = groupContentByProgramAndTopic;
     placeholderText = 'Use the sidebar to select a program/topic, or type in the filter box to find learning resources.';
+  } else if (document.getElementById('practiceSidebar')) {
+    pageType = 'practice';
+    sidebar = document.getElementById('practiceSidebar');
+    searchInput = document.getElementById('practiceSearch');
+    resultsContainer = document.getElementById('practiceResults');
+    getAllItems = () => window.practiceProblems || [];
+    groupByProgramAndTopic = groupPracticeByProgram;
+    placeholderText = 'Select a programming language from the sidebar to start practicing coding challenges.';
   } else if (document.getElementById('videosSidebar')) {
     pageType = 'videos';
     sidebar = document.getElementById('videosSidebar');
@@ -75,6 +83,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function isMobile() {
     return window.innerWidth <= 700;
   }
+  
+  function getCurrentDifficulty() {
+    const difficultyInput = document.querySelector('input[name="difficulty"]:checked');
+    return difficultyInput ? difficultyInput.value : 'all';
+  }
 
   function groupContentByProgramAndTopic(items) {
     const groups = {};
@@ -89,6 +102,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function groupVideosByProgramAndTopic(items) { return groupContentByProgramAndTopic(items); }
   function groupTemplatesByProgramAndTopic(items) { return groupContentByProgramAndTopic(items); }
+  
+  function groupPracticeByProgram(items) {
+    const groups = {};
+    
+    // Group problems by programming language (like SQL, Python, JavaScript)
+    items.forEach(item => {
+      const program = item.language || 'Other';
+      if (!groups[program]) {
+        groups[program] = { 
+          image: window.practicePrograms?.[program]?.image || '', 
+          topics: { 'Coding Problems': [] }
+        };
+      }
+      groups[program].topics['Coding Problems'].push(item);
+    });
+    
+    return groups;
+  }
 
   function highlightMatches(text, filter) {
     if (!filter) return text;
@@ -128,14 +159,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const content = document.querySelector(`[data-section-content="${sectionId}"]`);
     
     if (header && content) {
+      // Find the collapse icon within the header
+      const collapseIcon = header.querySelector('.collapse-icon');
+      
       if (sectionCollapseState[sectionId]) {
         header.classList.add('collapsed');
         content.classList.add('collapsed');
         content.style.maxHeight = '0px';
+        
+        // Update arrow icon to collapsed state (right arrow)
+        if (collapseIcon) {
+          collapseIcon.textContent = '▶';
+        }
       } else {
         header.classList.remove('collapsed');
         content.classList.remove('collapsed');
         content.style.maxHeight = content.scrollHeight + 'px';
+        
+        // Update arrow icon to expanded state (down arrow)
+        if (collapseIcon) {
+          collapseIcon.textContent = '▼';
+        }
         
         // Reset to auto after animation
         setTimeout(() => {
@@ -311,6 +355,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render all cards for the page (all programs), with highlight support
   function renderAllCards(items, filter = '') {
+    // Special handling for practice page
+    if (pageType === 'practice') {
+      if (!items || items.length === 0) {
+        resultsContainer.innerHTML = placeholderText;
+        return;
+      }
+      
+      // For practice, we directly render problems instead of using sections
+      renderPracticeProblems(currentProgram || items[0]?.language, getCurrentDifficulty());
+      return;
+    }
+    
     let html = '';
     // Group items by section (default to 'Learning' if missing)
     const sectionGroups = {};
@@ -551,15 +607,75 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Program click handlers
-    programsRow.querySelectorAll('.sidebar-program').forEach(btn => {
-      btn.onclick = function() {
+    programsRow.querySelectorAll('.sidebar-program').forEach(programBtn => {
+      programBtn.addEventListener('click', function() {
+        // Special handling for practice page
+        if (pageType === 'practice') {
+          const program = this.getAttribute('data-program');
+          console.log('Clicked program:', program);
+          
+          currentProgram = program;
+          currentTopic = null;
+          searchInput.value = '';
+          
+          // Direct rendering of practice problems
+          const resultsContainer = document.getElementById('practiceResults');
+          const problems = window.practiceProblems || [];
+          const filteredProblems = problems.filter(p => p.language === program);
+          
+          console.log('Total problems:', problems.length);
+          console.log('Filtered problems for', program, ':', filteredProblems.length);
+          
+          if (filteredProblems.length === 0) {
+            resultsContainer.innerHTML = `<div style="color: white; text-align: center; margin-top: 50px;"><h3>No problems found for ${program}</h3></div>`;
+          } else {
+            let html = `<h2 style="color: white; text-align: center; margin-bottom: 30px;">${program} Coding Challenges</h2>`;
+            
+            filteredProblems.forEach(problem => {
+              const uniqueId = problem.id;
+              html += `
+                <div class="practice-problem-card">
+                  <div class="problem-header">
+                    <h3>${problem.title}</h3>
+                    <span class="difficulty-badge difficulty-${problem.difficulty.toLowerCase()}">${problem.difficulty}</span>
+                  </div>
+                  <div class="problem-description">
+                    <h4>Problem:</h4>
+                    <p>${problem.description}</p>
+                  </div>
+                  <div class="coding-section">
+                    <h4>Your Solution:</h4>
+                    <textarea class="code-editor" id="code-${uniqueId}" placeholder="Write your ${problem.language} code here...">${problem.starterCode || ''}</textarea>
+                    <div class="action-buttons">
+                      <button class="submit-btn" onclick="submitCode('${uniqueId}')">Submit Code</button>
+                      <button class="hint-btn" onclick="showSolution('${uniqueId}')">Show Solution</button>
+                    </div>
+                    <div id="result-${uniqueId}" class="result-display"></div>
+                    <div id="solution-${uniqueId}" class="solution-display" style="display: none;"></div>
+                  </div>
+                </div>
+              `;
+            });
+            
+            resultsContainer.innerHTML = html;
+          }
+          
+          // Update sidebar to show this program as active
+          programsRow.querySelectorAll('.sidebar-program').forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+          
+          return;
+        }
+        
+        // Original logic for other pages
+        const program = this.getAttribute('data-program');
         programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
-        currentProgram = this.getAttribute('data-program');
+        currentProgram = program;
         currentTopic = null;
         renderProgramCards(currentProgram);
         showTopicsFor(currentProgram);
-      };
+      });
     });
 
     // Show topics for the selected or first program by default
@@ -653,7 +769,12 @@ document.addEventListener('DOMContentLoaded', () => {
     currentProgram = null;
     currentTopic = null;
     renderSidebar(groupByProgramAndTopic(getAllItems()));
-    renderAllCards(getAllItems());
+    
+    // Don't auto-render for practice page, let user select a language
+    if (pageType !== 'practice') {
+      renderAllCards(getAllItems());
+    }
+    
     sidebar.addEventListener('click', handleSidebarClick);
     searchInput.addEventListener('input', debounce(handleFilterInput, 120));
     
