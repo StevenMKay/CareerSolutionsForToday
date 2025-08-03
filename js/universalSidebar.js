@@ -194,8 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const isCollapsed = sectionCollapseState[sectionId] || false;
       
       html += `<h4 class="section-header${isCollapsed ? ' collapsed' : ''}" data-section-id="${sectionId}">
-        ${displaySection}
         <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+        ${displaySection}
       </h4>`;
       html += `<div class="section-divider"></div>`;
       
@@ -334,8 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const isCollapsed = sectionCollapseState[sectionId] || false;
       
       html += `<h3 class="section-header${isCollapsed ? ' collapsed' : ''}" data-section-id="${sectionId}">
-        ${displaySection}
         <span class="collapse-icon">${isCollapsed ? '▶' : '▼'}</span>
+        ${displaySection}
       </h3>`;
       html += `<div class="section-divider"></div>`;
       
@@ -526,14 +526,27 @@ document.addEventListener('DOMContentLoaded', () => {
       `).join('');
       // Topic click handlers
       topicsRow.querySelectorAll('.sidebar-topic').forEach(topicBtn => {
-        topicBtn.onclick = function() {
+        topicBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Remove active class from all topics first
+          topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
+          
+          // Add active class to clicked topic
+          this.classList.add('active');
+          
           currentProgram = program;
           currentTopic = this.getAttribute('data-topic');
           searchInput.value = '';
           const items = getItemsByProgramAndTopic(program, currentTopic);
           renderAllCards(items);
-          showTopicsFor(program); // update highlight
-        };
+          
+          // Small delay before updating highlight to ensure DOM is updated
+          setTimeout(() => {
+            showTopicsFor(program);
+          }, 50);
+        });
       });
     }
 
