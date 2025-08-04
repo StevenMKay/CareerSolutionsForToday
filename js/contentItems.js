@@ -162,16 +162,16 @@ And this on another line.</p>`
     },
     title: "HTML Images",
     description: "The HTML <img> tag is used to embed images in a web page. The src attribute specifies the path to the image, and the alt attribute provides alternative text for accessibility and SEO.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/IMG_0358.jpg",
     link: "Learn.html#html-images-demo",
     topic: "HTML Media",
-    demoHtml: `<img src="https://via.placeholder.com/200x100" alt="Placeholder image">
+    demoHtml: `<img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/IMG_0358.jpg" alt="Beautiful mountain landscape" width="250" height="180">
 <br><br>
-<img src="https://via.placeholder.com/150x150/ff0000/ffffff?text=Square" alt="Red square" width="100" height="100">
+<img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/Oregon.jpg" alt="Oregon coastline" width="250" height="180">
 <br><br>
 <figure>
-    <img src="https://via.placeholder.com/300x200/0066cc/ffffff?text=Figure" alt="Figure example">
-    <figcaption>This is a figure with caption</figcaption>
+    <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/surf.jpg" alt="Surfing scene" width="250" height="180">
+    <figcaption>Beautiful surfing scene with a figure caption</figcaption>
 </figure>`
 },
 
@@ -346,7 +346,7 @@ And this on another line.</p>`
     },
     title: "HTML Classes and IDs",
     description: "The class and id attributes are used to identify HTML elements for styling with CSS and JavaScript. Classes can be used multiple times, while IDs should be unique on a page.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-classes-ids-demo",
     related: {
         text: "Try the Live Demo",
@@ -374,7 +374,7 @@ And this on another line.</p>`
     },
     title: "HTML Semantic Elements",
     description: "HTML5 introduced semantic elements that clearly describe their meaning to both browser and developer. These include header, nav, main, article, section, aside, and footer.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-semantic-demo",
     related: {
         text: "Try the Live Demo",
@@ -454,36 +454,23 @@ and can contain detailed explanations
     },
     title: "HTML Entities",
     description: "HTML entities are used to display special characters that are reserved in HTML or not easily typeable. They start with & and end with ;. Common entities include &lt;, &gt;, &amp;, and &copy;.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-entities-demo",
     related: {
         text: "Try the Live Demo",
         url: "Learn.html#html-entities-demo"
     },
     topic: "HTML Special Characters",
-    demoHtml: `<p>Reserved characters:</p>
-<p>&lt;div&gt; - Less than and greater than</p>
+    demoHtml: `<h3>Reserved Characters:</h3>
+<p>&lt; - Less than</p>
+<p>&gt; - Greater than</p>
 <p>&amp; - Ampersand</p>
-<p>&quot; - Quotation mark</p>
-<p>&apos; - Apostrophe</p>
+<p>&quot; - Quote</p>
 
-<p>Special symbols:</p>
+<h3>Common Symbols:</h3>
 <p>&copy; - Copyright</p>
-<p>&reg; - Registered trademark</p>
 <p>&trade; - Trademark</p>
 <p>&euro; - Euro sign</p>
-<p>&pound; - Pound sign</p>
-<p>&yen; - Yen sign</p>
-
-<p>Mathematical symbols:</p>
-<p>&times; - Multiplication</p>
-<p>&divide; - Division</p>
-<p>&plusmn; - Plus-minus</p>
-<p>&frac12; - One half</p>
-<p>&frac14; - One quarter</p>
-
-<p>Arrows and symbols:</p>
-<p>&larr; &uarr; &rarr; &darr; - Arrows</p>
 <p>&hearts; &clubs; &diams; &spades; - Card suits</p>`,
     demoCss: `/* Basic HTML preview styling */
 .html-preview-container {
@@ -508,26 +495,19 @@ and can contain detailed explanations
     },
     title: "HTML Block and Inline Elements",
     description: "HTML elements are categorized as block-level or inline elements. Block elements take up the full width and start on a new line, while inline elements only take up necessary space and flow with text.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-block-inline-demo",
     related: {
         text: "Try the Live Demo",
         url: "Learn.html#html-block-inline-demo"
     },
     topic: "HTML Structure",
-    demoHtml: `<h3>Block Elements (full width, new line):</h3>
-<div style="background: lightblue; margin: 5px 0;">Block div element</div>
-<p style="background: lightgreen; margin: 5px 0;">Block paragraph element</p>
-<h4 style="background: lightyellow; margin: 5px 0;">Block heading element</h4>
+    demoHtml: `<h3>Block Elements:</h3>
+<div style="background: lightblue; margin: 5px 0; padding: 5px;">Block div</div>
+<p style="background: lightgreen; margin: 5px 0; padding: 5px;">Block paragraph</p>
 
-<h3>Inline Elements (only necessary width):</h3>
-<p>Here are some <span style="background: pink;">inline span</span> elements within text. 
-<strong style="background: lightcoral;">Bold text</strong> and 
-<em style="background: lightcyan;">italic text</em> are also inline elements.</p>
-
-<h3>Converting with CSS:</h3>
-<div style="display: inline; background: yellow;">Div as inline</div>
-<span style="display: block; background: orange; margin: 5px 0;">Span as block</span>`,
+<h3>Inline Elements:</h3>
+<p>Text with <span style="background: pink; padding: 2px;">inline span</span> and <strong style="background: lightcoral; padding: 2px;">bold text</strong>.</p>`,
     demoCss: `/* Basic HTML preview styling */
 .html-preview-container {
   padding: 20px;
@@ -547,7 +527,7 @@ and can contain detailed explanations
     },
     title: "HTML Input Types",
     description: "HTML5 introduced many new input types for forms. These include email, password, number, date, color, range, and more. Each type has specific validation and user interface features.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-input-types-demo",
     related: {
         text: "Try the Live Demo",
@@ -590,34 +570,31 @@ and can contain detailed explanations
     },
     title: "HTML Media Elements",
     description: "HTML5 provides built-in support for audio and video content without plugins. The audio and video elements support multiple formats and provide controls for playback.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/surf.jpg",
     link: "Learn.html#html-media-demo",
     related: {
         text: "Try the Live Demo",
         url: "Learn.html#html-media-demo"
     },
     topic: "HTML5 Media",
-    demoHtml: `<h3>HTML5 Video</h3>
-<video width="300" height="200" controls>
-    <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-    <source src="movie.ogg" type="video/ogg">
-    Your browser does not support the video tag.
-</video>
+    demoHtml: `<h3>YouTube Video Embed</h3>
+<iframe width="250" height="140" 
+        src="https://www.youtube.com/embed/LIlIzKFkhXw" 
+        title="HTML Media Video"
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen
+        style="max-width: 100%; height: auto;">
+</iframe>
 
 <h3>HTML5 Audio</h3>
-<audio controls>
+<audio controls style="width: 100%; max-width: 250px;">
     <source src="https://www.w3schools.com/html/horse.ogg" type="audio/ogg">
     <source src="https://www.w3schools.com/html/horse.mp3" type="audio/mpeg">
     Your browser does not support the audio element.
 </audio>
 
-<h3>Autoplay and Loop</h3>
-<video width="200" height="150" autoplay muted loop>
-    <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-    Your browser does not support HTML5 video.
-</video>
-
-<p><strong>Note:</strong> Most browsers require muted attribute for autoplay to work.</p>`,
+<p><strong>Note:</strong> Modern browsers require user interaction before playing audio/video.</p>`,
     demoCss: `/* Basic HTML preview styling */
 .html-preview-container {
   padding: 20px;
@@ -647,15 +624,15 @@ and can contain detailed explanations
 
 <h3>YouTube Video Embed</h3>
 <iframe width="300" height="200" 
-        src="https://www.youtube.com/embed/dQw4w9WgXcQ" 
+        src="https://www.youtube.com/embed/LIlIzKFkhXw" 
         title="YouTube video player" 
         frameborder="0" 
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
         allowfullscreen>
 </iframe>
 
-<h3>Google Maps Embed</h3>
-<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3024.309!2d-74.005!3d40.712!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDDCsDQyJzQ0LjQiTiA3NMKwMDAnMTguMCJX!5e0!3m2!1sen!2sus!4v1234567890123!5m2!1sen!2sus" 
+<h3>Google Maps Embed - Phoenix, AZ</h3>
+<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d427168.71635690214!2d-112.32135019999999!3d33.4483771!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x872b12ed50a179cb%3A0x8c69c7f8354a1bac!2sPhoenix%2C%20AZ!5e0!3m2!1sen!2sus!4v1704123456789!5m2!1sen!2sus" 
         width="300" 
         height="200" 
         style="border:0;" 
@@ -672,7 +649,7 @@ and can contain detailed explanations
     },
     title: "HTML Canvas",
     description: "The HTML5 canvas element is used to draw graphics via JavaScript. It provides a drawing area where you can create dynamic graphics, animations, games, and data visualizations.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-canvas-demo",
     related: {
         text: "Try the Live Demo",
@@ -680,7 +657,7 @@ and can contain detailed explanations
     },
     topic: "HTML5 Graphics",
     demoHtml: `<h3>Canvas Element</h3>
-<canvas id="myCanvas" width="300" height="200" style="border:1px solid #000;">
+<canvas id="myCanvas" width="250" height="150" style="border:1px solid #000; max-width: 100%;">
     Your browser does not support the canvas element.
 </canvas>
 
@@ -690,30 +667,21 @@ var ctx = canvas.getContext('2d');
 
 // Draw a rectangle
 ctx.fillStyle = '#FF0000';
-ctx.fillRect(10, 10, 100, 80);
+ctx.fillRect(10, 10, 80, 60);
 
 // Draw a circle
 ctx.beginPath();
-ctx.arc(200, 50, 30, 0, 2 * Math.PI);
+ctx.arc(150, 40, 25, 0, 2 * Math.PI);
 ctx.fillStyle = '#00FF00';
 ctx.fill();
 
-// Draw text
+// Draw text - fixed to not split
 ctx.fillStyle = '#0000FF';
-ctx.font = '20px Arial';
-ctx.fillText('Canvas!', 50, 150);
-
-// Draw a line
-ctx.beginPath();
-ctx.moveTo(10, 180);
-ctx.lineTo(250, 180);
-ctx.strokeStyle = '#FF00FF';
-ctx.lineWidth = 3;
-ctx.stroke();
+ctx.font = '14px Arial';
+ctx.fillText('HTML Canvas', 10, 130);
 </script>
 
-<h3>Interactive Canvas</h3>
-<p>Canvas elements can be made interactive with JavaScript event handlers for drawing, animations, and games.</p>`,
+<p><strong>Interactive:</strong> Canvas elements can be made interactive with JavaScript event handlers for drawing, animations, and games.</p>`,
     demoCss: `/* Basic HTML preview styling */
 .html-preview-container {
   padding: 20px;
@@ -733,7 +701,7 @@ ctx.stroke();
     },
     title: "HTML SVG Graphics",
     description: "SVG (Scalable Vector Graphics) allows you to create vector graphics in HTML. Unlike canvas, SVG graphics are part of the DOM and can be styled with CSS and manipulated with JavaScript.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/htmlthumbnail.png",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-svg-demo",
     related: {
         text: "Try the Live Demo",
@@ -741,32 +709,26 @@ ctx.stroke();
     },
     topic: "HTML5 Graphics",
     demoHtml: `<h3>Basic SVG Shapes</h3>
-<svg width="300" height="200" style="border: 1px solid black;">
+<svg width="250" height="150" style="border: 1px solid black; max-width: 100%;">
     <!-- Rectangle -->
-    <rect x="10" y="10" width="100" height="80" fill="red" />
+    <rect x="10" y="10" width="80" height="60" fill="red" />
     
     <!-- Circle -->
-    <circle cx="200" cy="50" r="30" fill="green" />
-    
-    <!-- Line -->
-    <line x1="10" y1="120" x2="250" y2="120" stroke="blue" stroke-width="3" />
+    <circle cx="150" cy="40" r="25" fill="green" />
     
     <!-- Polygon (Triangle) -->
-    <polygon points="150,140 120,180 180,180" fill="purple" />
-    
-    <!-- Text -->
-    <text x="50" y="160" fill="orange" font-size="16">SVG Text!</text>
+    <polygon points="120,80 100,120 140,120" fill="purple" />
 </svg>
 
-<h3>Advanced SVG</h3>
-<svg width="250" height="150">
+<h3>Advanced SVG with Gradient</h3>
+<svg width="200" height="100" style="max-width: 100%;">
     <defs>
         <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
             <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
         </linearGradient>
     </defs>
-    <ellipse cx="125" cy="75" rx="100" ry="50" fill="url(#grad1)" />
+    <ellipse cx="100" cy="50" rx="80" ry="35" fill="url(#grad1)" />
 </svg>`,
     demoCss: `/* Basic HTML preview styling */
 .html-preview-container {
