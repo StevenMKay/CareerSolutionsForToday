@@ -320,8 +320,8 @@ document.addEventListener('DOMContentLoaded', () => {
                   <style>${item.demoCss}</style>
                 </div>
               `;
-            } else if (item.demoHtml && !item.demoCss && (item.program?.name === 'HTML' || item.section?.includes('HTML'))) {
-              // HTML item with demo code but no CSS  
+            } else if (item.section?.includes('HTML')) {
+              // ALL HTML items should use HTML interactive card format
               const uniqueId = Date.now() + Math.random();
               // Extract anchor ID from item.link or item.related.url if they exist
               let anchorId = '';
@@ -372,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
               `;
             } else {
               // Regular card for non-CSS items
-
               sectionContent += `
                 <div class="frosted-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
                   <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
@@ -514,8 +513,8 @@ document.addEventListener('DOMContentLoaded', () => {
               <style>${item.demoCss}</style>
             </div>
           `;
-        } else if (item.demoHtml && !item.demoCss && (item.program?.name === 'HTML' || item.section?.includes('HTML'))) {
-          // HTML item with demo code but no CSS
+        } else if (item.section?.includes('HTML')) {
+          // ALL HTML items should use HTML interactive card format
           const uniqueId = Date.now() + Math.random();
           // Extract anchor ID from item.link or item.related.url if they exist
           let anchorId = "";
