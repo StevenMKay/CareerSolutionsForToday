@@ -78,7 +78,7 @@ window.contentItems = [
         image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
     },
     title: "HTML Headings",
-    description: "HTML headings are defined with <h1> to <h6> tags. <h1> defines the most important heading, while <h6> defines the least important. Headings help organize content hierarchy and are important for SEO and accessibility.",
+    description: "HTML headings are defined with 'h1' to 'h6' tags. 'h1' defines the most important heading, while 'h6' defines the least important. Headings help organize content hierarchy and are important for SEO and accessibility.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-headings-demo",
     topic: "HTML Text Elements",
@@ -162,16 +162,15 @@ And this on another line.</p>`
     },
     title: "HTML Images",
     description: "The HTML <img> tag is used to embed images in a web page. The src attribute specifies the path to the image, and the alt attribute provides alternative text for accessibility and SEO.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/IMG_0358.jpg",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-images-demo",
     topic: "HTML Media",
     demoHtml: `<img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/IMG_0358.jpg" alt="Beautiful mountain landscape" width="250" height="180">
 <br><br>
-<img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/Oregon.jpg" alt="Oregon coastline" width="250" height="180">
-<br><br>
+
 <figure>
-    <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/surf.jpg" alt="Surfing scene" width="250" height="180">
-    <figcaption>Beautiful surfing scene with a figure caption</figcaption>
+    <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/Oregon.jpg" alt="Oregon coastline" width="250" height="180">
+    <figcaption>Oregon coastline with a figure caption</figcaption>
 </figure>`
 },
 
@@ -182,7 +181,7 @@ And this on another line.</p>`
         image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
     },
     title: "HTML Lists",
-    description: "HTML supports three types of lists: ordered lists (<ol>), unordered lists (<ul>), and description lists (<dl>). Lists are useful for organizing related items and improving content structure.",
+    description: "HTML supports three types of lists: ordered lists, unordered lists, and description lists. Lists are useful for organizing related items and improving content structure.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-lists-demo",
     topic: "HTML Structure",
@@ -282,10 +281,7 @@ And this on another line.</p>`
     description: "The class and id attributes are used to identify HTML elements for styling with CSS and JavaScript. Classes can be used multiple times, while IDs should be unique on a page.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-classes-ids-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-classes-ids-demo"
-    },
+ 
     topic: "HTML Attributes",
     demoHtml: `<style>
 .highlight { background-color: yellow; }
@@ -310,10 +306,7 @@ And this on another line.</p>`
     description: "HTML5 introduced semantic elements that clearly describe their meaning to both browser and developer. These include header, nav, main, article, section, aside, and footer.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-semantic-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-semantic-demo"
-    },
+  
     topic: "HTML5 Semantics",
     demoHtml: `<header style="background: #f0f0f0; padding: 10px;">
     <h1>Website Header</h1>
@@ -356,6 +349,7 @@ And this on another line.</p>`
     },
     title: "HTML Comments",
     description: "HTML comments are not displayed in the browser but help developers document their code. Comments start with <!-- and end with -->. They're useful for leaving notes and temporarily disabling code.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-comments-demo",
     topic: "HTML Basics",
     demoHtml: `<!-- This is a comment and won't be displayed -->
@@ -390,10 +384,7 @@ and can contain detailed explanations
     description: "HTML entities are used to display special characters that are reserved in HTML or not easily typeable. They start with & and end with ;. Common entities include &lt;, &gt;, &amp;, and &copy;.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-entities-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-entities-demo"
-    },
+    
     topic: "HTML Special Characters",
     demoHtml: `<h3>Reserved Characters:</h3>
 <p>&lt; - Less than</p>
@@ -422,10 +413,7 @@ and can contain detailed explanations
     description: "HTML elements are categorized as block-level or inline elements. Block elements take up the full width and start on a new line, while inline elements only take up necessary space and flow with text.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-block-inline-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-block-inline-demo"
-    },
+  
     topic: "HTML Structure",
     demoHtml: `<h3>Block Elements:</h3>
 <div style="background: lightblue; margin: 5px 0; padding: 5px;">Block div</div>
@@ -445,10 +433,7 @@ and can contain detailed explanations
     description: "HTML5 introduced many new input types for forms. These include email, password, number, date, color, range, and more. Each type has specific validation and user interface features.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-input-types-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-input-types-demo"
-    },
+   
     topic: "HTML Forms",
     demoHtml: `<form>
     <p><label>Text: </label><input type="text" placeholder="Enter text"></p>
@@ -477,12 +462,9 @@ and can contain detailed explanations
     },
     title: "HTML Media Elements",
     description: "HTML5 provides built-in support for audio and video content without plugins. The audio and video elements support multiple formats and provide controls for playback.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/surf.jpg",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-media-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-media-demo"
-    },
+  
     topic: "HTML5 Media",
     demoHtml: `<h3>YouTube Video Embed</h3>
 <iframe width="250" height="140" 
@@ -549,10 +531,7 @@ and can contain detailed explanations
     description: "The HTML5 canvas element is used to draw graphics via JavaScript. It provides a drawing area where you can create dynamic graphics, animations, games, and data visualizations.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-canvas-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-canvas-demo"
-    },
+ 
     topic: "HTML5 Graphics",
     demoHtml: `<h3>Canvas Element</h3>
 <canvas id="myCanvas" width="250" height="150" style="border:1px solid #000; max-width: 100%;">
@@ -592,10 +571,7 @@ ctx.fillText('HTML Canvas', 10, 130);
     description: "SVG (Scalable Vector Graphics) allows you to create vector graphics in HTML. Unlike canvas, SVG graphics are part of the DOM and can be styled with CSS and manipulated with JavaScript.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
     link: "Learn.html#html-svg-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#html-svg-demo"
-    },
+  
     topic: "HTML5 Graphics",
     demoHtml: `<h3>Basic SVG Shapes</h3>
 <svg width="250" height="150" style="border: 1px solid black; max-width: 100%;">
@@ -632,10 +608,7 @@ ctx.fillText('HTML Canvas', 10, 130);
     description: "Learn how to create a stunning holographic hover effect using pure CSS. This modern effect uses gradients, transforms, and transitions to create an eye-catching holographic shine animation on hover. Perfect for cards, buttons, or any interactive elements. Includes complete HTML and CSS code examples that you can copy and use in your projects.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
     link: "Learn.html#css-holographic-demo",
-    related: {
-        text: "Try the Live Demo",
-        url: "Learn.html#css-holographic-demo"
-    },
+   
     topic: "CSS Hover Effects",
     demoHtml: `<div class="holographic-container" style="height:220px;">
   <div class="holographic-card">
