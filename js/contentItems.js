@@ -471,16 +471,7 @@ and can contain detailed explanations
 <p>&copy; - Copyright</p>
 <p>&trade; - Trademark</p>
 <p>&euro; - Euro sign</p>
-<p>&hearts; &clubs; &diams; &spades; - Card suits</p>`,
-    demoCss: `/* Basic HTML preview styling */
-.html-preview-container {
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-family: Arial, sans-serif;
-}`
+<p>&hearts; &clubs; &diams; &spades; - Card suits</p>`
 },
 
 
@@ -507,16 +498,7 @@ and can contain detailed explanations
 <p style="background: lightgreen; margin: 5px 0; padding: 5px;">Block paragraph</p>
 
 <h3>Inline Elements:</h3>
-<p>Text with <span style="background: pink; padding: 2px;">inline span</span> and <strong style="background: lightcoral; padding: 2px;">bold text</strong>.</p>`,
-    demoCss: `/* Basic HTML preview styling */
-.html-preview-container {
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-family: Arial, sans-serif;
-}`
+<p>Text with <span style="background: pink; padding: 2px;">inline span</span> and <strong style="background: lightcoral; padding: 2px;">bold text</strong>.</p>`
 },
 
 {
@@ -550,16 +532,7 @@ and can contain detailed explanations
     <p><input type="checkbox" id="check1"> <label for="check1">Checkbox</label></p>
     <p><input type="radio" id="radio1" name="radio"> <label for="radio1">Radio button</label></p>
     <p><input type="submit" value="Submit"> <input type="reset" value="Reset"></p>
-</form>`,
-    demoCss: `/* Basic HTML preview styling */
-.html-preview-container {
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-family: Arial, sans-serif;
-}`
+</form>`
 },
 
 {
@@ -594,16 +567,7 @@ and can contain detailed explanations
     Your browser does not support the audio element.
 </audio>
 
-<p><strong>Note:</strong> Modern browsers require user interaction before playing audio/video.</p>`,
-    demoCss: `/* Basic HTML preview styling */
-.html-preview-container {
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-family: Arial, sans-serif;
-}`
+<p><strong>Note:</strong> Modern browsers require user interaction before playing audio/video.</p>`
 },
 
 {
@@ -681,16 +645,7 @@ ctx.font = '14px Arial';
 ctx.fillText('HTML Canvas', 10, 130);
 </script>
 
-<p><strong>Interactive:</strong> Canvas elements can be made interactive with JavaScript event handlers for drawing, animations, and games.</p>`,
-    demoCss: `/* Basic HTML preview styling */
-.html-preview-container {
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-family: Arial, sans-serif;
-}`
+<p><strong>Interactive:</strong> Canvas elements can be made interactive with JavaScript event handlers for drawing, animations, and games.</p>`
 },
 
 {
@@ -729,16 +684,7 @@ ctx.fillText('HTML Canvas', 10, 130);
         </linearGradient>
     </defs>
     <ellipse cx="100" cy="50" rx="80" ry="35" fill="url(#grad1)" />
-</svg>`,
-    demoCss: `/* Basic HTML preview styling */
-.html-preview-container {
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: white;
-  color: black;
-  font-family: Arial, sans-serif;
-}`
+</svg>`
 },
 
 
