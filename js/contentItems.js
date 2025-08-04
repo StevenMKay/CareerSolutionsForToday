@@ -220,49 +220,7 @@ And this on another line.</p>`
 </dl>`
 },
 
-{
-    section: ["Learning", "HTML"],
-    program: {
-        name: "HTML",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
-    },
-    title: "HTML Tables",
-    description: "HTML tables allow you to arrange data into rows and columns. Tables are created with the <table> element, and include <tr> for rows, <th> for headers, and <td> for data cells.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
-    link: "Learn.html#html-tables-demo",
-    topic: "HTML Structure",
-    demoHtml: `<table border="1">
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Age</th>
-            <th>City</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>John Doe</td>
-            <td>30</td>
-            <td>New York</td>
-        </tr>
-        <tr>
-            <td>Jane Smith</td>
-            <td>25</td>
-            <td>Los Angeles</td>
-        </tr>
-        <tr>
-            <td>Bob Johnson</td>
-            <td>35</td>
-            <td>Chicago</td>
-        </tr>
-    </tbody>
-    <tfoot>
-        <tr>
-            <td colspan="3">Total: 3 people</td>
-        </tr>
-    </tfoot>
-</table>`
-},
+
 
 {
     section: ["Learning", "HTML"],
@@ -313,30 +271,6 @@ And this on another line.</p>`
 </form>`
 },
 
-{
-    section: ["Learning", "HTML"],
-    program: {
-        name: "HTML",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
-    },
-    title: "HTML Div Element",
-    description: "The HTML <div> element is a generic container for flow content. It has no effect on the content or layout until styled with CSS. It's commonly used to group elements for styling purposes.",
-    link: "Learn.html#html-div-demo",
-    topic: "HTML Structure",
-    demoHtml: `<div>This is a basic div element</div>
-<div style="border: 1px solid black; padding: 10px; margin: 10px;">
-    <h3>Styled Div Container</h3>
-    <p>This div has inline styling applied</p>
-</div>
-<div style="background-color: lightblue; padding: 15px;">
-    <div style="background-color: white; padding: 10px; margin: 5px;">
-        <p>Nested divs for layout</p>
-    </div>
-    <div style="background-color: lightgray; padding: 10px; margin: 5px;">
-        <p>Another nested div</p>
-    </div>
-</div>`
-},
 
 {
     section: ["Learning", "HTML"],
