@@ -320,8 +320,59 @@ document.addEventListener('DOMContentLoaded', () => {
                   <style>${item.demoCss}</style>
                 </div>
               `;
+            } else if (item.demoHtml && !item.demoCss && (item.program?.name === 'HTML' || item.section?.includes('HTML'))) {
+              // HTML item with demo code but no CSS  
+              const uniqueId = Date.now() + Math.random();
+              // Extract anchor ID from item.link or item.related.url if they exist
+              let anchorId = '';
+              if (item.link) {
+                const hashIndex = item.link.indexOf('#');
+                if (hashIndex !== -1) {
+                  anchorId = item.link.substring(hashIndex + 1);
+                }
+              } else if (item.related && item.related.url) {
+                const hashIndex = item.related.url.indexOf('#');
+                if (hashIndex !== -1) {
+                  anchorId = item.related.url.substring(hashIndex + 1);
+                }
+              }
+              sectionContent += `
+                <div class="html-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                  <div class="html-demo-container">
+                    <div class="html-demo-header">
+                      <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                      <div class="info">
+                        <h4>${highlightMatches(item.title, filter)}</h4>
+                        <p>${highlightMatches(item.description, filter)}</p>
+                        ${renderRelatedLinks(item.related, filter)}
+                      </div>
+                    </div>
+                    
+                    <div class="html-demo-content">
+                      <!-- Live Preview -->
+                      <div class="html-preview-section">
+                        <h5>📄 Live HTML Preview:</h5>
+                        <div class="html-live-preview" id="html-preview-${uniqueId}">
+                          ${item.demoHtml}
+                        </div>
+                      </div>
+                      
+                      <!-- Code Section -->
+                      <div class="html-code-section">
+                        <div class="html-code-buttons">
+                          <button class="copy-btn" onclick="copyHtmlCode('html-code-${uniqueId}')">📋 Copy HTML</button>
+                        </div>
+                        
+                        <h6>HTML Code:</h6>
+                        <textarea class="html-code-editor" id="html-code-${uniqueId}" oninput="updateHtmlPreview('${uniqueId}')" readonly>${item.demoHtml}</textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
             } else {
               // Regular card for non-CSS items
+
               sectionContent += `
                 <div class="frosted-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
                   <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
@@ -461,6 +512,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
               </div>
               <style>${item.demoCss}</style>
+            </div>
+          `;
+        } else if (item.demoHtml && !item.demoCss && (item.program?.name === 'HTML' || item.section?.includes('HTML'))) {
+          // HTML item with demo code but no CSS
+          const uniqueId = Date.now() + Math.random();
+          // Extract anchor ID from item.link or item.related.url if they exist
+          let anchorId = "";
+          if (item.link) {
+            // Check if link contains an anchor (either #anchor or page.html#anchor)
+            const hashIndex = item.link.indexOf("#");
+            if (hashIndex !== -1) {
+              anchorId = item.link.substring(hashIndex + 1);
+            }
+          } else if (item.related && item.related.url) {
+            const hashIndex = item.related.url.indexOf("#");
+            if (hashIndex !== -1) {
+              anchorId = item.related.url.substring(hashIndex + 1);
+            }
+          }
+          sectionContent += `
+            <div class="html-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}>
+              <div class="html-demo-container">
+                <div class="html-demo-header">
+                  <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                  <div class="info">
+                    <h4>${highlightMatches(item.title, filter)}</h4>
+                    <p>${highlightMatches(item.description, filter)}</p>
+                    ${renderRelatedLinks(item.related, filter)}
+                  </div>
+                </div>
+                
+                <div class="html-demo-content">
+                  <!-- Live Preview -->
+                  <div class="html-preview-section">
+                    <h5>📄 Live HTML Preview:</h5>
+                    <div class="html-live-preview" id="html-preview-${uniqueId}">
+                      ${item.demoHtml}
+                    </div>
+                  </div>
+                  
+                  <!-- Code Section -->
+                  <div class="html-code-section">
+                    <div class="html-code-buttons">
+                      <button class="copy-btn" onclick="copyHtmlCode('html-code-${uniqueId}')">📋 Copy HTML</button>
+                    </div>
+                    
+                    <h6>HTML Code:</h6>
+                    <textarea class="html-code-editor" id="html-code-${uniqueId}" oninput="updateHtmlPreview('${uniqueId}')" readonly>${item.demoHtml}</textarea>
+                  </div>
+                </div>
+              </div>
             </div>
           `;
         } else {
