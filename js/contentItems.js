@@ -846,6 +846,10 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         description:"This quick video will show you how to hide or remove all unused columns or rows in Excel to create a clean view for your users. We will also cover how to unhide or restore the hidden columns and rows.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
        link:"https://youtube.com/shorts/TCMYpQUytOM",
+   related:{
+            text:"Check it out on YouTube",
+            url:"https://youtube.com/shorts/TCMYpQUytOM"
+        },
         topic:"Hiding All Columns and Rows",
     },
 
