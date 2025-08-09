@@ -80,6 +80,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Function to handle mobile description truncation
+  function addMobileDescriptionTruncation() {
+    if (!isMobile()) return; // Only apply on mobile
+    
+    const descriptionTexts = document.querySelectorAll('.description-text');
+    descriptionTexts.forEach(descText => {
+      const fullText = descText.textContent;
+      if (fullText.length > 200) {
+        const truncatedText = fullText.substring(0, 200);
+        const remainingText = fullText.substring(200);
+        
+        descText.innerHTML = `
+          <span class="truncated-text">${truncatedText}...</span>
+          <span class="full-text" style="display: none;">${fullText}</span>
+          <button class="see-more-btn" onclick="toggleDescription(this)" style="
+            background: none;
+            border: none;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 5px;
+            text-decoration: underline;
+            font-size: 14px;
+          ">See More</button>
+        `;
+      }
+    });
+  }
+
+  // Global function to toggle description
+  window.toggleDescription = function(button) {
+    const container = button.parentElement;
+    const truncatedText = container.querySelector('.truncated-text');
+    const fullText = container.querySelector('.full-text');
+    const isExpanded = fullText.style.display !== 'none';
+    
+    if (isExpanded) {
+      // Collapse
+      truncatedText.style.display = 'inline';
+      fullText.style.display = 'none';
+      button.textContent = 'See More';
+    } else {
+      // Expand
+      truncatedText.style.display = 'none';
+      fullText.style.display = 'inline';
+      button.textContent = 'See Less';
+    }
+  };
+
   function isMobile() {
     return window.innerWidth <= 700;
   }
@@ -544,18 +594,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="code-editors">
                       <div class="code-editor-section">
                         <h6>HTML:</h6>
-                        <textarea class="code-editor html-editor" id="html-${uniqueId}" oninput="updatePreview()">${item.demoHtml}</textarea>
+                        <textarea class="code-editor html-editor" id="html-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updatePreview()">${item.demoHtml}</textarea>
                       </div>
                       
                       <div class="code-editor-section">
                         <h6>CSS:</h6>
-                        <textarea class="code-editor css-editor" id="css-${uniqueId}" oninput="updatePreview()">${item.demoCss}</textarea>
+                        <textarea class="code-editor css-editor" id="css-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updatePreview()">${item.demoCss}</textarea>
                       </div>
                       
                       ${hasJavaScript ? `
                       <div class="code-editor-section">
                         <h6>JavaScript:</h6>
-                        <textarea class="code-editor js-editor" id="js-${uniqueId}" oninput="updatePreview()">${item.demoJs}</textarea>
+                        <textarea class="code-editor js-editor" id="js-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updatePreview()">${item.demoJs}</textarea>
                       </div>
                       ` : ''}
                     </div>
@@ -638,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <h6>HTML Code:</h6>
-                    <textarea class="html-code-editor" id="html-code-${uniqueId}" oninput="updateHtmlPreview('${uniqueId}')" readonly>${item.demoHtml}</textarea>
+                    <textarea class="html-code-editor" id="html-code-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updateHtmlPreview('${uniqueId}')" readonly>${item.demoHtml}</textarea>
                   </div>
                 </div>
               </div>
@@ -651,7 +701,9 @@ document.addEventListener('DOMContentLoaded', () => {
               <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
               <div class="info">
                 <h4>${highlightMatches(item.title, filter)}</h4>
-                <p>${highlightMatches(item.description, filter)}</p>
+                <div class="description-container">
+                  <p class="description-text">${highlightMatches(item.description, filter)}</p>
+                </div>
                 ${renderRelatedLinks(item.related, filter)}
               </div>
             </div>
@@ -666,6 +718,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     resultsContainer.innerHTML = html || `<div style="color:#0b4f6c;font-size:20px;text-align:center;margin-top:40px;">No results found.</div>`;
+    
+    // Add mobile description truncation after rendering
+    addMobileDescriptionTruncation();
     
     // Add collapse handlers after rendering
     setTimeout(() => {
