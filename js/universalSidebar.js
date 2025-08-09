@@ -331,38 +331,32 @@ document.addEventListener('DOMContentLoaded', () => {
                   </div>
                   <style>${item.demoCss}</style>
                   ${hasJavaScript ? `<script>
-                    // Execute JavaScript when DOM is ready - trigger preview update
+                    // DIRECT 3D TILT EXECUTION - Simple approach
                     setTimeout(() => {
-                      console.log('Content loaded, triggering updatePreview for 3D tilt...');
-                      if (typeof updatePreview === 'function') {
-                        updatePreview();
-                      } else {
-                        console.log('updatePreview function not available, using direct execution');
-                        // Direct execution as fallback
-                        const cards = document.querySelectorAll('.card-3d');
-                        const containers = document.querySelectorAll('.card-container-3d');
-                        containers.forEach((container, index) => {
-                          const card = cards[index];
-                          if (card && container) {
-                            container.addEventListener('mousemove', (e) => {
-                              const rect = card.getBoundingClientRect();
-                              const x = e.clientX - rect.left;
-                              const y = e.clientY - rect.top;
-                              const centerX = rect.width / 2;
-                              const centerY = rect.height / 2;
-                              const rotateX = (centerY - y) / 10;
-                              const rotateY = (x - centerX) / 10;
-                              card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
-                              card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
-                            });
-                            container.addEventListener('mouseleave', () => {
-                              card.style.transform = 'rotateX(0deg) rotateY(0deg)';
-                              card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
-                            });
-                          }
-                        });
-                      }
-                    }, 500);
+                      const containers = document.querySelectorAll('.card-container-3d');
+                      const cards = document.querySelectorAll('.card-3d');
+                      
+                      containers.forEach((container, index) => {
+                        const card = cards[index];
+                        if (card && container) {
+                          container.onmousemove = function(e) {
+                            const rect = card.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const y = e.clientY - rect.top;
+                            const centerX = rect.width / 2;
+                            const centerY = rect.height / 2;
+                            const rotateX = (centerY - y) / 10;
+                            const rotateY = (x - centerX) / 10;
+                            card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
+                            card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
+                          };
+                          container.onmouseleave = function() {
+                            card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+                            card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
+                          };
+                        }
+                      });
+                    }, 1000);
                   </script>` : ''}
                 </div>
               `;
@@ -570,38 +564,32 @@ document.addEventListener('DOMContentLoaded', () => {
               </div>
               <style>${item.demoCss}</style>
               ${hasJavaScript ? `<script>
-                // Execute JavaScript when DOM is ready - trigger preview update
+                // DIRECT 3D TILT EXECUTION - Simple approach
                 setTimeout(() => {
-                  console.log('Content loaded, triggering updatePreview for 3D tilt...');
-                  if (typeof updatePreview === 'function') {
-                    updatePreview();
-                  } else {
-                    console.log('updatePreview function not available, using direct execution');
-                    // Direct execution as fallback
-                    const cards = document.querySelectorAll('.card-3d');
-                    const containers = document.querySelectorAll('.card-container-3d');
-                    containers.forEach((container, index) => {
-                      const card = cards[index];
-                      if (card && container) {
-                        container.addEventListener('mousemove', (e) => {
-                          const rect = card.getBoundingClientRect();
-                          const x = e.clientX - rect.left;
-                          const y = e.clientY - rect.top;
-                          const centerX = rect.width / 2;
-                          const centerY = rect.height / 2;
-                          const rotateX = (centerY - y) / 10;
-                          const rotateY = (x - centerX) / 10;
-                          card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
-                          card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
-                        });
-                        container.addEventListener('mouseleave', () => {
-                          card.style.transform = 'rotateX(0deg) rotateY(0deg)';
-                          card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
-                        });
-                      }
-                    });
-                  }
-                }, 500);
+                  const containers = document.querySelectorAll('.card-container-3d');
+                  const cards = document.querySelectorAll('.card-3d');
+                  
+                  containers.forEach((container, index) => {
+                    const card = cards[index];
+                    if (card && container) {
+                      container.onmousemove = function(e) {
+                        const rect = card.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        const centerX = rect.width / 2;
+                        const centerY = rect.height / 2;
+                        const rotateX = (centerY - y) / 10;
+                        const rotateY = (x - centerX) / 10;
+                        card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
+                        card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
+                      };
+                      container.onmouseleave = function() {
+                        card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+                        card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
+                      };
+                    }
+                  });
+                }, 1000);
               </script>` : ''}
             </div>
           `;
@@ -779,17 +767,26 @@ document.addEventListener('DOMContentLoaded', () => {
           e.preventDefault();
           e.stopPropagation();
           
-          // Remove active class from all topics first
-          topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
+          const topic = this.getAttribute('data-topic');
+          const wasActive = this.classList.contains('active');
           
-          // Add active class to clicked topic
-          this.classList.add('active');
-          
-          currentProgram = program;
-          currentTopic = this.getAttribute('data-topic');
-          searchInput.value = '';
-          const items = getItemsByProgramAndTopic(program, currentTopic);
-          renderAllCards(items);
+          if (wasActive) {
+            // Clicking active topic - deselect it and show all program content
+            topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
+            currentProgram = program;
+            currentTopic = null;
+            searchInput.value = '';
+            renderProgramCards(program); // Show all program content
+          } else {
+            // Clicking inactive topic - select it
+            topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            currentProgram = program;
+            currentTopic = topic;
+            searchInput.value = '';
+            const items = getItemsByProgramAndTopic(program, topic);
+            renderAllCards(items);
+          }
           
           // Small delay before updating highlight to ensure DOM is updated
           setTimeout(() => {
@@ -802,9 +799,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Program click handlers
     programsRow.querySelectorAll('.sidebar-program').forEach(programBtn => {
       programBtn.addEventListener('click', function() {
+        const program = this.getAttribute('data-program');
+        
         // Special handling for practice page
         if (pageType === 'practice') {
-          const program = this.getAttribute('data-program');
           console.log('Clicked program:', program);
           
           currentProgram = program;
@@ -860,14 +858,26 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         
-        // Original logic for other pages
-        const program = this.getAttribute('data-program');
-        programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        currentProgram = program;
-        currentTopic = null;
-        renderProgramCards(currentProgram);
-        showTopicsFor(currentProgram);
+        // MOBILE TOGGLE LOGIC - Allow clicking same program to collapse topics
+        const wasActive = this.classList.contains('active');
+        
+        if (wasActive && currentProgram === program) {
+          // Clicking the same active program - collapse topics and show all content
+          currentProgram = null;
+          currentTopic = null;
+          topicsRow.innerHTML = ''; // Clear topics
+          programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+          renderAllCards(getAllItems()); // Show all content
+          searchInput.value = '';
+        } else {
+          // Clicking different program or inactive program - show its topics
+          programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          currentProgram = program;
+          currentTopic = null;
+          renderProgramCards(currentProgram);
+          showTopicsFor(currentProgram);
+        }
       });
     });
 
@@ -894,12 +904,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (progEl) {
       const program = progEl.getAttribute('data-program');
       sidebarState[program] = sidebarState[program] || { expanded: false, topics: {} };
-      sidebarState[program].expanded = !sidebarState[program].expanded;
-      currentProgram = program;
-      currentTopic = null;
-      renderSidebar(groupByProgramAndTopic(getAllItems()));
-      renderProgramCards(program);
-      searchInput.value = '';
+      
+      // DESKTOP TOGGLE LOGIC - Allow clicking same program to collapse and show all content
+      const wasExpanded = sidebarState[program].expanded;
+      const wasCurrentProgram = currentProgram === program;
+      
+      if (wasExpanded && wasCurrentProgram) {
+        // Clicking the same expanded program - collapse it and show all content
+        sidebarState[program].expanded = false;
+        currentProgram = null;
+        currentTopic = null;
+        renderSidebar(groupByProgramAndTopic(getAllItems()));
+        renderAllCards(getAllItems()); // Show all content
+        searchInput.value = '';
+      } else {
+        // Clicking different program or collapsed program - expand and show its content
+        sidebarState[program].expanded = !sidebarState[program].expanded;
+        currentProgram = program;
+        currentTopic = null;
+        renderSidebar(groupByProgramAndTopic(getAllItems()));
+        renderProgramCards(program);
+        searchInput.value = '';
+      }
       return;
     }
     if (topicEl) {
@@ -907,15 +933,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const topic = topicEl.getAttribute('data-topic');
       sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
       sidebarState[program].topics = sidebarState[program].topics || {};
-      sidebarState[program].topics[topic] = !(sidebarState[program].topics[topic] ?? true);
+      
+      // TOPIC TOGGLE LOGIC - Allow deselecting topics to show all program content
+      const wasTopicActive = sidebarState[program].topics[topic] ?? true;
+      sidebarState[program].topics[topic] = !wasTopicActive;
+      
       if (sidebarState[program].topics[topic]) {
+        // Topic selected - show topic content
         currentProgram = program;
         currentTopic = topic;
         searchInput.value = '';
         const items = getItemsByProgramAndTopic(program, topic);
         renderAllCards(items);
       } else {
-        showPlaceholder();
+        // Topic deselected - check if any topics are still active
+        const activeTopics = Object.values(sidebarState[program].topics).some(active => active);
+        if (!activeTopics) {
+          // No topics active - show all program content
+          currentProgram = program;
+          currentTopic = null;
+          renderProgramCards(program);
+        } else {
+          // Some topics still active - show placeholder
+          showPlaceholder();
+        }
       }
       renderSidebar(groupByProgramAndTopic(getAllItems()));
       setTimeout(() => {
@@ -940,17 +981,34 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleFilterInput() {
     const filter = searchInput.value.trim();
     const expandedPrograms = Object.keys(sidebarState).filter(p => sidebarState[p].expanded);
+    
+    // If search is empty, show all content and reset filters
+    if (!filter) {
+      currentProgram = null;
+      currentTopic = null;
+      // Reset all sidebar states when search is cleared
+      Object.keys(sidebarState).forEach(program => {
+        sidebarState[program].expanded = false;
+        if (sidebarState[program].topics) {
+          Object.keys(sidebarState[program].topics).forEach(topic => {
+            sidebarState[program].topics[topic] = false;
+          });
+        }
+      });
+      renderSidebar(groupByProgramAndTopic(getAllItems()));
+      renderAllCards(getAllItems()); // Show all content when search is empty
+      return;
+    }
+    
     if (expandedPrograms.length === 0) {
       currentProgram = null;
-      filterAndHighlightCards(searchInput.value.trim());
-    }
-
-    if (expandedPrograms.length === 1) {
+      filterAndHighlightCards(filter);
+    } else if (expandedPrograms.length === 1) {
       // Only one program open: filter within that program
       currentProgram = expandedPrograms[0];
       renderProgramCards(currentProgram, filter);
     } else {
-      // None or multiple open: filter all programs
+      // Multiple open: filter all programs
       currentProgram = null;
       filterAndHighlightCards(filter);
     }
