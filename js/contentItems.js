@@ -678,7 +678,98 @@ ctx.fillText('HTML Canvas', 10, 130);
 }`
 },
 
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS 3D Tilt Hover Effect with JavaScript",
+    description: "Create an interactive 3D tilt effect that follows your mouse movement. This advanced hover effect combines CSS transforms, perspective, and JavaScript mouse tracking to create a dynamic card that tilts based on cursor position with realistic shadows and lighting effects.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-3d-tilt-demo",
+    topic: "CSS 3D Interactive Effects",
+    demoHtml: `<div class="card-container-3d">
+  <div class="card-3d">
+    <h2>Hover Here</h2>
+  </div>
+</div>`,
+    demoCss: `/* CSS 3D Tilt Hover Effect */
+.card-container-3d {
+  perspective: 1000px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  border-radius: 10px;
+  margin: 20px 0;
+  overflow: hidden;
+}
 
+.card-3d {
+  width: 320px;
+  height: 200px;
+  background: #1e1e1e;
+  border-radius: 15px;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transform-style: preserve-3d;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.card-3d h2 {
+  z-index: 2;
+  font-size: 24px;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  margin: 0;
+  position: relative;
+}
+
+.card-3d::before {
+  content: "";
+  position: absolute;
+  top: 0; 
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.2), transparent 60%);
+  pointer-events: none;
+  transition: background 0.2s;
+}`,
+    demoJs: `// JavaScript for 3D Tilt Effect
+const cards = document.querySelectorAll('.card-3d');
+const containers = document.querySelectorAll('.card-container-3d');
+
+containers.forEach((container, index) => {
+  const card = cards[index];
+  if (card && container) {
+    container.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateX = (centerY - y) / 10;
+      const rotateY = (x - centerX) / 10;
+
+      card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
+      card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
+    });
+
+    container.addEventListener('mouseleave', () => {
+      card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+      card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
+    });
+  }
+});`
+},
 
 
 
