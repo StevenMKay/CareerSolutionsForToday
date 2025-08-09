@@ -274,6 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
                   anchorId = item.related.url.substring(hashIndex + 1);
                 }
               }
+
+              // Check if this item also has JavaScript
+              const hasJavaScript = item.demoJs;
+
               sectionContent += `
                 <div class="css-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
                   <div class="css-demo-container">
@@ -300,7 +304,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="css-code-buttons">
                           <button class="copy-btn" onclick="copyCode('html-${uniqueId}')">📋 Copy HTML</button>
                           <button class="copy-btn" onclick="copyCode('css-${uniqueId}')">📋 Copy CSS</button>
-                          <button class="copy-btn" onclick="copyCode('both-${uniqueId}')">📋 Copy Both</button>
+                          ${hasJavaScript ? `<button class="copy-btn" onclick="copyCode('js-${uniqueId}')">📋 Copy JavaScript</button>` : ''}
+                          <button class="copy-btn" onclick="copyCode('${hasJavaScript ? 'all' : 'both'}-${uniqueId}')">📋 Copy ${hasJavaScript ? 'All' : 'Both'}</button>
                         </div>
                         
                         <div class="code-editors">
@@ -313,11 +318,52 @@ document.addEventListener('DOMContentLoaded', () => {
                             <h6>CSS:</h6>
                             <textarea class="code-editor css-editor" id="css-${uniqueId}" oninput="updatePreview()">${item.demoCss}</textarea>
                           </div>
+                          
+                          ${hasJavaScript ? `
+                          <div class="code-editor-section">
+                            <h6>JavaScript:</h6>
+                            <textarea class="code-editor js-editor" id="js-${uniqueId}" oninput="updatePreview()">${item.demoJs}</textarea>
+                          </div>
+                          ` : ''}
                         </div>
                       </div>
                     </div>
                   </div>
                   <style>${item.demoCss}</style>
+                  ${hasJavaScript ? `<script>
+                    // Execute JavaScript when DOM is ready - trigger preview update
+                    setTimeout(() => {
+                      console.log('Content loaded, triggering updatePreview for 3D tilt...');
+                      if (typeof updatePreview === 'function') {
+                        updatePreview();
+                      } else {
+                        console.log('updatePreview function not available, using direct execution');
+                        // Direct execution as fallback
+                        const cards = document.querySelectorAll('.card-3d');
+                        const containers = document.querySelectorAll('.card-container-3d');
+                        containers.forEach((container, index) => {
+                          const card = cards[index];
+                          if (card && container) {
+                            container.addEventListener('mousemove', (e) => {
+                              const rect = card.getBoundingClientRect();
+                              const x = e.clientX - rect.left;
+                              const y = e.clientY - rect.top;
+                              const centerX = rect.width / 2;
+                              const centerY = rect.height / 2;
+                              const rotateX = (centerY - y) / 10;
+                              const rotateY = (x - centerX) / 10;
+                              card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
+                              card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
+                            });
+                            container.addEventListener('mouseleave', () => {
+                              card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+                              card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
+                            });
+                          }
+                        });
+                      }
+                    }, 500);
+                  </script>` : ''}
                 </div>
               `;
             } else if (item.section?.includes('HTML')) {
@@ -467,6 +513,10 @@ document.addEventListener('DOMContentLoaded', () => {
               anchorId = item.related.url.substring(hashIndex + 1);
             }
           }
+          
+          // Check if this item also has JavaScript
+          const hasJavaScript = item.demoJs;
+          
           sectionContent += `
             <div class="css-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}>
               <div class="css-demo-container">
@@ -493,7 +543,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="css-code-buttons">
                       <button class="copy-btn" onclick="copyCode('html-${uniqueId}')">📋 Copy HTML</button>
                       <button class="copy-btn" onclick="copyCode('css-${uniqueId}')">📋 Copy CSS</button>
-                      <button class="copy-btn" onclick="copyCode('both-${uniqueId}')">📋 Copy Both</button>
+                      ${hasJavaScript ? `<button class="copy-btn" onclick="copyCode('js-${uniqueId}')">📋 Copy JavaScript</button>` : ''}
+                      <button class="copy-btn" onclick="copyCode('${hasJavaScript ? 'all' : 'both'}-${uniqueId}')">📋 Copy ${hasJavaScript ? 'All' : 'Both'}</button>
                     </div>
                     
                     <div class="code-editors">
@@ -506,11 +557,52 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h6>CSS:</h6>
                         <textarea class="code-editor css-editor" id="css-${uniqueId}" oninput="updatePreview()">${item.demoCss}</textarea>
                       </div>
+                      
+                      ${hasJavaScript ? `
+                      <div class="code-editor-section">
+                        <h6>JavaScript:</h6>
+                        <textarea class="code-editor js-editor" id="js-${uniqueId}" oninput="updatePreview()">${item.demoJs}</textarea>
+                      </div>
+                      ` : ''}
                     </div>
                   </div>
                 </div>
               </div>
               <style>${item.demoCss}</style>
+              ${hasJavaScript ? `<script>
+                // Execute JavaScript when DOM is ready - trigger preview update
+                setTimeout(() => {
+                  console.log('Content loaded, triggering updatePreview for 3D tilt...');
+                  if (typeof updatePreview === 'function') {
+                    updatePreview();
+                  } else {
+                    console.log('updatePreview function not available, using direct execution');
+                    // Direct execution as fallback
+                    const cards = document.querySelectorAll('.card-3d');
+                    const containers = document.querySelectorAll('.card-container-3d');
+                    containers.forEach((container, index) => {
+                      const card = cards[index];
+                      if (card && container) {
+                        container.addEventListener('mousemove', (e) => {
+                          const rect = card.getBoundingClientRect();
+                          const x = e.clientX - rect.left;
+                          const y = e.clientY - rect.top;
+                          const centerX = rect.width / 2;
+                          const centerY = rect.height / 2;
+                          const rotateX = (centerY - y) / 10;
+                          const rotateY = (x - centerX) / 10;
+                          card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
+                          card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
+                        });
+                        container.addEventListener('mouseleave', () => {
+                          card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+                          card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
+                        });
+                      }
+                    });
+                  }
+                }, 500);
+              </script>` : ''}
             </div>
           `;
         } else if (item.section?.includes('HTML')) {
@@ -930,6 +1022,13 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(tryInit, 50);
     }
   }
+  
+  // Listen for contentItemsLoaded event
+  window.addEventListener('contentItemsLoaded', () => {
+    console.log('contentItemsLoaded event received, trying init...');
+    tryInit();
+  });
+  
   tryInit();
   
   // Function to handle direct anchor navigation to CSS items
