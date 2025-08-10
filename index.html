@@ -1524,6 +1524,7 @@ function updateSearchResults(query) {
   resultsContainer.innerHTML = '';
   resultsContainer.style.display = 'none';
   if (!query) return;
+  
   const grouped = contentItems.reduce((acc, item) => {
     if (item.title.toLowerCase().includes(query)) {
       if (!acc[item.section]) acc[item.section] = [];
@@ -1531,6 +1532,7 @@ function updateSearchResults(query) {
     }
     return acc;
   }, {});
+  
   Object.keys(grouped).forEach(section => {
     const sectionDiv = document.createElement('div');
     sectionDiv.className = 'result-section';
@@ -1634,99 +1636,33 @@ function updateSearchResults(query) {
       // Then list each item under that program
       byProgram[program].forEach(item => {
         const card = document.createElement('div');
-        // Check if this is a CSS item with demo code
-        if (item.demoHtml && item.demoCss) {
-          card.className = 'result-card css-interactive-card';
-          
-          const uniqueId = Date.now() + Math.random();
-          card.innerHTML = `
-            <div class="css-demo-container">
-              <div class="css-demo-header">
-                <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail">
-                <div class="info">
-                  <h4>${item.title}</h4>
-                  <p>${item.description}</p>
-                  ${item.related ? `<p><a href="${item.related.url}" target="_blank">${item.related.text}</a></p>` : ''}
-                  
-                  <!-- ADD THIS: Check if it's an HTML item and add learn more link -->
-                  ${item.section && (item.section.includes('HTML') || item.title.toLowerCase().includes('html')) ? 
-                    `<p><a href="Learn.html#${encodeURIComponent(item.title.replace(/\s+/g, '-').toLowerCase())}" style="color: #0b4f6c; font-weight: bold;">📚 Learn more about HTML</a></p>` : ''}
-                </div>
-              </div>
-              
-              <div class="css-demo-content">
-                <!-- Live Preview -->
-                <div class="css-preview-section">
-                  <h5>✨ Live Preview (Hover the card below):</h5>
-                  <div class="css-live-preview" id="preview-${uniqueId}">
-                    ${item.demoHtml}
-                  </div>
-                </div>
-                
-                <!-- Code Editors -->
-                <div class="css-code-section">
-                  <div class="css-code-buttons">
-                    <button class="copy-btn" onclick="copyCode('html-${uniqueId}')">📋 Copy HTML</button>
-                    <button class="copy-btn" onclick="copyCode('css-${uniqueId}')">📋 Copy CSS</button>
-                    <button class="copy-btn" onclick="copyCode('both-${uniqueId}')">📋 Copy Both</button>
-                  </div>
-                  
-                  <div class="code-editors">
-                    <div class="code-editor-section">
-                      <h6>HTML:</h6>
-                      <textarea class="code-editor html-editor" id="html-${uniqueId}" oninput="updatePreview()">${item.demoHtml}</textarea>
-                    </div>
-                    
-                    <div class="code-editor-section">
-                      <h6>CSS:</h6>
-                      <textarea class="code-editor css-editor" id="css-${uniqueId}" oninput="updatePreview()">${item.demoCss}</textarea>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `;
-          
-          // Add the CSS styles dynamically for this preview
-          const styleTag = document.createElement('style');
-          styleTag.textContent = item.demoCss;
-          card.appendChild(styleTag);
-          
-        } else {
-          // Regular card for non-CSS items
-          card.className = 'result-card' + (item.hoverVideo ? ' has-video' : '');
+        card.className = 'result-card' + (item.hoverVideo ? ' has-video' : '');
 
-          card.innerHTML = `
+        card.innerHTML = `
           ${item.hoverVideo ? 
             `<video class="hover-video" muted playsinline loop preload="auto" src="${item.hoverVideo}"></video><img src="${item.thumbnail}" alt="${item.title}" class="thumbnail">` : 
             `<img src="${item.thumbnail}" alt="${item.title}" class="thumbnail">`}
           <div class="info">
-            <h4>${highlightMatches(item.title, filter)}</h4>
+            <h4>${highlightSearchTerms(item.title, query)}</h4>
             <div class="description-container">
-              <p class="description-text">${highlightMatches(item.description, filter)}</p>
+              <p class="description-text">${highlightSearchTerms(item.description, query)}</p>
             </div>
-           
-            ${renderRelatedLinks(item.related, filter)}
-            
-            <!-- ADD THIS: Check if it's an HTML item and add learn more link -->
-            ${item.section && (item.section.includes('HTML') || item.title.toLowerCase().includes('html')) ? 
-              `<p><a href="Learn.html#${encodeURIComponent(item.title.replace(/\s+/g, '-').toLowerCase())}" style="color: #0b4f6c; font-weight: bold;">📚 Learn more about HTML</a></p>` : ''}
+            ${item.related ? `<p><a href="${item.related.url}" target="_blank">${item.related.text}</a></p>` : ''}
           </div>
         `;
 
-          if (item.hoverVideo) {
-            const thumbVideo = card.querySelector('video.hover-video');
-            card.addEventListener('mouseenter', () => {
-              if (thumbVideo.paused) {
-                thumbVideo.currentTime = 0;
-                thumbVideo.play().catch(() => {});
-              }
-            });
-            card.addEventListener('mouseleave', () => {
-              thumbVideo.pause();
+        if (item.hoverVideo) {
+          const thumbVideo = card.querySelector('video.hover-video');
+          card.addEventListener('mouseenter', () => {
+            if (thumbVideo.paused) {
               thumbVideo.currentTime = 0;
-            });
-          }
+              thumbVideo.play().catch(() => {});
+            }
+          });
+          card.addEventListener('mouseleave', () => {
+            thumbVideo.pause();
+            thumbVideo.currentTime = 0;
+          });
         }
 
         programContent.appendChild(card);
@@ -1738,11 +1674,17 @@ function updateSearchResults(query) {
     
     // Append section content to section div
     sectionDiv.appendChild(sectionContent);
-
     resultsContainer.appendChild(sectionDiv);
   });
 
   resultsContainer.style.display = 'block'; // Show results if there are any
+}
+
+// Helper function to highlight search terms
+function highlightSearchTerms(text, query) {
+  if (!query) return text;
+  const regex = new RegExp(`(${query})`, 'gi');
+  return text.replace(regex, '<mark>$1</mark>');
 }
 
 document.addEventListener('click', function (event) {
