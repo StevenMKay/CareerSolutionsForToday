@@ -6,7 +6,7 @@ const backgrounds = {
   "templates.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/da19106f72f1e65b1251a02913a85dd58a98eff2/photos/ResumeSectionPhoto.jpg')",
   "resume.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/965f4340d871fd36de40d605531c2d3b3a82707d/photos/resumebackgroudn.jpg')",
   "practice.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5d98685a09d577a114908c9770a48196edce63eb/photos/codingbackground.jpg')",
-  
+   "businessCase.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d18c9151c29ed01f172dcecca8220e4a0a41fca6/businessCase.html')",
     // Add more as needed
 };
 
@@ -15,3 +15,4 @@ const page = location.pathname.split('/').pop().toLowerCase();
 if (backgrounds[page]) {
   document.body.style.backgroundImage = `linear-gradient(to right, rgba(0, 0, 0, 0.6) 20%, #7F7F7F 99%), ${backgrounds[page]}`;
 }
+
