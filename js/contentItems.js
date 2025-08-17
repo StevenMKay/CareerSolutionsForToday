@@ -31,7 +31,25 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
 // 1) First declare your static items:
 window.contentItems = [
 
-
+{
+    section: [
+        "Learning",
+        "Videos"
+    ],
+    program: {
+        name: "AI",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+    },
+    title: "Vibe Coding for Websites and Training Simulations",
+    description: "In this video we cover how to use vibe coding to easily and quickly build effective websites, training simulations, and other tools.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/Thumbnails/thumb.png",
+    link: "https://youtu.be/VsivDUMm9lE",
+    related: {
+        text: "Check it out on YouTube",
+        url: "https://youtu.be/VsivDUMm9lE"
+    },
+    topic: "AI"
+},
 
 {
     section: ["Learning", "HTML"],
