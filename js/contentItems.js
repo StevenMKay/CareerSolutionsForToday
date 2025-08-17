@@ -25,6 +25,40 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
       // Add more as needed
 };
 
+// Auto-generate Learn.html links for HTML and CSS content items
+function generateLearnLink(item) {
+  // Check if this is an HTML or CSS learning item without a link
+  if (item.section && Array.isArray(item.section) && 
+      item.section.includes('Learning') && 
+      (item.section.includes('HTML') || item.section.includes('CSS')) &&
+      !item.link) {
+    
+    // Generate anchor ID from title
+    const anchorId = item.title.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+    
+    // Create the Learn.html link with anchor
+    item.link = `Learn.html#${anchorId}-demo`;
+  }
+  return item;
+}
+
+// Process all content items on load to ensure they have Learn.html links
+function processContentItems() {
+  if (window.contentItems && Array.isArray(window.contentItems)) {
+    window.contentItems = window.contentItems.map(generateLearnLink);
+  }
+}
+
+// Auto-process when contentItems are loaded
+document.addEventListener('DOMContentLoaded', processContentItems);
+if (window.contentItems) {
+  processContentItems();
+}
+
 
 
 
