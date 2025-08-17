@@ -6,7 +6,7 @@ window.PROGRAM_ICONS = {
  Firefox:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a4f299d05ef28e41160723f72b439f29a3868b0a/firefoxicon.png",
 General:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5081bef9abd3db6fb93b96a3f0441e9db909aebb/icons/generalicon.png",
 SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4fb10d0211b5042bfcd3b072a41dc9ce917/icons/sqlicon.png",
-
+AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/icons/AIicon.png",
 
 'Helpful Websites':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ccb7bdd06de647ea39a8a8644798db5d7c790525/icons/interneticon.png",
 
