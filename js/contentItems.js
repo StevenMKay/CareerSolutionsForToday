@@ -21,7 +21,9 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
     Excel:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png",
   PowerPoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png",
   Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png",
-  YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+  YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png",
+  Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png",
+  Calculators:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
       // Add more as needed
 };
 
@@ -4820,6 +4822,63 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
             url:"https://youtu.be/rMtH08s7zcQ"
         },
         topic:"Tab Management"
+    },
+
+    // ===== TOOLS SECTION =====
+    // Simulations Program
+    {
+        section: ["Learning", "Tools"],
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png"
+        },
+        title: "Call Center Training Simulation",
+        description: "Interactive call center training simulation with realistic customer scenarios, verification processes, and performance tracking. Practice customer service skills in a safe environment.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
+        link: "Tools.html#call-center-simulation",
+        simulationType: "callcenter",
+        topic: "Customer Service Training"
+    },
+    {
+        section: ["Learning", "Tools"], 
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png"
+        },
+        title: "Excel VLOOKUP Master Training",
+        description: "Comprehensive interactive Excel VLOOKUP training simulation. Learn to build lookup formulas step-by-step with real-time feedback and validation in a realistic Excel environment.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
+        link: "Tools.html#vlookup-simulation",
+        simulationType: "vlookup",
+        topic: "Excel Training"
+    },
+
+    // Calculators Program  
+    {
+        section: ["Learning", "Tools"],
+        program: {
+            name: "Calculators",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
+        },
+        title: "Business Case Development Calculator",
+        description: "Comprehensive business case calculator for analyzing ROI, cost savings, revenue generation, and payback periods. Build compelling business cases with detailed financial projections and downloadable reports.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/businesscase.png",
+        link: "Tools.html#business-case-calculator",
+        calculatorType: "businesscase", 
+        topic: "Business Analysis"
+    },
+    {
+        section: ["Learning", "Tools"],
+        program: {
+            name: "Calculators",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
+        },
+        title: "Amortization Calculator",
+        description: "Calculate loan payments and view detailed amortization schedules. Enter loan amount, interest rate, and term to see monthly payments, total interest, and a complete payment breakdown by month.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/businesscase.png",
+        link: "Tools.html#amortization-calculator",
+        calculatorType: "amortization", 
+        topic: "Financial Analysis"
     }
 
   ];  // <-- close the array here
