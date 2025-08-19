@@ -10,6 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Section collapse state
   let sectionCollapseState = {};
 
+  // Debug page type detection
+  console.log('=== PAGE TYPE DETECTION ===');
+  console.log('learnSidebar element:', document.getElementById('learnSidebar'));
+  console.log('toolsSidebar element:', document.getElementById('toolsSidebar'));
+  console.log('practiceSidebar element:', document.getElementById('practiceSidebar'));
+
   if (document.getElementById('learnSidebar')) {
     pageType = 'learn';
     sidebar = document.getElementById('learnSidebar');
@@ -18,6 +24,18 @@ document.addEventListener('DOMContentLoaded', () => {
     getAllItems = () => window.contentItems || [];
     groupByProgramAndTopic = groupContentByProgramAndTopic;
     placeholderText = 'Use the sidebar to select a program/topic, or type in the filter box to find learning resources.';
+    console.log('✅ Detected Learn page');
+  } else if (document.getElementById('toolsSidebar')) {
+    pageType = 'tools';
+    sidebar = document.getElementById('toolsSidebar');
+    searchInput = document.getElementById('toolsSearch');
+    resultsContainer = document.getElementById('toolsResults');
+    getAllItems = () => (window.contentItems || []).filter(item =>
+      (Array.isArray(item.section) && item.section.includes('Tools')) || item.section === 'Tools'
+    );
+    groupByProgramAndTopic = groupToolsByProgramAndTopic;
+    placeholderText = 'Use the sidebar to select a program/topic, or type in the filter box to find tools and simulations.';
+    console.log('✅ Detected Tools page');
   } else if (document.getElementById('practiceSidebar')) {
     pageType = 'practice';
     sidebar = document.getElementById('practiceSidebar');
@@ -152,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function groupVideosByProgramAndTopic(items) { return groupContentByProgramAndTopic(items); }
   function groupTemplatesByProgramAndTopic(items) { return groupContentByProgramAndTopic(items); }
+  function groupToolsByProgramAndTopic(items) { return groupContentByProgramAndTopic(items); }
   
   function groupPracticeByProgram(items) {
     const groups = {};
@@ -410,6 +429,133 @@ document.addEventListener('DOMContentLoaded', () => {
                   </script>` : ''}
                 </div>
               `;
+            } else if (item.simulationType || item.calculatorType) {
+              // Handle Tools page simulations and calculators
+              const uniqueId = Date.now() + Math.random();
+              let anchorId = '';
+              if (item.link) {
+                const hashIndex = item.link.indexOf('#');
+                if (hashIndex !== -1) {
+                  anchorId = item.link.substring(hashIndex + 1);
+                }
+              }
+
+              // Check if we're on Learn page - if so, show redirect card instead of iframe
+              if (pageType === 'learn') {
+                sectionContent += `
+                  <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                    <div class="css-demo-container">
+                      <div class="css-demo-header">
+                        <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                        <div class="info">
+                          <h4>${highlightMatches(item.title, filter)}</h4>
+                          <p>${highlightMatches(item.description, filter)}</p>
+                          <div style="margin-top: 15px;">
+                            <a href="${item.link}" class="tools-redirect-btn" style="
+                              display: inline-block;
+                              background: linear-gradient(135deg, #ff6b35, #f7931e);
+                              color: white !important;
+                              text-decoration: none;
+                              padding: 12px 24px;
+                              border-radius: 25px;
+                              font-size: 16px;
+                              font-weight: 600;
+                              margin-top: 10px;
+                              transition: all 0.3s ease;
+                              box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+                            ">🛠️ Use Interactive Tool</a>
+                          </div>
+                          ${renderRelatedLinks(item.related, filter)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              } else {
+                // On Tools page - show full iframe content
+                let simulationContent = '';
+                if (item.simulationType === 'callcenter') {
+                  // Embed call center simulation - direct iframe
+                  simulationContent = `
+                    <iframe class="simulation-iframe" 
+                            src="Simulations/CallCenter.html" 
+                            title="Call Center Training Simulation"
+                            style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">
+                      Your browser does not support iframes. Please use a modern browser to view this simulation.
+                    </iframe>
+                  `;
+                } else if (item.simulationType === 'vlookup') {
+                  // Embed VLOOKUP simulation - direct iframe
+                  simulationContent = `
+                    <iframe class="simulation-iframe" 
+                            src="Simulations/VLOOKUPSimulation.html" 
+                            title="Excel VLOOKUP Master Training"
+                            style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">
+                      Your browser does not support iframes. Please use a modern browser to view this simulation.
+                    </iframe>
+                  `;
+                } else if (item.calculatorType === 'businesscase') {
+                  // Embed business case calculator - direct iframe
+                  simulationContent = `
+                    <iframe class="simulation-iframe" 
+                            src="businesscase.html" 
+                            title="Business Case Development Calculator"
+                            style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">
+                      Your browser does not support iframes. Please use a modern browser to view this simulation.
+                    </iframe>
+                  `;
+                } else if (item.calculatorType === 'amortization') {
+                  // Embed amortization calculator - direct iframe
+                  simulationContent = `
+                    <iframe class="simulation-iframe" 
+                            src="amortization.html" 
+                            title="Amortization Calculator"
+                            style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">
+                      Your browser does not support iframes. Please use a modern browser to view this simulation.
+                    </iframe>
+                  `;
+                }
+
+                const toolId = anchorId || 'tool-' + Date.now();
+                sectionContent += `
+                  <div class="tools-interactive-card clickable-tool-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                    <div class="tools-demo-header">
+                      <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                      <div class="info">
+                        <h4>${highlightMatches(item.title, filter)}</h4>
+                        <p>${highlightMatches(item.description, filter)}</p>
+                        <div style="margin-top: 15px;">
+                          <button onclick="toggleToolContent('${toolId}')" class="expand-tool-btn" style="
+                            background: linear-gradient(135deg, #00ffa6, #00d285);
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 25px;
+                            font-size: 16px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            transition: all 0.3s ease;
+                            box-shadow: 0 4px 15px rgba(0, 255, 166, 0.3);
+                            margin-bottom: 10px;
+                            display: inline-block;
+                          " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">🛠️ Use This Tool</button>
+                        </div>
+                        ${renderRelatedLinks(item.related, filter)}
+                      </div>
+                    </div>
+                    
+                    <div class="simulation-container" id="content-${toolId}" style="display: none; margin-top: 20px;">
+                      <div class="tool-header">
+                        <h3>${item.title}</h3>
+                        <p>Interactive tool - try the features below</p>
+                      </div>
+                      <div class="simulation-content">
+                        ${simulationContent}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
             } else if (item.section?.includes('HTML')) {
               // ALL HTML items should use HTML interactive card format
               const uniqueId = Date.now() + Math.random();
@@ -427,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
               sectionContent += `
-                <div class="html-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                <div class="html-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
                   <div class="html-demo-container">
                     <div class="html-demo-header">
                       <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -454,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         
                         <h6>HTML Code:</h6>
-                        <textarea class="html-code-editor" id="html-code-${uniqueId}" oninput="updateHtmlPreview('${uniqueId}')" readonly>${item.demoHtml}</textarea>
+                        <textarea class="html-code-editor" id="html-code-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updateHtmlPreview('${uniqueId}')">${item.demoHtml}</textarea>
                       </div>
                     </div>
                   </div>
@@ -463,7 +609,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
               // Regular card for non-CSS items
               sectionContent += `
-                <div class="frosted-card" data-search="${searchText}" data-topic="${topic ? topic : ''}">
+                <div class="frosted-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}">
                   <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
                   <div class="info">
                     <h4>${highlightMatches(item.title, filter)}</h4>
@@ -540,8 +686,96 @@ document.addEventListener('DOMContentLoaded', () => {
         // UPDATED: Support array of related items for search
         const searchText = [item.title, item.description, ...(Array.isArray(item.related) ? item.related.map(r => r.text) : item.related?.text ? [item.related.text] : [])].filter(Boolean).join(' ').toLowerCase();
         
-        // Check if this is a CSS item with demo code
-        if (item.demoHtml && item.demoCss) {
+        // Check if this is a simulation or calculator tool FIRST
+        if (item.simulationType || item.calculatorType) {
+          // Handle Tools page simulations and calculators
+          const uniqueId = Date.now() + Math.random();
+          let anchorId = '';
+          if (item.link) {
+            const hashIndex = item.link.indexOf('#');
+            if (hashIndex !== -1) {
+              anchorId = item.link.substring(hashIndex + 1);
+            }
+          }
+
+          // Check if we're on Learn page - if so, show redirect card instead of iframe
+          if (pageType === 'learn') {
+            sectionContent += `
+              <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                <div class="css-demo-container">
+                  <div class="css-demo-header">
+                    <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                    <div class="info">
+                      <h4>${highlightMatches(item.title, filter)}</h4>
+                      <p>${highlightMatches(item.description, filter)}</p>
+                      <div style="margin-top: 15px;">
+                        <a href="${item.link}" class="tools-redirect-btn" style="
+                          display: inline-block;
+                          background: linear-gradient(135deg, #ff6b35, #f7931e);
+                          color: white !important;
+                          text-decoration: none;
+                          padding: 12px 24px;
+                          border-radius: 25px;
+                          font-size: 16px;
+                          font-weight: 600;
+                          margin-top: 10px;
+                          transition: all 0.3s ease;
+                          box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+                        ">🛠️ Use Interactive Tool</a>
+                      </div>
+                      ${renderRelatedLinks(item.related, filter)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            // On Tools page - show full iframe content
+            let simulationContent = '';
+            if (item.simulationType === 'callcenter') {
+              // Embed call center simulation - direct iframe
+              simulationContent = `
+                <iframe class="simulation-iframe" 
+                        src="Simulations/CallCenter.html" 
+                        title="Call Center Training Simulation"
+                        style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">
+                  Your browser does not support iframes. Please use a modern browser to view this simulation.
+                </iframe>
+              `;
+            } else if (item.simulationType === 'vlookup') {
+              // Embed VLOOKUP simulation - direct iframe
+              simulationContent = `
+                <iframe class="simulation-iframe" 
+                        src="Simulations/VLOOKUPSimulation.html" 
+                        title="Excel VLOOKUP Master Training"
+                        style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">
+                  Your browser does not support iframes. Please use a modern browser to view this simulation.
+                </iframe>
+              `;
+            } else if (item.calculatorType === 'businesscase') {
+              // Embed business case calculator - direct iframe
+              simulationContent = `
+                <iframe class="simulation-iframe" 
+                        src="businesscase.html" 
+                        title="Business Case Development Calculator"
+                        style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">
+                  Your browser does not support iframes. Please use a modern browser to view this simulation.
+                </iframe>
+              `;
+            } else if (item.calculatorType === 'amortization') {
+              // Embed amortization calculator - direct iframe
+              simulationContent = `
+                <iframe class="simulation-iframe" 
+                        src="amortization.html" 
+                        title="Amortization Calculator"
+                        style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">
+                  Your browser does not support iframes. Please use a modern browser to view this simulation.
+                </iframe>
+              `;
+            }
+          }
+        } else if (item.demoHtml && item.demoCss) {
+          
           const uniqueId = Date.now() + Math.random();
           // Extract anchor ID from item.link or item.related.url if they exist
           let anchorId = "";
@@ -688,7 +922,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     
                     <h6>HTML Code:</h6>
-                    <textarea class="html-code-editor" id="html-code-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updateHtmlPreview('${uniqueId}')" readonly>${item.demoHtml}</textarea>
+                    <textarea class="html-code-editor" id="html-code-${uniqueId}" spellcheck="false" autocorrect="off" autocapitalize="off" oninput="updateHtmlPreview('${uniqueId}')">${item.demoHtml}</textarea>
                   </div>
                 </div>
               </div>
@@ -1128,6 +1362,79 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMobileSidebar(groups);
       });
       loadSectionFromHash();
+      
+      // For Tools page - automatically show all tools content by default  
+      if (pageType === 'tools') {
+        console.log('🛠️ Auto-loading all tools content for Tools page');
+        
+        // Bypass section grouping and render tools directly
+        setTimeout(() => {
+          console.log('🛠️ Rendering tools directly without section grouping');
+          
+          // Get tools items and render them directly
+          const toolsItems = items.filter(item => 
+            (Array.isArray(item.section) && item.section.includes('Tools')) || item.section === 'Tools'
+          );
+          
+          console.log('Tools items to render:', toolsItems.length);
+          
+          // Clear the results container and render tools directly
+          if (resultsContainer) {
+            resultsContainer.innerHTML = '<div class="tools-content-direct"></div>';
+            
+            let toolsHTML = '';
+            toolsItems.forEach(item => {
+              const uniqueId = Date.now() + Math.random();
+              let anchorId = '';
+              if (item.link) {
+                const hashIndex = item.link.indexOf('#');
+                if (hashIndex !== -1) {
+                  anchorId = item.link.substring(hashIndex + 1);
+                }
+              }
+              
+              // Generate simulation content using simple concatenation
+              let simulationContent = '';
+              if (item.simulationType === 'callcenter') {
+                simulationContent = '<iframe class="simulation-iframe" src="Simulations/CallCenter.html" title="Call Center Training Simulation" style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              } else if (item.simulationType === 'vlookup') {
+                simulationContent = '<iframe class="simulation-iframe" src="Simulations/VLOOKUPSimulation.html" title="Excel VLOOKUP Master Training" style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              } else if (item.calculatorType === 'businesscase') {
+                simulationContent = '<iframe class="simulation-iframe" src="businesscase.html" title="Business Case Development Calculator" style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              } else if (item.calculatorType === 'amortization') {
+                simulationContent = '<iframe class="simulation-iframe" src="amortization.html" title="Amortization Calculator" style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              }
+              
+              const toolId = anchorId || 'tool-' + uniqueId;
+              
+              toolsHTML += '<div class="tools-interactive-card clickable-tool-card" id="' + anchorId + '" data-search="' + item.title.toLowerCase() + ' ' + item.description.toLowerCase() + '">' +
+                '<div class="tools-demo-header">' +
+                  '<img src="' + item.thumbnail + '" alt="' + item.title + '" class="thumbnail" loading="lazy">' +
+                  '<div class="info">' +
+                    '<h4>' + item.title + '</h4>' +
+                    '<p>' + item.description + '</p>' +
+                    '<div style="margin-top: 15px;">' +
+                      '<button onclick="toggleToolContent(\'' + toolId + '\')" class="expand-tool-btn" style="background: linear-gradient(135deg, #00ffa6, #00d285); color: white; border: none; padding: 12px 24px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0, 255, 166, 0.3); margin-bottom: 10px; display: inline-block;" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'translateY(0)\'">🛠️ Use This Tool</button>' +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="simulation-container" id="content-' + toolId + '" style="display: none; margin-top: 20px;">' +
+                  '<div class="tool-header">' +
+                    '<h3>' + item.title + '</h3>' +
+                    '<p>Interactive tool - try the features below</p>' +
+                  '</div>' +
+                  '<div class="simulation-content">' +
+                    simulationContent +
+                  '</div>' +
+                '</div>' +
+              '</div>';
+            });
+            
+            resultsContainer.querySelector('.tools-content-direct').innerHTML = toolsHTML;
+            console.log('✅ Tools rendered directly with HTML concatenation');
+          }
+        }, 2000);
+      }
       
       // Handle direct anchor navigation for CSS items
       handleDirectAnchorNavigation();
