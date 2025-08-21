@@ -67,6 +67,32 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+
+{
+  
+        section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
+        link:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l",
+        title:"Morph Transition Tutorial",
+        description:"Quick video on how to make a cool slide using morph transitions.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e81150277e03f88b43c271c2c9ff82174575ba01/Thumbnails/surfmorphtutorialthumbnail.png",
+       link:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l",
+         related:{
+           text:"Watch YouTube Video",
+           url:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l"
+       },
+       topic:"Morph Transition Tutorial",
+    },
+
+  
 {
     section: [
         "Learning",
