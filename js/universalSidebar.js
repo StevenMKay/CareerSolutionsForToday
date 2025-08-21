@@ -1367,6 +1367,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (pageType === 'tools') {
         console.log('🛠️ Auto-loading all tools content for Tools page');
         
+        // Expand all programs by default on Tools page
+        Object.keys(groups).forEach(program => {
+          sidebarState[program] = { expanded: true, topics: {} };
+        });
+        
         // Bypass section grouping and render tools directly
         setTimeout(() => {
           console.log('🛠️ Rendering tools directly without section grouping');
