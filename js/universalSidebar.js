@@ -1460,16 +1460,27 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleDirectAnchorNavigation() {
     const hash = window.location.hash;
     if (hash) {
-      // Wait a bit for content to be rendered, then scroll to the element
+      // Check if this is a URL parameter hash (like #program=...&topic=...)
+      if (hash.includes('program=') && hash.includes('topic=')) {
+        // Handle URL parameter navigation
+        loadSectionFromHash();
+        return;
+      }
+      
+      // Handle regular anchor navigation
       setTimeout(() => {
-        const targetElement = document.querySelector(hash);
-        if (targetElement) {
+        try {
+          const targetElement = document.querySelector(hash);
+          if (targetElement) {
           targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           // Add a highlight effect to draw attention
           targetElement.style.boxShadow = '0 0 20px rgba(11, 79, 108, 0.5)';
           setTimeout(() => {
             targetElement.style.boxShadow = '';
           }, 3000);
+        }
+        } catch (e) {
+          console.log('Invalid CSS selector in hash:', hash);
         }
       }, 500);
     }
