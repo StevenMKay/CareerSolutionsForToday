@@ -981,7 +981,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
       const expanded = sidebarState[program]?.expanded || false;
       html += `
-        <div class="practice-language-btn${currentProgram === program && expanded ? ' active' : ''}" data-program="${program}">
+        <div class="sidebar-program${currentProgram === program && expanded ? ' active' : ''}" data-program="${program}">
          ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}">` : ''}
           <span>${program}</span>
 
@@ -1085,90 +1085,92 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Program click handlers
-    programsRow.querySelectorAll('.sidebar-program').forEach(programBtn => {
-      programBtn.addEventListener('click', function() {
-        const program = this.getAttribute('data-program');
-        
-        // Special handling for practice page
-        if (pageType === 'practice') {
-          console.log('Clicked program:', program);
+    // Program click handlers - Only for mobile or when main sidebar is not present
+    if (isMobile() || !sidebar) {
+      programsRow.querySelectorAll('.sidebar-program').forEach(programBtn => {
+          programBtn.addEventListener('click', function() {
+            const program = this.getAttribute('data-program');
           
-          currentProgram = program;
-          currentTopic = null;
-          searchInput.value = '';
-          
-          // Direct rendering of practice problems
-          const resultsContainer = document.getElementById('practiceResults');
-          const problems = window.practiceProblems || [];
-          const filteredProblems = problems.filter(p => p.language === program);
-          
-          console.log('Total problems:', problems.length);
-          console.log('Filtered problems for', program, ':', filteredProblems.length);
-          
-          if (filteredProblems.length === 0) {
-            resultsContainer.innerHTML = `<div style="color: white; text-align: center; margin-top: 50px;"><h3>No problems found for ${program}</h3></div>`;
-          } else {
-            let html = `<h2 style="color: white; text-align: center; margin-bottom: 30px;">${program} Coding Challenges</h2>`;
+          // Special handling for practice page
+          if (pageType === 'practice') {
+            console.log('Clicked program:', program);
             
-            filteredProblems.forEach(problem => {
-              const uniqueId = problem.id;
-              html += `
-                <div class="practice-problem-card">
-                  <div class="problem-header">
-                    <h3>${problem.title}</h3>
-                    <span class="difficulty-badge difficulty-${problem.difficulty.toLowerCase()}">${problem.difficulty}</span>
-                  </div>
-                  <div class="problem-description">
-                    <h4>Problem:</h4>
-                    <p>${problem.description}</p>
-                  </div>
-                  <div class="coding-section">
-                    <h4>Your Solution:</h4>
-                    <textarea class="code-editor" id="code-${uniqueId}" placeholder="Write your ${problem.language} code here...">${problem.starterCode || ''}</textarea>
-                    <div class="action-buttons">
-                      <button class="submit-btn" onclick="submitCode('${uniqueId}')">Submit Code</button>
-                      <button class="hint-btn" onclick="showSolution('${uniqueId}')">Show Solution</button>
+            currentProgram = program;
+            currentTopic = null;
+            searchInput.value = '';
+            
+            // Direct rendering of practice problems
+            const resultsContainer = document.getElementById('practiceResults');
+            const problems = window.practiceProblems || [];
+            const filteredProblems = problems.filter(p => p.language === program);
+            
+            console.log('Total problems:', problems.length);
+            console.log('Filtered problems for', program, ':', filteredProblems.length);
+            
+            if (filteredProblems.length === 0) {
+              resultsContainer.innerHTML = `<div style="color: white; text-align: center; margin-top: 50px;"><h3>No problems found for ${program}</h3></div>`;
+            } else {
+              let html = `<h2 style="color: white; text-align: center; margin-bottom: 30px;">${program} Coding Challenges</h2>`;
+              
+              filteredProblems.forEach(problem => {
+                const uniqueId = problem.id;
+                html += `
+                  <div class="practice-problem-card">
+                    <div class="problem-header">
+                      <h3>${problem.title}</h3>
+                      <span class="difficulty-badge difficulty-${problem.difficulty.toLowerCase()}">${problem.difficulty}</span>
                     </div>
-                    <div id="result-${uniqueId}" class="result-display"></div>
-                    <div id="solution-${uniqueId}" class="solution-display" style="display: none;"></div>
+                    <div class="problem-description">
+                      <h4>Problem:</h4>
+                      <p>${problem.description}</p>
+                    </div>
+                    <div class="coding-section">
+                      <h4>Your Solution:</h4>
+                      <textarea class="code-editor" id="code-${uniqueId}" placeholder="Write your ${problem.language} code here...">${problem.starterCode || ''}</textarea>
+                      <div class="action-buttons">
+                        <button class="submit-btn" onclick="submitCode('${uniqueId}')">Submit Code</button>
+                        <button class="hint-btn" onclick="showSolution('${uniqueId}')">Show Solution</button>
+                      </div>
+                      <div id="result-${uniqueId}" class="result-display"></div>
+                      <div id="solution-${uniqueId}" class="solution-display" style="display: none;"></div>
+                    </div>
                   </div>
-                </div>
-              `;
-            });
+                `;
+              });
+              
+              resultsContainer.innerHTML = html;
+            }
             
-            resultsContainer.innerHTML = html;
+            // Update sidebar to show this program as active
+            programsRow.querySelectorAll('.sidebar-program').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            return;
           }
           
-          // Update sidebar to show this program as active
-          programsRow.querySelectorAll('.sidebar-program').forEach(btn => btn.classList.remove('active'));
-          this.classList.add('active');
+          // MOBILE TOGGLE LOGIC - Allow clicking same program to collapse topics
+          const wasActive = this.classList.contains('active');
           
-          return;
-        }
-        
-        // MOBILE TOGGLE LOGIC - Allow clicking same program to collapse topics
-        const wasActive = this.classList.contains('active');
-        
-        if (wasActive && currentProgram === program) {
-          // Clicking the same active program - collapse topics and show all content
-          currentProgram = null;
-          currentTopic = null;
-          topicsRow.innerHTML = ''; // Clear topics
-          programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
-          renderAllCards(getAllItems()); // Show all content
-          searchInput.value = '';
-        } else {
-          // Clicking different program or inactive program - show its topics
-          programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
-          this.classList.add('active');
-          currentProgram = program;
-          currentTopic = null;
-          renderProgramCards(currentProgram);
-          showTopicsFor(currentProgram);
-        }
-      });
+          if (wasActive && currentProgram === program) {
+            // Clicking the same active program - collapse topics and show all content
+            currentProgram = null;
+            currentTopic = null;
+            topicsRow.innerHTML = ''; // Clear topics
+            programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+            renderAllCards(getAllItems()); // Show all content
+            searchInput.value = '';
+          } else {
+            // Clicking different program or inactive program - show its topics
+            programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentProgram = program;
+            currentTopic = null;
+            renderProgramCards(currentProgram);
+            showTopicsFor(currentProgram);
+          }
+        });
     });
+    }
 
     // Show topics for the selected or first program by default
     const firstProgram = currentProgram || Object.keys(groups)[0];
@@ -1188,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleSidebarClick(e) {
-    const progEl = e.target.closest('.practice-language-btn');
+    const progEl = e.target.closest('.sidebar-program');
     const topicEl = e.target.closest('.sidebar-topic');
     if (progEl) {
       const program = progEl.getAttribute('data-program');
