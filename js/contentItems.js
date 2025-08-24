@@ -22,7 +22,7 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
   PowerPoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png",
   Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png",
   YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png",
-  Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png",
+  Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png",
   Calculators:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
       // Add more as needed
 };
@@ -69,6 +69,54 @@ window.contentItems = [
 
 
 
+
+   // ===== TOOLS SECTION =====
+    // Simulations Program
+    // Simulation Downloads - Learning Items Only
+    {
+        section: ["Learning", "Coding"], 
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
+        },
+        title: "Call Center Training Simulation",
+        description: "Download the complete HTML/CSS/JavaScript source code for an interactive call center training simulation. Study customer service workflows, verification processes, and performance tracking implementation.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
+        link: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t",
+        related: [
+            {
+                text: "Download code",
+                url: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t"
+            },
+            {
+                text: "Video on topic",
+                url: "https://youtu.be/VsivDUMm9lE"
+            }
+        ],
+        topic: "Simulation Examples"
+    },
+    {
+        section: ["Learning", "Coding"], 
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
+        },
+        title: "Excel VLOOKUP Training Simulation",
+        description: "Download the complete HTML/CSS/JavaScript source code for an interactive Excel VLOOKUP training simulation. Learn step-by-step tutorial development with real-time feedback and validation.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
+        link: "https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_",
+        related: [
+            {
+                text:"Download code",
+                url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
+            },
+            {
+                text:"Video on topic",
+                url:"https://youtu.be/VsivDUMm9lE"
+            }
+        ],
+        topic: "Simulation Examples"
+    },
 
 
 {
@@ -5089,33 +5137,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         topic:"Tab Management"
     },
 
-    // ===== TOOLS SECTION =====
-    // Simulations Program
-    // Simulation Downloads - Learning Items Only
-    {
-        section: ["Learning"], 
-        program: {
-            name: "Simulations",
-            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
-        },
-        title: "Call Center Training Simulation - Code Download",
-        description: "Download the complete HTML/CSS/JavaScript source code for an interactive call center training simulation. Study customer service workflows, verification processes, and performance tracking implementation.",
-        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
-        link: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t",
-        topic: "Web Development Examples"
-    },
-    {
-        section: ["Learning"], 
-        program: {
-            name: "Simulations",
-            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
-        },
-        title: "Excel VLOOKUP Training Simulation - Code Download",
-        description: "Download the complete HTML/CSS/JavaScript source code for an interactive Excel VLOOKUP training simulation. Learn step-by-step tutorial development with real-time feedback and validation.",
-        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
-        link: "https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_",
-        topic: "Web Development Examples"
-    }
+
 
   ];  // <-- close the array here
 
