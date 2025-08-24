@@ -442,16 +442,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
               // Check if we're on Learn page - if so, show redirect card instead of iframe
               if (pageType === 'learn') {
-                sectionContent += `
-                  <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
-                    <div class="css-demo-container">
-                      <div class="css-demo-header">
-                        <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
-                        <div class="info">
-                          <h4>${highlightMatches(item.title, filter)}</h4>
-                          <p>${highlightMatches(item.description, filter)}</p>
-                          <div style="margin-top: 15px;">
-                            <a href="${item.link}" class="tools-redirect-btn" style="
+                // Special handling for Simulation items - show download interface
+                if (item.program && item.program.name === "Simulations") {
+                  sectionContent += `
+                    <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                      <div class="download-container" style="text-align: center; padding: 30px; background: #f8f9fa; border-radius: 12px; margin: 20px 0;">
+                        <div class="download-icon" style="font-size: 48px; margin-bottom: 15px;">📁</div>
+                        <h3 style="color: #0b4f6c; margin-bottom: 15px;">${item.title}</h3>
+                        <p style="color: #666; margin-bottom: 20px; line-height: 1.6;">${item.description}</p>
+                        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                          <a href="${item.link}" style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: transform 0.2s ease;">⬇️ Download Code</a>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                } else {
+                  // Regular items - show redirect cards
+                  sectionContent += `
+                    <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                      <div class="css-demo-container">
+                        <div class="css-demo-header">
+                          <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                          <div class="info">
+                            <h4>${highlightMatches(item.title, filter)}</h4>
+                            <p>${highlightMatches(item.description, filter)}</p>
+                            <div style="margin-top: 15px;">
+                              <a href="${item.link}" class="tools-redirect-btn" style="
                               display: inline-block;
                               background: linear-gradient(135deg, #ff6b35, #f7931e);
                               color: white !important;
@@ -471,12 +487,63 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                   </div>
                 `;
+                }
               } else {
-                // On Tools page - show full iframe content
-                let simulationContent = '';
-                if (item.simulationType === 'callcenter') {
-                  // Embed call center simulation - direct iframe
-                  simulationContent = `
+                // Main content rendering - handle different item types
+                let contentHTML = '';
+                
+                // Handle simulation downloads (now simple direct links)
+                if (item.program && item.program.name === "Simulations") {
+                  contentHTML = `
+                    <div class="download-container" style="text-align: center; padding: 40px; background: rgba(255,255,255,0.95); border-radius: 16px; margin: 20px 0; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+                      <div class="download-icon" style="font-size: 64px; margin-bottom: 20px;">📁</div>
+                      <h3 style="color: #0b4f6c; margin-bottom: 16px; font-size: 24px;">Download Simulation Source Code</h3>
+                      <p style="color: #666; margin-bottom: 24px; line-height: 1.6; max-width: 500px; margin-left: auto; margin-right: auto;">
+                        ${item.description}
+                      </p>
+                      <div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                        <a href="${item.link}" 
+                           style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 14px 28px; border-radius: 30px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 10px; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(40,167,69,0.3);"
+                           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(40,167,69,0.4)'"
+                           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(40,167,69,0.3)'">
+                          ⬇️ Download Code
+                        </a>
+                      </div>
+                      <div style="margin-top: 20px; padding: 16px; background: #f8f9fa; border-radius: 8px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+                        <h4 style="color: #0b4f6c; margin: 0 0 8px 0; font-size: 16px;">What's included:</h4>
+                        <ul style="color: #666; margin: 0; padding-left: 20px; line-height: 1.5;">
+                          <li>Complete HTML structure</li>
+                          <li>Styled CSS with responsive design</li>
+                          <li>Interactive JavaScript functionality</li>
+                          <li>Comments and documentation</li>
+                        </ul>
+                      </div>
+                    </div>
+                  `;
+                }
+                // Handle calculator iframes (Tools section only - but these won't appear in Learning)
+                else if (item.calculatorType === 'businesscase') {
+                  contentHTML = `
+                    <iframe class="simulation-iframe" 
+                            src="businesscase.html" 
+                            title="Business Case Development Calculator"
+                            style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">
+                      Your browser does not support iframes. Please use a modern browser to view this calculator.
+                    </iframe>
+                  `;
+                } else if (item.calculatorType === 'amortization') {
+                  contentHTML = `
+                    <iframe class="simulation-iframe" 
+                            src="amortization.html" 
+                            title="Amortization Calculator"
+                            style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">
+                      Your browser does not support iframes. Please use a modern browser to view this calculator.
+                    </iframe>
+                  `;
+                }
+                // Legacy simulation handling (if any remain)
+                else if (item.simulationType === 'callcenter') {
+                  contentHTML = `
                     <iframe class="simulation-iframe" 
                             src="Simulations/CallCenter.html" 
                             title="Call Center Training Simulation"
@@ -485,8 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </iframe>
                   `;
                 } else if (item.simulationType === 'vlookup') {
-                  // Embed VLOOKUP simulation - direct iframe
-                  simulationContent = `
+                  contentHTML = `
                     <iframe class="simulation-iframe" 
                             src="Simulations/VLOOKUPSimulation.html" 
                             title="Excel VLOOKUP Master Training"
@@ -494,28 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                       Your browser does not support iframes. Please use a modern browser to view this simulation.
                     </iframe>
                   `;
-                } else if (item.calculatorType === 'businesscase') {
-                  // Embed business case calculator - direct iframe
-                  simulationContent = `
-                    <iframe class="simulation-iframe" 
-                            src="businesscase.html" 
-                            title="Business Case Development Calculator"
-                            style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">
-                      Your browser does not support iframes. Please use a modern browser to view this simulation.
-                    </iframe>
-                  `;
-                } else if (item.calculatorType === 'amortization') {
-                  // Embed amortization calculator - direct iframe
-                  simulationContent = `
-                    <iframe class="simulation-iframe" 
-                            src="amortization.html" 
-                            title="Amortization Calculator"
-                            style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">
-                      Your browser does not support iframes. Please use a modern browser to view this simulation.
-                    </iframe>
-                  `;
                 }
-
                 const toolId = anchorId || 'tool-' + Date.now();
                 sectionContent += `
                   <div class="tools-interactive-card clickable-tool-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
@@ -550,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p>Interactive tool - try the features below</p>
                       </div>
                       <div class="simulation-content">
-                        ${simulationContent}
+                        ${contentHTML}
                       </div>
                     </div>
                   </div>
@@ -687,7 +732,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchText = [item.title, item.description, ...(Array.isArray(item.related) ? item.related.map(r => r.text) : item.related?.text ? [item.related.text] : [])].filter(Boolean).join(' ').toLowerCase();
         
         // Check if this is a simulation or calculator tool FIRST
-        if (item.simulationType || item.calculatorType) {
+        if (item.simulationType || item.calculatorType || (item.program && item.program.name === "Simulations")) {
+          console.log('🔍 DEBUG: Found simulation/calculator item:', item.title, 'simulationType:', item.simulationType, 'calculatorType:', item.calculatorType, 'program:', item.program?.name);
           // Handle Tools page simulations and calculators
           const uniqueId = Date.now() + Math.random();
           let anchorId = '';
@@ -700,16 +746,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Check if we're on Learn page - if so, show redirect card instead of iframe
           if (pageType === 'learn') {
-            sectionContent += `
-              <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
-                <div class="css-demo-container">
-                  <div class="css-demo-header">
-                    <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
-                    <div class="info">
-                      <h4>${highlightMatches(item.title, filter)}</h4>
-                      <p>${highlightMatches(item.description, filter)}</p>
-                      <div style="margin-top: 15px;">
-                        <a href="${item.link}" class="tools-redirect-btn" style="
+            // Special handling for Simulation items - show download interface
+            if (item.program && item.program.name === "Simulations") {
+              sectionContent += `
+                <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                  <div class="download-container" style="text-align: center; padding: 30px; background: #f8f9fa; border-radius: 12px; margin: 20px 0;">
+                    <div class="download-icon" style="font-size: 48px; margin-bottom: 15px;">📁</div>
+                    <h3 style="color: #0b4f6c; margin-bottom: 15px;">${item.title}</h3>
+                    <p style="color: #666; margin-bottom: 20px; line-height: 1.6;">${item.description}</p>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                      <a href="${item.link}" style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: transform 0.2s ease;">⬇️ Download Code</a>
+                    </div>
+                  </div>
+                </div>
+              `;
+            } else {
+              // Regular items - show redirect cards
+              sectionContent += `
+                <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                  <div class="css-demo-container">
+                    <div class="css-demo-header">
+                      <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
+                      <div class="info">
+                        <h4>${highlightMatches(item.title, filter)}</h4>
+                        <p>${highlightMatches(item.description, filter)}</p>
+                        <div style="margin-top: 15px;">
+                          <a href="${item.link}" class="tools-redirect-btn" style="
                           display: inline-block;
                           background: linear-gradient(135deg, #ff6b35, #f7931e);
                           color: white !important;
@@ -729,12 +791,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
               </div>
             `;
+            }
           } else {
-            // On Tools page - show full iframe content
-            let simulationContent = '';
-            if (item.simulationType === 'callcenter') {
+            // Main content rendering - handle different item types
+            let contentHTML = '';
+            
+            // Handle simulation downloads (now simple direct links)
+            if (item.program && item.program.name === "Simulations") {
+              contentHTML = `
+                <div class="download-container" style="text-align: center; padding: 30px; background: rgba(255,255,255,0.95); border-radius: 12px; margin: 20px 0; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+                  <div class="download-icon" style="font-size: 48px; margin-bottom: 15px;">📁</div>
+                  <h3 style="color: #0b4f6c; margin-bottom: 15px;">Download Simulation Source Code</h3>
+                  <p style="color: #666; margin-bottom: 20px; line-height: 1.6;">
+                    ${item.description}
+                  </p>
+                  <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                    <a href="${item.link}" 
+                       style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 10px 20px; border-radius: 20px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                      ⬇️ Download Code
+                    </a>
+                  </div>
+                </div>
+              `;
+            }
+            else if (item.calculatorType === 'businesscase') {
+              contentHTML = `
+                <iframe class="simulation-iframe" 
+                        src="businesscase.html" 
+                        title="Business Case Development Calculator"
+                        style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">
+                  Your browser does not support iframes. Please use a modern browser to view this calculator.
+                </iframe>
+              `;
+            } else if (item.calculatorType === 'amortization') {
+              contentHTML = `
+                <iframe class="simulation-iframe" 
+                        src="amortization.html" 
+                        title="Amortization Calculator"
+                        style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">
+                  Your browser does not support iframes. Please use a modern browser to view this calculator.
+                </iframe>
+              `;
+            } else if (item.simulationType === 'callcenter') {
               // Embed call center simulation - direct iframe
-              simulationContent = `
+              contentHTML = `
                 <iframe class="simulation-iframe" 
                         src="Simulations/CallCenter.html" 
                         title="Call Center Training Simulation"
@@ -744,7 +844,7 @@ document.addEventListener('DOMContentLoaded', () => {
               `;
             } else if (item.simulationType === 'vlookup') {
               // Embed VLOOKUP simulation - direct iframe
-              simulationContent = `
+              contentHTML = `
                 <iframe class="simulation-iframe" 
                         src="Simulations/VLOOKUPSimulation.html" 
                         title="Excel VLOOKUP Master Training"
@@ -754,7 +854,7 @@ document.addEventListener('DOMContentLoaded', () => {
               `;
             } else if (item.calculatorType === 'businesscase') {
               // Embed business case calculator - direct iframe
-              simulationContent = `
+              contentHTML = `
                 <iframe class="simulation-iframe" 
                         src="businesscase.html" 
                         title="Business Case Development Calculator"
@@ -764,7 +864,7 @@ document.addEventListener('DOMContentLoaded', () => {
               `;
             } else if (item.calculatorType === 'amortization') {
               // Embed amortization calculator - direct iframe
-              simulationContent = `
+              contentHTML = `
                 <iframe class="simulation-iframe" 
                         src="amortization.html" 
                         title="Amortization Calculator"
@@ -976,6 +1076,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderSidebar(groups) {
+    console.log('🔍 DEBUG: renderSidebar called with groups:', Object.keys(groups));
+    console.log('🔍 DEBUG: Full groups object:', groups);
     if (isMobile()) return;
     let html = '<h2>Programs</h2>';
     Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
@@ -1086,88 +1188,89 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Program click handlers
+
     programsRow.querySelectorAll('.sidebar-program').forEach(programBtn => {
       programBtn.addEventListener('click', function() {
         const program = this.getAttribute('data-program');
-        
-        // Special handling for practice page
-        if (pageType === 'practice') {
-          console.log('Clicked program:', program);
           
-          currentProgram = program;
-          currentTopic = null;
-          searchInput.value = '';
-          
-          // Direct rendering of practice problems
-          const resultsContainer = document.getElementById('practiceResults');
-          const problems = window.practiceProblems || [];
-          const filteredProblems = problems.filter(p => p.language === program);
-          
-          console.log('Total problems:', problems.length);
-          console.log('Filtered problems for', program, ':', filteredProblems.length);
-          
-          if (filteredProblems.length === 0) {
-            resultsContainer.innerHTML = `<div style="color: white; text-align: center; margin-top: 50px;"><h3>No problems found for ${program}</h3></div>`;
-          } else {
-            let html = `<h2 style="color: white; text-align: center; margin-bottom: 30px;">${program} Coding Challenges</h2>`;
+          // Special handling for practice page
+          if (pageType === 'practice') {
+            console.log('Clicked program:', program);
             
-            filteredProblems.forEach(problem => {
-              const uniqueId = problem.id;
-              html += `
-                <div class="practice-problem-card">
-                  <div class="problem-header">
-                    <h3>${problem.title}</h3>
-                    <span class="difficulty-badge difficulty-${problem.difficulty.toLowerCase()}">${problem.difficulty}</span>
-                  </div>
-                  <div class="problem-description">
-                    <h4>Problem:</h4>
-                    <p>${problem.description}</p>
-                  </div>
-                  <div class="coding-section">
-                    <h4>Your Solution:</h4>
-                    <textarea class="code-editor" id="code-${uniqueId}" placeholder="Write your ${problem.language} code here...">${problem.starterCode || ''}</textarea>
-                    <div class="action-buttons">
-                      <button class="submit-btn" onclick="submitCode('${uniqueId}')">Submit Code</button>
-                      <button class="hint-btn" onclick="showSolution('${uniqueId}')">Show Solution</button>
+            currentProgram = program;
+            currentTopic = null;
+            searchInput.value = '';
+            
+            // Direct rendering of practice problems
+            const resultsContainer = document.getElementById('practiceResults');
+            const problems = window.practiceProblems || [];
+            const filteredProblems = problems.filter(p => p.language === program);
+            
+            console.log('Total problems:', problems.length);
+            console.log('Filtered problems for', program, ':', filteredProblems.length);
+            
+            if (filteredProblems.length === 0) {
+              resultsContainer.innerHTML = `<div style="color: white; text-align: center; margin-top: 50px;"><h3>No problems found for ${program}</h3></div>`;
+            } else {
+              let html = `<h2 style="color: white; text-align: center; margin-bottom: 30px;">${program} Coding Challenges</h2>`;
+              
+              filteredProblems.forEach(problem => {
+                const uniqueId = problem.id;
+                html += `
+                  <div class="practice-problem-card">
+                    <div class="problem-header">
+                      <h3>${problem.title}</h3>
+                      <span class="difficulty-badge difficulty-${problem.difficulty.toLowerCase()}">${problem.difficulty}</span>
                     </div>
-                    <div id="result-${uniqueId}" class="result-display"></div>
-                    <div id="solution-${uniqueId}" class="solution-display" style="display: none;"></div>
+                    <div class="problem-description">
+                      <h4>Problem:</h4>
+                      <p>${problem.description}</p>
+                    </div>
+                    <div class="coding-section">
+                      <h4>Your Solution:</h4>
+                      <textarea class="code-editor" id="code-${uniqueId}" placeholder="Write your ${problem.language} code here...">${problem.starterCode || ''}</textarea>
+                      <div class="action-buttons">
+                        <button class="submit-btn" onclick="submitCode('${uniqueId}')">Submit Code</button>
+                        <button class="hint-btn" onclick="showSolution('${uniqueId}')">Show Solution</button>
+                      </div>
+                      <div id="result-${uniqueId}" class="result-display"></div>
+                      <div id="solution-${uniqueId}" class="solution-display" style="display: none;"></div>
+                    </div>
                   </div>
-                </div>
-              `;
-            });
+                `;
+              });
+              
+              resultsContainer.innerHTML = html;
+            }
             
-            resultsContainer.innerHTML = html;
+            // Update sidebar to show this program as active
+            programsRow.querySelectorAll('.sidebar-program').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            return;
           }
           
-          // Update sidebar to show this program as active
-          programsRow.querySelectorAll('.sidebar-program').forEach(btn => btn.classList.remove('active'));
-          this.classList.add('active');
+          // MOBILE TOGGLE LOGIC - Allow clicking same program to collapse topics
+          const wasActive = this.classList.contains('active');
           
-          return;
-        }
-        
-        // MOBILE TOGGLE LOGIC - Allow clicking same program to collapse topics
-        const wasActive = this.classList.contains('active');
-        
-        if (wasActive && currentProgram === program) {
-          // Clicking the same active program - collapse topics and show all content
-          currentProgram = null;
-          currentTopic = null;
-          topicsRow.innerHTML = ''; // Clear topics
-          programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
-          renderAllCards(getAllItems()); // Show all content
-          searchInput.value = '';
-        } else {
-          // Clicking different program or inactive program - show its topics
-          programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
-          this.classList.add('active');
-          currentProgram = program;
-          currentTopic = null;
-          renderProgramCards(currentProgram);
-          showTopicsFor(currentProgram);
-        }
-      });
+          if (wasActive && currentProgram === program) {
+            // Clicking the same active program - collapse topics and show all content
+            currentProgram = null;
+            currentTopic = null;
+            topicsRow.innerHTML = ''; // Clear topics
+            programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+            renderAllCards(getAllItems()); // Show all content
+            searchInput.value = '';
+          } else {
+            // Clicking different program or inactive program - show its topics
+            programsRow.querySelectorAll('.sidebar-program').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentProgram = program;
+            currentTopic = null;
+            renderProgramCards(currentProgram);
+            showTopicsFor(currentProgram);
+          }
+        });
     });
 
     // Show topics for the selected or first program by default
@@ -1354,6 +1457,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.contentItems && window.contentItems.length) {
       initializePage();
       const items = getAllItems();
+      
+      console.log('🔍 DEBUG: Page type:', pageType);
+      console.log('🔍 DEBUG: All items count:', getAllItems().length);
+      console.log('🔍 DEBUG: Filtered items count:', items.length);
+      console.log('🔍 DEBUG: Simulation items in filtered:', items.filter(item => item.program?.name === 'Simulations'));
+      
       const groups = groupByProgramAndTopic(items);
       renderMobileSidebar(groups);
       window.addEventListener('resize', () => {
@@ -1398,16 +1507,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
               }
               
-              // Generate simulation content using simple concatenation
-              let simulationContent = '';
-              if (item.simulationType === 'callcenter') {
-                simulationContent = '<iframe class="simulation-iframe" src="Simulations/CallCenter.html" title="Call Center Training Simulation" style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
-              } else if (item.simulationType === 'vlookup') {
-                simulationContent = '<iframe class="simulation-iframe" src="Simulations/VLOOKUPSimulation.html" title="Excel VLOOKUP Master Training" style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
-              } else if (item.calculatorType === 'businesscase') {
-                simulationContent = '<iframe class="simulation-iframe" src="businesscase.html" title="Business Case Development Calculator" style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              // Generate content based on item type
+              let contentHTML = '';
+              
+              // Handle simulation downloads (now simple direct links)
+              if (item.program && item.program.name === "Simulations") {
+                contentHTML = '<div class="download-container" style="text-align: center; padding: 30px; background: #f8f9fa; border-radius: 12px; margin: 20px 0;">' +
+                  '<div class="download-icon" style="font-size: 48px; margin-bottom: 15px;">📁</div>' +
+                  '<h3 style="color: #0b4f6c; margin-bottom: 15px;">Download Simulation Code</h3>' +
+                  '<p style="color: #666; margin-bottom: 20px; line-height: 1.6;">' + item.description + '</p>' +
+                  '<div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">' +
+                    '<a href="' + item.link + '" style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 12px 24px; border-radius: 25px; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: transform 0.2s ease;">⬇️ Download Code</a>' +
+                  '</div>' +
+                '</div>';
+              }
+              // Handle calculator iframes (for Tools section only)  
+              else if (item.calculatorType === 'businesscase') {
+                contentHTML = '<iframe class="simulation-iframe" src="businesscase.html" title="Business Case Development Calculator" style="width: 100%; height: 1200px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
               } else if (item.calculatorType === 'amortization') {
-                simulationContent = '<iframe class="simulation-iframe" src="amortization.html" title="Amortization Calculator" style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+                contentHTML = '<iframe class="simulation-iframe" src="amortization.html" title="Amortization Calculator" style="width: 100%; height: 1000px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              }
+              // Handle legacy simulation types (if any remain)
+              else if (item.simulationType === 'callcenter') {
+                contentHTML = '<iframe class="simulation-iframe" src="Simulations/CallCenter.html" title="Call Center Training Simulation" style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
+              } else if (item.simulationType === 'vlookup') {
+                contentHTML = '<iframe class="simulation-iframe" src="Simulations/VLOOKUPSimulation.html" title="Excel VLOOKUP Master Training" style="width: 100%; height: 800px; border: none; border-radius: 8px; background: white;">Your browser does not support iframes.</iframe>';
               }
               
               const toolId = anchorId || 'tool-' + uniqueId;
@@ -1429,7 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     '<p>Interactive tool - try the features below</p>' +
                   '</div>' +
                   '<div class="simulation-content">' +
-                    simulationContent +
+                    contentHTML +
                   '</div>' +
                 '</div>' +
               '</div>';
@@ -1460,16 +1584,27 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleDirectAnchorNavigation() {
     const hash = window.location.hash;
     if (hash) {
-      // Wait a bit for content to be rendered, then scroll to the element
+      // Check if this is a URL parameter hash (like #program=...&topic=...)
+      if (hash.includes('program=') && hash.includes('topic=')) {
+        // Handle URL parameter navigation
+        loadSectionFromHash();
+        return;
+      }
+      
+      // Handle regular anchor navigation
       setTimeout(() => {
-        const targetElement = document.querySelector(hash);
-        if (targetElement) {
+        try {
+          const targetElement = document.querySelector(hash);
+          if (targetElement) {
           targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
           // Add a highlight effect to draw attention
           targetElement.style.boxShadow = '0 0 20px rgba(11, 79, 108, 0.5)';
           setTimeout(() => {
             targetElement.style.boxShadow = '';
           }, 3000);
+        }
+        } catch (e) {
+          console.log('Invalid CSS selector in hash:', hash);
         }
       }, 500);
     }
