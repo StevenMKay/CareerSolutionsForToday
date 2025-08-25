@@ -69,6 +69,689 @@ window.contentItems = [
 
 
 
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Cyberpunk Thermal Button Effect",
+    description: "Create a stunning cyberpunk-inspired thermal button with industrial styling, floating debris, dynamic hover effects, and futuristic animations. This advanced CSS effect combines multiple animation techniques including glitch effects, thermal waves, industrial scanlines, and interactive particle systems. Perfect for sci-fi or gaming themed websites.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-cyberpunk-thermal-demo",
+    topic: "CSS Cyberpunk Effects",
+    demoHtml: `<div class="cyberpunk-container">
+  <!-- Industrial background -->
+  <div class="industrial-bg"></div>
+  
+  <!-- Animated industrial grid -->
+  <div class="industrial-grid"></div>
+  
+  <!-- Floating industrial debris -->
+  <div class="industrial-debris" id="industrial-debris"></div>
+  
+  <!-- Main button -->
+  <div class="button-container">
+    <button class="industrial-cyber-button" onclick="handleIndustrialClick()">
+      <div class="hud-frame"></div>
+      <div class="corner-element top-left"></div>
+      <div class="corner-element top-right"></div>
+      <div class="corner-element bottom-left"></div>
+      <div class="corner-element bottom-right"></div>
+      <span class="text" data-text="BREACH">BREACH</span>
+      <div class="data-stream">
+        [DATA_STREAM_001]<br>
+        [THERMAL_READY]<br>
+        [SYSTEMS_NOMINAL]
+      </div>
+    </button>
+  </div>
+  
+  <!-- Demo information -->
+  <div class="demo-info">
+    Hover to activate thermal systems<br>
+    Click to initiate breach protocol
+  </div>
+</div>`,
+    demoCss: `/* Import cyberpunk fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono:wght@400&display=swap');
+
+.cyberpunk-container {
+  position: relative;
+  height: 400px;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 25%, #2a1810 50%, #1a1a1a 75%, #0a0a0a 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Share Tech Mono', 'Orbitron', monospace;
+  overflow: hidden;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+/* Industrial cityscape background */
+.industrial-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 15% 70%, rgba(255, 165, 0, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(255, 69, 0, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(70, 130, 180, 0.04) 0%, transparent 60%);
+  animation: industrialPulse 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes industrialPulse {
+  0% { 
+    filter: brightness(0.8) contrast(1.2);
+    transform: scale(1);
+  }
+  100% { 
+    filter: brightness(1.1) contrast(1.4);
+    transform: scale(1.02);
+  }
+}
+
+/* Gritty industrial grid */
+.industrial-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(255, 165, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(70, 130, 180, 0.02) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(255, 69, 0, 0.015) 2px, transparent 2px);
+  background-size: 40px 40px, 40px 40px, 80px 80px;
+  animation: industrialGridMove 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes industrialGridMove {
+  0% { 
+    transform: translate(0, 0);
+    opacity: 0.6;
+  }
+  50% { 
+    opacity: 0.8;
+  }
+  100% { 
+    transform: translate(40px, 40px);
+    opacity: 0.6;
+  }
+}
+
+/* Industrial floating debris */
+.industrial-debris {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.debris {
+  position: absolute;
+  animation: debrisFloat 15s infinite linear;
+}
+
+.debris.spark {
+  width: 2px;
+  height: 6px;
+  background: linear-gradient(180deg, #ffa500, #ff4500);
+  box-shadow: 0 0 6px #ffa500;
+}
+
+.debris.dust {
+  width: 1px;
+  height: 1px;
+  background: #4682b4;
+  box-shadow: 0 0 4px #4682b4;
+  border-radius: 50%;
+}
+
+.debris.fragment {
+  width: 3px;
+  height: 3px;
+  background: #696969;
+  transform: rotate(45deg);
+}
+
+@keyframes debrisFloat {
+  0% { 
+    transform: translateY(100%) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  3% { opacity: 0.7; }
+  97% { opacity: 0.7; }
+  100% { 
+    transform: translateY(-10px) translateX(100px) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+/* Main button container */
+.button-container {
+  position: relative;
+  z-index: 10;
+}
+
+/* Cyberpunk industrial button */
+.industrial-cyber-button {
+  position: relative;
+  padding: 30px 60px;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Orbitron', monospace;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #ffa500;
+  background: linear-gradient(135deg, 
+    rgba(255, 165, 0, 0.1) 0%, 
+    rgba(0, 0, 0, 0.4) 30%, 
+    rgba(70, 130, 180, 0.08) 70%, 
+    rgba(255, 69, 0, 0.1) 100%);
+  border: 3px solid #ffa500;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  
+  /* Industrial angular corners */
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 15px) 0, 
+    100% 15px, 
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 
+    8px 100%, 
+    0 calc(100% - 15px)
+  );
+  
+  /* Industrial glow effect */
+  box-shadow: 
+    0 0 30px rgba(255, 165, 0, 0.3),
+    0 0 60px rgba(70, 130, 180, 0.15),
+    0 0 90px rgba(255, 69, 0, 0.1),
+    inset 0 0 30px rgba(255, 165, 0, 0.05);
+}
+
+/* Button text with industrial styling */
+.industrial-cyber-button .text {
+  position: relative;
+  z-index: 3;
+  display: block;
+  transition: all 0.3s ease;
+  text-shadow: 
+    0 0 15px rgba(255, 165, 0, 0.6),
+    2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Industrial scanlines */
+.industrial-cyber-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 165, 0, 0.05) 3px,
+    rgba(255, 165, 0, 0.05) 6px,
+    transparent 6px,
+    transparent 9px,
+    rgba(70, 130, 180, 0.03) 9px,
+    rgba(70, 130, 180, 0.03) 12px
+  );
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Industrial thermal wave effect */
+.industrial-cyber-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 165, 0, 0.3) 20%,
+    rgba(255, 69, 0, 0.5) 50%,
+    rgba(255, 165, 0, 0.3) 80%,
+    transparent 100%
+  );
+  z-index: 2;
+  transition: left 0.5s ease;
+}
+
+/* Hover state - Industrial thermal activation */
+.industrial-cyber-button:hover {
+  color: #ffffff;
+  border-color: #ff4500;
+  background: linear-gradient(135deg, 
+    rgba(255, 69, 0, 0.2) 0%, 
+    rgba(0, 0, 0, 0.6) 30%, 
+    rgba(70, 130, 180, 0.15) 70%, 
+    rgba(255, 165, 0, 0.2) 100%);
+  box-shadow: 
+    0 0 50px rgba(255, 69, 0, 0.5),
+    0 0 100px rgba(255, 165, 0, 0.3),
+    0 0 150px rgba(70, 130, 180, 0.2),
+    inset 0 0 50px rgba(255, 69, 0, 0.1);
+  transform: translateY(-4px) scale(1.01);
+}
+
+.industrial-cyber-button:hover .text {
+  color: #ffffff;
+  text-shadow: 
+    0 0 20px rgba(255, 69, 0, 0.8),
+    0 0 30px rgba(255, 165, 0, 0.6),
+    2px 2px 6px rgba(0, 0, 0, 0.9);
+  animation: industrialGlitch 0.4s ease-in-out;
+}
+
+.industrial-cyber-button:hover::before {
+  opacity: 1;
+  animation: industrialScan 0.4s ease-in-out;
+}
+
+.industrial-cyber-button:hover::after {
+  left: 100%;
+}
+
+/* Industrial glitch effect */
+@keyframes industrialGlitch {
+  0%, 100% { 
+    transform: translate(0);
+    filter: contrast(1) brightness(1);
+  }
+  10% { 
+    transform: translate(-1px, 0);
+    filter: contrast(1.2) brightness(1.1);
+  }
+  20% { 
+    transform: translate(1px, -1px);
+    filter: contrast(0.9) brightness(0.9);
+  }
+  30% { 
+    transform: translate(0, 1px);
+    filter: contrast(1.1) brightness(1.05);
+  }
+  40% { 
+    transform: translate(-1px, 0);
+    filter: contrast(1.15) brightness(1.08);
+  }
+  60% { 
+    transform: translate(1px, -1px);
+    filter: contrast(0.95) brightness(0.95);
+  }
+  80% { 
+    transform: translate(0, 1px);
+    filter: contrast(1.05) brightness(1.02);
+  }
+}
+
+@keyframes industrialScan {
+  0% { 
+    background-position: 0 0;
+    opacity: 0.5;
+  }
+  50% { 
+    background-position: 0 -15px;
+    opacity: 0.8;
+  }
+  100% { 
+    background-position: 0 -30px;
+    opacity: 0.5;
+  }
+}
+
+/* Multi-layer industrial glitch text */
+.industrial-cyber-button:hover .text::before,
+.industrial-cyber-button:hover .text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.industrial-cyber-button:hover .text::before {
+  animation: industrialGlitch1 0.4s ease-in-out;
+  color: #ff4500;
+  text-shadow: 0 0 10px #ff4500;
+}
+
+.industrial-cyber-button:hover .text::after {
+  animation: industrialGlitch2 0.4s ease-in-out;
+  color: #4682b4;
+  text-shadow: 0 0 10px #4682b4;
+}
+
+@keyframes industrialGlitch1 {
+  0%, 100% { transform: translate(0); }
+  25% { transform: translate(-1px, 1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+}
+
+@keyframes industrialGlitch2 {
+  0%, 100% { transform: translate(0); }
+  25% { transform: translate(1px, -1px); }
+  50% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, 1px); }
+}
+
+/* Active/clicked state */
+.industrial-cyber-button:active {
+  transform: translateY(-2px) scale(0.99);
+  box-shadow: 
+    0 0 80px rgba(255, 69, 0, 0.8),
+    0 0 120px rgba(255, 165, 0, 0.6),
+    0 0 180px rgba(70, 130, 180, 0.4),
+    inset 0 0 80px rgba(255, 69, 0, 0.2);
+}
+
+/* Industrial corner elements */
+.corner-element {
+  position: absolute;
+  transition: all 0.3s ease;
+}
+
+.corner-element.top-left {
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #ffa500;
+  border-top: 2px solid #ffa500;
+}
+
+.corner-element.top-right {
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ffa500;
+  border-top: 2px solid #ffa500;
+}
+
+.corner-element.bottom-left {
+  bottom: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #ffa500;
+  border-bottom: 2px solid #ffa500;
+}
+
+.corner-element.bottom-right {
+  bottom: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ffa500;
+  border-bottom: 2px solid #ffa500;
+}
+
+.industrial-cyber-button:hover .corner-element {
+  border-color: #ff4500;
+  box-shadow: 0 0 8px rgba(255, 69, 0, 0.6);
+  animation: cornerFlicker 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes cornerFlicker {
+  0% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  100% { 
+    opacity: 0.7; 
+    transform: scale(1.1);
+  }
+}
+
+/* Industrial HUD frame */
+.hud-frame {
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  right: -15px;
+  bottom: -15px;
+  border: 1px solid rgba(255, 165, 0, 0.2);
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 20px) 0, 
+    100% 20px, 
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 
+    12px 100%, 
+    0 calc(100% - 20px)
+  );
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.industrial-cyber-button:hover .hud-frame {
+  border-color: rgba(255, 69, 0, 0.4);
+  animation: hudPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes hudPulse {
+  0% { 
+    border-color: rgba(255, 69, 0, 0.3);
+    transform: scale(1);
+  }
+  100% { 
+    border-color: rgba(255, 165, 0, 0.6);
+    transform: scale(1.01);
+  }
+}
+
+/* Demo info with industrial styling */
+.demo-info {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffa500;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.7;
+  text-shadow: 0 0 8px rgba(255, 165, 0, 0.4);
+  animation: industrialInfoPulse 3s ease-in-out infinite;
+}
+
+@keyframes industrialInfoPulse {
+  0%, 100% { 
+    opacity: 0.7; 
+    color: #ffa500;
+  }
+  25% { 
+    opacity: 0.9; 
+    color: #ff4500;
+  }
+  50% { 
+    opacity: 0.8; 
+    color: #4682b4;
+  }
+  75% { 
+    opacity: 0.9; 
+    color: #ff4500;
+  }
+}
+
+/* Data stream elements */
+.data-stream {
+  position: absolute;
+  top: 50%;
+  right: -80px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: #4682b4;
+  opacity: 0.3;
+  animation: dataScroll 8s linear infinite;
+}
+
+@keyframes dataScroll {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.3; }
+  90% { opacity: 0.3; }
+  100% { transform: translateY(-100px); opacity: 0; }
+}`,
+    demoJs: `// Create industrial debris particles
+function createIndustrialDebris() {
+  const debrisContainer = document.getElementById('industrial-debris');
+  if (!debrisContainer) return;
+  
+  const debrisCount = 15;
+  const debrisTypes = ['spark', 'dust', 'fragment'];
+  
+  for (let i = 0; i < debrisCount; i++) {
+    const debris = document.createElement('div');
+    debris.className = 'debris ' + debrisTypes[Math.floor(Math.random() * debrisTypes.length)];
+    debris.style.left = Math.random() * 100 + '%';
+    debris.style.animationDelay = Math.random() * 15 + 's';
+    debris.style.animationDuration = (12 + Math.random() * 8) + 's';
+    debrisContainer.appendChild(debris);
+  }
+}
+
+// Handle industrial button click
+function handleIndustrialClick() {
+  const button = document.querySelector('.industrial-cyber-button');
+  const text = button.querySelector('.text');
+  
+  // Temporary text change
+  const originalText = text.textContent;
+  text.textContent = 'BREACHED';
+  text.style.color = '#00ff00';
+  text.style.textShadow = '0 0 20px #00ff00, 0 0 30px #00ff00';
+  
+  // Add intense industrial glitch effect
+  button.style.animation = 'industrialScreenDistort 0.2s ease-in-out 3';
+  
+  // Reset after animation
+  setTimeout(() => {
+    text.textContent = originalText;
+    text.style.color = '';
+    text.style.textShadow = '';
+    button.style.animation = '';
+  }, 1000);
+  
+  // Create industrial sparks burst
+  createIndustrialSparks();
+  
+  console.log('Industrial Cyberpunk button breached! ⚡🔥💻');
+}
+
+// Industrial sparks burst effect
+function createIndustrialSparks() {
+  const button = document.querySelector('.industrial-cyber-button');
+  const rect = button.getBoundingClientRect();
+  
+  for (let i = 0; i < 15; i++) {
+    const spark = document.createElement('div');
+    spark.style.position = 'fixed';
+    spark.style.left = rect.left + rect.width/2 + 'px';
+    spark.style.top = rect.top + rect.height/2 + 'px';
+    spark.style.width = '3px';
+    spark.style.height = '8px';
+    
+    // Industrial spark colors
+    const colors = ['#ffa500', '#ff4500', '#4682b4'];
+    const color = colors[i % colors.length];
+    spark.style.background = 'linear-gradient(180deg, ' + color + ', ' + (color === '#4682b4' ? '#87ceeb' : '#8b0000') + ')';
+    spark.style.boxShadow = '0 0 8px ' + color;
+    spark.style.pointerEvents = 'none';
+    spark.style.zIndex = '1000';
+    
+    document.body.appendChild(spark);
+    
+    const angle = (i / 15) * Math.PI * 2;
+    const distance = 60 + Math.random() * 40;
+    
+    spark.animate([
+      {
+        transform: 'translate(0, 0) scale(1)',
+        opacity: 1
+      },
+      {
+        transform: 'translate(' + (Math.cos(angle) * distance) + 'px, ' + (Math.sin(angle) * distance) + 'px) scale(0.3)',
+        opacity: 0
+      }
+    ], {
+      duration: 600,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+    }).onfinish = () => {
+      spark.remove();
+    };
+  }
+}
+
+// Enhanced mouse interaction with industrial effects
+document.addEventListener('DOMContentLoaded', function() {
+  createIndustrialDebris();
+  
+  const button = document.querySelector('.industrial-cyber-button');
+  if (button) {
+    button.addEventListener('mouseenter', function() {
+      const rect = this.getBoundingClientRect();
+      
+      // Create industrial static sparks
+      for (let i = 0; i < 6; i++) {
+        const staticSpark = document.createElement('div');
+        staticSpark.style.position = 'fixed';
+        staticSpark.style.left = rect.left + Math.random() * rect.width + 'px';
+        staticSpark.style.top = rect.top + Math.random() * rect.height + 'px';
+        staticSpark.style.width = '2px';
+        staticSpark.style.height = '4px';
+        
+        const sparkColors = ['#ffa500', '#ff4500', '#4682b4'];
+        const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+        staticSpark.style.background = sparkColor;
+        staticSpark.style.boxShadow = '0 0 6px ' + sparkColor;
+        staticSpark.style.pointerEvents = 'none';
+        staticSpark.style.zIndex = '999';
+        
+        document.body.appendChild(staticSpark);
+        
+        staticSpark.animate([
+          { 
+            opacity: 1, 
+            transform: 'scale(1)' 
+          },
+          { 
+            opacity: 0, 
+            transform: 'scale(0.5)' 
+          }
+        ], {
+          duration: 300,
+          easing: 'ease-out'
+        }).onfinish = () => {
+          staticSpark.remove();
+        };
+      }
+    });
+  }
+});`
+},
+
+
 
    // ===== TOOLS SECTION =====
     // Simulations Program
