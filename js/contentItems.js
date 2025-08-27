@@ -68,6 +68,761 @@ if (window.contentItems) {
 window.contentItems = [
 
 
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Cyberpunk Electric Button Effect",
+    description: "Create an electrifying cyberpunk button with lightning bolts, electric particles, and dynamic surge effects. This advanced CSS effect features electric field animations, particle systems, lightning decorations, and intense electric glitch effects. Perfect for high-tech or sci-fi themed interfaces with realistic electric discharge animations.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-cyberpunk-electric-demo",
+    topic: "CSS Cyberpunk Effects",
+    demoHtml: `<div class="electric-container">
+  <!-- Electric background -->
+  <div class="electric-bg"></div>
+  
+  <!-- Animated electric grid -->
+  <div class="electric-grid"></div>
+  
+  <!-- Floating electric particles -->
+  <div class="electric-particles" id="electric-particles"></div>
+  
+  <!-- Main button -->
+  <div class="button-container">
+    <button class="electric-cyber-button" onclick="handleElectricClick()">
+      <div class="hud-frame"></div>
+      <div class="corner-element top-left"></div>
+      <div class="corner-element top-right"></div>
+      <div class="corner-element bottom-left"></div>
+      <div class="corner-element bottom-right"></div>
+      <div class="lightning-bolt bolt-1"></div>
+      <div class="lightning-bolt bolt-2"></div>
+      <div class="lightning-bolt bolt-3"></div>
+      <span class="text" data-text="CHARGE">CHARGE</span>
+      <div class="data-stream">
+        [VOLTAGE_001]<br>
+        [ELECTRIC_READY]<br>
+        [POWER_NOMINAL]<br>
+        [CHARGE_LEVEL_95%]
+      </div>
+    </button>
+  </div>
+  
+  <!-- Demo information -->
+  <div class="demo-info">
+    Hover to activate electric field<br>
+    Click to initiate power surge
+  </div>
+</div>`,
+    demoCss: `/* Import electric cyberpunk fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono:wght@400&display=swap');
+
+.electric-container {
+  position: relative;
+  height: 400px;
+  background: linear-gradient(135deg, #000510 0%, #001122 25%, #001a33 50%, #000f1f 75%, #000008 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Share Tech Mono', 'Orbitron', monospace;
+  overflow: hidden;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+/* Electric field background */
+.electric-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 15% 70%, rgba(0, 255, 255, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(0, 128, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(128, 0, 255, 0.06) 0%, transparent 60%);
+  animation: electricPulse 6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes electricPulse {
+  0% { 
+    filter: brightness(0.9) contrast(1.3);
+    transform: scale(1);
+  }
+  100% { 
+    filter: brightness(1.2) contrast(1.6);
+    transform: scale(1.03);
+  }
+}
+
+/* Electric grid pattern */
+.electric-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 128, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(128, 0, 255, 0.025) 2px, transparent 2px);
+  background-size: 35px 35px, 35px 35px, 70px 70px;
+  animation: electricGridMove 15s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes electricGridMove {
+  0% { 
+    transform: translate(0, 0);
+    opacity: 0.7;
+  }
+  50% { 
+    opacity: 1;
+  }
+  100% { 
+    transform: translate(35px, 35px);
+    opacity: 0.7;
+  }
+}
+
+/* Electric particles floating */
+.electric-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  animation: particleFloat 12s infinite linear;
+}
+
+.particle.spark {
+  width: 3px;
+  height: 8px;
+  background: linear-gradient(180deg, #00ffff, #0080ff);
+  box-shadow: 0 0 8px #00ffff, 0 0 12px #00ffff;
+  border-radius: 1px;
+}
+
+.particle.bolt {
+  width: 1px;
+  height: 12px;
+  background: #ffffff;
+  box-shadow: 0 0 6px #00ffff, 0 0 10px #0080ff;
+}
+
+.particle.charge {
+  width: 2px;
+  height: 2px;
+  background: #8000ff;
+  box-shadow: 0 0 5px #8000ff;
+  border-radius: 50%;
+}
+
+@keyframes particleFloat {
+  0% { 
+    transform: translateY(100%) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  5% { opacity: 0.8; }
+  95% { opacity: 0.8; }
+  100% { 
+    transform: translateY(-15px) translateX(150px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Main button container */
+.button-container {
+  position: relative;
+  z-index: 10;
+}
+
+/* Cyberpunk electric button */
+.electric-cyber-button {
+  position: relative;
+  padding: 30px 60px;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Orbitron', monospace;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #00ffff;
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.15) 0%, 
+    rgba(0, 0, 0, 0.6) 30%, 
+    rgba(0, 128, 255, 0.12) 70%, 
+    rgba(128, 0, 255, 0.1) 100%);
+  border: 3px solid #00ffff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  
+  /* Electric angular corners */
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 15px) 0, 
+    100% 15px, 
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 
+    8px 100%, 
+    0 calc(100% - 15px)
+  );
+  
+  /* Electric glow effect */
+  box-shadow: 
+    0 0 40px rgba(0, 255, 255, 0.4),
+    0 0 80px rgba(0, 128, 255, 0.2),
+    0 0 120px rgba(128, 0, 255, 0.15),
+    inset 0 0 40px rgba(0, 255, 255, 0.08);
+}
+
+/* Button text with electric styling */
+.electric-cyber-button .text {
+  position: relative;
+  z-index: 3;
+  display: block;
+  transition: all 0.3s ease;
+  text-shadow: 
+    0 0 20px rgba(0, 255, 255, 0.8),
+    2px 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* Electric scanlines */
+.electric-cyber-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 255, 0.08) 2px,
+    rgba(0, 255, 255, 0.08) 4px,
+    transparent 4px,
+    transparent 6px,
+    rgba(0, 128, 255, 0.06) 6px,
+    rgba(0, 128, 255, 0.06) 8px
+  );
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Electric surge wave effect */
+.electric-cyber-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 255, 255, 0.4) 15%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(0, 128, 255, 0.4) 85%,
+    transparent 100%
+  );
+  z-index: 2;
+  transition: left 0.4s ease;
+}
+
+/* Hover state - Electric activation */
+.electric-cyber-button:hover {
+  color: #ffffff;
+  border-color: #ffffff;
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.25) 0%, 
+    rgba(0, 0, 0, 0.7) 30%, 
+    rgba(0, 128, 255, 0.2) 70%, 
+    rgba(128, 0, 255, 0.15) 100%);
+  box-shadow: 
+    0 0 60px rgba(0, 255, 255, 0.6),
+    0 0 120px rgba(255, 255, 255, 0.4),
+    0 0 180px rgba(0, 128, 255, 0.3),
+    inset 0 0 60px rgba(0, 255, 255, 0.15);
+  transform: translateY(-5px) scale(1.02);
+}
+
+.electric-cyber-button:hover .text {
+  color: #ffffff;
+  text-shadow: 
+    0 0 25px rgba(255, 255, 255, 1),
+    0 0 35px rgba(0, 255, 255, 0.8),
+    2px 2px 8px rgba(0, 0, 0, 0.9);
+  animation: electricGlitch 0.3s ease-in-out;
+}
+
+.electric-cyber-button:hover::before {
+  opacity: 1;
+  animation: electricScan 0.3s ease-in-out;
+}
+
+.electric-cyber-button:hover::after {
+  left: 100%;
+}
+
+/* Electric glitch effect */
+@keyframes electricGlitch {
+  0%, 100% { 
+    transform: translate(0);
+    filter: contrast(1) brightness(1);
+  }
+  8% { 
+    transform: translate(-2px, 0);
+    filter: contrast(1.4) brightness(1.3);
+  }
+  16% { 
+    transform: translate(2px, -1px);
+    filter: contrast(0.8) brightness(0.8);
+  }
+  24% { 
+    transform: translate(0, 2px);
+    filter: contrast(1.2) brightness(1.2);
+  }
+  32% { 
+    transform: translate(-1px, 0);
+    filter: contrast(1.5) brightness(1.4);
+  }
+  48% { 
+    transform: translate(2px, -2px);
+    filter: contrast(0.9) brightness(0.9);
+  }
+  64% { 
+    transform: translate(0, 1px);
+    filter: contrast(1.1) brightness(1.1);
+  }
+  80% { 
+    transform: translate(-2px, 0);
+    filter: contrast(1.3) brightness(1.2);
+  }
+}
+
+@keyframes electricScan {
+  0% { 
+    background-position: 0 0;
+    opacity: 0.6;
+  }
+  50% { 
+    background-position: 0 -20px;
+    opacity: 1;
+  }
+  100% { 
+    background-position: 0 -40px;
+    opacity: 0.6;
+  }
+}
+
+/* Multi-layer electric glitch text */
+.electric-cyber-button:hover .text::before,
+.electric-cyber-button:hover .text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.electric-cyber-button:hover .text::before {
+  animation: electricGlitch1 0.3s ease-in-out;
+  color: #00ffff;
+  text-shadow: 0 0 15px #00ffff;
+}
+
+.electric-cyber-button:hover .text::after {
+  animation: electricGlitch2 0.3s ease-in-out;
+  color: #8000ff;
+  text-shadow: 0 0 15px #8000ff;
+}
+
+@keyframes electricGlitch1 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -2px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 2px); }
+}
+
+@keyframes electricGlitch2 {
+  0%, 100% { transform: translate(0); }
+  15% { transform: translate(2px, -1px); }
+  35% { transform: translate(-2px, 2px); }
+  55% { transform: translate(2px, 1px); }
+  75% { transform: translate(-1px, -2px); }
+}
+
+/* Active/clicked state */
+.electric-cyber-button:active {
+  transform: translateY(-3px) scale(0.98);
+  box-shadow: 
+    0 0 100px rgba(255, 255, 255, 0.8),
+    0 0 150px rgba(0, 255, 255, 0.6),
+    0 0 200px rgba(0, 128, 255, 0.4),
+    inset 0 0 100px rgba(255, 255, 255, 0.25);
+}
+
+/* Electric corner elements */
+.corner-element {
+  position: absolute;
+  transition: all 0.3s ease;
+}
+
+.corner-element.top-left {
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #00ffff;
+  border-top: 2px solid #00ffff;
+}
+
+.corner-element.top-right {
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #00ffff;
+  border-top: 2px solid #00ffff;
+}
+
+.corner-element.bottom-left {
+  bottom: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #00ffff;
+  border-bottom: 2px solid #00ffff;
+}
+
+.corner-element.bottom-right {
+  bottom: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #00ffff;
+  border-bottom: 2px solid #00ffff;
+}
+
+.electric-cyber-button:hover .corner-element {
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  animation: cornerSpark 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes cornerSpark {
+  0% { 
+    opacity: 1; 
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% { 
+    opacity: 0.8; 
+    transform: scale(1.15);
+    filter: brightness(1.3);
+  }
+}
+
+/* Electric HUD frame */
+.hud-frame {
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  right: -15px;
+  bottom: -15px;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 20px) 0, 
+    100% 20px, 
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 
+    12px 100%, 
+    0 calc(100% - 20px)
+  );
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.electric-cyber-button:hover .hud-frame {
+  border-color: rgba(255, 255, 255, 0.6);
+  animation: hudElectric 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes hudElectric {
+  0% { 
+    border-color: rgba(0, 255, 255, 0.4);
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% { 
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: scale(1.02);
+    filter: brightness(1.2);
+  }
+}
+
+/* Demo info with electric styling */
+.demo-info {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #00ffff;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.8;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+  animation: electricInfoPulse 4s ease-in-out infinite;
+}
+
+@keyframes electricInfoPulse {
+  0%, 100% { 
+    opacity: 0.8; 
+    color: #00ffff;
+  }
+  20% { 
+    opacity: 1; 
+    color: #ffffff;
+  }
+  40% { 
+    opacity: 0.9; 
+    color: #0080ff;
+  }
+  60% { 
+    opacity: 1; 
+    color: #8000ff;
+  }
+  80% { 
+    opacity: 0.95; 
+    color: #ffffff;
+  }
+}
+
+/* Electric data stream elements */
+.data-stream {
+  position: absolute;
+  top: 50%;
+  right: -100px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: #0080ff;
+  opacity: 0.4;
+  animation: dataElectricScroll 10s linear infinite;
+}
+
+@keyframes dataElectricScroll {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(-200px); opacity: 0; }
+}
+
+/* Lightning bolt decorations */
+.lightning-bolt {
+  position: absolute;
+  width: 2px;
+  height: 15px;
+  background: linear-gradient(180deg, #ffffff, #00ffff);
+  box-shadow: 0 0 8px #00ffff;
+  animation: lightningFlicker 2s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.lightning-bolt.bolt-1 {
+  top: 15px;
+  left: -25px;
+  transform: rotate(15deg);
+  animation-delay: 0s;
+}
+
+.lightning-bolt.bolt-2 {
+  bottom: 25px;
+  right: -20px;
+  transform: rotate(-20deg);
+  animation-delay: 0.7s;
+}
+
+.lightning-bolt.bolt-3 {
+  top: 60%;
+  left: -35px;
+  transform: rotate(25deg);
+  animation-delay: 1.2s;
+}
+
+@keyframes lightningFlicker {
+  0%, 90%, 100% { 
+    opacity: 0.6;
+    transform: scale(1) rotate(var(--rotation, 0deg));
+  }
+  5%, 85% { 
+    opacity: 1;
+    transform: scale(1.1) rotate(var(--rotation, 0deg));
+  }
+  10%, 80% { 
+    opacity: 0.3;
+    transform: scale(0.9) rotate(var(--rotation, 0deg));
+  }
+}`,
+    demoJs: `// Create electric particles
+function createElectricParticles() {
+  const particleContainer = document.getElementById('electric-particles');
+  if (!particleContainer) return;
+  
+  const particleCount = 20;
+  const particleTypes = ['spark', 'bolt', 'charge'];
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'particle ' + particleTypes[Math.floor(Math.random() * particleTypes.length)];
+    particle.style.left = Math.random() * 100 + '%';
+    particle.style.animationDelay = Math.random() * 12 + 's';
+    particle.style.animationDuration = (10 + Math.random() * 8) + 's';
+    particleContainer.appendChild(particle);
+  }
+}
+
+// Handle electric button click
+function handleElectricClick() {
+  const button = document.querySelector('.electric-cyber-button');
+  const text = button.querySelector('.text');
+  
+  // Temporary text change
+  const originalText = text.textContent;
+  text.textContent = 'CHARGED';
+  text.style.color = '#ffffff';
+  text.style.textShadow = '0 0 30px #ffffff, 0 0 40px #00ffff, 0 0 50px #0080ff';
+  
+  // Add intense electric glitch effect
+  button.style.animation = 'electricScreenDistort 0.15s ease-in-out 4';
+  
+  // Reset after animation
+  setTimeout(() => {
+    text.textContent = originalText;
+    text.style.color = '';
+    text.style.textShadow = '';
+    button.style.animation = '';
+  }, 1200);
+  
+  // Create electric lightning burst
+  createElectricBurst();
+  
+  console.log('Electric Cyberpunk button charged! ⚡💙🔌');
+}
+
+// Electric burst effect
+function createElectricBurst() {
+  const button = document.querySelector('.electric-cyber-button');
+  const rect = button.getBoundingClientRect();
+  
+  for (let i = 0; i < 20; i++) {
+    const lightning = document.createElement('div');
+    lightning.style.position = 'fixed';
+    lightning.style.left = rect.left + rect.width/2 + 'px';
+    lightning.style.top = rect.top + rect.height/2 + 'px';
+    lightning.style.width = '2px';
+    lightning.style.height = (8 + Math.random() * 12) + 'px';
+    
+    // Electric colors
+    const colors = ['#00ffff', '#ffffff', '#0080ff', '#8000ff'];
+    const color = colors[i % colors.length];
+    lightning.style.background = 'linear-gradient(180deg, ' + color + ', ' + (color === '#ffffff' ? '#00ffff' : color === '#8000ff' ? '#4000ff' : '#003366') + ')';
+    lightning.style.boxShadow = '0 0 10px ' + color + ', 0 0 20px ' + color;
+    lightning.style.pointerEvents = 'none';
+    lightning.style.zIndex = '1000';
+    
+    // Create jagged lightning effect
+    if (i % 3 === 0) {
+      lightning.style.clipPath = 'polygon(40% 0%, 60% 35%, 80% 35%, 50% 100%, 30% 65%, 20% 65%)';
+      lightning.style.width = '6px';
+    } else if (i % 3 === 1) {
+      lightning.style.transform = 'rotate(' + (Math.random() * 60 - 30) + 'deg)';
+    }
+    
+    document.body.appendChild(lightning);
+    
+    const angle = (i / 20) * Math.PI * 2;
+    const distance = 80 + Math.random() * 60;
+    
+    lightning.animate([
+      {
+        transform: 'translate(0, 0) scale(1) rotate(0deg)',
+        opacity: 1
+      },
+      {
+        transform: 'translate(' + (Math.cos(angle) * distance) + 'px, ' + (Math.sin(angle) * distance) + 'px) scale(0.2) rotate(' + (Math.random() * 360) + 'deg)',
+        opacity: 0
+      }
+    ], {
+      duration: 800,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+    }).onfinish = () => {
+      lightning.remove();
+    };
+  }
+}
+
+// Enhanced mouse interaction with electric effects
+document.addEventListener('DOMContentLoaded', function() {
+  createElectricParticles();
+  
+  const button = document.querySelector('.electric-cyber-button');
+  if (button) {
+    button.addEventListener('mouseenter', function() {
+      const rect = this.getBoundingClientRect();
+      
+      // Create electric static sparks
+      for (let i = 0; i < 8; i++) {
+        const staticSpark = document.createElement('div');
+        staticSpark.style.position = 'fixed';
+        staticSpark.style.left = rect.left + Math.random() * rect.width + 'px';
+        staticSpark.style.top = rect.top + Math.random() * rect.height + 'px';
+        staticSpark.style.width = '1px';
+        staticSpark.style.height = '6px';
+        
+        const sparkColors = ['#00ffff', '#ffffff', '#0080ff', '#8000ff'];
+        const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+        staticSpark.style.background = sparkColor;
+        staticSpark.style.boxShadow = '0 0 8px ' + sparkColor + ', 0 0 12px ' + sparkColor;
+        staticSpark.style.pointerEvents = 'none';
+        staticSpark.style.zIndex = '999';
+        
+        document.body.appendChild(staticSpark);
+        
+        staticSpark.animate([
+          { 
+            opacity: 1, 
+            transform: 'scale(1) rotate(0deg)' 
+          },
+          { 
+            opacity: 0, 
+            transform: 'scale(0.3) rotate(180deg)' 
+          }
+        ], {
+          duration: 400,
+          easing: 'ease-out'
+        }).onfinish = () => {
+          staticSpark.remove();
+        };
+      }
+    });
+  }
+});`
+},
 
 {
     section: ["Learning", "CSS"],
