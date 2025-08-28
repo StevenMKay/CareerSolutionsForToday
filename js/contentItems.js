@@ -68,6 +68,51 @@ if (window.contentItems) {
 window.contentItems = [
 
 
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
+https:"https://youtu.be/faXUCxA4Koc",
+ title:"Formula for Number Series",
+        description:"In this video, we explore how to generate number series, date series, and text/ID series in Excel using modern formulas like SEQUENCE.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
+       link:"https://youtu.be/r4iBjEWwZ74",
+
+
+  related: [
+    {
+      text:"Check it out on YouTube",
+            url:"https://youtu.be/faXUCxA4Koc"
+        },
+    {
+       text:"Practice File Link",
+            url:"https://docs.google.com/spreadsheets/d/11cV9viIb-eCFkgkd5_2bbbBWRioGQQkw/export?format=xlsx"
+    }
+    ],
+        topic:"Formula for Number Series"
+    },
+
+
+
+
+
+
+
+
+
+
+  
 {
     section: ["Learning", "CSS"],
     program: {
