@@ -87,7 +87,7 @@ https:"https://youtu.be/faXUCxA4Koc",
  title:"Formula for Number Series",
         description:"In this video, we explore how to generate number series, date series, and text/ID series in Excel using modern formulas like SEQUENCE.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
-       link:"https://youtu.be/r4iBjEWwZ74",
+       link:"https://youtu.be/faXUCxA4Koc",
 
 
   related: [
