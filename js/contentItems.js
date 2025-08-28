@@ -68,6 +68,29 @@ if (window.contentItems) {
 window.contentItems = [
 
 
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
+https:"https://youtu.be/y1gPf0kbf-Y",
+ title:"Change Selected Cell Color",
+        description:"In this video we cover how to change the background color of specific cells in Excel.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
+       link:"https://youtu.be/y1gPf0kbf-Y",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/y1gPf0kbf-Y"
+        },
+        topic:"Change Selected Cell Color"
+    },
 
 
 
