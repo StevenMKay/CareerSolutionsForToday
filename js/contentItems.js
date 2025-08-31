@@ -1613,13 +1613,19 @@ document.addEventListener('DOMContentLoaded', function() {
         link: "https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_",
         related: [
             {
-                text:"Download code",
+                text:"Download PC Code",
                 url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
             },
             {
                 text:"Video on topic",
                 url:"https://youtu.be/VsivDUMm9lE"
-            }
+            },
+          {
+          text: "Download Mobile Code"
+url: "https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-YErYbq7"
+
+          }
+          
         ],
         topic: "Simulation Examples"
     },
