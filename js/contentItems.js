@@ -1621,7 +1621,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 url:"https://youtu.be/VsivDUMm9lE"
             },
           {
-          text: "Download Mobile Code"
+          text: "Download Mobile Code",
 url: "https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-YErYbq7"
 
           }
