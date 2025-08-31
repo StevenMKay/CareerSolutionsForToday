@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1615,40 +1616,7 @@
                 }, 10);
             }
 
-            finishEditing() {
-                if (!this.isEditing || !this.selectedCell) return;
 
-                this.isEditing = false;
-                this.selectedCell.classList.remove('editing');
-                this.selectedCell.setAttribute('contenteditable', 'false');
-
-                const address = this.selectedCell.dataset.address;
-                const content = this.selectedCell.textContent.trim();
-
-                if (content.startsWith('=')) {
-                    // It's a formula - store it and calculate result
-                    this.cellFormulas[address] = content;
-                    const result = this.calculateFormula(content);
-                    this.cellValues[address] = result;
-                    this.selectedCell.textContent = result;
-                    this.selectedCell.classList.add('has-formula');
-                    
-                    console.log(`Formula stored: ${content}, Result: ${result}`);
-                } else {
-                    // Regular value
-                    delete this.cellFormulas[address];
-                    this.cellValues[address] = content;
-                    this.selectedCell.classList.remove('has-formula');
-                }
-
-                // Update formula bar to show the formula
-                document.getElementById('formulaBar').value = this.cellFormulas[address] || content;
-
-                // Check progress with a slight delay to ensure DOM is updated
-                setTimeout(() => {
-                    this.checkProgress();
-                }, 100);
-            }
 
             handleCellKeydown(e, cell) {
                 if (this.isEditing) {
@@ -1731,6 +1699,57 @@
                 if (this.selectedCell && this.isEditing) {
                     document.getElementById('formulaBar').value = this.selectedCell.textContent;
                 }
+            }
+
+            // Method to recalculate formulas when referenced cells change
+            recalculateFormulas() {
+                Object.keys(this.cellFormulas).forEach(address => {
+                    const formula = this.cellFormulas[address];
+                    const cell = document.querySelector(`[data-address="${address}"]`);
+                    if (cell && formula) {
+                        const result = this.calculateFormula(formula);
+                        this.cellValues[address] = result;
+                        cell.textContent = result;
+                        console.log(`Recalculated ${address}: ${formula} = ${result}`);
+                    }
+                });
+                
+                // Check progress after recalculation
+                setTimeout(() => this.checkProgress(), 100);
+            }
+
+            // Override finishEditing to trigger recalculation when cells change
+            finishEditing() {
+                if (!this.isEditing || !this.selectedCell) return;
+
+                this.isEditing = false;
+                this.selectedCell.classList.remove('editing');
+                this.selectedCell.setAttribute('contenteditable', 'false');
+
+                const address = this.selectedCell.dataset.address;
+                const content = this.selectedCell.textContent.trim();
+
+                if (content.startsWith('=')) {
+                    // It's a formula - store it and calculate result
+                    this.cellFormulas[address] = content;
+                    const result = this.calculateFormula(content);
+                    this.cellValues[address] = result;
+                    this.selectedCell.textContent = result;
+                    this.selectedCell.classList.add('has-formula');
+                    
+                    console.log(`Formula stored: ${content}, Result: ${result}`);
+                } else {
+                    // Regular value
+                    delete this.cellFormulas[address];
+                    this.cellValues[address] = content;
+                    this.selectedCell.classList.remove('has-formula');
+                }
+
+                // Update formula bar to show the formula
+                document.getElementById('formulaBar').value = this.cellFormulas[address] || content;
+
+                // Recalculate all formulas that might reference this cell
+                this.recalculateFormulas();
             }
 
             calculateFormula(formula) {
@@ -1860,10 +1879,51 @@
                         target: "E2",
                         type: "input",
                         check: () => {
+                            // If we're at step 7, and the user has completed the full formula,
+                            // we should allow completion even if previous steps weren't individually validated
                             const e2 = document.querySelector('[data-address="E2"]');
                             const content = e2?.textContent?.toUpperCase() || '';
-                            // Check for complete formula but not executed yet
-                            return content.includes('FALSE)') && content.endsWith(')') && !this.cellFormulas['E2'];
+                            const storedFormula = this.cellFormulas['E2']?.toUpperCase() || '';
+                            
+                            // Check for complete VLOOKUP formula
+                            const fullFormulaPattern = /=VLOOKUP\s*\(\s*D2\s*,\s*A2:B6\s*,\s*2\s*,\s*FALSE\s*\)/i;
+                            const hasCompleteFormula = fullFormulaPattern.test(content) || fullFormulaPattern.test(storedFormula);
+                            
+                            // Alternative: Check for the key components
+                            const hasVlookup = (content.includes('=VLOOKUP(') || storedFormula.includes('=VLOOKUP('));
+                            const hasD2 = (content.includes('D2') || storedFormula.includes('D2'));
+                            const hasTableRange = (content.includes('A2:B6') || storedFormula.includes('A2:B6'));
+                            const hasColumn2 = (content.includes(',2,') || storedFormula.includes(',2,'));
+                            const hasFalse = (content.includes('FALSE)') || storedFormula.includes('FALSE)'));
+                            
+                            const hasAllComponents = hasVlookup && hasD2 && hasTableRange && hasColumn2 && hasFalse;
+                            
+                            // Make sure it's not executed yet (shouldn't show employee name as result)
+                            const d2Value = this.cellValues['D2'] || document.querySelector('[data-address="D2"]')?.textContent || '103';
+                            const isExecuted = this.cellValues['E2'] && this.employeeData[d2Value] === this.cellValues['E2'];
+                            
+                            // If formula is complete, auto-complete previous steps to allow progression
+                            if ((hasCompleteFormula || hasAllComponents) && !isExecuted) {
+                                // Auto-complete steps 2-6 if not already completed
+                                for (let i = 1; i < 7; i++) {
+                                    if (!this.completedSteps.has(i)) {
+                                        this.completedSteps.add(i);
+                                        console.log(`🔧 Auto-completed step ${i + 1} due to complete formula`);
+                                    }
+                                }
+                            }
+                            
+                            console.log('Step 7 check:', { 
+                                content, 
+                                storedFormula, 
+                                hasCompleteFormula,
+                                hasAllComponents,
+                                isExecuted, 
+                                d2Value,
+                                e2Value: this.cellValues['E2']
+                            });
+                            
+                            return (hasCompleteFormula || hasAllComponents) && !isExecuted;
                         }
                     },
                     {
@@ -1887,6 +1947,74 @@
                             const isComplete = hasFormula && this.employeeData[searchValue] === result;
                             console.log('Step 8 check:', { searchValue, result, hasFormula, expected: this.employeeData[searchValue], isComplete });
                             return isComplete;
+                        }
+                    },
+                    // ===== STEP 9: UNDERSTAND THE RESULT =====
+                    {
+                        title: "Understand the Result",
+                        description: "Excellent! VLOOKUP searched for ID '103' in column A and returned 'Alice Johnson' from column B. This is how data lookup works!",
+                        instruction: "🧠 Notice how VLOOKUP found the exact match and returned the corresponding value from the second column",
+                        type: "understanding",
+                        highlightCells: ["D2", "E2", "A4", "B4"], // Highlight the lookup path
+                        highlightType: "lookup",
+                        check: () => {
+                            // This step is completed when user acknowledges understanding
+                            return true; // Will be manually completed via button
+                        }
+                    },
+                    // ===== STEP 10: TRY DIFFERENT VALUES =====
+                    {
+                        title: "Try Different Lookup Values",
+                        description: "Let's test your VLOOKUP with a different employee ID! We'll change D2 to '101' to see John Smith's information.",
+                        instruction: "🔄 The system will automatically change D2 to '101' to demonstrate how VLOOKUP adapts to different lookup values",
+                        target: "D2",
+                        highlightCells: ["D2"],
+                        highlightType: "lookup",
+                        type: "understanding",
+                        check: () => {
+                            const d2 = document.querySelector('[data-address="D2"]');
+                            const e2 = document.querySelector('[data-address="E2"]');
+                            if (!d2 || !e2) return false;
+                            
+                            const searchValue = this.cellValues['D2'] || d2.textContent;
+                            const result = this.cellValues['E2'] || e2.textContent;
+                            const hasFormula = !!this.cellFormulas['E2'];
+                            
+                            // Check if they've tried "101" or any different value than the original '103'
+                            return hasFormula && (searchValue === '101' || (searchValue !== '103' && this.employeeData[searchValue] === result));
+                        }
+                    },
+                    // ===== STEP 11: TEST EDGE CASES =====
+                    {
+                        title: "Test Edge Cases",
+                        description: "Let's see what happens when VLOOKUP can't find a match. Try entering an ID that doesn't exist in our data.",
+                        instruction: "❌ Try changing D2 to '999' (a non-existent ID) to see VLOOKUP's error handling",
+                        target: "D2",
+                        highlightCells: ["D2", "E2"],
+                        highlightType: "lookup",
+                        type: "understanding", // Changed to understanding so it gets a button
+                        check: () => {
+                            const d2 = document.querySelector('[data-address="D2"]');
+                            const e2 = document.querySelector('[data-address="E2"]');
+                            if (!d2 || !e2) return false;
+                            
+                            const searchValue = this.cellValues['D2'] || d2.textContent;
+                            const result = this.cellValues['E2'] || e2.textContent;
+                            const hasFormula = !!this.cellFormulas['E2'];
+                            
+                            // Check if they've entered a non-existent ID and got #N/A
+                            return hasFormula && !this.employeeData[searchValue] && result === '#N/A';
+                        }
+                    },
+                    // ===== STEP 12: VLOOKUP MASTER =====
+                    {
+                        title: "🎉 VLOOKUP Master!",
+                        description: "Congratulations! You've mastered VLOOKUP - one of Excel's most powerful functions. You can now build complex lookup formulas with confidence!",
+                        instruction: "🏆 You've learned: formula syntax, table arrays, column indexes, exact matching, error handling, and practical applications!",
+                        type: "completion",
+                        check: () => {
+                            // Final step is always complete once reached
+                            return true;
                         }
                     }
                 ];
@@ -1937,9 +2065,14 @@
                         content += `<div class="step-instruction">${step.instruction}</div>`;
                     }
 
-                    // Add action button for step 1
-                    if (step.type === 'action' && index === this.currentStep) {
+                    // Add action buttons based on step type
+                    if (step.type === 'action' && (index === this.currentStep || index === 0)) {
                         content += `<button class="step-action" onclick="training.addSampleData()">Add Sample Data</button>`;
+                    } else if (step.type === 'understanding' && (index === this.currentStep || this.completedSteps.has(index - 1) || index === 8 || index === 10)) {
+                        // Show "I Understand" button for understanding steps (including step 9 and step 11)
+                        content += `<button class="step-action" onclick="training.acknowledgeUnderstanding(${index})">I Understand!</button>`;
+                    } else if (step.type === 'completion' && (index === this.currentStep || index === 11)) {
+                        content += `<button class="step-action" onclick="training.completeMasterTraining()">Start Over</button>`;
                     }
 
                     content += `<div class="status-message" id="status${index}"></div>`;
@@ -1981,6 +2114,13 @@
                     } else if (!currentStepData.target) {
                         // Only clear highlights if we're not showing a target pointer
                         this.clearAllHighlights();
+                    }
+                    
+                    // Auto-demonstrate for Step 11 (Test Edge Cases)
+                    if (this.currentStep === 10) { // Step 11 is index 10
+                        setTimeout(() => {
+                            this.demonstrateEdgeCase();
+                        }, 1000);
                     }
                 }
             }
@@ -2090,6 +2230,310 @@
             }
 
             /**
+             * ===== NEW STEP METHODS FOR EXTENDED TRAINING =====
+             */
+            acknowledgeUnderstanding(stepIndex) {
+                console.log(`🔧 Acknowledging understanding for step ${stepIndex + 1}`);
+                
+                // Force complete all previous steps if not already completed
+                for (let i = 0; i <= stepIndex; i++) {
+                    if (!this.completedSteps.has(i)) {
+                        this.completedSteps.add(i);
+                        console.log(`🔧 Auto-completed step ${i + 1}`);
+                    }
+                }
+                
+                // Mark this step as completed
+                this.completedSteps.add(stepIndex);
+                
+                if (stepIndex === 8) {
+                    // Step 9 (index 8) - Understand the Result
+                    this.showStatusMessage(stepIndex, 'success', '✅ Understanding confirmed! Now let\'s try a different lookup value.');
+                    
+                    // Progress to step 10 and automatically demonstrate
+                    setTimeout(() => {
+                        this.currentStep = stepIndex + 1;
+                        this.updateProgress();
+                        this.updateActiveStep();
+                        
+                        // Automatically demonstrate different value after a delay
+                        setTimeout(() => this.demonstrateDifferentValue(), 1000);
+                    }, 500);
+                } else if (stepIndex === 9) {
+                    // Step 10 (index 9) - Try Different Values  
+                    this.showStatusMessage(stepIndex, 'success', '✅ Great! You see how VLOOKUP adapts to different lookup values.');
+                    
+                    setTimeout(() => {
+                        this.currentStep = stepIndex + 1;
+                        this.updateProgress();
+                        this.updateActiveStep();
+                    }, 500);
+                } else if (stepIndex === 10) {
+                    // Step 11 (index 10) - Test Edge Cases
+                    this.showStatusMessage(stepIndex, 'success', '✅ Perfect! You\'ve seen how VLOOKUP handles errors.');
+                    
+                    setTimeout(() => {
+                        this.currentStep = stepIndex + 1;
+                        this.updateProgress();
+                        this.updateActiveStep();
+                    }, 500);
+                } else {
+                    // Other understanding steps
+                    this.showStatusMessage(stepIndex, 'success', '✅ Understanding confirmed! Ready for next challenge.');
+                    
+                    setTimeout(() => {
+                        this.currentStep = stepIndex + 1;
+                        this.updateProgress();
+                        this.updateActiveStep();
+                    }, 500);
+                }
+            }
+
+            demonstrateDifferentValue() {
+                // Change D2 to "101" and update the result
+                const d2Cell = document.querySelector('[data-address="D2"]');
+                const e2Cell = document.querySelector('[data-address="E2"]');
+                
+                if (d2Cell && e2Cell) {
+                    // Update D2 value
+                    d2Cell.textContent = '101';
+                    this.cellValues['D2'] = '101';
+                    
+                    // Update E2 with new result
+                    const newResult = this.employeeData['101'];
+                    e2Cell.textContent = newResult;
+                    this.cellValues['E2'] = newResult;
+                    
+                    // Add visual feedback
+                    d2Cell.style.background = '#e0f2fe';
+                    d2Cell.style.border = '2px solid #1a73e8';
+                    e2Cell.style.background = '#dcfce7';
+                    
+                    this.showStatusMessage(10, 'success', '✅ VLOOKUP automatically updated! D2 changed to "101" shows "John Smith".');
+                    
+                    // Mark step complete after demonstration
+                    setTimeout(() => {
+                        this.completedSteps.add(9);
+                        this.checkProgress();
+                    }, 1500);
+                }
+            }
+
+            demonstrateEdgeCase() {
+                console.log('🔴 Demonstrating edge case for Step 11...');
+                
+                // Change D2 to "999" and show #N/A error
+                const d2Cell = document.querySelector('[data-address="D2"]');
+                const e2Cell = document.querySelector('[data-address="E2"]');
+                
+                if (d2Cell && e2Cell) {
+                    // Update D2 value to non-existent ID
+                    d2Cell.textContent = '999';
+                    this.cellValues['D2'] = '999';
+                    
+                    // Recalculate the formula with new lookup value
+                    if (this.cellFormulas['E2']) {
+                        const result = this.calculateFormula(this.cellFormulas['E2']);
+                        e2Cell.textContent = result;
+                        this.cellValues['E2'] = result;
+                        
+                        console.log('✅ Edge case result:', result);
+                    }
+                    
+                    // Add visual feedback
+                    d2Cell.style.background = '#fee2e2';
+                    d2Cell.style.border = '2px solid #dc2626';
+                    e2Cell.style.background = '#fee2e2';
+                    e2Cell.style.color = '#dc2626';
+                    e2Cell.style.fontWeight = 'bold';
+                    
+                    this.showStatusMessage(10, 'success', '✅ Demo complete! D2="999" shows #N/A error - this is how VLOOKUP handles missing data.');
+                    
+                    console.log('🎯 Step 11 demo completed. Current step:', this.currentStep + 1);
+                }
+            }
+
+            completeMasterTraining() {
+                // Reset to beginning
+                this.currentStep = 0;
+                this.completedSteps.clear();
+                this.panelOpen = true;
+                
+                // Clear all cell data
+                document.querySelectorAll('.excel-cell').forEach(cell => {
+                    cell.textContent = '';
+                    cell.classList.remove('has-formula', 'highlighted', 'range-highlighted', 'lookup-highlighted');
+                    cell.style.removeProperty('background');
+                    cell.style.removeProperty('border-color');
+                });
+                
+                // Reset internal data
+                this.cellFormulas = {};
+                this.cellValues = {};
+                
+                this.updateProgress();
+                this.updateActiveStep();
+                
+                console.log('🔄 Training restarted!');
+            }
+
+            // Method to manually advance steps for testing/debugging
+            forceCompleteStep(stepIndex) {
+                if (stepIndex < this.trainingSteps.length) {
+                    this.completedSteps.add(stepIndex);
+                    this.currentStep = Math.max(this.currentStep, stepIndex + 1);
+                    this.updateProgress();
+                    this.updateActiveStep();
+                    console.log(`🔧 Manually completed step ${stepIndex + 1}`);
+                }
+            }
+
+            // Method to complete multiple steps at once
+            forceCompleteSteps(upToStep) {
+                for (let i = 0; i <= upToStep && i < this.trainingSteps.length; i++) {
+                    this.completedSteps.add(i);
+                }
+                this.currentStep = Math.min(upToStep + 1, this.trainingSteps.length);
+                this.updateProgress();
+                this.updateActiveStep();
+                console.log(`🔧 Manually completed steps 1-${upToStep + 1}`);
+            }
+
+            // Test method for step 7 specifically
+            testStep7Completion() {
+                console.log('🧪 Testing Step 7 completion...');
+                
+                // Set up the scenario: complete steps 1-6 first
+                this.forceCompleteSteps(5); // Complete steps 1-6 (indices 0-5)
+                
+                // Set up the formula in E2
+                const e2 = document.querySelector('[data-address="E2"]');
+                const d2 = document.querySelector('[data-address="D2"]');
+                
+                if (e2 && d2) {
+                    // Make sure we have sample data
+                    d2.textContent = '103';
+                    this.cellValues['D2'] = '103';
+                    
+                    // Set the complete formula
+                    e2.textContent = '=VLOOKUP(D2,A2:B6,2,FALSE)';
+                    
+                    // Don't execute it yet - just have the formula
+                    console.log('📝 Formula set:', e2.textContent);
+                    console.log('📊 Current step before check:', this.currentStep);
+                    console.log('✅ Completed steps before check:', Array.from(this.completedSteps));
+                    
+                    // Now check if step 7 validation passes
+                    setTimeout(() => {
+                        this.checkProgress();
+                        
+                        console.log('📊 Current step after check:', this.currentStep);
+                        console.log('✅ Completed steps after check:', Array.from(this.completedSteps));
+                        
+                        if (this.completedSteps.has(6)) {
+                            console.log('🎉 Step 7 completed successfully!');
+                        } else {
+                            console.log('❌ Step 7 did not complete - debugging...');
+                            
+                            // Debug the validation
+                            const stepData = this.trainingSteps[6];
+                            if (stepData && stepData.check) {
+                                const result = stepData.check();
+                                console.log('🔍 Step 7 validation result:', result);
+                            }
+                        }
+                        
+                        this.updateActiveStep();
+                    }, 100);
+                }
+            }
+
+            // Quick method to get to step 9 "I Understand" for testing
+            quickTestStep9() {
+                console.log('🚀 Quick setup for Step 9 testing...');
+                
+                // Complete all steps up to 8 (Execute Formula)
+                for (let i = 0; i < 8; i++) {
+                    this.completedSteps.add(i);
+                }
+                
+                // Set up the scenario with executed formula
+                const e2 = document.querySelector('[data-address="E2"]');
+                const d2 = document.querySelector('[data-address="D2"]');
+                
+                if (e2 && d2) {
+                    // Set sample data
+                    d2.textContent = '103';
+                    this.cellValues['D2'] = '103';
+                    
+                    // Set executed result
+                    e2.textContent = 'Alice Johnson';
+                    this.cellValues['E2'] = 'Alice Johnson';
+                    this.cellFormulas['E2'] = '=VLOOKUP(D2,A2:B6,2,FALSE)';
+                    
+                    // Set current step to 8 (Understand Result)
+                    this.currentStep = 8;
+                    this.updateProgress();
+                    this.updateActiveStep();
+                    
+                    console.log('✅ Setup complete! You should now see Step 9 active with "I Understand" button enabled.');
+                }
+            }
+
+            // Emergency fix - just show step 9 with working button
+            enableStep9Button() {
+                console.log('🆘 Emergency: Enabling Step 9 button...');
+                
+                // Force complete everything up to step 8
+                for (let i = 0; i <= 7; i++) {
+                    this.completedSteps.add(i);
+                }
+                
+                // Set current step to 8 (step 9 in 1-based counting)
+                this.currentStep = 8;
+                
+                // Force re-render
+                this.updateProgress();
+                this.updateActiveStep();
+                
+                console.log('✅ Step 9 should now be active with "I Understand" button!');
+                console.log('Current step:', this.currentStep + 1);
+                console.log('Completed steps:', Array.from(this.completedSteps));
+            }
+
+            // Quick method to test Step 11 directly
+            enableStep11Button() {
+                console.log('🆘 Emergency: Enabling Step 11 button...');
+                
+                // Force complete everything up to step 10
+                for (let i = 0; i <= 9; i++) {
+                    this.completedSteps.add(i);
+                }
+                
+                // Set current step to 10 (step 11 in 1-based counting)
+                this.currentStep = 10;
+                
+                // Set up sample data and formula first
+                const d2Cell = document.querySelector('[data-address="D2"]');
+                const e2Cell = document.querySelector('[data-address="E2"]');
+                if (d2Cell && e2Cell) {
+                    d2Cell.textContent = '103';
+                    this.cellValues['D2'] = '103';
+                    this.cellFormulas['E2'] = '=VLOOKUP(D2,A2:B6,2,FALSE)';
+                    e2Cell.textContent = 'Alice Johnson';
+                    this.cellValues['E2'] = 'Alice Johnson';
+                }
+                
+                // Force re-render
+                this.updateProgress();
+                this.updateActiveStep();
+                
+                console.log('✅ Step 11 should now be active with demo and "I Understand" button!');
+                console.log('Current step:', this.currentStep + 1);
+                console.log('Completed steps:', Array.from(this.completedSteps));
+            }
+
+            /**
              * ===== STEP PROGRESS CHECKING =====
              * Critical method that validates current step completion and advances to next step
              * Includes race condition prevention to avoid skipping steps
@@ -2106,8 +2550,45 @@
                 }
 
                 // ===== STEP VALIDATION =====
-                // Only check the current step, not all steps (prevents multi-step jumps)
-                if (currentStepData.check()) {
+                // Check the current step validation
+                let stepPassed = false;
+                try {
+                    stepPassed = currentStepData.check();
+                } catch (error) {
+                    console.log('Step validation error:', error);
+                    stepPassed = false;
+                }
+
+                // ===== SPECIAL HANDLING FOR FORMULA STEPS =====
+                // If we're at a formula step and the user has a complete formula, auto-advance
+                if (!stepPassed && this.currentStep >= 2 && this.currentStep <= 7) {
+                    const e2 = document.querySelector('[data-address="E2"]');
+                    const content = e2?.textContent?.toUpperCase() || '';
+                    const storedFormula = this.cellFormulas['E2']?.toUpperCase() || '';
+                    
+                    // Check for complete formula
+                    const hasCompleteFormula = (content.includes('=VLOOKUP(') && content.includes('D2') && 
+                                              content.includes('A2:B6') && content.includes('2,') && 
+                                              content.includes('FALSE)')) ||
+                                             (storedFormula.includes('=VLOOKUP(') && storedFormula.includes('D2') && 
+                                              storedFormula.includes('A2:B6') && storedFormula.includes('2,') && 
+                                              storedFormula.includes('FALSE)'));
+                    
+                    if (hasCompleteFormula) {
+                        // Auto-complete all formula steps (2-7)
+                        console.log('🔧 Complete formula detected, auto-completing steps 3-7');
+                        for (let i = 2; i <= 7; i++) {
+                            if (!this.completedSteps.has(i)) {
+                                this.completedSteps.add(i);
+                            }
+                        }
+                        // Jump to step 8 (Execute)
+                        this.currentStep = 7;
+                        stepPassed = true;
+                    }
+                }
+
+                if (stepPassed) {
                     // Lock step progression to prevent concurrent advances
                     this.isProgressingStep = true;
                     
