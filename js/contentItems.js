@@ -74,6 +74,98 @@ window.contentItems = [
             "Videos"
         ],
         program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/361ad8a40587881852dd710b33c9a5cdea0091bf/Thumbnails/aitoolsthumb9.22.png",
+https:"https://youtu.be/sNF-ewlfqmw",
+ title:"Automate Any Task or Workflow with Zapier",
+        description:"In this video we cover an awesome AI tool called Zapier. It can be used to automate tasks by connecting over 6000 applications.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/361ad8a40587881852dd710b33c9a5cdea0091bf/Thumbnails/aitoolsthumb9.22.png",
+       link:"https://youtu.be/sNF-ewlfqmw",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/sNF-ewlfqmw"
+      },
+      {
+            text:"Visit Zapier",
+            url:"https://www.zapier.com"
+      }
+  ],
+        topic:"Automate Tasks"
+    },
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7d4cae5047e954b54f512e3fd8ca3a3783d49a2/Thumbnails/glassmorphism9.22.png",
+https:"https://youtu.be/YhaGxBoY9PY",
+ title:"Glass Morphism Effect",
+        description:"This sleek design technique adds a polished, modern aesthetic often seen in apps and websites — and now you can bring it into your slides.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7d4cae5047e954b54f512e3fd8ca3a3783d49a2/Thumbnails/glassmorphism9.22.png",
+       link:"https://youtu.be/YhaGxBoY9PY",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/YhaGxBoY9PY"
+        },
+        topic:"Glass Morphism Effect"
+    },
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+https:"https://youtu.be/ers-81-bFO4",
+ title:"Interactive Morph Template",
+        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+       link:"https://youtu.be/ers-81-bFO4",
+
+
+  related: [
+        {
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/ers-81-bFO4"
+        },
+        {
+            text:"Template File Link",
+            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
+        }
+    ],
+        topic:"Interactive Morph Template"
+    },
+
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
             name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
         },
@@ -94,8 +186,6 @@ https:"https://youtu.be/y1gPf0kbf-Y",
 
 
 
-
-
 {
  section:[
             "Learning",
@@ -110,7 +200,7 @@ https:"https://youtu.be/faXUCxA4Koc",
  title:"Formula for Number Series",
         description:"In this video, we explore how to generate number series, date series, and text/ID series in Excel using modern formulas like SEQUENCE.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
-       link:"https://youtu.be/faXUCxA4Koc",
+       link:"https://youtu.be/r4iBjEWwZ74",
 
 
   related: [
@@ -1613,19 +1703,13 @@ document.addEventListener('DOMContentLoaded', function() {
         link: "https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_",
         related: [
             {
-                text:"Download PC Code",
+                text:"Download code",
                 url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
             },
             {
                 text:"Video on topic",
                 url:"https://youtu.be/VsivDUMm9lE"
-            },
-          {
-          text: "Download Mobile Code",
-url: "https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-YErYbq7"
-
-          }
-          
+            }
         ],
         topic: "Simulation Examples"
     },
@@ -1674,7 +1758,7 @@ url: "https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-Y
         text: "Check it out on YouTube",
         url: "https://youtu.be/VsivDUMm9lE"
     },
-    topic: "AI"
+    topic: "Vibe Coding"
 },
 
 {
