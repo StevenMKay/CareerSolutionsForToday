@@ -9,7 +9,7 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/icons/AIicon.png",
 
 'Helpful Websites':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ccb7bdd06de647ea39a8a8644798db5d7c790525/icons/interneticon.png",
-
+'Website Design':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png",
   Windows:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/windowsicon.png",
   HTML:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png",
   SharePoint:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/sharepointicon.png",
@@ -66,6 +66,543 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
+
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "9 Dot Interactive Navigation Menu",
+    description: "Learn how to create a stunning 9-dot grid navigation menu with smooth reveal animations, staggered timing effects, and interactive hover states. Features backdrop blur, glassmorphism design, and floating particle animations. Perfect for modern web interfaces and app-style navigation.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e60929327344cb1a9d8809e01c13096eb05175eb/Thumbnails/9dotnavmenuthumb.png",
+    link: "Learn.html#website-design-9dot-nav-menu",
+    topic: "Interactive Navigation",
+    demoHtml: `<!-- 9 Dot Navigation Menu -->
+<h1 class="title"><span class="number">9</span> Dot Navigation Menu</h1>
+
+<div class="nav-container">
+  <div class="navigation">
+    <div class="nav-item" data-tooltip="Coffee">
+      <i class="fas fa-coffee"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Notifications">
+      <i class="fas fa-bell"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Weather">
+      <i class="fas fa-cloud-rain"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Camera">
+      <i class="fas fa-camera"></i>
+    </div>
+    <div class="nav-item active" data-tooltip="Close">
+      <i class="fas fa-times"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Settings">
+      <i class="fas fa-cog"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Games">
+      <i class="fas fa-gamepad"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Alarm">
+      <i class="fas fa-clock"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Profile">
+      <i class="fas fa-user"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">`,
+    demoCss: `/* 9 Dot Navigation Menu Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  padding: 40px 20px;
+}
+
+.title {
+  font-size: 48px;
+  font-weight: 700;
+  margin: 20px 0 40px 0;
+  text-align: center;
+  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.title .number {
+  color: #4ade80;
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+}
+
+.nav-container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.navigation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 20px;
+  width: 400px;
+  height: 400px;
+  position: relative;
+}
+
+.nav-item {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0);
+}
+
+/* Center item (trigger) - always visible */
+.nav-item:nth-child(5) {
+  opacity: 1;
+  transform: scale(1);
+  background: #4ade80;
+  border-color: #4ade80;
+  box-shadow: 
+    0 20px 40px rgba(74, 222, 128, 0.4),
+    0 0 30px rgba(74, 222, 128, 0.3);
+}
+
+/* Show all items when hovering over the navigation container */
+.navigation:hover .nav-item {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Staggered animation delays for smooth entrance */
+.navigation:hover .nav-item:nth-child(1) { transition-delay: 0.1s; }
+.navigation:hover .nav-item:nth-child(2) { transition-delay: 0.15s; }
+.navigation:hover .nav-item:nth-child(3) { transition-delay: 0.2s; }
+.navigation:hover .nav-item:nth-child(4) { transition-delay: 0.05s; }
+.navigation:hover .nav-item:nth-child(5) { transition-delay: 0s; } /* Center - no delay */
+.navigation:hover .nav-item:nth-child(6) { transition-delay: 0.05s; }
+.navigation:hover .nav-item:nth-child(7) { transition-delay: 0.2s; }
+.navigation:hover .nav-item:nth-child(8) { transition-delay: 0.15s; }
+.navigation:hover .nav-item:nth-child(9) { transition-delay: 0.1s; }
+
+/* When not hovering, hide items with reverse delay */
+.nav-item:nth-child(1) { transition-delay: 0.2s; }
+.nav-item:nth-child(2) { transition-delay: 0.15s; }
+.nav-item:nth-child(3) { transition-delay: 0.1s; }
+.nav-item:nth-child(4) { transition-delay: 0.25s; }
+.nav-item:nth-child(5) { transition-delay: 0s; } /* Center - always visible */
+.nav-item:nth-child(6) { transition-delay: 0.25s; }
+.nav-item:nth-child(7) { transition-delay: 0.1s; }
+.nav-item:nth-child(8) { transition-delay: 0.15s; }
+.nav-item:nth-child(9) { transition-delay: 0.2s; }
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.nav-item:hover::before {
+  left: 100%;
+}
+
+.nav-item:hover {
+  transform: translateY(-8px) scale(1.05);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(255, 255, 255, 0.1);
+}
+
+.nav-item.active {
+  background: #4ade80;
+  border-color: #4ade80;
+  box-shadow: 
+    0 20px 40px rgba(74, 222, 128, 0.4),
+    0 0 30px rgba(74, 222, 128, 0.3);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.nav-item.active:hover {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.nav-item i {
+  font-size: 32px;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.nav-item:hover i {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+/* Individual item colors on hover */
+.nav-item:nth-child(1):hover { background: rgba(139, 69, 19, 0.3); border-color: #8b4513; }
+.nav-item:nth-child(2):hover { background: rgba(255, 193, 7, 0.3); border-color: #ffc107; }
+.nav-item:nth-child(3):hover { background: rgba(0, 123, 255, 0.3); border-color: #007bff; }
+.nav-item:nth-child(4):hover { background: rgba(220, 53, 69, 0.3); border-color: #dc3545; }
+.nav-item:nth-child(6):hover { background: rgba(108, 117, 125, 0.3); border-color: #6c757d; }
+.nav-item:nth-child(7):hover { background: rgba(102, 16, 242, 0.3); border-color: #6610f2; }
+.nav-item:nth-child(8):hover { background: rgba(253, 126, 20, 0.3); border-color: #fd7e14; }
+.nav-item:nth-child(9):hover { background: rgba(32, 201, 151, 0.3); border-color: #20c997; }
+
+/* Ripple effect */
+.nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.nav-item:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .title {
+    font-size: 36px;
+    margin-bottom: 40px;
+  }
+  
+  .navigation {
+    width: 300px;
+    height: 300px;
+    gap: 15px;
+  }
+  
+  .nav-container {
+    padding: 30px;
+  }
+  
+  .nav-item i {
+    font-size: 24px;
+  }
+}`,
+    demoJs: `// 9 Dot Navigation Menu JavaScript
+// Add click functionality and ripple effects
+const navItems = document.querySelectorAll('.nav-item');
+
+navItems.forEach((item, index) => {
+  item.addEventListener('click', function() {
+    // Remove active class from all items
+    navItems.forEach(nav => nav.classList.remove('active'));
+    
+    // Add active class to clicked item
+    this.classList.add('active');
+    
+    // Optional: Add functionality for each item
+    const tooltips = [
+      'Coffee', 'Notifications', 'Weather', 'Camera', 
+      'Close', 'Settings', 'Games', 'Alarm', 'Profile'
+    ];
+    
+    console.log(\`Clicked: \${tooltips[index]}\`);
+    
+    // You can add navigation logic here
+    // For example: window.location.href = 'page.html';
+  });
+  
+  // Add hover sound effect (optional)
+  item.addEventListener('mouseenter', function() {
+    // You can add a subtle sound effect here if desired
+    this.style.transform = 'translateY(-8px) scale(1.05)';
+  });
+  
+  item.addEventListener('mouseleave', function() {
+    this.style.transform = '';
+  });
+});`
+},
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Social Media Icons with Hover Effects",
+    description: "Learn how to create stunning social media buttons with smooth hover animations, gradient backgrounds, and expandable text effects. This comprehensive example shows modern CSS techniques including backdrop-filter, transforms, and advanced hover states. Perfect for navigation bars, footers, or any social media integration.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/774fe8316c171aa235ad056ec3e0d7f9981ad5fa/Thumbnails/Screenshot%202025-08-19%20185150.png",
+    link: "Learn.html#css-social-media-icons-demo",
+    topic: "CSS Social Media Effects",
+    demoHtml: `<div class="social-container">
+  <h2 class="title">Connect With Me</h2>
+  
+  <a href="https://www.facebook.com" target="_blank" class="social-btn facebook">
+    <i class="fab fa-facebook-f"></i><span>Facebook</span>
+  </a>
+  
+  <a href="https://www.twitter.com" target="_blank" class="social-btn twitter">
+    <i class="fab fa-twitter"></i><span>Twitter</span>
+  </a>
+  
+  <a href="https://www.linkedin.com" target="_blank" class="social-btn linkedin">
+    <i class="fab fa-linkedin-in"></i><span>LinkedIn</span>
+  </a>
+  
+  <a href="https://www.youtube.com" target="_blank" class="social-btn youtube">
+    <i class="fab fa-youtube"></i><span>YouTube</span>
+  </a>
+  
+  <a href="https://www.instagram.com" target="_blank" class="social-btn instagram">
+    <i class="fab fa-instagram"></i><span>Instagram</span>
+  </a>
+  
+  <a href="https://www.github.com" target="_blank" class="social-btn github">
+    <i class="fab fa-github"></i><span>GitHub</span>
+  </a>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">`,
+    demoCss: `/* Social Media Icons with Hover Effects */
+.social-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 10;
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.title {
+  text-align: center;
+  color: #333;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 30px;
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.social-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.social-btn:hover::before {
+  opacity: 1;
+}
+
+.social-btn i {
+  font-size: 22px;
+  color: white;
+  z-index: 2;
+  position: relative;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.social-btn span {
+  opacity: 0;
+  font-size: 16px;
+  font-weight: 600;
+  margin-left: 15px;
+  transition: all 0.3s ease;
+  position: absolute;
+  left: 45px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.social-btn:hover {
+  width: 200px;
+  justify-content: flex-start;
+  padding-left: 18px;
+  transform: translateX(3px) scale(1.01);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
+}
+
+.social-btn:hover i {
+  transform: scale(1.05);
+}
+
+.social-btn:hover span {
+  opacity: 1;
+}
+
+.social-btn:active {
+  transform: translateX(3px) scale(0.99);
+}
+
+/* Platform-specific styles */
+.facebook {
+  background: linear-gradient(135deg, #1877f2 0%, #42a5f5 100%);
+}
+
+.facebook:hover {
+  background: linear-gradient(135deg, #166fe5 0%, #1877f2 100%);
+}
+
+.twitter {
+  background: linear-gradient(135deg, #1da1f2 0%, #64b5f6 100%);
+}
+
+.twitter:hover {
+  background: linear-gradient(135deg, #1a91da 0%, #1da1f2 100%);
+}
+
+.linkedin {
+  background: linear-gradient(135deg, #0077b5 0%, #2196f3 100%);
+}
+
+.linkedin:hover {
+  background: linear-gradient(135deg, #005885 0%, #0077b5 100%);
+}
+
+.youtube {
+  background: linear-gradient(135deg, #ff0000 0%, #ff5722 100%);
+}
+
+.youtube:hover {
+  background: linear-gradient(135deg, #cc0000 0%, #ff0000 100%);
+}
+
+.instagram {
+  background: linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%);
+}
+
+.instagram:hover {
+  background: linear-gradient(135deg, #732d9e 0%, #e01a1a 50%, #e8a03a 100%);
+}
+
+.github {
+  background: linear-gradient(135deg, #333 0%, #666 100%);
+}
+
+.github:hover {
+  background: linear-gradient(135deg, #222 0%, #333 100%);
+}
+
+/* Entry animation */
+.social-btn {
+  animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  opacity: 0;
+  transform: translateX(-50px);
+}
+
+.social-btn:nth-child(2) { animation-delay: 0.1s; }
+.social-btn:nth-child(3) { animation-delay: 0.2s; }
+.social-btn:nth-child(4) { animation-delay: 0.3s; }
+.social-btn:nth-child(5) { animation-delay: 0.4s; }
+.social-btn:nth-child(6) { animation-delay: 0.5s; }
+.social-btn:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes slideInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .social-container {
+    margin: 20px;
+    padding: 20px;
+  }
+  
+  .social-btn:hover {
+    width: 170px;
+  }
+  
+  .title {
+    font-size: 1.2rem;
+  }
+}`
+},
 
 
 {
