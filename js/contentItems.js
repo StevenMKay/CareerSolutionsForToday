@@ -75,6 +75,544 @@ window.contentItems = [
         name: "Website Design",
         image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
     },
+    title: "Professional Login Form with Validation",
+    description: "Learn how to create a modern, professional login form with advanced validation, password visibility toggle, loading states, and social authentication options. Features responsive design, accessibility compliance, and enterprise-grade styling perfect for business applications.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0a51e4f4adfc3d8b62851081f74a7dd2a4bbd65c/Thumbnails/Screenshot%202025-09-26%20052218.png",
+    link: "Learn.html#website-design-professional-login-form",
+    topic: "Form Design",
+    demoHtml: `<!-- Professional Login Form -->
+<div class="login-container">
+  <!-- Header -->
+  <div class="login-header">
+    <div class="logo">
+      <i class="fas fa-user-shield"></i>
+    </div>
+    <h1 class="login-title">Welcome Back</h1>
+    <p class="login-subtitle">Please sign in to your account to continue</p>
+  </div>
+
+  <!-- Login Form -->
+  <form class="login-form" id="loginForm">
+    <!-- Email Input -->
+    <div class="input-group">
+      <label for="email" class="input-label">
+        Email Address <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <i class="fas fa-envelope input-icon"></i>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          class="input-field" 
+          placeholder="Enter your email address" 
+          required
+        >
+      </div>
+      <div id="email-error" class="error-message"></div>
+    </div>
+
+    <!-- Password Input -->
+    <div class="input-group">
+      <label for="password" class="input-label">
+        Password <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <i class="fas fa-lock input-icon"></i>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="input-field" 
+          placeholder="Enter your password" 
+          required
+        >
+        <button 
+          type="button" 
+          class="password-toggle" 
+          onclick="togglePassword()"
+        >
+          <i class="fas fa-eye" id="password-icon"></i>
+        </button>
+      </div>
+      <div id="password-error" class="error-message"></div>
+    </div>
+
+    <!-- Remember Me & Forgot Password -->
+    <div class="remember-forgot">
+      <div class="remember-me">
+        <input type="checkbox" id="remember" name="remember" class="checkbox">
+        <label for="remember">Remember me</label>
+      </div>
+      <a href="#" class="forgot-link">Forgot Password?</a>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit" class="login-button" id="loginBtn">
+      <i class="fas fa-sign-in-alt"></i>
+      <span>Sign In</span>
+    </button>
+  </form>
+
+  <!-- Divider -->
+  <div class="divider">
+    <span class="divider-text">Or continue with</span>
+  </div>
+
+  <!-- Social Login -->
+  <div class="social-login">
+    <a href="#" class="social-button">
+      <i class="fab fa-google"></i>
+      <span>Google</span>
+    </a>
+    <a href="#" class="social-button">
+      <i class="fab fa-microsoft"></i>
+      <span>Microsoft</span>
+    </a>
+  </div>
+
+  <!-- Sign-up Link -->
+  <div class="signup-link">
+    Don't have an account? <a href="#">Sign up here</a>
+  </div>
+</div>
+
+<!-- Font Awesome -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">`,
+    demoCss: `/* Professional Login Form Styles */
+/* CSS Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* CSS Variables for consistent theming */
+:root {
+  --primary-color: #2563eb;
+  --primary-dark: #1d4ed8;
+  --secondary-color: #64748b;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --surface-color: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+}
+
+/* Body - creates full-height centered layout */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+/* Main login container */
+.login-container {
+  background: var(--surface-color);
+  padding: 2.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+}
+
+/* Header section */
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+/* Logo styling */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Title styling */
+.login-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Subtitle */
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Form styling */
+.login-form {
+  position: relative;
+}
+
+/* Input group container */
+.input-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+/* Input labels */
+.input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Required field indicator */
+.required {
+  color: var(--error-color);
+}
+
+/* Input wrapper */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Input icons */
+.input-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Input fields */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 2.75rem 0.75rem 2.5rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--surface-color);
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+/* Input focus state */
+.input-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Password toggle button */
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--text-primary);
+}
+
+/* Remember me section */
+.remember-forgot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkbox:checked {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.forgot-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+/* Login button */
+.login-button {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.login-button:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Loading state */
+.login-button.loading {
+  background: var(--secondary-color);
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Divider */
+.divider {
+  margin: 1.5rem 0;
+  position: relative;
+  text-align: center;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.divider-text {
+  background: var(--surface-color);
+  padding: 0 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Social login */
+.social-login {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.social-button {
+  flex: 1;
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  gap: 0.5rem;
+}
+
+.social-button:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* Sign-up link */
+.signup-link {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.signup-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-link a:hover {
+  text-decoration: underline;
+}
+
+/* Error messages */
+.error-message {
+  color: var(--error-color);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  min-height: 1rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .login-container {
+    padding: 2rem 1.5rem;
+    margin: 1rem;
+  }
+  
+  .login-title {
+    font-size: 1.5rem;
+  }
+  
+  .social-login {
+    flex-direction: column;
+  }
+}`,
+    demoJs: `// Professional Login Form JavaScript
+// Password visibility toggle
+function togglePassword() {
+  const passwordInput = document.getElementById('password');
+  const passwordIcon = document.getElementById('password-icon');
+  
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    passwordIcon.className = 'fas fa-eye-slash';
+  } else {
+    passwordInput.type = 'password';
+    passwordIcon.className = 'fas fa-eye';
+  }
+}
+
+// Form validation
+function validateForm() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const emailError = document.getElementById('email-error');
+  const passwordError = document.getElementById('password-error');
+  let isValid = true;
+
+  // Clear previous errors
+  emailError.textContent = '';
+  passwordError.textContent = '';
+
+  // Email validation
+  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+  if (!email) {
+    emailError.textContent = 'Email address is required.';
+    isValid = false;
+  } else if (!emailRegex.test(email)) {
+    emailError.textContent = 'Please enter a valid email address.';
+    isValid = false;
+  }
+
+  // Password validation
+  if (!password) {
+    passwordError.textContent = 'Password is required.';
+    isValid = false;
+  } else if (password.length < 6) {
+    passwordError.textContent = 'Password must be at least 6 characters long.';
+    isValid = false;
+  }
+
+  return isValid;
+}
+
+// Form submission handler
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  if (validateForm()) {
+    const loginBtn = document.getElementById('loginBtn');
+    const btnText = loginBtn.querySelector('span');
+    const btnIcon = loginBtn.querySelector('i');
+    
+    // Show loading state
+    loginBtn.classList.add('loading');
+    btnIcon.className = 'spinner';
+    btnText.textContent = 'Signing In...';
+    
+    // Simulate authentication
+    setTimeout(() => {
+      loginBtn.classList.remove('loading');
+      btnIcon.className = 'fas fa-check';
+      btnText.textContent = 'Success!';
+      
+      setTimeout(() => {
+        alert('Login successful!');
+        // Reset for demo
+        btnIcon.className = 'fas fa-sign-in-alt';
+        btnText.textContent = 'Sign In';
+      }, 1500);
+    }, 2000);
+  }
+});
+
+// Clear errors on input
+document.getElementById('email').addEventListener('input', function() {
+  document.getElementById('email-error').textContent = '';
+});
+
+document.getElementById('password').addEventListener('input', function() {
+  document.getElementById('password-error').textContent = '';
+});
+
+// Initialize form when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Professional Login Form initialized successfully');
+});`
+},
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
     title: "9 Dot Interactive Navigation Menu",
     description: "Learn how to create a stunning 9-dot grid navigation menu with smooth reveal animations, staggered timing effects, and interactive hover states. Features backdrop blur, glassmorphism design, and floating particle animations. Perfect for modern web interfaces and app-style navigation.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e60929327344cb1a9d8809e01c13096eb05175eb/Thumbnails/9dotnavmenuthumb.png",
@@ -590,7 +1128,241 @@ navItems.forEach((item, index) => {
 }`
 },
 
+
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Social Media Icons with Hover Effects",
+    description: "Learn how to create stunning social media buttons with smooth hover animations, gradient backgrounds, and expandable text effects. This comprehensive example shows modern CSS techniques including backdrop-filter, transforms, and advanced hover states. Perfect for navigation bars, footers, or any social media integration.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/774fe8316c171aa235ad056ec3e0d7f9981ad5fa/Thumbnails/Screenshot%202025-08-19%20185150.png",
+    link: "Learn.html#css-social-media-icons-demo",
+    topic: "CSS Social Media Effects",
+    demoHtml: `<div class="social-container">
+  <h2 class="title">Connect With Me</h2>
   
+  <a href="https://www.facebook.com" target="_blank" class="social-btn facebook">
+    <i class="fab fa-facebook-f"></i><span>Facebook</span>
+  </a>
+  
+  <a href="https://www.twitter.com" target="_blank" class="social-btn twitter">
+    <i class="fab fa-twitter"></i><span>Twitter</span>
+  </a>
+  
+  <a href="https://www.linkedin.com" target="_blank" class="social-btn linkedin">
+    <i class="fab fa-linkedin-in"></i><span>LinkedIn</span>
+  </a>
+  
+  <a href="https://www.youtube.com" target="_blank" class="social-btn youtube">
+    <i class="fab fa-youtube"></i><span>YouTube</span>
+  </a>
+  
+  <a href="https://www.instagram.com" target="_blank" class="social-btn instagram">
+    <i class="fab fa-instagram"></i><span>Instagram</span>
+  </a>
+  
+  <a href="https://www.github.com" target="_blank" class="social-btn github">
+    <i class="fab fa-github"></i><span>GitHub</span>
+  </a>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">`,
+    demoCss: `/* Social Media Icons with Hover Effects */
+.social-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 10;
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.title {
+  text-align: center;
+  color: #333;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 30px;
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.social-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.social-btn:hover::before {
+  opacity: 1;
+}
+
+.social-btn i {
+  font-size: 22px;
+  color: white;
+  z-index: 2;
+  position: relative;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.social-btn span {
+  opacity: 0;
+  font-size: 16px;
+  font-weight: 600;
+  margin-left: 15px;
+  transition: all 0.3s ease;
+  position: absolute;
+  left: 45px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.social-btn:hover {
+  width: 200px;
+  justify-content: flex-start;
+  padding-left: 18px;
+  transform: translateX(3px) scale(1.01);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
+}
+
+.social-btn:hover i {
+  transform: scale(1.05);
+}
+
+.social-btn:hover span {
+  opacity: 1;
+}
+
+.social-btn:active {
+  transform: translateX(3px) scale(0.99);
+}
+
+/* Platform-specific styles */
+.facebook {
+  background: linear-gradient(135deg, #1877f2 0%, #42a5f5 100%);
+}
+
+.facebook:hover {
+  background: linear-gradient(135deg, #166fe5 0%, #1877f2 100%);
+}
+
+.twitter {
+  background: linear-gradient(135deg, #1da1f2 0%, #64b5f6 100%);
+}
+
+.twitter:hover {
+  background: linear-gradient(135deg, #1a91da 0%, #1da1f2 100%);
+}
+
+.linkedin {
+  background: linear-gradient(135deg, #0077b5 0%, #2196f3 100%);
+}
+
+.linkedin:hover {
+  background: linear-gradient(135deg, #005885 0%, #0077b5 100%);
+}
+
+.youtube {
+  background: linear-gradient(135deg, #ff0000 0%, #ff5722 100%);
+}
+
+.youtube:hover {
+  background: linear-gradient(135deg, #cc0000 0%, #ff0000 100%);
+}
+
+.instagram {
+  background: linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%);
+}
+
+.instagram:hover {
+  background: linear-gradient(135deg, #732d9e 0%, #e01a1a 50%, #e8a03a 100%);
+}
+
+.github {
+  background: linear-gradient(135deg, #333 0%, #666 100%);
+}
+
+.github:hover {
+  background: linear-gradient(135deg, #222 0%, #333 100%);
+}
+
+/* Entry animation */
+.social-btn {
+  animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  opacity: 0;
+  transform: translateX(-50px);
+}
+
+.social-btn:nth-child(2) { animation-delay: 0.1s; }
+.social-btn:nth-child(3) { animation-delay: 0.2s; }
+.social-btn:nth-child(4) { animation-delay: 0.3s; }
+.social-btn:nth-child(5) { animation-delay: 0.4s; }
+.social-btn:nth-child(6) { animation-delay: 0.5s; }
+.social-btn:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes slideInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .social-container {
+    margin: 20px;
+    padding: 20px;
+  }
+  
+  .social-btn:hover {
+    width: 170px;
+  }
+  
+  .title {
+    font-size: 1.2rem;
+  }
+}`
+},
+
 
 {
  section:[
@@ -2927,6 +3699,239 @@ ctx.fillText('HTML Canvas', 10, 130);
 .holographic-card:hover::before {
   opacity: 1;
   transform: rotate(-45deg) translateY(100%);
+}`
+},
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Social Media Icons with Hover Effects",
+    description: "Learn how to create stunning social media buttons with smooth hover animations, gradient backgrounds, and expandable text effects. This comprehensive example shows modern CSS techniques including backdrop-filter, transforms, and advanced hover states. Perfect for navigation bars, footers, or any social media integration.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/774fe8316c171aa235ad056ec3e0d7f9981ad5fa/Thumbnails/Screenshot%202025-08-19%20185150.png",
+    link: "Learn.html#css-social-media-icons-demo",
+    topic: "CSS Social Media Effects",
+    demoHtml: `<div class="social-container">
+  <h2 class="title">Connect With Me</h2>
+  
+  <a href="https://www.facebook.com" target="_blank" class="social-btn facebook">
+    <i class="fab fa-facebook-f"></i><span>Facebook</span>
+  </a>
+  
+  <a href="https://www.twitter.com" target="_blank" class="social-btn twitter">
+    <i class="fab fa-twitter"></i><span>Twitter</span>
+  </a>
+  
+  <a href="https://www.linkedin.com" target="_blank" class="social-btn linkedin">
+    <i class="fab fa-linkedin-in"></i><span>LinkedIn</span>
+  </a>
+  
+  <a href="https://www.youtube.com" target="_blank" class="social-btn youtube">
+    <i class="fab fa-youtube"></i><span>YouTube</span>
+  </a>
+  
+  <a href="https://www.instagram.com" target="_blank" class="social-btn instagram">
+    <i class="fab fa-instagram"></i><span>Instagram</span>
+  </a>
+  
+  <a href="https://www.github.com" target="_blank" class="social-btn github">
+    <i class="fab fa-github"></i><span>GitHub</span>
+  </a>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">`,
+    demoCss: `/* Social Media Icons with Hover Effects */
+.social-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 10;
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.title {
+  text-align: center;
+  color: #333;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 30px;
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.social-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.social-btn:hover::before {
+  opacity: 1;
+}
+
+.social-btn i {
+  font-size: 22px;
+  color: white;
+  z-index: 2;
+  position: relative;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.social-btn span {
+  opacity: 0;
+  font-size: 16px;
+  font-weight: 600;
+  margin-left: 15px;
+  transition: all 0.3s ease;
+  position: absolute;
+  left: 45px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.social-btn:hover {
+  width: 200px;
+  justify-content: flex-start;
+  padding-left: 18px;
+  transform: translateX(3px) scale(1.01);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
+}
+
+.social-btn:hover i {
+  transform: scale(1.05);
+}
+
+.social-btn:hover span {
+  opacity: 1;
+}
+
+.social-btn:active {
+  transform: translateX(3px) scale(0.99);
+}
+
+/* Platform-specific styles */
+.facebook {
+  background: linear-gradient(135deg, #1877f2 0%, #42a5f5 100%);
+}
+
+.facebook:hover {
+  background: linear-gradient(135deg, #166fe5 0%, #1877f2 100%);
+}
+
+.twitter {
+  background: linear-gradient(135deg, #1da1f2 0%, #64b5f6 100%);
+}
+
+.twitter:hover {
+  background: linear-gradient(135deg, #1a91da 0%, #1da1f2 100%);
+}
+
+.linkedin {
+  background: linear-gradient(135deg, #0077b5 0%, #2196f3 100%);
+}
+
+.linkedin:hover {
+  background: linear-gradient(135deg, #005885 0%, #0077b5 100%);
+}
+
+.youtube {
+  background: linear-gradient(135deg, #ff0000 0%, #ff5722 100%);
+}
+
+.youtube:hover {
+  background: linear-gradient(135deg, #cc0000 0%, #ff0000 100%);
+}
+
+.instagram {
+  background: linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%);
+}
+
+.instagram:hover {
+  background: linear-gradient(135deg, #732d9e 0%, #e01a1a 50%, #e8a03a 100%);
+}
+
+.github {
+  background: linear-gradient(135deg, #333 0%, #666 100%);
+}
+
+.github:hover {
+  background: linear-gradient(135deg, #222 0%, #333 100%);
+}
+
+/* Entry animation */
+.social-btn {
+  animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  opacity: 0;
+  transform: translateX(-50px);
+}
+
+.social-btn:nth-child(2) { animation-delay: 0.1s; }
+.social-btn:nth-child(3) { animation-delay: 0.2s; }
+.social-btn:nth-child(4) { animation-delay: 0.3s; }
+.social-btn:nth-child(5) { animation-delay: 0.4s; }
+.social-btn:nth-child(6) { animation-delay: 0.5s; }
+.social-btn:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes slideInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .social-container {
+    margin: 20px;
+    padding: 20px;
+  }
+  
+  .social-btn:hover {
+    width: 170px;
+  }
+  
+  .title {
+    font-size: 1.2rem;
+  }
 }`
 },
 
