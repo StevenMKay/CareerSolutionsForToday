@@ -67,7 +67,735 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+  {
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Photo with Text Overlay on Hover",
+    description: "Learn how to create elegant text overlay effects that appear on photo hover. This component demonstrates smooth CSS animations, typography effects, and interactive design patterns perfect for image galleries, portfolios, and call-to-action elements.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
+    link: "Learn.html#website-design-photo-text-overlay",
+    topic: "Interactive Media",
+    demoHtml: `<!-- Photo with Text Overlay Effect -->
+<div class="photo-text-container">
+  <div class="photo-text-wrapper">
+    <!-- Photo -->
+    <div class="photo-section">
+      <img 
+        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
+        alt="Surfing Photo"
+        class="main-photo"
+      >
+      
+      <!-- Overlay Background -->
+      <div class="overlay-background"></div>
+      
+      <!-- Text Overlay -->
+      <div class="text-overlay">
+        <div class="text-content">
+          <h2 class="overlay-title">Learn Surfing</h2>
+          <p class="overlay-subtitle">Ride the waves with confidence</p>
+          <div class="overlay-button">
+            <span>Get Started</span>
+            <i class="arrow">→</i>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Photo Info -->
+    <div class="photo-info">
+      <div class="info-content">
+        <h3>Interactive Text Overlay</h3>
+        <p>Hover to reveal content</p>
+      </div>
+    </div>
+  </div>
   
+  <!-- Instructions -->
+  <div class="photo-instructions">
+    <p>✨ Hover over the image to see the text overlay effect</p>
+  </div>
+</div>`,
+    demoCss: `/* Photo with Text Overlay Styles */
+.photo-text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.photo-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Photo Section */
+.photo-section {
+  position: relative;
+  width: 320px;
+  height: 480px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.photo-section:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.main-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.6s ease;
+}
+
+.photo-section:hover .main-photo {
+  transform: scale(1.1);
+}
+
+/* Overlay Background */
+.overlay-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(17, 153, 142, 0.8),
+    rgba(45, 27, 105, 0.8)
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 1;
+}
+
+.photo-section:hover .overlay-background {
+  opacity: 1;
+}
+
+/* Text Overlay */
+.text-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition-delay: 0.1s;
+}
+
+.photo-section:hover .text-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.text-content {
+  text-align: center;
+  color: white;
+  padding: 30px;
+  max-width: 260px;
+}
+
+.overlay-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-title {
+  animation-delay: 0.2s;
+}
+
+.overlay-subtitle {
+  font-size: 16px;
+  font-weight: 400;
+  margin: 0 0 25px 0;
+  opacity: 0.9;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-subtitle {
+  animation-delay: 0.3s;
+}
+
+.overlay-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 30px;
+  padding: 12px 24px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-button {
+  animation-delay: 0.4s;
+}
+
+.overlay-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.arrow {
+  font-style: normal;
+  transition: transform 0.3s ease;
+}
+
+.overlay-button:hover .arrow {
+  transform: translateX(5px);
+}
+
+/* Slide in animation */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Photo Info */
+.photo-info {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+  color: white;
+  max-width: 320px;
+}
+
+.info-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.info-content p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Instructions */
+.photo-instructions {
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.7;
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Advanced Hover Effects */
+.photo-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.photo-section:hover::before {
+  opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .photo-section {
+    width: 280px;
+    height: 420px;
+  }
+  
+  .photo-text-container {
+    padding: 20px 10px;
+  }
+  
+  .overlay-title {
+    font-size: 28px;
+  }
+  
+  .text-content {
+    padding: 20px;
+  }
+}
+
+/* Performance Optimizations */
+.photo-section {
+  will-change: transform;
+}
+
+.text-overlay {
+  will-change: opacity, transform;
+}
+
+.main-photo {
+  will-change: transform;
+}`,
+    demoJs: `// Photo with Text Overlay JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+  const photoSection = document.querySelector('.photo-section');
+  const overlayButton = document.querySelector('.overlay-button');
+  
+  if (!photoSection) return;
+  
+  let isAnimating = false;
+  
+  // Enhanced hover enter
+  photoSection.addEventListener('mouseenter', function() {
+    if (isAnimating) return;
+    isAnimating = true;
+    
+    console.log('📸 Photo hover activated - showing text overlay');
+    
+    // Add visual feedback
+    this.style.transform = 'translateY(-8px) scale(1.02)';
+    
+    setTimeout(() => {
+      isAnimating = false;
+    }, 600);
+  });
+  
+  // Enhanced hover leave
+  photoSection.addEventListener('mouseleave', function() {
+    console.log('👋 Photo hover ended - hiding text overlay');
+    
+    // Reset transform
+    this.style.transform = '';
+  });
+  
+  // Button click handler
+  if (overlayButton) {
+    overlayButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      console.log('🏄‍♂️ Learn Surfing button clicked!');
+      
+      // Add click effect
+      this.style.transform = 'scale(0.95)';
+      
+      setTimeout(() => {
+        this.style.transform = '';
+        
+        // Simulate navigation or action
+        alert('🌊 Ready to learn surfing? This would navigate to a surfing course!');
+      }, 150);
+    });
+  }
+  
+  // Keyboard accessibility
+  photoSection.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.dispatchEvent(new Event('mouseenter'));
+      
+      setTimeout(() => {
+        this.dispatchEvent(new Event('mouseleave'));
+      }, 2000);
+    }
+  });
+  
+  // Focus management for accessibility
+  photoSection.setAttribute('tabindex', '0');
+  photoSection.setAttribute('role', 'button');
+  photoSection.setAttribute('aria-label', 'View surfing content with text overlay');
+  
+  // Performance optimization - preload overlay effects
+  const textOverlay = document.querySelector('.text-overlay');
+  if (textOverlay) {
+    // Warm up animations
+    textOverlay.style.willChange = 'opacity, transform';
+  }
+  
+  // Initialize
+  console.log('✨ Photo Text Overlay Effect initialized');
+  console.log('🎯 Hover over photo to see "Learn Surfing" text appear');
+});`
+},
+
+  {
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Photo to Video Hover Effect",
+    description: "Learn how to create smooth photo-to-video hover transitions with fade effects. This interactive component demonstrates modern web techniques using CSS transforms, video controls, and smooth animations perfect for portfolio galleries and interactive media displays.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
+    link: "Learn.html#website-design-photo-video-hover",
+    topic: "Interactive Media",
+    demoHtml: `<!-- Photo to Video Hover Effect -->
+<div class="media-container">
+  <div class="media-wrapper">
+    <!-- Photo Layer -->
+    <div class="photo-layer">
+      <img 
+        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
+        alt="Surfing Photo"
+        class="surf-photo"
+      >
+    </div>
+    
+    <!-- Video Layer -->
+    <div class="video-layer">
+      <video 
+        class="surf-video" 
+        muted 
+        loop 
+        playsinline
+        preload="metadata"
+      >
+        <source 
+          src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9645f9d5ec4ac5e0b6776abdc8458b8f133833d1/Videos/Smaller%20Surf%20Video.mp4" 
+          type="video/mp4"
+        >
+        Your browser does not support the video tag.
+      </video>
+    </div>
+    
+    <!-- Overlay Info -->
+    <div class="media-overlay">
+      <div class="overlay-content">
+        <h3>Hover Effect</h3>
+        <p>Photo → Video</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Instructions -->
+  <div class="instructions">
+    <p>🎥 Hover over the image to see the video transition</p>
+  </div>
+</div>`,
+    demoCss: `/* Photo to Video Hover Effect Styles */
+.media-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.media-wrapper {
+  position: relative;
+  width: 320px;
+  height: 480px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.media-wrapper:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* Photo Layer */
+.photo-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.surf-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.8s ease;
+}
+
+/* Video Layer */
+.video-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.surf-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Hover Effects */
+.media-wrapper:hover .photo-layer {
+  opacity: 0;
+}
+
+.media-wrapper:hover .video-layer {
+  opacity: 1;
+}
+
+.media-wrapper:hover .surf-photo {
+  transform: scale(1.1);
+}
+
+/* Media Overlay */
+.media-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.3),
+    transparent,
+    rgba(0, 0, 0, 0.3)
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 30px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.media-wrapper:hover .media-overlay {
+  opacity: 1;
+}
+
+.overlay-content {
+  text-align: center;
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 15px 25px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+.media-wrapper:hover .overlay-content {
+  transform: translateY(0);
+}
+
+.overlay-content h3 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-content p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Instructions */
+.instructions {
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.7;
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Loading Spinner for Video */
+.video-layer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 0.3s ease;
+}
+
+.video-layer.loading::before {
+  opacity: 1;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .media-wrapper {
+    width: 280px;
+    height: 420px;
+  }
+  
+  .media-container {
+    padding: 20px 10px;
+  }
+}
+
+/* Performance Optimizations */
+.media-wrapper {
+  will-change: transform;
+}
+
+.photo-layer,
+.video-layer {
+  will-change: opacity;
+}`,
+    demoJs: `// Photo to Video Hover Effect JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+  const mediaWrapper = document.querySelector('.media-wrapper');
+  const video = document.querySelector('.surf-video');
+  const videoLayer = document.querySelector('.video-layer');
+  
+  if (!mediaWrapper || !video || !videoLayer) return;
+  
+  let isVideoLoaded = false;
+  let isHovering = false;
+  
+  // Preload video on first interaction
+  function preloadVideo() {
+    if (!isVideoLoaded) {
+      videoLayer.classList.add('loading');
+      video.load();
+      
+      video.addEventListener('canplaythrough', function() {
+        isVideoLoaded = true;
+        videoLayer.classList.remove('loading');
+        console.log('✅ Video loaded successfully');
+      }, { once: true });
+      
+      video.addEventListener('error', function() {
+        console.error('❌ Video failed to load');
+        videoLayer.classList.remove('loading');
+      }, { once: true });
+    }
+  }
+  
+  // Mouse enter event
+  mediaWrapper.addEventListener('mouseenter', function() {
+    isHovering = true;
+    preloadVideo();
+    
+    // Small delay to ensure smooth transition
+    setTimeout(() => {
+      if (isHovering && isVideoLoaded) {
+        video.currentTime = 0;
+        video.play().catch(e => {
+          console.warn('Video autoplay prevented:', e);
+        });
+      }
+    }, 100);
+  });
+  
+  // Mouse leave event  
+  mediaWrapper.addEventListener('mouseleave', function() {
+    isHovering = false;
+    
+    // Pause video with slight delay for smooth transition
+    setTimeout(() => {
+      if (!isHovering) {
+        video.pause();
+      }
+    }, 200);
+  });
+  
+  // Handle video ended (restart loop)
+  video.addEventListener('ended', function() {
+    if (isHovering) {
+      video.currentTime = 0;
+      video.play().catch(e => {
+        console.warn('Video replay failed:', e);
+      });
+    }
+  });
+  
+  // Optimize performance
+  video.addEventListener('loadstart', function() {
+    console.log('🎥 Video loading started...');
+  });
+  
+  video.addEventListener('loadedmetadata', function() {
+    console.log('📊 Video metadata loaded');
+  });
+  
+  // Initialize
+  console.log('🚀 Photo to Video Hover Effect initialized');
+});`
+},
 
   {
  section:[
