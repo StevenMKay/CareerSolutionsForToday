@@ -68,6 +68,38 @@ if (window.contentItems) {
 window.contentItems = [
 
 
+{
+ section:[
+            "Learning",           
+            "Videos",
+            "Simulations",
+            "Excel"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
+https:"https://youtu.be/g46C_wkCXnM",
+ title:"Learn VLOOKUP with Interactive Simulation",
+        description:"This is a simulation I created on how to use the VLOOKUP function.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
+       link:"https://youtu.be/g46C_wkCXnM",
+
+
+  related: [
+    {
+      text:"PC Simulation Link",
+            url:" https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
+        },
+    {
+       text:"Mobile Simulation Link",
+            url:"https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-YErYbq7"
+    }
+    ],
+        topic:"VLOOKUP Learning Simulation"
+    },
+
 
 {
     section: ["Learning", "Website Design"],
