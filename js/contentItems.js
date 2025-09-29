@@ -465,7 +465,6 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('🎯 Hover over photo to see "Learn Surfing" text appear');
 });`
 },
-
 {
     section: ["Learning", "Website Design"],
     program: {
@@ -496,8 +495,8 @@ document.addEventListener('DOMContentLoaded', function() {
         muted 
         loop 
         playsinline
-        preload="metadata"
-      >
+        preload="auto"
+       autoplay>
         <source 
           src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9645f9d5ec4ac5e0b6776abdc8458b8f133833d1/Videos/Smaller%20Surf%20Video.mp4" 
           type="video/mp4"
@@ -715,8 +714,7 @@ document.addEventListener('DOMContentLoaded', function() {
 .video-layer {
   will-change: opacity;
 }`,
-    demoJs: `// Photo to Video Hover Effect JavaScript - Fixed for Learning Module Context
-function initPhotoVideoHoverEffect() {
+    demoJs: `// Photo to Video Hover Effect JavaScript - Fixed for Learning Module Confunction initPhotoVideoHoverEffect() {
   // Wait a bit for content to be fully rendered
   setTimeout(() => {
     // Use more specific selectors to avoid conflicts with other demos
@@ -734,23 +732,21 @@ function initPhotoVideoHoverEffect() {
     
     let isVideoLoaded = false;
     let isHovering = false;
-    let hasUserInteracted = false;
-    
-    // Detect first user interaction to enable autoplay
-    document.addEventListener('click', function() {
-      hasUserInteracted = true;
-    }, { once: true });
-    
-    // Preload video on first interaction
+// Preload video on first interaction
     function preloadVideo() {
       if (!isVideoLoaded) {
         videoLayer.classList.add('loading');
+        video.muted = true;
+        video.setAttribute('autoplay', '');
         video.load();
-        
         video.addEventListener('canplaythrough', function() {
           isVideoLoaded = true;
           videoLayer.classList.remove('loading');
           console.log('✅ Video loaded successfully for demo');
+          if (isHovering) {
+            video.currentTime = 0;
+            video.play().catch(()=>{});
+          }
         }, { once: true });
         
         video.addEventListener('error', function() {
@@ -769,16 +765,11 @@ function initPhotoVideoHoverEffect() {
       setTimeout(() => {
         if (isHovering && isVideoLoaded) {
           video.currentTime = 0;
-          // Only try to play if user has interacted with page
-          if (hasUserInteracted) {
-            video.play().catch(e => {
-              console.warn('Video autoplay prevented in demo:', e);
-            });
-          } else {
-            console.log('💡 Click anywhere on the page first, then hover to play video');
-          }
+          if (isVideoLoaded) {
+          video.currentTime = 0;
+          video.play().catch(()=>{});
         }
-      }, 100);
+}, 100);
     });
     
     // Mouse leave event  
@@ -805,8 +796,7 @@ function initPhotoVideoHoverEffect() {
     
     // Add click to play functionality as fallback
     mediaWrapper.addEventListener('click', function() {
-      hasUserInteracted = true;
-      if (isVideoLoaded) {
+if (isVideoLoaded) {
         if (video.paused) {
           video.play().catch(e => console.log('Click play failed:', e));
         } else {
@@ -819,6 +809,7 @@ function initPhotoVideoHoverEffect() {
     console.log('🚀 Photo to Video Hover Effect initialized for learning module');
     
   }, 500); // Wait 500ms for content to render
+}der
 }
 
 // Initialize when content loads or immediately if already loaded
@@ -828,6 +819,7 @@ if (document.readyState === 'loading') {
   initPhotoVideoHoverEffect();
 }`
 },
+
   {
  section:[
             "Learning",
