@@ -66,7 +66,35 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+https:"https://youtu.be/BwEq5QTCwEI",
+ title:"Timeline Morph Transition",
+        description:"In this video we cover how to create an awesome PowerPoint timeline presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+       link:"https://youtu.be/BwEq5QTCwEI",
 
+
+   related: [
+    {
+      text:"Watch on YouTube",
+            url:"https://youtu.be/BwEq5QTCwEI"
+        },
+    {
+       text:"Link to Template",
+            url:" https://docs.google.com/presentation/d/18-Kc8ofXcFfDj-kdTZdkK0d0WWqTPulu/export/pptx"
+    }
+    ],
+        topic:"Timelines"
+    },
 
 {
  section:[
