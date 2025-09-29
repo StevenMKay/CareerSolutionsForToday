@@ -99,9 +99,8 @@ https:"https://youtu.be/BwEq5QTCwEI",
 {
  section:[
             "Learning",           
-            "Videos",
-            "Simulations",
-            "Excel"
+            "Simulations"
+       
         ],
         program:{
             name:"Excel",
