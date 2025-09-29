@@ -66,7 +66,64 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
+
+  
+
+  {
+ section:[
+            "Learning",
+            "Templates"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+https:"https://youtu.be/ers-81-bFO4",
+ title:"Interactive Morph Template",
+        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+       link:"https://youtu.be/ers-81-bFO4",
+
+
+  related:{
+            text:"Link to Template",
+            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
+        },
+        topic:"Morph Templates"
+    },
+
+
+
+
 {
+ section:[
+            "Learning",
+            "Templates"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+https:"https://youtu.be/y1gPf0kbf-Y",
+ title:"Timeline Morph Transition",
+        description:"In this video we cover how to create an awesome PowerPoint timeline presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+       link:"https://youtu.be/y1gPf0kbf-Y",
+
+
+  related:{
+            text:"Link to Template",
+            url:"https://docs.google.com/presentation/d/18-Kc8ofXcFfDj-kdTZdkK0d0WWqTPulu/export/pptx"
+        },
+        topic:"Timelines"
+    },
+
+
+  
+  
+  {
  section:[
             "Learning",
             "Videos"
