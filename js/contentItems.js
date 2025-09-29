@@ -67,6 +67,654 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Interactive Electric Border Effect",
+    description: "Learn how to create a stunning interactive electric border effect with real-time controls. Features dynamic SVG filters, CSS animations, responsive design, and collapsible controls. Perfect for modern cards, buttons, or any UI element that needs an electrifying visual impact.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
+    link: "Learn.html#website-design-electric-border-effect",
+    topic: "Interactive Effects",
+    demoHtml: `<!-- Interactive Electric Border Effect -->
+<div class="electric-demo-container">
+  <!-- Toggle button for controls -->
+  <button class="toggle-controls-demo" onclick="toggleControlsDemo()" title="Toggle Controls">
+    <span id="toggleIconDemo">⚙️</span>
+  </button>
+
+  <!-- Controls Panel -->
+  <div class="controls-panel-demo" id="controlsPanelDemo">
+    <h3 class="controls-title-demo">⚡ Electric Border Controls</h3>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Border Color
+        <span class="control-value-demo" id="colorValueDemo">#46DD96</span>
+      </label>
+      <input type="color" class="color-picker-demo" id="colorPickerDemo" value="#46DD96">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Border Width
+        <span class="control-value-demo" id="widthValueDemo">2px</span>
+      </label>
+      <input type="range" class="slider-demo" id="widthSliderDemo" min="1" max="8" value="2" step="0.5">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Electric Blur
+        <span class="control-value-demo" id="blurValueDemo">4px</span>
+      </label>
+      <input type="range" class="slider-demo" id="blurSliderDemo" min="1" max="12" value="4" step="0.5">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Displacement Scale
+        <span class="control-value-demo" id="scaleValueDemo">50</span>
+      </label>
+      <input type="range" class="slider-demo" id="scaleSliderDemo" min="10" max="60" value="50" step="5">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Glow Opacity
+        <span class="control-value-demo" id="opacityValueDemo">0.8</span>
+      </label>
+      <input type="range" class="slider-demo" id="opacitySliderDemo" min="0.1" max="1" value="0.8" step="0.1">
+    </div>
+    
+    <button class="reset-button-demo" onclick="resetToDefaultsDemo()">Reset to Defaults</button>
+  </div>
+
+  <main class="main-container-demo">
+    <svg class="svg-container-demo">
+      <defs>
+        <filter id="turbulent-displace-demo" colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise1" seed="1" />
+          <feOffset in="noise1" dx="0" dy="0" result="offsetNoise1">
+            <animate attributeName="dy" values="700; 0" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise2" seed="1" />
+          <feOffset in="noise2" dx="0" dy="0" result="offsetNoise2">
+            <animate attributeName="dy" values="0; -700" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise1" seed="2" />
+          <feOffset in="noise1" dx="0" dy="0" result="offsetNoise3">
+            <animate attributeName="dx" values="490; 0" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise2" seed="2" />
+          <feOffset in="noise2" dx="0" dy="0" result="offsetNoise4">
+            <animate attributeName="dx" values="0; -490" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feComposite in="offsetNoise1" in2="offsetNoise2" result="part1" />
+          <feComposite in="offsetNoise3" in2="offsetNoise4" result="part2" />
+          <feBlend in="part1" in2="part2" mode="color-dodge" result="combinedNoise" />
+          <feDisplacementMap id="displacementMapDemo" in="SourceGraphic" in2="combinedNoise" scale="50" xChannelSelector="R" yChannelSelector="B" />
+        </filter>
+      </defs>
+    </svg>
+
+    <div class="card-container-demo">
+      <div class="inner-container-demo">
+        <div class="border-outer-demo">
+          <div class="main-card-demo"></div>
+        </div>
+        <div class="glow-layer-1-demo"></div>
+        <div class="glow-layer-2-demo"></div>
+      </div>
+
+      <div class="overlay-1-demo"></div>
+      <div class="overlay-2-demo"></div>
+      <div class="background-glow-demo"></div>
+
+      <div class="content-container-demo">
+        <div class="content-top-demo">
+          <div class="scrollbar-glass-demo" onclick="randomizeColorsDemo()">
+            Interactive
+          </div>
+          <p class="title-demo">Electric Border</p>
+        </div>
+
+        <hr class="divider-demo" />
+
+        <div class="content-bottom-demo">
+          <p class="description-demo">
+            Customize the electric border effect with real-time controls. 
+            Adjust colors, width, blur, and animation to create your perfect electric effect.
+            Click "Interactive" for random colors!
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>`,
+    demoCss: `/* Interactive Electric Border Effect Styles */
+:root {
+  --electric-border-color-demo: #46DD96;
+  --electric-width-demo: 2px;
+  --electric-blur-demo: 4px;
+  --electric-scale-demo: 50;
+  --electric-opacity-demo: 0.8;
+  --animation-speed-demo: 6s;
+}
+
+.electric-demo-container {
+  position: relative;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  min-height: 100vh;
+  color: #ffffff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 20px;
+  overflow: hidden;
+}
+
+/* Toggle button for controls */
+.toggle-controls-demo {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 12px 15px;
+  color: white;
+  cursor: pointer;
+  z-index: 1001;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-controls-demo:hover {
+  background: rgba(0, 0, 0, 0.95);
+  transform: scale(1.05);
+}
+
+/* Controls panel - collapsed by default */
+.controls-panel-demo {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  z-index: 1000;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transform: translateX(-100%);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.controls-panel-demo.visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.controls-title-demo {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.control-group-demo {
+  margin-bottom: 16px;
+}
+
+.control-label-demo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #cccccc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.control-value-demo {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+}
+
+.slider-demo {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.slider-demo::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--electric-border-color-demo), #ffffff);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.color-picker-demo {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--electric-border-color-demo);
+  transition: transform 0.2s ease;
+}
+
+.reset-button-demo {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 16px;
+}
+
+.reset-button-demo:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Main container */
+.main-container-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  position: relative;
+}
+
+.svg-container-demo {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+/* Card container */
+.card-container-demo {
+  padding: calc(var(--electric-width-demo) * 1px);
+  border-radius: 24px;
+  position: relative;
+  background: linear-gradient(
+    -30deg,
+    color-mix(in srgb, var(--electric-border-color-demo) 20%, transparent),
+    transparent,
+    color-mix(in srgb, var(--electric-border-color-demo) 20%, transparent)
+  );
+  transition: all 0.3s ease;
+}
+
+.inner-container-demo {
+  position: relative;
+}
+
+.border-outer-demo {
+  border: calc(var(--electric-width-demo) * 1px) solid color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent);
+  border-radius: 24px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+  transition: all 0.3s ease;
+}
+
+.main-card-demo {
+  width: 280px;
+  height: 400px;
+  border-radius: 20px;
+  border: calc(var(--electric-width-demo) * 1px) solid var(--electric-border-color-demo);
+  margin-top: -4px;
+  margin-left: -4px;
+  filter: url(#turbulent-displace-demo);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  
+  box-shadow: 
+    0 0 10px var(--electric-border-color-demo),
+    0 0 20px var(--electric-border-color-demo),
+    0 0 40px color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent),
+    inset 0 0 15px color-mix(in srgb, var(--electric-border-color-demo) 20%, transparent);
+  
+  animation: electricPulseDemo 2s ease-in-out infinite alternate,
+             electricFlickerDemo 0.15s linear infinite;
+}
+
+/* Enhanced hover effect */
+.main-card-demo:hover {
+  transform: scale(1.08) rotate(1deg);
+  box-shadow: 
+    0 0 25px var(--electric-border-color-demo),
+    0 0 50px var(--electric-border-color-demo),
+    0 0 100px color-mix(in srgb, var(--electric-border-color-demo) 90%, transparent),
+    inset 0 0 40px color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent);
+  animation: electricPulseHoverDemo 0.6s ease-in-out infinite alternate,
+             electricFlickerHoverDemo 0.08s linear infinite,
+             electricIntensePulseDemo 0.3s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes electricPulseDemo {
+  0% { 
+    box-shadow: 
+      0 0 10px var(--electric-border-color-demo),
+      0 0 20px var(--electric-border-color-demo),
+      0 0 40px color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent);
+  }
+  100% { 
+    box-shadow: 
+      0 0 15px var(--electric-border-color-demo),
+      0 0 30px var(--electric-border-color-demo),
+      0 0 60px color-mix(in srgb, var(--electric-border-color-demo) 70%, transparent);
+  }
+}
+
+@keyframes electricPulseHoverDemo {
+  0% { 
+    box-shadow: 
+      0 0 25px var(--electric-border-color-demo),
+      0 0 50px var(--electric-border-color-demo),
+      0 0 100px color-mix(in srgb, var(--electric-border-color-demo) 90%, transparent);
+  }
+  100% { 
+    box-shadow: 
+      0 0 35px var(--electric-border-color-demo),
+      0 0 70px var(--electric-border-color-demo),
+      0 0 140px color-mix(in srgb, var(--electric-border-color-demo) 100%, transparent);
+  }
+}
+
+@keyframes electricIntensePulseDemo {
+  0% { 
+    filter: url(#turbulent-displace-demo) brightness(1) saturate(1.2);
+  }
+  100% { 
+    filter: url(#turbulent-displace-demo) brightness(1.3) saturate(1.5);
+  }
+}
+
+@keyframes electricFlickerDemo {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.95; }
+}
+
+@keyframes electricFlickerHoverDemo {
+  0%, 85%, 100% { opacity: 1; }
+  90% { opacity: 0.9; }
+  95% { opacity: 0.95; }
+}
+
+/* Content styling */
+.content-container-demo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.content-top-demo {
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  padding-bottom: 16px;
+  height: 100%;
+}
+
+.content-bottom-demo {
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  padding-top: 16px;
+}
+
+.scrollbar-glass-demo {
+  background: radial-gradient(
+    47.2% 50% at 50.39% 88.37%,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0) 100%
+  ),
+  rgba(255, 255, 255, 0.04);
+  position: relative;
+  transition: background 0.3s ease;
+  border-radius: 14px;
+  width: fit-content;
+  height: fit-content;
+  padding: 8px 16px;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.title-demo {
+  font-size: 36px;
+  font-weight: 500;
+  margin-top: auto;
+  background: linear-gradient(135deg, var(--electric-border-color-demo), #ffffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.description-demo {
+  opacity: 0.7;
+  line-height: 1.5;
+  color: #cccccc;
+}
+
+.divider-demo {
+  margin-top: auto;
+  border: none;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--electric-border-color-demo),
+    transparent
+  );
+  opacity: 0.5;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .main-card-demo {
+    width: 260px;
+    height: 360px;
+  }
+  
+  .controls-panel-demo {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    min-width: 280px;
+    max-width: 85vw;
+    margin: 0;
+    border-radius: 0 16px 16px 0;
+  }
+}`,
+    demoJs: `// Interactive Electric Border Effect JavaScript
+function updatePropertyDemo(property, value, unit = '') {
+  document.documentElement.style.setProperty(property, value + unit);
+}
+
+// Toggle controls panel
+function toggleControlsDemo() {
+  const panel = document.getElementById('controlsPanelDemo');
+  const icon = document.getElementById('toggleIconDemo');
+  
+  panel.classList.toggle('visible');
+  
+  if (panel.classList.contains('visible')) {
+    icon.textContent = '✕';
+  } else {
+    icon.textContent = '⚙️';
+  }
+}
+
+// Reset to defaults function
+function resetToDefaultsDemo() {
+  const colorPicker = document.getElementById('colorPickerDemo');
+  const widthSlider = document.getElementById('widthSliderDemo');
+  const blurSlider = document.getElementById('blurSliderDemo');
+  const scaleSlider = document.getElementById('scaleSliderDemo');
+  const opacitySlider = document.getElementById('opacitySliderDemo');
+  
+  if (colorPicker) colorPicker.value = '#46DD96';
+  if (widthSlider) widthSlider.value = '2';
+  if (blurSlider) blurSlider.value = '4';
+  if (scaleSlider) scaleSlider.value = '50';
+  if (opacitySlider) opacitySlider.value = '0.8';
+  
+  // Trigger all change events
+  [colorPicker, widthSlider, blurSlider, scaleSlider, opacitySlider].forEach(el => {
+    if (el) el.dispatchEvent(new Event('input'));
+  });
+}
+
+// Random color generator
+function randomizeColorsDemo() {
+  const colors = [
+    '#46DD96', '#4a90dd', '#dd4a90', '#90dd4a', 
+    '#9a4add', '#dd4a4a', '#4adddd', '#dddd4a',
+    '#ff6b35', '#35ff6b'
+  ];
+  
+  const colorPicker = document.getElementById('colorPickerDemo');
+  if (colorPicker) {
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    colorPicker.value = randomColor;
+    colorPicker.dispatchEvent(new Event('input'));
+  }
+}
+
+// Initialize controls when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Color picker handler
+  const colorPicker = document.getElementById('colorPickerDemo');
+  if (colorPicker) {
+    colorPicker.addEventListener('input', (e) => {
+      const color = e.target.value;
+      updatePropertyDemo('--electric-border-color-demo', color);
+      const colorValue = document.getElementById('colorValueDemo');
+      if (colorValue) colorValue.textContent = color.toUpperCase();
+    });
+  }
+
+  // Width slider handler
+  const widthSlider = document.getElementById('widthSliderDemo');
+  if (widthSlider) {
+    widthSlider.addEventListener('input', (e) => {
+      const width = e.target.value;
+      updatePropertyDemo('--electric-width-demo', width);
+      const widthValue = document.getElementById('widthValueDemo');
+      if (widthValue) widthValue.textContent = width + 'px';
+    });
+  }
+
+  // Blur slider handler
+  const blurSlider = document.getElementById('blurSliderDemo');
+  if (blurSlider) {
+    blurSlider.addEventListener('input', (e) => {
+      const blur = e.target.value;
+      updatePropertyDemo('--electric-blur-demo', blur);
+      const blurValue = document.getElementById('blurValueDemo');
+      if (blurValue) blurValue.textContent = blur + 'px';
+    });
+  }
+
+  // Scale slider handler
+  const scaleSlider = document.getElementById('scaleSliderDemo');
+  if (scaleSlider) {
+    scaleSlider.addEventListener('input', (e) => {
+      const scale = e.target.value;
+      updatePropertyDemo('--electric-scale-demo', scale);
+      const displacementMap = document.getElementById('displacementMapDemo');
+      if (displacementMap) {
+        displacementMap.setAttribute('scale', scale);
+      }
+      const scaleValue = document.getElementById('scaleValueDemo');
+      if (scaleValue) scaleValue.textContent = scale;
+    });
+  }
+
+  // Opacity slider handler
+  const opacitySlider = document.getElementById('opacitySliderDemo');
+  if (opacitySlider) {
+    opacitySlider.addEventListener('input', (e) => {
+      const opacity = e.target.value;
+      updatePropertyDemo('--electric-opacity-demo', opacity);
+      const opacityValue = document.getElementById('opacityValueDemo');
+      if (opacityValue) opacityValue.textContent = opacity;
+    });
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      randomizeColorsDemo();
+    }
+    if (e.code === 'Escape') {
+      const panel = document.getElementById('controlsPanelDemo');
+      const icon = document.getElementById('toggleIconDemo');
+      if (panel && panel.classList.contains('visible')) {
+        panel.classList.remove('visible');
+        if (icon) icon.textContent = '⚙️';
+      }
+    }
+    if (e.code === 'KeyC' && e.ctrlKey) {
+      e.preventDefault();
+      toggleControlsDemo();
+    }
+  });
+
+  console.log('🔥 Interactive Electric Border Effect Loaded!');
+  console.log('💡 Press SPACE for random colors');
+  console.log('⚙️ Press Ctrl+C to toggle controls');
+  console.log('🚪 Press ESC to close controls panel');
+});`
+},
+  
   {
     section: ["Learning", "Website Design"],
     program: {
