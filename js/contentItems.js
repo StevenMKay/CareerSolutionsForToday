@@ -9,7 +9,7 @@ SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4
 AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/icons/AIicon.png",
 
 'Helpful Websites':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ccb7bdd06de647ea39a8a8644798db5d7c790525/icons/interneticon.png",
-'Website Design':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png",
+
   Windows:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/windowsicon.png",
   HTML:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png",
   SharePoint:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/sharepointicon.png",
@@ -22,7 +22,7 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
   PowerPoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png",
   Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png",
   YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png",
-  Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png",
+  Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png",
   Calculators:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
       // Add more as needed
 };
@@ -67,3851 +67,6 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
-  {
-    section: ["Learning", "Website Design"],
-    program: {
-        name: "Website Design",
-        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
-    },
-    title: "Photo with Text Overlay on Hover",
-    description: "Learn how to create elegant text overlay effects that appear on photo hover. This component demonstrates smooth CSS animations, typography effects, and interactive design patterns perfect for image galleries, portfolios, and call-to-action elements.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
-    link: "Learn.html#website-design-photo-text-overlay",
-    topic: "Interactive Media",
-    demoHtml: `<!-- Photo with Text Overlay Effect -->
-<div class="photo-text-container">
-  <div class="photo-text-wrapper">
-    <!-- Photo -->
-    <div class="photo-section">
-      <img 
-        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
-        alt="Surfing Photo"
-        class="main-photo"
-      >
-      
-      <!-- Overlay Background -->
-      <div class="overlay-background"></div>
-      
-      <!-- Text Overlay -->
-      <div class="text-overlay">
-        <div class="text-content">
-          <h2 class="overlay-title">Learn Surfing</h2>
-          <p class="overlay-subtitle">Ride the waves with confidence</p>
-          <div class="overlay-button">
-            <span>Get Started</span>
-            <i class="arrow">→</i>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Photo Info -->
-    <div class="photo-info">
-      <div class="info-content">
-        <h3>Interactive Text Overlay</h3>
-        <p>Hover to reveal content</p>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Instructions -->
-  <div class="photo-instructions">
-    <p>✨ Hover over the image to see the text overlay effect</p>
-  </div>
-</div>`,
-    demoCss: `/* Photo with Text Overlay Styles */
-.photo-text-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 40px 20px;
-  background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
-  min-height: 100vh;
-  font-family: 'Inter', sans-serif;
-}
-
-.photo-text-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-}
-
-/* Photo Section */
-.photo-section {
-  position: relative;
-  width: 320px;
-  height: 480px;
-  border-radius: 20px;
-  overflow: hidden;
-  cursor: pointer;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.photo-section:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
-}
-
-.main-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transition: transform 0.6s ease;
-}
-
-.photo-section:hover .main-photo {
-  transform: scale(1.1);
-}
-
-/* Overlay Background */
-.overlay-background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    45deg,
-    rgba(17, 153, 142, 0.8),
-    rgba(45, 27, 105, 0.8)
-  );
-  opacity: 0;
-  transition: opacity 0.5s ease;
-  z-index: 1;
-}
-
-.photo-section:hover .overlay-background {
-  opacity: 1;
-}
-
-/* Text Overlay */
-.text-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-  opacity: 0;
-  transform: translateY(30px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-  transition-delay: 0.1s;
-}
-
-.photo-section:hover .text-overlay {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.text-content {
-  text-align: center;
-  color: white;
-  padding: 30px;
-  max-width: 260px;
-}
-
-.overlay-title {
-  font-size: 32px;
-  font-weight: 700;
-  margin: 0 0 10px 0;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  animation: slideInUp 0.6s ease-out;
-  animation-fill-mode: both;
-}
-
-.photo-section:hover .overlay-title {
-  animation-delay: 0.2s;
-}
-
-.overlay-subtitle {
-  font-size: 16px;
-  font-weight: 400;
-  margin: 0 0 25px 0;
-  opacity: 0.9;
-  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
-  animation: slideInUp 0.6s ease-out;
-  animation-fill-mode: both;
-}
-
-.photo-section:hover .overlay-subtitle {
-  animation-delay: 0.3s;
-}
-
-.overlay-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 30px;
-  padding: 12px 24px;
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  animation: slideInUp 0.6s ease-out;
-  animation-fill-mode: both;
-}
-
-.photo-section:hover .overlay-button {
-  animation-delay: 0.4s;
-}
-
-.overlay-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-}
-
-.arrow {
-  font-style: normal;
-  transition: transform 0.3s ease;
-}
-
-.overlay-button:hover .arrow {
-  transform: translateX(5px);
-}
-
-/* Slide in animation */
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Photo Info */
-.photo-info {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 15px;
-  padding: 20px;
-  text-align: center;
-  color: white;
-  max-width: 320px;
-}
-
-.info-content h3 {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.info-content p {
-  margin: 0;
-  font-size: 14px;
-  opacity: 0.8;
-}
-
-/* Instructions */
-.photo-instructions {
-  text-align: center;
-  color: #ffffff;
-  opacity: 0.7;
-  font-size: 14px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-
-/* Advanced Hover Effects */
-.photo-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(
-    circle at center,
-    transparent 0%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
-  opacity: 0;
-  transition: opacity 0.5s ease;
-  z-index: 3;
-  pointer-events: none;
-}
-
-.photo-section:hover::before {
-  opacity: 1;
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .photo-section {
-    width: 280px;
-    height: 420px;
-  }
-  
-  .photo-text-container {
-    padding: 20px 10px;
-  }
-  
-  .overlay-title {
-    font-size: 28px;
-  }
-  
-  .text-content {
-    padding: 20px;
-  }
-}
-
-/* Performance Optimizations */
-.photo-section {
-  will-change: transform;
-}
-
-.text-overlay {
-  will-change: opacity, transform;
-}
-
-.main-photo {
-  will-change: transform;
-}`,
-    demoJs: `// Photo with Text Overlay JavaScript
-document.addEventListener('DOMContentLoaded', function() {
-  const photoSection = document.querySelector('.photo-section');
-  const overlayButton = document.querySelector('.overlay-button');
-  
-  if (!photoSection) return;
-  
-  let isAnimating = false;
-  
-  // Enhanced hover enter
-  photoSection.addEventListener('mouseenter', function() {
-    if (isAnimating) return;
-    isAnimating = true;
-    
-    console.log('📸 Photo hover activated - showing text overlay');
-    
-    // Add visual feedback
-    this.style.transform = 'translateY(-8px) scale(1.02)';
-    
-    setTimeout(() => {
-      isAnimating = false;
-    }, 600);
-  });
-  
-  // Enhanced hover leave
-  photoSection.addEventListener('mouseleave', function() {
-    console.log('👋 Photo hover ended - hiding text overlay');
-    
-    // Reset transform
-    this.style.transform = '';
-  });
-  
-  // Button click handler
-  if (overlayButton) {
-    overlayButton.addEventListener('click', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      console.log('🏄‍♂️ Learn Surfing button clicked!');
-      
-      // Add click effect
-      this.style.transform = 'scale(0.95)';
-      
-      setTimeout(() => {
-        this.style.transform = '';
-        
-        // Simulate navigation or action
-        alert('🌊 Ready to learn surfing? This would navigate to a surfing course!');
-      }, 150);
-    });
-  }
-  
-  // Keyboard accessibility
-  photoSection.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      this.dispatchEvent(new Event('mouseenter'));
-      
-      setTimeout(() => {
-        this.dispatchEvent(new Event('mouseleave'));
-      }, 2000);
-    }
-  });
-  
-  // Focus management for accessibility
-  photoSection.setAttribute('tabindex', '0');
-  photoSection.setAttribute('role', 'button');
-  photoSection.setAttribute('aria-label', 'View surfing content with text overlay');
-  
-  // Performance optimization - preload overlay effects
-  const textOverlay = document.querySelector('.text-overlay');
-  if (textOverlay) {
-    // Warm up animations
-    textOverlay.style.willChange = 'opacity, transform';
-  }
-  
-  // Initialize
-  console.log('✨ Photo Text Overlay Effect initialized');
-  console.log('🎯 Hover over photo to see "Learn Surfing" text appear');
-});`
-},
-
-{
-    section: ["Learning", "Website Design"],
-    program: {
-        name: "Website Design",
-        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
-    },
-    title: "Photo to Video Hover Effect",
-    description: "Learn how to create smooth photo-to-video hover transitions with fade effects. This interactive component demonstrates modern web techniques using CSS transforms, video controls, and smooth animations perfect for portfolio galleries and interactive media displays.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg",
-    link: "Learn.html#website-design-photo-video-hover",
-    topic: "Interactive Media",
-    demoHtml: `<!-- Photo to Video Hover Effect -->
-<div class="media-container">
-  <div class="media-wrapper">
-    <!-- Photo Layer -->
-    <div class="photo-layer">
-      <img 
-        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
-        alt="Surfing Photo"
-        class="surf-photo"
-      >
-    </div>
-    
-    <!-- Video Layer -->
-    <div class="video-layer">
-      <video 
-        class="surf-video" 
-        muted 
-        loop 
-        playsinline
-        preload="metadata"
-      >
-        <source 
-          src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9645f9d5ec4ac5e0b6776abdc8458b8f133833d1/Videos/Smaller%20Surf%20Video.mp4" 
-          type="video/mp4"
-        >
-        Your browser does not support the video tag.
-      </video>
-    </div>
-    
-    <!-- Overlay Info -->
-    <div class="media-overlay">
-      <div class="overlay-content">
-        <h3>Hover Effect</h3>
-        <p>Photo → Video</p>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Instructions -->
-  <div class="instructions">
-    <p>🎥 Hover over the image to see the video transition</p>
-  </div>
-</div>`,
-    demoCss: `/* Photo to Video Hover Effect Styles */
-.media-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 40px 20px;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  min-height: 100vh;
-  font-family: 'Inter', sans-serif;
-}
-
-.media-wrapper {
-  position: relative;
-  width: 320px;
-  height: 480px;
-  border-radius: 20px;
-  overflow: hidden;
-  cursor: pointer;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.media-wrapper:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
-}
-
-/* Photo Layer */
-.photo-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 2;
-  transition: opacity 0.8s ease-in-out;
-}
-
-.surf-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transition: transform 0.8s ease;
-}
-
-/* Video Layer */
-.video-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.8s ease-in-out;
-}
-
-.surf-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-/* Hover Effects */
-.media-wrapper:hover .photo-layer {
-  opacity: 0;
-}
-
-.media-wrapper:hover .video-layer {
-  opacity: 1;
-}
-
-.media-wrapper:hover .surf-photo {
-  transform: scale(1.1);
-}
-
-/* Media Overlay */
-.media-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    45deg,
-    rgba(0, 0, 0, 0.3),
-    transparent,
-    rgba(0, 0, 0, 0.3)
-  );
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 30px;
-  z-index: 3;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.media-wrapper:hover .media-overlay {
-  opacity: 1;
-}
-
-.overlay-content {
-  text-align: center;
-  color: white;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px);
-  padding: 15px 25px;
-  border-radius: 15px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transform: translateY(20px);
-  transition: transform 0.3s ease;
-}
-
-.media-wrapper:hover .overlay-content {
-  transform: translateY(0);
-}
-
-.overlay-content h3 {
-  margin: 0 0 5px 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.overlay-content p {
-  margin: 0;
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-/* Instructions */
-.instructions {
-  text-align: center;
-  color: #ffffff;
-  opacity: 0.7;
-  font-size: 14px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
-
-/* Loading Spinner for Video */
-.video-layer::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top: 3px solid #ffffff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  opacity: 0;
-  z-index: 2;
-  transition: opacity 0.3s ease;
-}
-
-.video-layer.loading::before {
-  opacity: 1;
-}
-
-@keyframes spin {
-  0% { transform: translate(-50%, -50%) rotate(0deg); }
-  100% { transform: translate(-50%, -50%) rotate(360deg); }
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .media-wrapper {
-    width: 280px;
-    height: 420px;
-  }
-  
-  .media-container {
-    padding: 20px 10px;
-  }
-}
-
-/* Performance Optimizations */
-.media-wrapper {
-  will-change: transform;
-}
-
-.photo-layer,
-.video-layer {
-  will-change: opacity;
-}`,
-    demoJs: `// Photo to Video Hover Effect JavaScript - Fixed for Learning Module Context
-function initPhotoVideoHoverEffect() {
-  // Wait a bit for content to be fully rendered
-  setTimeout(() => {
-    // Use more specific selectors to avoid conflicts with other demos
-    const demoContainer = document.querySelector('#website-design-photo-video-hover');
-    if (!demoContainer) return;
-    
-    const mediaWrapper = demoContainer.querySelector('.media-wrapper');
-    const video = demoContainer.querySelector('.surf-video');
-    const videoLayer = demoContainer.querySelector('.video-layer');
-    
-    if (!mediaWrapper || !video || !videoLayer) {
-      console.log('❌ Photo to Video elements not found in demo container');
-      return;
-    }
-    
-    let isVideoLoaded = false;
-    let isHovering = false;
-    let hasUserInteracted = false;
-    
-    // Detect first user interaction to enable autoplay
-    document.addEventListener('click', function() {
-      hasUserInteracted = true;
-    }, { once: true });
-    
-    // Preload video on first interaction
-    function preloadVideo() {
-      if (!isVideoLoaded) {
-        videoLayer.classList.add('loading');
-        video.load();
-        
-        video.addEventListener('canplaythrough', function() {
-          isVideoLoaded = true;
-          videoLayer.classList.remove('loading');
-          console.log('✅ Video loaded successfully for demo');
-        }, { once: true });
-        
-        video.addEventListener('error', function() {
-          console.error('❌ Video failed to load in demo');
-          videoLayer.classList.remove('loading');
-        }, { once: true });
-      }
-    }
-    
-    // Mouse enter event with user interaction check
-    mediaWrapper.addEventListener('mouseenter', function() {
-      isHovering = true;
-      preloadVideo();
-      
-      // Small delay to ensure smooth transition
-      setTimeout(() => {
-        if (isHovering && isVideoLoaded) {
-          video.currentTime = 0;
-          // Only try to play if user has interacted with page
-          if (hasUserInteracted) {
-            video.play().catch(e => {
-              console.warn('Video autoplay prevented in demo:', e);
-            });
-          } else {
-            console.log('💡 Click anywhere on the page first, then hover to play video');
-          }
-        }
-      }, 100);
-    });
-    
-    // Mouse leave event  
-    mediaWrapper.addEventListener('mouseleave', function() {
-      isHovering = false;
-      
-      // Pause video with slight delay for smooth transition
-      setTimeout(() => {
-        if (!isHovering) {
-          video.pause();
-        }
-      }, 200);
-    });
-    
-    // Handle video ended (restart loop)
-    video.addEventListener('ended', function() {
-      if (isHovering) {
-        video.currentTime = 0;
-        video.play().catch(e => {
-          console.warn('Video replay failed in demo:', e);
-        });
-      }
-    });
-    
-    // Add click to play functionality as fallback
-    mediaWrapper.addEventListener('click', function() {
-      hasUserInteracted = true;
-      if (isVideoLoaded) {
-        if (video.paused) {
-          video.play().catch(e => console.log('Click play failed:', e));
-        } else {
-          video.pause();
-        }
-      }
-    });
-    
-    // Initialize
-    console.log('🚀 Photo to Video Hover Effect initialized for learning module');
-    
-  }, 500); // Wait 500ms for content to render
-}
-
-// Initialize when content loads or immediately if already loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initPhotoVideoHoverEffect);
-} else {
-  initPhotoVideoHoverEffect();
-}`
-},
-  {
- section:[
-            "Learning",
-            "Templates"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
-https:"https://youtu.be/ers-81-bFO4",
- title:"Interactive Morph Template",
-        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
-       link:"https://youtu.be/ers-81-bFO4",
-
-
-  related:{
-            text:"Link to Template",
-            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
-        },
-        topic:"Morph Templates"
-    },
-
-
-
-
-{
- section:[
-            "Learning",
-            "Templates"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
-https:"https://youtu.be/y1gPf0kbf-Y",
- title:"Timeline Morph Transition",
-        description:"In this video we cover how to create an awesome PowerPoint timeline presentation.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
-       link:"https://youtu.be/y1gPf0kbf-Y",
-
-
-  related:{
-            text:"Link to Template",
-            url:"https://docs.google.com/presentation/d/18-Kc8ofXcFfDj-kdTZdkK0d0WWqTPulu/export/pptx"
-        },
-        topic:"Timelines"
-    },
-
-
-  
-  
-  {
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
-https:"https://youtu.be/BwEq5QTCwEI",
- title:"Timeline Morph Transition",
-        description:"In this video we cover how to create an awesome PowerPoint timeline presentation.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
-       link:"https://youtu.be/BwEq5QTCwEI",
-
-
-   related: [
-    {
-      text:"Watch on YouTube",
-            url:"https://youtu.be/BwEq5QTCwEI"
-        },
-    {
-       text:"Link to Template",
-            url:" https://docs.google.com/presentation/d/18-Kc8ofXcFfDj-kdTZdkK0d0WWqTPulu/export/pptx"
-    }
-    ],
-        topic:"Timelines"
-    },
-
-{
- section:[
-            "Learning",           
-            "Simulations"
-       
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
-https:"https://youtu.be/g46C_wkCXnM",
- title:"Learn VLOOKUP with Interactive Simulation",
-        description:"This is a simulation I created on how to use the VLOOKUP function.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
-       link:"https://youtu.be/g46C_wkCXnM",
-
-
-  related: [
-    {
-      text:"PC Simulation Link",
-            url:" https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
-        },
-    {
-       text:"Mobile Simulation Link",
-            url:"https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-YErYbq7"
-    }
-    ],
-        topic:"VLOOKUP Learning Simulation"
-    },
-
-
-{
-    section: ["Learning", "Website Design"],
-    program: {
-        name: "Website Design",
-        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
-    },
-    title: "Professional Login Form with Validation",
-    description: "Learn how to create a modern, professional login form with advanced validation, password visibility toggle, loading states, and social authentication options. Features responsive design, accessibility compliance, and enterprise-grade styling perfect for business applications.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0a51e4f4adfc3d8b62851081f74a7dd2a4bbd65c/Thumbnails/Screenshot%202025-09-26%20052218.png",
-    link: "Learn.html#website-design-professional-login-form",
-    topic: "Form Design",
-    demoHtml: `<!-- Professional Login Form -->
-<div class="login-container">
-  <!-- Header -->
-  <div class="login-header">
-    <div class="logo">
-      <i class="fas fa-user-shield"></i>
-    </div>
-    <h1 class="login-title">Welcome Back</h1>
-    <p class="login-subtitle">Please sign in to your account to continue</p>
-  </div>
-
-  <!-- Login Form -->
-  <form class="login-form" id="loginForm">
-    <!-- Email Input -->
-    <div class="input-group">
-      <label for="email" class="input-label">
-        Email Address <span class="required">*</span>
-      </label>
-      <div class="input-wrapper">
-        <i class="fas fa-envelope input-icon"></i>
-        <input 
-          type="email" 
-          id="email" 
-          name="email" 
-          class="input-field" 
-          placeholder="Enter your email address" 
-          required
-        >
-      </div>
-      <div id="email-error" class="error-message"></div>
-    </div>
-
-    <!-- Password Input -->
-    <div class="input-group">
-      <label for="password" class="input-label">
-        Password <span class="required">*</span>
-      </label>
-      <div class="input-wrapper">
-        <i class="fas fa-lock input-icon"></i>
-        <input 
-          type="password" 
-          id="password" 
-          name="password" 
-          class="input-field" 
-          placeholder="Enter your password" 
-          required
-        >
-        <button 
-          type="button" 
-          class="password-toggle" 
-          onclick="togglePassword()"
-        >
-          <i class="fas fa-eye" id="password-icon"></i>
-        </button>
-      </div>
-      <div id="password-error" class="error-message"></div>
-    </div>
-
-    <!-- Remember Me & Forgot Password -->
-    <div class="remember-forgot">
-      <div class="remember-me">
-        <input type="checkbox" id="remember" name="remember" class="checkbox">
-        <label for="remember">Remember me</label>
-      </div>
-      <a href="#" class="forgot-link">Forgot Password?</a>
-    </div>
-
-    <!-- Submit Button -->
-    <button type="submit" class="login-button" id="loginBtn">
-      <i class="fas fa-sign-in-alt"></i>
-      <span>Sign In</span>
-    </button>
-  </form>
-
-  <!-- Divider -->
-  <div class="divider">
-    <span class="divider-text">Or continue with</span>
-  </div>
-
-  <!-- Social Login -->
-  <div class="social-login">
-    <a href="#" class="social-button">
-      <i class="fab fa-google"></i>
-      <span>Google</span>
-    </a>
-    <a href="#" class="social-button">
-      <i class="fab fa-microsoft"></i>
-      <span>Microsoft</span>
-    </a>
-  </div>
-
-  <!-- Sign-up Link -->
-  <div class="signup-link">
-    Don't have an account? <a href="#">Sign up here</a>
-  </div>
-</div>
-
-<!-- Font Awesome -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<!-- Google Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">`,
-    demoCss: `/* Professional Login Form Styles */
-/* CSS Reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-/* CSS Variables for consistent theming */
-:root {
-  --primary-color: #2563eb;
-  --primary-dark: #1d4ed8;
-  --secondary-color: #64748b;
-  --success-color: #10b981;
-  --error-color: #ef4444;
-  --surface-color: #ffffff;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --border-color: #e2e8f0;
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --radius-lg: 0.75rem;
-  --radius-md: 0.5rem;
-}
-
-/* Body - creates full-height centered layout */
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1rem;
-}
-
-/* Main login container */
-.login-container {
-  background: var(--surface-color);
-  padding: 2.5rem;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  width: 100%;
-  max-width: 400px;
-  position: relative;
-}
-
-/* Header section */
-.login-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-/* Logo styling */
-.logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 60px;
-  height: 60px;
-  background: var(--primary-color);
-  color: white;
-  border-radius: 50%;
-  font-size: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-/* Title styling */
-.login-title {
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-}
-
-/* Subtitle */
-.login-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-/* Form styling */
-.login-form {
-  position: relative;
-}
-
-/* Input group container */
-.input-group {
-  margin-bottom: 1.5rem;
-  position: relative;
-}
-
-/* Input labels */
-.input-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-}
-
-/* Required field indicator */
-.required {
-  color: var(--error-color);
-}
-
-/* Input wrapper */
-.input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-/* Input icons */
-.input-icon {
-  position: absolute;
-  left: 0.75rem;
-  color: var(--text-secondary);
-  font-size: 1rem;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Input fields */
-.input-field {
-  width: 100%;
-  padding: 0.75rem 2.75rem 0.75rem 2.5rem;
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-md);
-  font-size: 1rem;
-  color: var(--text-primary);
-  background: var(--surface-color);
-  transition: all 0.2s ease;
-  outline: none;
-}
-
-/* Input focus state */
-.input-field:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-/* Password toggle button */
-.password-toggle {
-  position: absolute;
-  right: 0.75rem;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 0.25rem;
-  transition: color 0.2s ease;
-}
-
-.password-toggle:hover {
-  color: var(--text-primary);
-}
-
-/* Remember me section */
-.remember-forgot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  font-size: 0.875rem;
-}
-
-.remember-me {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.checkbox {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid var(--border-color);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.checkbox:checked {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-}
-
-.forgot-link {
-  color: var(--primary-color);
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s ease;
-}
-
-.forgot-link:hover {
-  color: var(--primary-dark);
-  text-decoration: underline;
-}
-
-/* Login button */
-.login-button {
-  width: 100%;
-  padding: 0.875rem 1rem;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.login-button:hover {
-  background: var(--primary-dark);
-  transform: translateY(-1px);
-}
-
-/* Loading state */
-.login-button.loading {
-  background: var(--secondary-color);
-  cursor: not-allowed;
-}
-
-.spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid transparent;
-  border-top: 2px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Divider */
-.divider {
-  margin: 1.5rem 0;
-  position: relative;
-  text-align: center;
-}
-
-.divider::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: var(--border-color);
-}
-
-.divider-text {
-  background: var(--surface-color);
-  padding: 0 1rem;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-/* Social login */
-.social-login {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.social-button {
-  flex: 1;
-  padding: 0.75rem;
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--surface-color);
-  color: var(--text-secondary);
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  gap: 0.5rem;
-}
-
-.social-button:hover {
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-
-/* Sign-up link */
-.signup-link {
-  text-align: center;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.signup-link a {
-  color: var(--primary-color);
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.signup-link a:hover {
-  text-decoration: underline;
-}
-
-/* Error messages */
-.error-message {
-  color: var(--error-color);
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
-  min-height: 1rem;
-}
-
-/* Mobile responsive */
-@media (max-width: 640px) {
-  .login-container {
-    padding: 2rem 1.5rem;
-    margin: 1rem;
-  }
-  
-  .login-title {
-    font-size: 1.5rem;
-  }
-  
-  .social-login {
-    flex-direction: column;
-  }
-}`,
-    demoJs: `// Professional Login Form JavaScript
-// Password visibility toggle
-function togglePassword() {
-  const passwordInput = document.getElementById('password');
-  const passwordIcon = document.getElementById('password-icon');
-  
-  if (passwordInput.type === 'password') {
-    passwordInput.type = 'text';
-    passwordIcon.className = 'fas fa-eye-slash';
-  } else {
-    passwordInput.type = 'password';
-    passwordIcon.className = 'fas fa-eye';
-  }
-}
-
-// Form validation
-function validateForm() {
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const emailError = document.getElementById('email-error');
-  const passwordError = document.getElementById('password-error');
-  let isValid = true;
-
-  // Clear previous errors
-  emailError.textContent = '';
-  passwordError.textContent = '';
-
-  // Email validation
-  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
-  if (!email) {
-    emailError.textContent = 'Email address is required.';
-    isValid = false;
-  } else if (!emailRegex.test(email)) {
-    emailError.textContent = 'Please enter a valid email address.';
-    isValid = false;
-  }
-
-  // Password validation
-  if (!password) {
-    passwordError.textContent = 'Password is required.';
-    isValid = false;
-  } else if (password.length < 6) {
-    passwordError.textContent = 'Password must be at least 6 characters long.';
-    isValid = false;
-  }
-
-  return isValid;
-}
-
-// Form submission handler
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-  e.preventDefault();
-  
-  if (validateForm()) {
-    const loginBtn = document.getElementById('loginBtn');
-    const btnText = loginBtn.querySelector('span');
-    const btnIcon = loginBtn.querySelector('i');
-    
-    // Show loading state
-    loginBtn.classList.add('loading');
-    btnIcon.className = 'spinner';
-    btnText.textContent = 'Signing In...';
-    
-    // Simulate authentication
-    setTimeout(() => {
-      loginBtn.classList.remove('loading');
-      btnIcon.className = 'fas fa-check';
-      btnText.textContent = 'Success!';
-      
-      setTimeout(() => {
-        alert('Login successful!');
-        // Reset for demo
-        btnIcon.className = 'fas fa-sign-in-alt';
-        btnText.textContent = 'Sign In';
-      }, 1500);
-    }, 2000);
-  }
-});
-
-// Clear errors on input
-document.getElementById('email').addEventListener('input', function() {
-  document.getElementById('email-error').textContent = '';
-});
-
-document.getElementById('password').addEventListener('input', function() {
-  document.getElementById('password-error').textContent = '';
-});
-
-// Initialize form when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('Professional Login Form initialized successfully');
-});`
-},
-
-{
-    section: ["Learning", "Website Design"],
-    program: {
-        name: "Website Design",
-        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
-    },
-    title: "9 Dot Interactive Navigation Menu",
-    description: "Learn how to create a stunning 9-dot grid navigation menu with smooth reveal animations, staggered timing effects, and interactive hover states. Features backdrop blur, glassmorphism design, and floating particle animations. Perfect for modern web interfaces and app-style navigation.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e60929327344cb1a9d8809e01c13096eb05175eb/Thumbnails/9dotnavmenuthumb.png",
-    link: "Learn.html#website-design-9dot-nav-menu",
-    topic: "Interactive Navigation",
-    demoHtml: `<!-- 9 Dot Navigation Menu -->
-<div class="nav-container">
-  <div class="navigation">
-    <div class="nav-item" data-tooltip="Coffee">
-      <i class="fas fa-coffee"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Notifications">
-      <i class="fas fa-bell"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Weather">
-      <i class="fas fa-cloud-rain"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Camera">
-      <i class="fas fa-camera"></i>
-    </div>
-    <div class="nav-item active" data-tooltip="Close">
-      <i class="fas fa-times"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Settings">
-      <i class="fas fa-cog"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Games">
-      <i class="fas fa-gamepad"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Alarm">
-      <i class="fas fa-clock"></i>
-    </div>
-    <div class="nav-item" data-tooltip="Profile">
-      <i class="fas fa-user"></i>
-    </div>
-  </div>
-</div>
-
-<!-- Font Awesome for icons -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-<!-- Google Fonts -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">`,
-    demoCss: `/* 9 Dot Navigation Menu Styles */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Inter', sans-serif;
-  color: white;
-  padding: 40px 20px;
-}
-
-.nav-container {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 24px;
-  padding: 40px;
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.navigation {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 20px;
-  width: 400px;
-  height: 400px;
-  position: relative;
-}
-
-.nav-item {
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-  opacity: 0;
-  transform: scale(0);
-}
-
-/* Center item (trigger) - always visible */
-.nav-item:nth-child(5) {
-  opacity: 1;
-  transform: scale(1);
-  background: #4ade80;
-  border-color: #4ade80;
-  box-shadow: 
-    0 20px 40px rgba(74, 222, 128, 0.4),
-    0 0 30px rgba(74, 222, 128, 0.3);
-}
-
-/* Show all items when hovering over the navigation container */
-.navigation:hover .nav-item {
-  opacity: 1;
-  transform: scale(1);
-}
-
-/* Staggered animation delays for smooth entrance */
-.navigation:hover .nav-item:nth-child(1) { transition-delay: 0.1s; }
-.navigation:hover .nav-item:nth-child(2) { transition-delay: 0.15s; }
-.navigation:hover .nav-item:nth-child(3) { transition-delay: 0.2s; }
-.navigation:hover .nav-item:nth-child(4) { transition-delay: 0.05s; }
-.navigation:hover .nav-item:nth-child(5) { transition-delay: 0s; } /* Center - no delay */
-.navigation:hover .nav-item:nth-child(6) { transition-delay: 0.05s; }
-.navigation:hover .nav-item:nth-child(7) { transition-delay: 0.2s; }
-.navigation:hover .nav-item:nth-child(8) { transition-delay: 0.15s; }
-.navigation:hover .nav-item:nth-child(9) { transition-delay: 0.1s; }
-
-/* When not hovering, hide items with reverse delay */
-.nav-item:nth-child(1) { transition-delay: 0.2s; }
-.nav-item:nth-child(2) { transition-delay: 0.15s; }
-.nav-item:nth-child(3) { transition-delay: 0.1s; }
-.nav-item:nth-child(4) { transition-delay: 0.25s; }
-.nav-item:nth-child(5) { transition-delay: 0s; } /* Center - always visible */
-.nav-item:nth-child(6) { transition-delay: 0.25s; }
-.nav-item:nth-child(7) { transition-delay: 0.1s; }
-.nav-item:nth-child(8) { transition-delay: 0.15s; }
-.nav-item:nth-child(9) { transition-delay: 0.2s; }
-
-.nav-item::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.nav-item:hover::before {
-  left: 100%;
-}
-
-.nav-item:hover {
-  transform: translateY(-8px) scale(1.05);
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.3),
-    0 0 30px rgba(255, 255, 255, 0.1);
-}
-
-.nav-item.active {
-  background: #4ade80;
-  border-color: #4ade80;
-  box-shadow: 
-    0 20px 40px rgba(74, 222, 128, 0.4),
-    0 0 30px rgba(74, 222, 128, 0.3);
-  opacity: 1;
-  transform: scale(1);
-}
-
-.nav-item.active:hover {
-  background: #22c55e;
-  border-color: #22c55e;
-}
-
-.nav-item i {
-  font-size: 32px;
-  color: white;
-  transition: all 0.3s ease;
-}
-
-.nav-item:hover i {
-  transform: scale(1.2);
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
-}
-
-/* Individual item colors on hover */
-.nav-item:nth-child(1):hover { background: rgba(139, 69, 19, 0.3); border-color: #8b4513; }
-.nav-item:nth-child(2):hover { background: rgba(255, 193, 7, 0.3); border-color: #ffc107; }
-.nav-item:nth-child(3):hover { background: rgba(0, 123, 255, 0.3); border-color: #007bff; }
-.nav-item:nth-child(4):hover { background: rgba(220, 53, 69, 0.3); border-color: #dc3545; }
-.nav-item:nth-child(6):hover { background: rgba(108, 117, 125, 0.3); border-color: #6c757d; }
-.nav-item:nth-child(7):hover { background: rgba(102, 16, 242, 0.3); border-color: #6610f2; }
-.nav-item:nth-child(8):hover { background: rgba(253, 126, 20, 0.3); border-color: #fd7e14; }
-.nav-item:nth-child(9):hover { background: rgba(32, 201, 151, 0.3); border-color: #20c997; }
-
-/* Ripple effect */
-.nav-item {
-  position: relative;
-  overflow: hidden;
-}
-
-.nav-item::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
-}
-
-.nav-item:active::after {
-  width: 300px;
-  height: 300px;
-}
-
-@keyframes pulse-text {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .title {
-    font-size: 36px;
-    margin-bottom: 40px;
-  }
-  
-  .navigation {
-    width: 300px;
-    height: 300px;
-    gap: 15px;
-  }
-  
-  .nav-container {
-    padding: 30px;
-  }
-  
-  .nav-item i {
-    font-size: 24px;
-  }
-}`,
-    demoJs: `// 9 Dot Navigation Menu JavaScript
-// Add click functionality and ripple effects
-const navItems = document.querySelectorAll('.nav-item');
-
-navItems.forEach((item, index) => {
-  item.addEventListener('click', function() {
-    // Remove active class from all items
-    navItems.forEach(nav => nav.classList.remove('active'));
-    
-    // Add active class to clicked item
-    this.classList.add('active');
-    
-    // Optional: Add functionality for each item
-    const tooltips = [
-      'Coffee', 'Notifications', 'Weather', 'Camera', 
-      'Close', 'Settings', 'Games', 'Alarm', 'Profile'
-    ];
-    
-    console.log(\`Clicked: \${tooltips[index]}\`);
-    
-    // You can add navigation logic here
-    // For example: window.location.href = 'page.html';
-  });
-  
-  // Add hover sound effect (optional)
-  item.addEventListener('mouseenter', function() {
-    // You can add a subtle sound effect here if desired
-    this.style.transform = 'translateY(-8px) scale(1.05)';
-  });
-  
-  item.addEventListener('mouseleave', function() {
-    this.style.transform = '';
-  });
-});`
-},
-
-{
-    section: ["Learning", "CSS"],
-    program: {
-        name: "CSS",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
-    },
-    title: "CSS Social Media Icons with Hover Effects",
-    description: "Learn how to create stunning social media buttons with smooth hover animations, gradient backgrounds, and expandable text effects. This comprehensive example shows modern CSS techniques including backdrop-filter, transforms, and advanced hover states. Perfect for navigation bars, footers, or any social media integration.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/774fe8316c171aa235ad056ec3e0d7f9981ad5fa/Thumbnails/Screenshot%202025-08-19%20185150.png",
-    link: "Learn.html#css-social-media-icons-demo",
-    topic: "CSS Social Media Effects",
-    demoHtml: `<div class="social-container">
-  <h2 class="title">Connect With Me</h2>
-  
-  <a href="https://www.facebook.com" target="_blank" class="social-btn facebook">
-    <i class="fab fa-facebook-f"></i><span>Facebook</span>
-  </a>
-  
-  <a href="https://www.twitter.com" target="_blank" class="social-btn twitter">
-    <i class="fab fa-twitter"></i><span>Twitter</span>
-  </a>
-  
-  <a href="https://www.linkedin.com" target="_blank" class="social-btn linkedin">
-    <i class="fab fa-linkedin-in"></i><span>LinkedIn</span>
-  </a>
-  
-  <a href="https://www.youtube.com" target="_blank" class="social-btn youtube">
-    <i class="fab fa-youtube"></i><span>YouTube</span>
-  </a>
-  
-  <a href="https://www.instagram.com" target="_blank" class="social-btn instagram">
-    <i class="fab fa-instagram"></i><span>Instagram</span>
-  </a>
-  
-  <a href="https://www.github.com" target="_blank" class="social-btn github">
-    <i class="fab fa-github"></i><span>GitHub</span>
-  </a>
-</div>
-
-<!-- Font Awesome for icons -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">`,
-    demoCss: `/* Social Media Icons with Hover Effects */
-.social-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  position: relative;
-  z-index: 10;
-  padding: 30px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  border-radius: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  max-width: 300px;
-  margin: 20px auto;
-}
-
-.title {
-  text-align: center;
-  color: #333;
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 10px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.social-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 60px;
-  height: 60px;
-  padding: 0;
-  border-radius: 30px;
-  color: white;
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-}
-
-.social-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.social-btn:hover::before {
-  opacity: 1;
-}
-
-.social-btn i {
-  font-size: 22px;
-  color: white;
-  z-index: 2;
-  position: relative;
-  transition: transform 0.3s ease;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.social-btn span {
-  opacity: 0;
-  font-size: 16px;
-  font-weight: 600;
-  margin-left: 15px;
-  transition: all 0.3s ease;
-  position: absolute;
-  left: 45px;
-  z-index: 2;
-  white-space: nowrap;
-}
-
-.social-btn:hover {
-  width: 200px;
-  justify-content: flex-start;
-  padding-left: 18px;
-  transform: translateX(3px) scale(1.01);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
-}
-
-.social-btn:hover i {
-  transform: scale(1.05);
-}
-
-.social-btn:hover span {
-  opacity: 1;
-}
-
-.social-btn:active {
-  transform: translateX(3px) scale(0.99);
-}
-
-/* Platform-specific styles */
-.facebook {
-  background: linear-gradient(135deg, #1877f2 0%, #42a5f5 100%);
-}
-
-.facebook:hover {
-  background: linear-gradient(135deg, #166fe5 0%, #1877f2 100%);
-}
-
-.twitter {
-  background: linear-gradient(135deg, #1da1f2 0%, #64b5f6 100%);
-}
-
-.twitter:hover {
-  background: linear-gradient(135deg, #1a91da 0%, #1da1f2 100%);
-}
-
-.linkedin {
-  background: linear-gradient(135deg, #0077b5 0%, #2196f3 100%);
-}
-
-.linkedin:hover {
-  background: linear-gradient(135deg, #005885 0%, #0077b5 100%);
-}
-
-.youtube {
-  background: linear-gradient(135deg, #ff0000 0%, #ff5722 100%);
-}
-
-.youtube:hover {
-  background: linear-gradient(135deg, #cc0000 0%, #ff0000 100%);
-}
-
-.instagram {
-  background: linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%);
-}
-
-.instagram:hover {
-  background: linear-gradient(135deg, #732d9e 0%, #e01a1a 50%, #e8a03a 100%);
-}
-
-.github {
-  background: linear-gradient(135deg, #333 0%, #666 100%);
-}
-
-.github:hover {
-  background: linear-gradient(135deg, #222 0%, #333 100%);
-}
-
-/* Entry animation */
-.social-btn {
-  animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-  opacity: 0;
-  transform: translateX(-50px);
-}
-
-.social-btn:nth-child(2) { animation-delay: 0.1s; }
-.social-btn:nth-child(3) { animation-delay: 0.2s; }
-.social-btn:nth-child(4) { animation-delay: 0.3s; }
-.social-btn:nth-child(5) { animation-delay: 0.4s; }
-.social-btn:nth-child(6) { animation-delay: 0.5s; }
-.social-btn:nth-child(7) { animation-delay: 0.6s; }
-
-@keyframes slideInLeft {
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .social-container {
-    margin: 20px;
-    padding: 20px;
-  }
-  
-  .social-btn:hover {
-    width: 170px;
-  }
-  
-  .title {
-    font-size: 1.2rem;
-  }
-}`
-},
-
-
-
-{
-    section: ["Learning", "CSS"],
-    program: {
-        name: "CSS",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
-    },
-    title: "CSS Social Media Icons with Hover Effects",
-    description: "Learn how to create stunning social media buttons with smooth hover animations, gradient backgrounds, and expandable text effects. This comprehensive example shows modern CSS techniques including backdrop-filter, transforms, and advanced hover states. Perfect for navigation bars, footers, or any social media integration.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/774fe8316c171aa235ad056ec3e0d7f9981ad5fa/Thumbnails/Screenshot%202025-08-19%20185150.png",
-    link: "Learn.html#css-social-media-icons-demo",
-    topic: "CSS Social Media Effects",
-    demoHtml: `<div class="social-container">
-  <h2 class="title">Connect With Me</h2>
-  
-  <a href="https://www.facebook.com" target="_blank" class="social-btn facebook">
-    <i class="fab fa-facebook-f"></i><span>Facebook</span>
-  </a>
-  
-  <a href="https://www.twitter.com" target="_blank" class="social-btn twitter">
-    <i class="fab fa-twitter"></i><span>Twitter</span>
-  </a>
-  
-  <a href="https://www.linkedin.com" target="_blank" class="social-btn linkedin">
-    <i class="fab fa-linkedin-in"></i><span>LinkedIn</span>
-  </a>
-  
-  <a href="https://www.youtube.com" target="_blank" class="social-btn youtube">
-    <i class="fab fa-youtube"></i><span>YouTube</span>
-  </a>
-  
-  <a href="https://www.instagram.com" target="_blank" class="social-btn instagram">
-    <i class="fab fa-instagram"></i><span>Instagram</span>
-  </a>
-  
-  <a href="https://www.github.com" target="_blank" class="social-btn github">
-    <i class="fab fa-github"></i><span>GitHub</span>
-  </a>
-</div>
-
-<!-- Font Awesome for icons -->
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">`,
-    demoCss: `/* Social Media Icons with Hover Effects */
-.social-container {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  position: relative;
-  z-index: 10;
-  padding: 30px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  border-radius: 25px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  max-width: 300px;
-  margin: 20px auto;
-}
-
-.title {
-  text-align: center;
-  color: #333;
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 10px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.social-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 60px;
-  height: 60px;
-  padding: 0;
-  border-radius: 30px;
-  color: white;
-  text-decoration: none;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-}
-
-.social-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.social-btn:hover::before {
-  opacity: 1;
-}
-
-.social-btn i {
-  font-size: 22px;
-  color: white;
-  z-index: 2;
-  position: relative;
-  transition: transform 0.3s ease;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.social-btn span {
-  opacity: 0;
-  font-size: 16px;
-  font-weight: 600;
-  margin-left: 15px;
-  transition: all 0.3s ease;
-  position: absolute;
-  left: 45px;
-  z-index: 2;
-  white-space: nowrap;
-}
-
-.social-btn:hover {
-  width: 200px;
-  justify-content: flex-start;
-  padding-left: 18px;
-  transform: translateX(3px) scale(1.01);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
-}
-
-.social-btn:hover i {
-  transform: scale(1.05);
-}
-
-.social-btn:hover span {
-  opacity: 1;
-}
-
-.social-btn:active {
-  transform: translateX(3px) scale(0.99);
-}
-
-/* Platform-specific styles */
-.facebook {
-  background: linear-gradient(135deg, #1877f2 0%, #42a5f5 100%);
-}
-
-.facebook:hover {
-  background: linear-gradient(135deg, #166fe5 0%, #1877f2 100%);
-}
-
-.twitter {
-  background: linear-gradient(135deg, #1da1f2 0%, #64b5f6 100%);
-}
-
-.twitter:hover {
-  background: linear-gradient(135deg, #1a91da 0%, #1da1f2 100%);
-}
-
-.linkedin {
-  background: linear-gradient(135deg, #0077b5 0%, #2196f3 100%);
-}
-
-.linkedin:hover {
-  background: linear-gradient(135deg, #005885 0%, #0077b5 100%);
-}
-
-.youtube {
-  background: linear-gradient(135deg, #ff0000 0%, #ff5722 100%);
-}
-
-.youtube:hover {
-  background: linear-gradient(135deg, #cc0000 0%, #ff0000 100%);
-}
-
-.instagram {
-  background: linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%);
-}
-
-.instagram:hover {
-  background: linear-gradient(135deg, #732d9e 0%, #e01a1a 50%, #e8a03a 100%);
-}
-
-.github {
-  background: linear-gradient(135deg, #333 0%, #666 100%);
-}
-
-.github:hover {
-  background: linear-gradient(135deg, #222 0%, #333 100%);
-}
-
-/* Entry animation */
-.social-btn {
-  animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-  opacity: 0;
-  transform: translateX(-50px);
-}
-
-.social-btn:nth-child(2) { animation-delay: 0.1s; }
-.social-btn:nth-child(3) { animation-delay: 0.2s; }
-.social-btn:nth-child(4) { animation-delay: 0.3s; }
-.social-btn:nth-child(5) { animation-delay: 0.4s; }
-.social-btn:nth-child(6) { animation-delay: 0.5s; }
-.social-btn:nth-child(7) { animation-delay: 0.6s; }
-
-@keyframes slideInLeft {
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Responsive design */
-@media (max-width: 768px) {
-  .social-container {
-    margin: 20px;
-    padding: 20px;
-  }
-  
-  .social-btn:hover {
-    width: 170px;
-  }
-  
-  .title {
-    font-size: 1.2rem;
-  }
-}`
-},
-
-
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"AI",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/361ad8a40587881852dd710b33c9a5cdea0091bf/Thumbnails/aitoolsthumb9.22.png",
-https:"https://youtu.be/sNF-ewlfqmw",
- title:"Automate Any Task or Workflow with Zapier",
-        description:"In this video we cover an awesome AI tool called Zapier. It can be used to automate tasks by connecting over 6000 applications.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/361ad8a40587881852dd710b33c9a5cdea0091bf/Thumbnails/aitoolsthumb9.22.png",
-       link:"https://youtu.be/sNF-ewlfqmw",
-
-
-  related:
-  [
-      {
-          text:"Check it out on YouTube",
-          url:"https://youtu.be/sNF-ewlfqmw"
-      },
-      {
-            text:"Visit Zapier",
-            url:"https://www.zapier.com"
-      }
-  ],
-        topic:"Automate Tasks"
-    },
-
-
-
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7d4cae5047e954b54f512e3fd8ca3a3783d49a2/Thumbnails/glassmorphism9.22.png",
-https:"https://youtu.be/YhaGxBoY9PY",
- title:"Glass Morphism Effect",
-        description:"This sleek design technique adds a polished, modern aesthetic often seen in apps and websites — and now you can bring it into your slides.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7d4cae5047e954b54f512e3fd8ca3a3783d49a2/Thumbnails/glassmorphism9.22.png",
-       link:"https://youtu.be/YhaGxBoY9PY",
-
-
-  related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/YhaGxBoY9PY"
-        },
-        topic:"Glass Morphism Effect"
-    },
-
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
-https:"https://youtu.be/ers-81-bFO4",
- title:"Interactive Morph Template",
-        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
-       link:"https://youtu.be/ers-81-bFO4",
-
-
-  related: [
-        {
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/ers-81-bFO4"
-        },
-        {
-            text:"Template File Link",
-            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
-        }
-    ],
-        topic:"Interactive Morph Template"
-    },
-
-
-
-
-
-
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
-https:"https://youtu.be/y1gPf0kbf-Y",
- title:"Change Selected Cell Color",
-        description:"In this video we cover how to change the background color of specific cells in Excel.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
-       link:"https://youtu.be/y1gPf0kbf-Y",
-
-
-  related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/y1gPf0kbf-Y"
-        },
-        topic:"Change Selected Cell Color"
-    },
-
-
-
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
-https:"https://youtu.be/faXUCxA4Koc",
- title:"Formula for Number Series",
-        description:"In this video, we explore how to generate number series, date series, and text/ID series in Excel using modern formulas like SEQUENCE.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
-       link:"https://youtu.be/r4iBjEWwZ74",
-
-
-  related: [
-    {
-      text:"Check it out on YouTube",
-            url:"https://youtu.be/faXUCxA4Koc"
-        },
-    {
-       text:"Practice File Link",
-            url:"https://docs.google.com/spreadsheets/d/11cV9viIb-eCFkgkd5_2bbbBWRioGQQkw/export?format=xlsx"
-    }
-    ],
-        topic:"Formula for Number Series"
-    },
-
-
-
-
-
-
-
-
-
-
-  
-{
-    section: ["Learning", "CSS"],
-    program: {
-        name: "CSS",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
-    },
-    title: "CSS Cyberpunk Electric Button Effect",
-    description: "Create an electrifying cyberpunk button with lightning bolts, electric particles, and dynamic surge effects. This advanced CSS effect features electric field animations, particle systems, lightning decorations, and intense electric glitch effects. Perfect for high-tech or sci-fi themed interfaces with realistic electric discharge animations.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
-    link: "Learn.html#css-cyberpunk-electric-demo",
-    topic: "CSS Cyberpunk Effects",
-    demoHtml: `<div class="electric-container">
-  <!-- Electric background -->
-  <div class="electric-bg"></div>
-  
-  <!-- Animated electric grid -->
-  <div class="electric-grid"></div>
-  
-  <!-- Floating electric particles -->
-  <div class="electric-particles" id="electric-particles"></div>
-  
-  <!-- Main button -->
-  <div class="button-container">
-    <button class="electric-cyber-button" onclick="handleElectricClick()">
-      <div class="hud-frame"></div>
-      <div class="corner-element top-left"></div>
-      <div class="corner-element top-right"></div>
-      <div class="corner-element bottom-left"></div>
-      <div class="corner-element bottom-right"></div>
-      <div class="lightning-bolt bolt-1"></div>
-      <div class="lightning-bolt bolt-2"></div>
-      <div class="lightning-bolt bolt-3"></div>
-      <span class="text" data-text="CHARGE">CHARGE</span>
-      <div class="data-stream">
-        [VOLTAGE_001]<br>
-        [ELECTRIC_READY]<br>
-        [POWER_NOMINAL]<br>
-        [CHARGE_LEVEL_95%]
-      </div>
-    </button>
-  </div>
-  
-  <!-- Demo information -->
-  <div class="demo-info">
-    Hover to activate electric field<br>
-    Click to initiate power surge
-  </div>
-</div>`,
-    demoCss: `/* Import electric cyberpunk fonts */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono:wght@400&display=swap');
-
-.electric-container {
-  position: relative;
-  height: 400px;
-  background: linear-gradient(135deg, #000510 0%, #001122 25%, #001a33 50%, #000f1f 75%, #000008 100%);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Share Tech Mono', 'Orbitron', monospace;
-  overflow: hidden;
-  border-radius: 10px;
-  margin: 20px 0;
-}
-
-/* Electric field background */
-.electric-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 15% 70%, rgba(0, 255, 255, 0.12) 0%, transparent 40%),
-    radial-gradient(circle at 85% 30%, rgba(0, 128, 255, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(128, 0, 255, 0.06) 0%, transparent 60%);
-  animation: electricPulse 6s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-
-@keyframes electricPulse {
-  0% { 
-    filter: brightness(0.9) contrast(1.3);
-    transform: scale(1);
-  }
-  100% { 
-    filter: brightness(1.2) contrast(1.6);
-    transform: scale(1.03);
-  }
-}
-
-/* Electric grid pattern */
-.electric-grid {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 128, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(45deg, rgba(128, 0, 255, 0.025) 2px, transparent 2px);
-  background-size: 35px 35px, 35px 35px, 70px 70px;
-  animation: electricGridMove 15s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes electricGridMove {
-  0% { 
-    transform: translate(0, 0);
-    opacity: 0.7;
-  }
-  50% { 
-    opacity: 1;
-  }
-  100% { 
-    transform: translate(35px, 35px);
-    opacity: 0.7;
-  }
-}
-
-/* Electric particles floating */
-.electric-particles {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.particle {
-  position: absolute;
-  animation: particleFloat 12s infinite linear;
-}
-
-.particle.spark {
-  width: 3px;
-  height: 8px;
-  background: linear-gradient(180deg, #00ffff, #0080ff);
-  box-shadow: 0 0 8px #00ffff, 0 0 12px #00ffff;
-  border-radius: 1px;
-}
-
-.particle.bolt {
-  width: 1px;
-  height: 12px;
-  background: #ffffff;
-  box-shadow: 0 0 6px #00ffff, 0 0 10px #0080ff;
-}
-
-.particle.charge {
-  width: 2px;
-  height: 2px;
-  background: #8000ff;
-  box-shadow: 0 0 5px #8000ff;
-  border-radius: 50%;
-}
-
-@keyframes particleFloat {
-  0% { 
-    transform: translateY(100%) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  5% { opacity: 0.8; }
-  95% { opacity: 0.8; }
-  100% { 
-    transform: translateY(-15px) translateX(150px) rotate(360deg);
-    opacity: 0;
-  }
-}
-
-/* Main button container */
-.button-container {
-  position: relative;
-  z-index: 10;
-}
-
-/* Cyberpunk electric button */
-.electric-cyber-button {
-  position: relative;
-  padding: 30px 60px;
-  font-size: 24px;
-  font-weight: 700;
-  font-family: 'Orbitron', monospace;
-  text-transform: uppercase;
-  letter-spacing: 3px;
-  color: #00ffff;
-  background: linear-gradient(135deg, 
-    rgba(0, 255, 255, 0.15) 0%, 
-    rgba(0, 0, 0, 0.6) 30%, 
-    rgba(0, 128, 255, 0.12) 70%, 
-    rgba(128, 0, 255, 0.1) 100%);
-  border: 3px solid #00ffff;
-  cursor: pointer;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  
-  /* Electric angular corners */
-  clip-path: polygon(
-    0 0, 
-    calc(100% - 15px) 0, 
-    100% 15px, 
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%, 
-    8px 100%, 
-    0 calc(100% - 15px)
-  );
-  
-  /* Electric glow effect */
-  box-shadow: 
-    0 0 40px rgba(0, 255, 255, 0.4),
-    0 0 80px rgba(0, 128, 255, 0.2),
-    0 0 120px rgba(128, 0, 255, 0.15),
-    inset 0 0 40px rgba(0, 255, 255, 0.08);
-}
-
-/* Button text with electric styling */
-.electric-cyber-button .text {
-  position: relative;
-  z-index: 3;
-  display: block;
-  transition: all 0.3s ease;
-  text-shadow: 
-    0 0 20px rgba(0, 255, 255, 0.8),
-    2px 2px 6px rgba(0, 0, 0, 0.9);
-}
-
-/* Electric scanlines */
-.electric-cyber-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 255, 255, 0.08) 2px,
-    rgba(0, 255, 255, 0.08) 4px,
-    transparent 4px,
-    transparent 6px,
-    rgba(0, 128, 255, 0.06) 6px,
-    rgba(0, 128, 255, 0.06) 8px
-  );
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-/* Electric surge wave effect */
-.electric-cyber-button::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(0, 255, 255, 0.4) 15%,
-    rgba(255, 255, 255, 0.6) 50%,
-    rgba(0, 128, 255, 0.4) 85%,
-    transparent 100%
-  );
-  z-index: 2;
-  transition: left 0.4s ease;
-}
-
-/* Hover state - Electric activation */
-.electric-cyber-button:hover {
-  color: #ffffff;
-  border-color: #ffffff;
-  background: linear-gradient(135deg, 
-    rgba(0, 255, 255, 0.25) 0%, 
-    rgba(0, 0, 0, 0.7) 30%, 
-    rgba(0, 128, 255, 0.2) 70%, 
-    rgba(128, 0, 255, 0.15) 100%);
-  box-shadow: 
-    0 0 60px rgba(0, 255, 255, 0.6),
-    0 0 120px rgba(255, 255, 255, 0.4),
-    0 0 180px rgba(0, 128, 255, 0.3),
-    inset 0 0 60px rgba(0, 255, 255, 0.15);
-  transform: translateY(-5px) scale(1.02);
-}
-
-.electric-cyber-button:hover .text {
-  color: #ffffff;
-  text-shadow: 
-    0 0 25px rgba(255, 255, 255, 1),
-    0 0 35px rgba(0, 255, 255, 0.8),
-    2px 2px 8px rgba(0, 0, 0, 0.9);
-  animation: electricGlitch 0.3s ease-in-out;
-}
-
-.electric-cyber-button:hover::before {
-  opacity: 1;
-  animation: electricScan 0.3s ease-in-out;
-}
-
-.electric-cyber-button:hover::after {
-  left: 100%;
-}
-
-/* Electric glitch effect */
-@keyframes electricGlitch {
-  0%, 100% { 
-    transform: translate(0);
-    filter: contrast(1) brightness(1);
-  }
-  8% { 
-    transform: translate(-2px, 0);
-    filter: contrast(1.4) brightness(1.3);
-  }
-  16% { 
-    transform: translate(2px, -1px);
-    filter: contrast(0.8) brightness(0.8);
-  }
-  24% { 
-    transform: translate(0, 2px);
-    filter: contrast(1.2) brightness(1.2);
-  }
-  32% { 
-    transform: translate(-1px, 0);
-    filter: contrast(1.5) brightness(1.4);
-  }
-  48% { 
-    transform: translate(2px, -2px);
-    filter: contrast(0.9) brightness(0.9);
-  }
-  64% { 
-    transform: translate(0, 1px);
-    filter: contrast(1.1) brightness(1.1);
-  }
-  80% { 
-    transform: translate(-2px, 0);
-    filter: contrast(1.3) brightness(1.2);
-  }
-}
-
-@keyframes electricScan {
-  0% { 
-    background-position: 0 0;
-    opacity: 0.6;
-  }
-  50% { 
-    background-position: 0 -20px;
-    opacity: 1;
-  }
-  100% { 
-    background-position: 0 -40px;
-    opacity: 0.6;
-  }
-}
-
-/* Multi-layer electric glitch text */
-.electric-cyber-button:hover .text::before,
-.electric-cyber-button:hover .text::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-}
-
-.electric-cyber-button:hover .text::before {
-  animation: electricGlitch1 0.3s ease-in-out;
-  color: #00ffff;
-  text-shadow: 0 0 15px #00ffff;
-}
-
-.electric-cyber-button:hover .text::after {
-  animation: electricGlitch2 0.3s ease-in-out;
-  color: #8000ff;
-  text-shadow: 0 0 15px #8000ff;
-}
-
-@keyframes electricGlitch1 {
-  0%, 100% { transform: translate(0); }
-  20% { transform: translate(-2px, 1px); }
-  40% { transform: translate(2px, -2px); }
-  60% { transform: translate(-1px, -1px); }
-  80% { transform: translate(1px, 2px); }
-}
-
-@keyframes electricGlitch2 {
-  0%, 100% { transform: translate(0); }
-  15% { transform: translate(2px, -1px); }
-  35% { transform: translate(-2px, 2px); }
-  55% { transform: translate(2px, 1px); }
-  75% { transform: translate(-1px, -2px); }
-}
-
-/* Active/clicked state */
-.electric-cyber-button:active {
-  transform: translateY(-3px) scale(0.98);
-  box-shadow: 
-    0 0 100px rgba(255, 255, 255, 0.8),
-    0 0 150px rgba(0, 255, 255, 0.6),
-    0 0 200px rgba(0, 128, 255, 0.4),
-    inset 0 0 100px rgba(255, 255, 255, 0.25);
-}
-
-/* Electric corner elements */
-.corner-element {
-  position: absolute;
-  transition: all 0.3s ease;
-}
-
-.corner-element.top-left {
-  top: 8px;
-  left: 8px;
-  width: 12px;
-  height: 12px;
-  border-left: 2px solid #00ffff;
-  border-top: 2px solid #00ffff;
-}
-
-.corner-element.top-right {
-  top: 8px;
-  right: 8px;
-  width: 12px;
-  height: 12px;
-  border-right: 2px solid #00ffff;
-  border-top: 2px solid #00ffff;
-}
-
-.corner-element.bottom-left {
-  bottom: 8px;
-  left: 8px;
-  width: 12px;
-  height: 12px;
-  border-left: 2px solid #00ffff;
-  border-bottom: 2px solid #00ffff;
-}
-
-.corner-element.bottom-right {
-  bottom: 8px;
-  right: 8px;
-  width: 12px;
-  height: 12px;
-  border-right: 2px solid #00ffff;
-  border-bottom: 2px solid #00ffff;
-}
-
-.electric-cyber-button:hover .corner-element {
-  border-color: #ffffff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-  animation: cornerSpark 0.4s ease-in-out infinite alternate;
-}
-
-@keyframes cornerSpark {
-  0% { 
-    opacity: 1; 
-    transform: scale(1);
-    filter: brightness(1);
-  }
-  100% { 
-    opacity: 0.8; 
-    transform: scale(1.15);
-    filter: brightness(1.3);
-  }
-}
-
-/* Electric HUD frame */
-.hud-frame {
-  position: absolute;
-  top: -15px;
-  left: -15px;
-  right: -15px;
-  bottom: -15px;
-  border: 1px solid rgba(0, 255, 255, 0.3);
-  clip-path: polygon(
-    0 0, 
-    calc(100% - 20px) 0, 
-    100% 20px, 
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%, 
-    12px 100%, 
-    0 calc(100% - 20px)
-  );
-  transition: all 0.3s ease;
-  pointer-events: none;
-}
-
-.electric-cyber-button:hover .hud-frame {
-  border-color: rgba(255, 255, 255, 0.6);
-  animation: hudElectric 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes hudElectric {
-  0% { 
-    border-color: rgba(0, 255, 255, 0.4);
-    transform: scale(1);
-    filter: brightness(1);
-  }
-  100% { 
-    border-color: rgba(255, 255, 255, 0.8);
-    transform: scale(1.02);
-    filter: brightness(1.2);
-  }
-}
-
-/* Demo info with electric styling */
-.demo-info {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #00ffff;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
-  text-align: center;
-  opacity: 0.8;
-  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
-  animation: electricInfoPulse 4s ease-in-out infinite;
-}
-
-@keyframes electricInfoPulse {
-  0%, 100% { 
-    opacity: 0.8; 
-    color: #00ffff;
-  }
-  20% { 
-    opacity: 1; 
-    color: #ffffff;
-  }
-  40% { 
-    opacity: 0.9; 
-    color: #0080ff;
-  }
-  60% { 
-    opacity: 1; 
-    color: #8000ff;
-  }
-  80% { 
-    opacity: 0.95; 
-    color: #ffffff;
-  }
-}
-
-/* Electric data stream elements */
-.data-stream {
-  position: absolute;
-  top: 50%;
-  right: -100px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 8px;
-  color: #0080ff;
-  opacity: 0.4;
-  animation: dataElectricScroll 10s linear infinite;
-}
-
-@keyframes dataElectricScroll {
-  0% { transform: translateY(0); opacity: 0; }
-  10% { opacity: 0.4; }
-  90% { opacity: 0.4; }
-  100% { transform: translateY(-200px); opacity: 0; }
-}
-
-/* Lightning bolt decorations */
-.lightning-bolt {
-  position: absolute;
-  width: 2px;
-  height: 15px;
-  background: linear-gradient(180deg, #ffffff, #00ffff);
-  box-shadow: 0 0 8px #00ffff;
-  animation: lightningFlicker 2s ease-in-out infinite;
-  opacity: 0.6;
-}
-
-.lightning-bolt.bolt-1 {
-  top: 15px;
-  left: -25px;
-  transform: rotate(15deg);
-  animation-delay: 0s;
-}
-
-.lightning-bolt.bolt-2 {
-  bottom: 25px;
-  right: -20px;
-  transform: rotate(-20deg);
-  animation-delay: 0.7s;
-}
-
-.lightning-bolt.bolt-3 {
-  top: 60%;
-  left: -35px;
-  transform: rotate(25deg);
-  animation-delay: 1.2s;
-}
-
-@keyframes lightningFlicker {
-  0%, 90%, 100% { 
-    opacity: 0.6;
-    transform: scale(1) rotate(var(--rotation, 0deg));
-  }
-  5%, 85% { 
-    opacity: 1;
-    transform: scale(1.1) rotate(var(--rotation, 0deg));
-  }
-  10%, 80% { 
-    opacity: 0.3;
-    transform: scale(0.9) rotate(var(--rotation, 0deg));
-  }
-}`,
-    demoJs: `// Create electric particles
-function createElectricParticles() {
-  const particleContainer = document.getElementById('electric-particles');
-  if (!particleContainer) return;
-  
-  const particleCount = 20;
-  const particleTypes = ['spark', 'bolt', 'charge'];
-  
-  for (let i = 0; i < particleCount; i++) {
-    const particle = document.createElement('div');
-    particle.className = 'particle ' + particleTypes[Math.floor(Math.random() * particleTypes.length)];
-    particle.style.left = Math.random() * 100 + '%';
-    particle.style.animationDelay = Math.random() * 12 + 's';
-    particle.style.animationDuration = (10 + Math.random() * 8) + 's';
-    particleContainer.appendChild(particle);
-  }
-}
-
-// Handle electric button click
-function handleElectricClick() {
-  const button = document.querySelector('.electric-cyber-button');
-  const text = button.querySelector('.text');
-  
-  // Temporary text change
-  const originalText = text.textContent;
-  text.textContent = 'CHARGED';
-  text.style.color = '#ffffff';
-  text.style.textShadow = '0 0 30px #ffffff, 0 0 40px #00ffff, 0 0 50px #0080ff';
-  
-  // Add intense electric glitch effect
-  button.style.animation = 'electricScreenDistort 0.15s ease-in-out 4';
-  
-  // Reset after animation
-  setTimeout(() => {
-    text.textContent = originalText;
-    text.style.color = '';
-    text.style.textShadow = '';
-    button.style.animation = '';
-  }, 1200);
-  
-  // Create electric lightning burst
-  createElectricBurst();
-  
-  console.log('Electric Cyberpunk button charged! ⚡💙🔌');
-}
-
-// Electric burst effect
-function createElectricBurst() {
-  const button = document.querySelector('.electric-cyber-button');
-  const rect = button.getBoundingClientRect();
-  
-  for (let i = 0; i < 20; i++) {
-    const lightning = document.createElement('div');
-    lightning.style.position = 'fixed';
-    lightning.style.left = rect.left + rect.width/2 + 'px';
-    lightning.style.top = rect.top + rect.height/2 + 'px';
-    lightning.style.width = '2px';
-    lightning.style.height = (8 + Math.random() * 12) + 'px';
-    
-    // Electric colors
-    const colors = ['#00ffff', '#ffffff', '#0080ff', '#8000ff'];
-    const color = colors[i % colors.length];
-    lightning.style.background = 'linear-gradient(180deg, ' + color + ', ' + (color === '#ffffff' ? '#00ffff' : color === '#8000ff' ? '#4000ff' : '#003366') + ')';
-    lightning.style.boxShadow = '0 0 10px ' + color + ', 0 0 20px ' + color;
-    lightning.style.pointerEvents = 'none';
-    lightning.style.zIndex = '1000';
-    
-    // Create jagged lightning effect
-    if (i % 3 === 0) {
-      lightning.style.clipPath = 'polygon(40% 0%, 60% 35%, 80% 35%, 50% 100%, 30% 65%, 20% 65%)';
-      lightning.style.width = '6px';
-    } else if (i % 3 === 1) {
-      lightning.style.transform = 'rotate(' + (Math.random() * 60 - 30) + 'deg)';
-    }
-    
-    document.body.appendChild(lightning);
-    
-    const angle = (i / 20) * Math.PI * 2;
-    const distance = 80 + Math.random() * 60;
-    
-    lightning.animate([
-      {
-        transform: 'translate(0, 0) scale(1) rotate(0deg)',
-        opacity: 1
-      },
-      {
-        transform: 'translate(' + (Math.cos(angle) * distance) + 'px, ' + (Math.sin(angle) * distance) + 'px) scale(0.2) rotate(' + (Math.random() * 360) + 'deg)',
-        opacity: 0
-      }
-    ], {
-      duration: 800,
-      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-    }).onfinish = () => {
-      lightning.remove();
-    };
-  }
-}
-
-// Enhanced mouse interaction with electric effects
-document.addEventListener('DOMContentLoaded', function() {
-  createElectricParticles();
-  
-  const button = document.querySelector('.electric-cyber-button');
-  if (button) {
-    button.addEventListener('mouseenter', function() {
-      const rect = this.getBoundingClientRect();
-      
-      // Create electric static sparks
-      for (let i = 0; i < 8; i++) {
-        const staticSpark = document.createElement('div');
-        staticSpark.style.position = 'fixed';
-        staticSpark.style.left = rect.left + Math.random() * rect.width + 'px';
-        staticSpark.style.top = rect.top + Math.random() * rect.height + 'px';
-        staticSpark.style.width = '1px';
-        staticSpark.style.height = '6px';
-        
-        const sparkColors = ['#00ffff', '#ffffff', '#0080ff', '#8000ff'];
-        const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
-        staticSpark.style.background = sparkColor;
-        staticSpark.style.boxShadow = '0 0 8px ' + sparkColor + ', 0 0 12px ' + sparkColor;
-        staticSpark.style.pointerEvents = 'none';
-        staticSpark.style.zIndex = '999';
-        
-        document.body.appendChild(staticSpark);
-        
-        staticSpark.animate([
-          { 
-            opacity: 1, 
-            transform: 'scale(1) rotate(0deg)' 
-          },
-          { 
-            opacity: 0, 
-            transform: 'scale(0.3) rotate(180deg)' 
-          }
-        ], {
-          duration: 400,
-          easing: 'ease-out'
-        }).onfinish = () => {
-          staticSpark.remove();
-        };
-      }
-    });
-  }
-});`
-},
-
-{
-    section: ["Learning", "CSS"],
-    program: {
-        name: "CSS",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
-    },
-    title: "CSS Cyberpunk Thermal Button Effect",
-    description: "Create a stunning cyberpunk-inspired thermal button with industrial styling, floating debris, dynamic hover effects, and futuristic animations. This advanced CSS effect combines multiple animation techniques including glitch effects, thermal waves, industrial scanlines, and interactive particle systems. Perfect for sci-fi or gaming themed websites.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
-    link: "Learn.html#css-cyberpunk-thermal-demo",
-    topic: "CSS Cyberpunk Effects",
-    demoHtml: `<div class="cyberpunk-container">
-  <!-- Industrial background -->
-  <div class="industrial-bg"></div>
-  
-  <!-- Animated industrial grid -->
-  <div class="industrial-grid"></div>
-  
-  <!-- Floating industrial debris -->
-  <div class="industrial-debris" id="industrial-debris"></div>
-  
-  <!-- Main button -->
-  <div class="button-container">
-    <button class="industrial-cyber-button" onclick="handleIndustrialClick()">
-      <div class="hud-frame"></div>
-      <div class="corner-element top-left"></div>
-      <div class="corner-element top-right"></div>
-      <div class="corner-element bottom-left"></div>
-      <div class="corner-element bottom-right"></div>
-      <span class="text" data-text="BREACH">BREACH</span>
-      <div class="data-stream">
-        [DATA_STREAM_001]<br>
-        [THERMAL_READY]<br>
-        [SYSTEMS_NOMINAL]
-      </div>
-    </button>
-  </div>
-  
-  <!-- Demo information -->
-  <div class="demo-info">
-    Hover to activate thermal systems<br>
-    Click to initiate breach protocol
-  </div>
-</div>`,
-    demoCss: `/* Import cyberpunk fonts */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono:wght@400&display=swap');
-
-.cyberpunk-container {
-  position: relative;
-  height: 400px;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 25%, #2a1810 50%, #1a1a1a 75%, #0a0a0a 100%);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-family: 'Share Tech Mono', 'Orbitron', monospace;
-  overflow: hidden;
-  border-radius: 10px;
-  margin: 20px 0;
-}
-
-/* Industrial cityscape background */
-.industrial-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: 
-    radial-gradient(circle at 15% 70%, rgba(255, 165, 0, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 85% 30%, rgba(255, 69, 0, 0.06) 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, rgba(70, 130, 180, 0.04) 0%, transparent 60%);
-  animation: industrialPulse 8s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-
-@keyframes industrialPulse {
-  0% { 
-    filter: brightness(0.8) contrast(1.2);
-    transform: scale(1);
-  }
-  100% { 
-    filter: brightness(1.1) contrast(1.4);
-    transform: scale(1.02);
-  }
-}
-
-/* Gritty industrial grid */
-.industrial-grid {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    linear-gradient(rgba(255, 165, 0, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(70, 130, 180, 0.02) 1px, transparent 1px),
-    linear-gradient(45deg, rgba(255, 69, 0, 0.015) 2px, transparent 2px);
-  background-size: 40px 40px, 40px 40px, 80px 80px;
-  animation: industrialGridMove 20s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes industrialGridMove {
-  0% { 
-    transform: translate(0, 0);
-    opacity: 0.6;
-  }
-  50% { 
-    opacity: 0.8;
-  }
-  100% { 
-    transform: translate(40px, 40px);
-    opacity: 0.6;
-  }
-}
-
-/* Industrial floating debris */
-.industrial-debris {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-.debris {
-  position: absolute;
-  animation: debrisFloat 15s infinite linear;
-}
-
-.debris.spark {
-  width: 2px;
-  height: 6px;
-  background: linear-gradient(180deg, #ffa500, #ff4500);
-  box-shadow: 0 0 6px #ffa500;
-}
-
-.debris.dust {
-  width: 1px;
-  height: 1px;
-  background: #4682b4;
-  box-shadow: 0 0 4px #4682b4;
-  border-radius: 50%;
-}
-
-.debris.fragment {
-  width: 3px;
-  height: 3px;
-  background: #696969;
-  transform: rotate(45deg);
-}
-
-@keyframes debrisFloat {
-  0% { 
-    transform: translateY(100%) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  3% { opacity: 0.7; }
-  97% { opacity: 0.7; }
-  100% { 
-    transform: translateY(-10px) translateX(100px) rotate(180deg);
-    opacity: 0;
-  }
-}
-
-/* Main button container */
-.button-container {
-  position: relative;
-  z-index: 10;
-}
-
-/* Cyberpunk industrial button */
-.industrial-cyber-button {
-  position: relative;
-  padding: 30px 60px;
-  font-size: 24px;
-  font-weight: 700;
-  font-family: 'Orbitron', monospace;
-  text-transform: uppercase;
-  letter-spacing: 3px;
-  color: #ffa500;
-  background: linear-gradient(135deg, 
-    rgba(255, 165, 0, 0.1) 0%, 
-    rgba(0, 0, 0, 0.4) 30%, 
-    rgba(70, 130, 180, 0.08) 70%, 
-    rgba(255, 69, 0, 0.1) 100%);
-  border: 3px solid #ffa500;
-  cursor: pointer;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  
-  /* Industrial angular corners */
-  clip-path: polygon(
-    0 0, 
-    calc(100% - 15px) 0, 
-    100% 15px, 
-    100% calc(100% - 8px),
-    calc(100% - 8px) 100%, 
-    8px 100%, 
-    0 calc(100% - 15px)
-  );
-  
-  /* Industrial glow effect */
-  box-shadow: 
-    0 0 30px rgba(255, 165, 0, 0.3),
-    0 0 60px rgba(70, 130, 180, 0.15),
-    0 0 90px rgba(255, 69, 0, 0.1),
-    inset 0 0 30px rgba(255, 165, 0, 0.05);
-}
-
-/* Button text with industrial styling */
-.industrial-cyber-button .text {
-  position: relative;
-  z-index: 3;
-  display: block;
-  transition: all 0.3s ease;
-  text-shadow: 
-    0 0 15px rgba(255, 165, 0, 0.6),
-    2px 2px 4px rgba(0, 0, 0, 0.8);
-}
-
-/* Industrial scanlines */
-.industrial-cyber-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(255, 165, 0, 0.05) 3px,
-    rgba(255, 165, 0, 0.05) 6px,
-    transparent 6px,
-    transparent 9px,
-    rgba(70, 130, 180, 0.03) 9px,
-    rgba(70, 130, 180, 0.03) 12px
-  );
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-/* Industrial thermal wave effect */
-.industrial-cyber-button::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 165, 0, 0.3) 20%,
-    rgba(255, 69, 0, 0.5) 50%,
-    rgba(255, 165, 0, 0.3) 80%,
-    transparent 100%
-  );
-  z-index: 2;
-  transition: left 0.5s ease;
-}
-
-/* Hover state - Industrial thermal activation */
-.industrial-cyber-button:hover {
-  color: #ffffff;
-  border-color: #ff4500;
-  background: linear-gradient(135deg, 
-    rgba(255, 69, 0, 0.2) 0%, 
-    rgba(0, 0, 0, 0.6) 30%, 
-    rgba(70, 130, 180, 0.15) 70%, 
-    rgba(255, 165, 0, 0.2) 100%);
-  box-shadow: 
-    0 0 50px rgba(255, 69, 0, 0.5),
-    0 0 100px rgba(255, 165, 0, 0.3),
-    0 0 150px rgba(70, 130, 180, 0.2),
-    inset 0 0 50px rgba(255, 69, 0, 0.1);
-  transform: translateY(-4px) scale(1.01);
-}
-
-.industrial-cyber-button:hover .text {
-  color: #ffffff;
-  text-shadow: 
-    0 0 20px rgba(255, 69, 0, 0.8),
-    0 0 30px rgba(255, 165, 0, 0.6),
-    2px 2px 6px rgba(0, 0, 0, 0.9);
-  animation: industrialGlitch 0.4s ease-in-out;
-}
-
-.industrial-cyber-button:hover::before {
-  opacity: 1;
-  animation: industrialScan 0.4s ease-in-out;
-}
-
-.industrial-cyber-button:hover::after {
-  left: 100%;
-}
-
-/* Industrial glitch effect */
-@keyframes industrialGlitch {
-  0%, 100% { 
-    transform: translate(0);
-    filter: contrast(1) brightness(1);
-  }
-  10% { 
-    transform: translate(-1px, 0);
-    filter: contrast(1.2) brightness(1.1);
-  }
-  20% { 
-    transform: translate(1px, -1px);
-    filter: contrast(0.9) brightness(0.9);
-  }
-  30% { 
-    transform: translate(0, 1px);
-    filter: contrast(1.1) brightness(1.05);
-  }
-  40% { 
-    transform: translate(-1px, 0);
-    filter: contrast(1.15) brightness(1.08);
-  }
-  60% { 
-    transform: translate(1px, -1px);
-    filter: contrast(0.95) brightness(0.95);
-  }
-  80% { 
-    transform: translate(0, 1px);
-    filter: contrast(1.05) brightness(1.02);
-  }
-}
-
-@keyframes industrialScan {
-  0% { 
-    background-position: 0 0;
-    opacity: 0.5;
-  }
-  50% { 
-    background-position: 0 -15px;
-    opacity: 0.8;
-  }
-  100% { 
-    background-position: 0 -30px;
-    opacity: 0.5;
-  }
-}
-
-/* Multi-layer industrial glitch text */
-.industrial-cyber-button:hover .text::before,
-.industrial-cyber-button:hover .text::after {
-  content: attr(data-text);
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-}
-
-.industrial-cyber-button:hover .text::before {
-  animation: industrialGlitch1 0.4s ease-in-out;
-  color: #ff4500;
-  text-shadow: 0 0 10px #ff4500;
-}
-
-.industrial-cyber-button:hover .text::after {
-  animation: industrialGlitch2 0.4s ease-in-out;
-  color: #4682b4;
-  text-shadow: 0 0 10px #4682b4;
-}
-
-@keyframes industrialGlitch1 {
-  0%, 100% { transform: translate(0); }
-  25% { transform: translate(-1px, 1px); }
-  50% { transform: translate(1px, -1px); }
-  75% { transform: translate(-1px, -1px); }
-}
-
-@keyframes industrialGlitch2 {
-  0%, 100% { transform: translate(0); }
-  25% { transform: translate(1px, -1px); }
-  50% { transform: translate(-1px, 1px); }
-  75% { transform: translate(1px, 1px); }
-}
-
-/* Active/clicked state */
-.industrial-cyber-button:active {
-  transform: translateY(-2px) scale(0.99);
-  box-shadow: 
-    0 0 80px rgba(255, 69, 0, 0.8),
-    0 0 120px rgba(255, 165, 0, 0.6),
-    0 0 180px rgba(70, 130, 180, 0.4),
-    inset 0 0 80px rgba(255, 69, 0, 0.2);
-}
-
-/* Industrial corner elements */
-.corner-element {
-  position: absolute;
-  transition: all 0.3s ease;
-}
-
-.corner-element.top-left {
-  top: 8px;
-  left: 8px;
-  width: 12px;
-  height: 12px;
-  border-left: 2px solid #ffa500;
-  border-top: 2px solid #ffa500;
-}
-
-.corner-element.top-right {
-  top: 8px;
-  right: 8px;
-  width: 12px;
-  height: 12px;
-  border-right: 2px solid #ffa500;
-  border-top: 2px solid #ffa500;
-}
-
-.corner-element.bottom-left {
-  bottom: 8px;
-  left: 8px;
-  width: 12px;
-  height: 12px;
-  border-left: 2px solid #ffa500;
-  border-bottom: 2px solid #ffa500;
-}
-
-.corner-element.bottom-right {
-  bottom: 8px;
-  right: 8px;
-  width: 12px;
-  height: 12px;
-  border-right: 2px solid #ffa500;
-  border-bottom: 2px solid #ffa500;
-}
-
-.industrial-cyber-button:hover .corner-element {
-  border-color: #ff4500;
-  box-shadow: 0 0 8px rgba(255, 69, 0, 0.6);
-  animation: cornerFlicker 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes cornerFlicker {
-  0% { 
-    opacity: 1; 
-    transform: scale(1);
-  }
-  100% { 
-    opacity: 0.7; 
-    transform: scale(1.1);
-  }
-}
-
-/* Industrial HUD frame */
-.hud-frame {
-  position: absolute;
-  top: -15px;
-  left: -15px;
-  right: -15px;
-  bottom: -15px;
-  border: 1px solid rgba(255, 165, 0, 0.2);
-  clip-path: polygon(
-    0 0, 
-    calc(100% - 20px) 0, 
-    100% 20px, 
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%, 
-    12px 100%, 
-    0 calc(100% - 20px)
-  );
-  transition: all 0.3s ease;
-  pointer-events: none;
-}
-
-.industrial-cyber-button:hover .hud-frame {
-  border-color: rgba(255, 69, 0, 0.4);
-  animation: hudPulse 0.6s ease-in-out infinite alternate;
-}
-
-@keyframes hudPulse {
-  0% { 
-    border-color: rgba(255, 69, 0, 0.3);
-    transform: scale(1);
-  }
-  100% { 
-    border-color: rgba(255, 165, 0, 0.6);
-    transform: scale(1.01);
-  }
-}
-
-/* Demo info with industrial styling */
-.demo-info {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #ffa500;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 12px;
-  text-align: center;
-  opacity: 0.7;
-  text-shadow: 0 0 8px rgba(255, 165, 0, 0.4);
-  animation: industrialInfoPulse 3s ease-in-out infinite;
-}
-
-@keyframes industrialInfoPulse {
-  0%, 100% { 
-    opacity: 0.7; 
-    color: #ffa500;
-  }
-  25% { 
-    opacity: 0.9; 
-    color: #ff4500;
-  }
-  50% { 
-    opacity: 0.8; 
-    color: #4682b4;
-  }
-  75% { 
-    opacity: 0.9; 
-    color: #ff4500;
-  }
-}
-
-/* Data stream elements */
-.data-stream {
-  position: absolute;
-  top: 50%;
-  right: -80px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 8px;
-  color: #4682b4;
-  opacity: 0.3;
-  animation: dataScroll 8s linear infinite;
-}
-
-@keyframes dataScroll {
-  0% { transform: translateY(0); opacity: 0; }
-  10% { opacity: 0.3; }
-  90% { opacity: 0.3; }
-  100% { transform: translateY(-100px); opacity: 0; }
-}`,
-    demoJs: `// Create industrial debris particles
-function createIndustrialDebris() {
-  const debrisContainer = document.getElementById('industrial-debris');
-  if (!debrisContainer) return;
-  
-  const debrisCount = 15;
-  const debrisTypes = ['spark', 'dust', 'fragment'];
-  
-  for (let i = 0; i < debrisCount; i++) {
-    const debris = document.createElement('div');
-    debris.className = 'debris ' + debrisTypes[Math.floor(Math.random() * debrisTypes.length)];
-    debris.style.left = Math.random() * 100 + '%';
-    debris.style.animationDelay = Math.random() * 15 + 's';
-    debris.style.animationDuration = (12 + Math.random() * 8) + 's';
-    debrisContainer.appendChild(debris);
-  }
-}
-
-// Handle industrial button click
-function handleIndustrialClick() {
-  const button = document.querySelector('.industrial-cyber-button');
-  const text = button.querySelector('.text');
-  
-  // Temporary text change
-  const originalText = text.textContent;
-  text.textContent = 'BREACHED';
-  text.style.color = '#00ff00';
-  text.style.textShadow = '0 0 20px #00ff00, 0 0 30px #00ff00';
-  
-  // Add intense industrial glitch effect
-  button.style.animation = 'industrialScreenDistort 0.2s ease-in-out 3';
-  
-  // Reset after animation
-  setTimeout(() => {
-    text.textContent = originalText;
-    text.style.color = '';
-    text.style.textShadow = '';
-    button.style.animation = '';
-  }, 1000);
-  
-  // Create industrial sparks burst
-  createIndustrialSparks();
-  
-  console.log('Industrial Cyberpunk button breached! ⚡🔥💻');
-}
-
-// Industrial sparks burst effect
-function createIndustrialSparks() {
-  const button = document.querySelector('.industrial-cyber-button');
-  const rect = button.getBoundingClientRect();
-  
-  for (let i = 0; i < 15; i++) {
-    const spark = document.createElement('div');
-    spark.style.position = 'fixed';
-    spark.style.left = rect.left + rect.width/2 + 'px';
-    spark.style.top = rect.top + rect.height/2 + 'px';
-    spark.style.width = '3px';
-    spark.style.height = '8px';
-    
-    // Industrial spark colors
-    const colors = ['#ffa500', '#ff4500', '#4682b4'];
-    const color = colors[i % colors.length];
-    spark.style.background = 'linear-gradient(180deg, ' + color + ', ' + (color === '#4682b4' ? '#87ceeb' : '#8b0000') + ')';
-    spark.style.boxShadow = '0 0 8px ' + color;
-    spark.style.pointerEvents = 'none';
-    spark.style.zIndex = '1000';
-    
-    document.body.appendChild(spark);
-    
-    const angle = (i / 15) * Math.PI * 2;
-    const distance = 60 + Math.random() * 40;
-    
-    spark.animate([
-      {
-        transform: 'translate(0, 0) scale(1)',
-        opacity: 1
-      },
-      {
-        transform: 'translate(' + (Math.cos(angle) * distance) + 'px, ' + (Math.sin(angle) * distance) + 'px) scale(0.3)',
-        opacity: 0
-      }
-    ], {
-      duration: 600,
-      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-    }).onfinish = () => {
-      spark.remove();
-    };
-  }
-}
-
-// Enhanced mouse interaction with industrial effects
-document.addEventListener('DOMContentLoaded', function() {
-  createIndustrialDebris();
-  
-  const button = document.querySelector('.industrial-cyber-button');
-  if (button) {
-    button.addEventListener('mouseenter', function() {
-      const rect = this.getBoundingClientRect();
-      
-      // Create industrial static sparks
-      for (let i = 0; i < 6; i++) {
-        const staticSpark = document.createElement('div');
-        staticSpark.style.position = 'fixed';
-        staticSpark.style.left = rect.left + Math.random() * rect.width + 'px';
-        staticSpark.style.top = rect.top + Math.random() * rect.height + 'px';
-        staticSpark.style.width = '2px';
-        staticSpark.style.height = '4px';
-        
-        const sparkColors = ['#ffa500', '#ff4500', '#4682b4'];
-        const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
-        staticSpark.style.background = sparkColor;
-        staticSpark.style.boxShadow = '0 0 6px ' + sparkColor;
-        staticSpark.style.pointerEvents = 'none';
-        staticSpark.style.zIndex = '999';
-        
-        document.body.appendChild(staticSpark);
-        
-        staticSpark.animate([
-          { 
-            opacity: 1, 
-            transform: 'scale(1)' 
-          },
-          { 
-            opacity: 0, 
-            transform: 'scale(0.5)' 
-          }
-        ], {
-          duration: 300,
-          easing: 'ease-out'
-        }).onfinish = () => {
-          staticSpark.remove();
-        };
-      }
-    });
-  }
-});`
-},
-
-
-
-   // ===== TOOLS SECTION =====
-    // Simulations Program
-    // Simulation Downloads - Learning Items Only
-    {
-        section: ["Learning", "Coding"], 
-        program: {
-            name: "Simulations",
-            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
-        },
-        title: "Call Center Training Simulation",
-        description: "Download the complete HTML/CSS/JavaScript source code for an interactive call center training simulation. Study customer service workflows, verification processes, and performance tracking implementation.",
-        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
-        link: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t",
-        related: [
-            {
-                text: "Download code",
-                url: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t"
-            },
-            {
-                text: "Video on topic",
-                url: "https://youtu.be/VsivDUMm9lE"
-            }
-        ],
-        topic: "Simulation Examples"
-    },
-    {
-        section: ["Learning", "Coding"], 
-        program: {
-            name: "Simulations",
-            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
-        },
-        title: "Excel VLOOKUP Training Simulation",
-        description: "Download the complete HTML/CSS/JavaScript source code for an interactive Excel VLOOKUP training simulation. Learn step-by-step tutorial development with real-time feedback and validation.",
-        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
-        link: "https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_",
-        related: [
-            {
-                text:"Download code",
-                url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
-            },
-            {
-                text:"Video on topic",
-                url:"https://youtu.be/VsivDUMm9lE"
-            }
-        ],
-        topic: "Simulation Examples"
-    },
-
-
-{
-  
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
-        },
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
-        link:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l",
-        title:"Morph Transition Tutorial",
-        description:"Quick video on how to make a cool slide using morph transitions.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e81150277e03f88b43c271c2c9ff82174575ba01/Thumbnails/surfmorphtutorialthumbnail.png",
-       link:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l",
-         related:{
-           text:"Watch YouTube Video",
-           url:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l"
-       },
-       topic:"Morph Transition Tutorial",
-    },
-
-
-
-
 {
     section: [
         "Learning",
@@ -3929,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
         text: "Check it out on YouTube",
         url: "https://youtu.be/VsivDUMm9lE"
     },
-    topic: "Vibe Coding"
+    topic: "AI"
 },
 
 {
@@ -4578,6 +733,1592 @@ ctx.fillText('HTML Canvas', 10, 130);
 },
 
 {
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "9 Dot Interactive Navigation Menu",
+    description: "Learn how to create a stunning 9-dot grid navigation menu with smooth reveal animations, staggered timing effects, and interactive hover states. Features backdrop blur, glassmorphism design, and floating particle animations. Perfect for modern web interfaces and app-style navigation.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e60929327344cb1a9d8809e01c13096eb05175eb/Thumbnails/9dotnavmenuthumb.png",
+    link: "Learn.html#website-design-9dot-nav-menu",
+    topic: "Interactive Navigation",
+    demoHtml: `<!-- 9 Dot Navigation Menu -->
+<div class="nav-container">
+  <div class="navigation">
+    <div class="nav-item" data-tooltip="Coffee">
+      <i class="fas fa-coffee"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Notifications">
+      <i class="fas fa-bell"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Weather">
+      <i class="fas fa-cloud-rain"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Camera">
+      <i class="fas fa-camera"></i>
+    </div>
+    <div class="nav-item active" data-tooltip="Close">
+      <i class="fas fa-times"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Settings">
+      <i class="fas fa-cog"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Games">
+      <i class="fas fa-gamepad"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Alarm">
+      <i class="fas fa-clock"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Profile">
+      <i class="fas fa-user"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">`,
+    demoCss: `/* 9 Dot Navigation Menu Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  padding: 40px 20px;
+}
+
+.nav-container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.navigation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 20px;
+  width: 400px;
+  height: 400px;
+  position: relative;
+}
+
+.nav-item {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0);
+}
+
+/* Center item (trigger) - always visible */
+.nav-item:nth-child(5) {
+  opacity: 1;
+  transform: scale(1);
+  background: #4ade80;
+  border-color: #4ade80;
+  box-shadow: 
+    0 20px 40px rgba(74, 222, 128, 0.4),
+    0 0 30px rgba(74, 222, 128, 0.3);
+}
+
+/* Show all items when hovering over the navigation container */
+.navigation:hover .nav-item {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Staggered animation delays for smooth entrance */
+.navigation:hover .nav-item:nth-child(1) { transition-delay: 0.1s; }
+.navigation:hover .nav-item:nth-child(2) { transition-delay: 0.15s; }
+.navigation:hover .nav-item:nth-child(3) { transition-delay: 0.2s; }
+.navigation:hover .nav-item:nth-child(4) { transition-delay: 0.05s; }
+.navigation:hover .nav-item:nth-child(5) { transition-delay: 0s; } /* Center - no delay */
+.navigation:hover .nav-item:nth-child(6) { transition-delay: 0.05s; }
+.navigation:hover .nav-item:nth-child(7) { transition-delay: 0.2s; }
+.navigation:hover .nav-item:nth-child(8) { transition-delay: 0.15s; }
+.navigation:hover .nav-item:nth-child(9) { transition-delay: 0.1s; }
+
+/* When not hovering, hide items with reverse delay */
+.nav-item:nth-child(1) { transition-delay: 0.2s; }
+.nav-item:nth-child(2) { transition-delay: 0.15s; }
+.nav-item:nth-child(3) { transition-delay: 0.1s; }
+.nav-item:nth-child(4) { transition-delay: 0.25s; }
+.nav-item:nth-child(5) { transition-delay: 0s; } /* Center - always visible */
+.nav-item:nth-child(6) { transition-delay: 0.25s; }
+.nav-item:nth-child(7) { transition-delay: 0.1s; }
+.nav-item:nth-child(8) { transition-delay: 0.15s; }
+.nav-item:nth-child(9) { transition-delay: 0.2s; }
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.nav-item:hover::before {
+  left: 100%;
+}
+
+.nav-item:hover {
+  transform: translateY(-8px) scale(1.05);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(255, 255, 255, 0.1);
+}
+
+.nav-item.active {
+  background: #4ade80;
+  border-color: #4ade80;
+  box-shadow: 
+    0 20px 40px rgba(74, 222, 128, 0.4),
+    0 0 30px rgba(74, 222, 128, 0.3);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.nav-item.active:hover {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.nav-item i {
+  font-size: 32px;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.nav-item:hover i {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+/* Individual item colors on hover */
+.nav-item:nth-child(1):hover { background: rgba(139, 69, 19, 0.3); border-color: #8b4513; }
+.nav-item:nth-child(2):hover { background: rgba(255, 193, 7, 0.3); border-color: #ffc107; }
+.nav-item:nth-child(3):hover { background: rgba(0, 123, 255, 0.3); border-color: #007bff; }
+.nav-item:nth-child(4):hover { background: rgba(220, 53, 69, 0.3); border-color: #dc3545; }
+.nav-item:nth-child(6):hover { background: rgba(108, 117, 125, 0.3); border-color: #6c757d; }
+.nav-item:nth-child(7):hover { background: rgba(102, 16, 242, 0.3); border-color: #6610f2; }
+.nav-item:nth-child(8):hover { background: rgba(253, 126, 20, 0.3); border-color: #fd7e14; }
+.nav-item:nth-child(9):hover { background: rgba(32, 201, 151, 0.3); border-color: #20c997; }
+
+/* Ripple effect */
+.nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.nav-item:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .title {
+    font-size: 36px;
+    margin-bottom: 40px;
+  }
+  
+  .navigation {
+    width: 300px;
+    height: 300px;
+    gap: 15px;
+  }
+  
+  .nav-container {
+    padding: 30px;
+  }
+  
+  .nav-item i {
+    font-size: 24px;
+  }
+}`,
+    demoJs: `// 9 Dot Navigation Menu JavaScript
+// Add click functionality and ripple effects
+const navItems = document.querySelectorAll('.nav-item');
+
+navItems.forEach((item, index) => {
+  item.addEventListener('click', function() {
+    // Remove active class from all items
+    navItems.forEach(nav => nav.classList.remove('active'));
+    
+    // Add active class to clicked item
+    this.classList.add('active');
+    
+    // Optional: Add functionality for each item
+    const tooltips = [
+      'Coffee', 'Notifications', 'Weather', 'Camera', 
+      'Close', 'Settings', 'Games', 'Alarm', 'Profile'
+    ];
+    
+    console.log(\`Clicked: \${tooltips[index]}\`);
+    
+    // You can add navigation logic here
+    // For example: window.location.href = 'page.html';
+  });
+  
+  // Add hover sound effect (optional)
+  item.addEventListener('mouseenter', function() {
+    // You can add a subtle sound effect here if desired
+    this.style.transform = 'translateY(-8px) scale(1.05)';
+  });
+  
+  item.addEventListener('mouseleave', function() {
+    this.style.transform = '';
+  });
+});`
+},
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Professional Login Form with Validation",
+    description: "Learn how to create a modern, professional login form with advanced validation, password visibility toggle, loading states, and social authentication options. Features responsive design, accessibility compliance, and enterprise-grade styling perfect for business applications.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e60929327344cb1a9d8809e01c13096eb05175eb/Thumbnails/9dotnavmenuthumb.png",
+    link: "Learn.html#website-design-professional-login-form",
+    topic: "Form Design",
+    demoHtml: `<!-- Professional Login Form -->
+<div class="login-container">
+  <!-- Header -->
+  <div class="login-header">
+    <div class="logo">
+      <i class="fas fa-user-shield"></i>
+    </div>
+    <h1 class="login-title">Welcome Back</h1>
+    <p class="login-subtitle">Please sign in to your account to continue</p>
+  </div>
+
+  <!-- Login Form -->
+  <form class="login-form" id="loginForm">
+    <!-- Email Input -->
+    <div class="input-group">
+      <label for="email" class="input-label">
+        Email Address <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <i class="fas fa-envelope input-icon"></i>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          class="input-field" 
+          placeholder="Enter your email address" 
+          required
+        >
+      </div>
+      <div id="email-error" class="error-message"></div>
+    </div>
+
+    <!-- Password Input -->
+    <div class="input-group">
+      <label for="password" class="input-label">
+        Password <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <i class="fas fa-lock input-icon"></i>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="input-field" 
+          placeholder="Enter your password" 
+          required
+        >
+        <button 
+          type="button" 
+          class="password-toggle" 
+          onclick="togglePassword()"
+        >
+          <i class="fas fa-eye" id="password-icon"></i>
+        </button>
+      </div>
+      <div id="password-error" class="error-message"></div>
+    </div>
+
+    <!-- Remember Me & Forgot Password -->
+    <div class="remember-forgot">
+      <div class="remember-me">
+        <input type="checkbox" id="remember" name="remember" class="checkbox">
+        <label for="remember">Remember me</label>
+      </div>
+      <a href="#" class="forgot-link">Forgot Password?</a>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit" class="login-button" id="loginBtn">
+      <i class="fas fa-sign-in-alt"></i>
+      <span>Sign In</span>
+    </button>
+  </form>
+
+  <!-- Divider -->
+  <div class="divider">
+    <span class="divider-text">Or continue with</span>
+  </div>
+
+  <!-- Social Login -->
+  <div class="social-login">
+    <a href="#" class="social-button">
+      <i class="fab fa-google"></i>
+      <span>Google</span>
+    </a>
+    <a href="#" class="social-button">
+      <i class="fab fa-microsoft"></i>
+      <span>Microsoft</span>
+    </a>
+  </div>
+
+  <!-- Sign-up Link -->
+  <div class="signup-link">
+    Don't have an account? <a href="#">Sign up here</a>
+  </div>
+</div>
+
+<!-- Font Awesome -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">`,
+    demoCss: `/* Professional Login Form Styles */
+/* CSS Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* CSS Variables for consistent theming */
+:root {
+  --primary-color: #2563eb;
+  --primary-dark: #1d4ed8;
+  --secondary-color: #64748b;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --surface-color: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+}
+
+/* Body - creates full-height centered layout */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+/* Main login container */
+.login-container {
+  background: var(--surface-color);
+  padding: 2.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+}
+
+/* Header section */
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+/* Logo styling */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Title styling */
+.login-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Subtitle */
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Form styling */
+.login-form {
+  position: relative;
+}
+
+/* Input group container */
+.input-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+/* Input labels */
+.input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Required field indicator */
+.required {
+  color: var(--error-color);
+}
+
+/* Input wrapper */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Input icons */
+.input-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Input fields */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 2.75rem 0.75rem 2.5rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--surface-color);
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+/* Input focus state */
+.input-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Password toggle button */
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--text-primary);
+}
+
+/* Remember me section */
+.remember-forgot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkbox:checked {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.forgot-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+/* Login button */
+.login-button {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.login-button:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Loading state */
+.login-button.loading {
+  background: var(--secondary-color);
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Divider */
+.divider {
+  margin: 1.5rem 0;
+  position: relative;
+  text-align: center;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.divider-text {
+  background: var(--surface-color);
+  padding: 0 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Social login */
+.social-login {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.social-button {
+  flex: 1;
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  gap: 0.5rem;
+}
+
+.social-button:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* Sign-up link */
+.signup-link {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.signup-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-link a:hover {
+  text-decoration: underline;
+}
+
+/* Error messages */
+.error-message {
+  color: var(--error-color);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  min-height: 1rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .login-container {
+    padding: 2rem 1.5rem;
+    margin: 1rem;
+  }
+  
+  .login-title {
+    font-size: 1.5rem;
+  }
+  
+  .social-login {
+    flex-direction: column;
+  }
+}`,
+    demoJs: `// Professional Login Form JavaScript
+// Password visibility toggle
+function togglePassword() {
+  const passwordInput = document.getElementById('password');
+  const passwordIcon = document.getElementById('password-icon');
+  
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    passwordIcon.className = 'fas fa-eye-slash';
+  } else {
+    passwordInput.type = 'password';
+    passwordIcon.className = 'fas fa-eye';
+  }
+}
+
+// Form validation
+function validateForm() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const emailError = document.getElementById('email-error');
+  const passwordError = document.getElementById('password-error');
+  let isValid = true;
+
+  // Clear previous errors
+  emailError.textContent = '';
+  passwordError.textContent = '';
+
+  // Email validation
+  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+  if (!email) {
+    emailError.textContent = 'Email address is required.';
+    isValid = false;
+  } else if (!emailRegex.test(email)) {
+    emailError.textContent = 'Please enter a valid email address.';
+    isValid = false;
+  }
+
+  // Password validation
+  if (!password) {
+    passwordError.textContent = 'Password is required.';
+    isValid = false;
+  } else if (password.length < 6) {
+    passwordError.textContent = 'Password must be at least 6 characters long.';
+    isValid = false;
+  }
+
+  return isValid;
+}
+
+// Form submission handler
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  if (validateForm()) {
+    const loginBtn = document.getElementById('loginBtn');
+    const btnText = loginBtn.querySelector('span');
+    const btnIcon = loginBtn.querySelector('i');
+    
+    // Show loading state
+    loginBtn.classList.add('loading');
+    btnIcon.className = 'spinner';
+    btnText.textContent = 'Signing In...';
+    
+    // Simulate authentication
+    setTimeout(() => {
+      loginBtn.classList.remove('loading');
+      btnIcon.className = 'fas fa-check';
+      btnText.textContent = 'Success!';
+      
+      setTimeout(() => {
+        alert('Login successful!');
+        // Reset for demo
+        btnIcon.className = 'fas fa-sign-in-alt';
+        btnText.textContent = 'Sign In';
+      }, 1500);
+    }, 2000);
+  }
+});
+
+// Clear errors on input
+document.getElementById('email').addEventListener('input', function() {
+  document.getElementById('email-error').textContent = '';
+});
+
+document.getElementById('password').addEventListener('input', function() {
+  document.getElementById('password-error').textContent = '';
+});
+
+// Initialize form when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Professional Login Form initialized successfully');
+});`
+},
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Photo to Video Hover Effect",
+    description: "Learn how to create smooth photo-to-video hover transitions with fade effects. This interactive component demonstrates modern web techniques using CSS transforms, video controls, and smooth animations perfect for portfolio galleries and interactive media displays.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg",
+    link: "Learn.html#website-design-photo-video-hover",
+    topic: "Interactive Media",
+    demoHtml: `<!-- Photo to Video Hover Effect -->
+<div class="media-container">
+  <div class="media-wrapper">
+    <!-- Photo Layer -->
+    <div class="photo-layer">
+      <img 
+        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
+        alt="Surfing Photo"
+        class="surf-photo"
+      >
+    </div>
+    
+    <!-- Video Layer -->
+    <div class="video-layer">
+      <video 
+        class="surf-video" 
+        muted 
+        loop 
+        playsinline
+        preload="auto"
+        poster="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg"
+      >
+        <source 
+          src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9645f9d5ec4ac5e0b6776abdc8458b8f133833d1/Videos/Smaller%20Surf%20Video.mp4" 
+          type="video/mp4"
+        >
+        Your browser does not support the video tag.
+      </video>
+    </div>
+    
+    <!-- Overlay Info -->
+    <div class="media-overlay">
+      <div class="overlay-content">
+        <h3>Hover Effect</h3>
+        <p>Photo → Video</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Instructions -->
+  <div class="instructions">
+    <p>🎥 Click anywhere first, then hover over the image to see the video transition</p>
+    <button class="enable-video-btn" style="margin-top: 10px; padding: 8px 16px; background: #4a90e2; color: white; border: none; border-radius: 5px; cursor: pointer;">Click to Enable Video</button>
+  </div>
+</div>`,
+    demoCss: `/* Photo to Video Hover Effect Styles */
+.media-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.media-wrapper {
+  position: relative;
+  width: 320px;
+  height: 480px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.media-wrapper:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* Photo Layer */
+.photo-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.surf-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.8s ease;
+}
+
+/* Video Layer */
+.video-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.surf-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Hover Effects - JavaScript Controlled */
+.media-wrapper:hover .surf-photo {
+  transform: scale(1.1);
+}
+
+/* Video layer opacity controlled by JavaScript only */
+.video-layer.js-show {
+  opacity: 1;
+}
+
+.photo-layer.js-hide {
+  opacity: 0;
+}
+
+/* Media Overlay */
+.media-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.3),
+    transparent,
+    rgba(0, 0, 0, 0.3)
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 30px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.media-wrapper:hover .media-overlay {
+  opacity: 1;
+}
+
+.overlay-content {
+  text-align: center;
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 15px 25px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+.media-wrapper:hover .overlay-content {
+  transform: translateY(0);
+}
+
+.overlay-content h3 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-content p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Instructions */
+.instructions {
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.7;
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Loading Spinner for Video */
+.video-layer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 0.3s ease;
+}
+
+.video-layer.loading::before {
+  opacity: 1;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .media-wrapper {
+    width: 280px;
+    height: 420px;
+  }
+  
+  .media-container {
+    padding: 20px 10px;
+  }
+}
+
+/* Performance Optimizations */
+.media-wrapper {
+  will-change: transform;
+}
+
+.photo-layer,
+.video-layer {
+  will-change: opacity;
+}`,
+    demoJs: `// Photo to Video Hover Effect JavaScript - Fixed for Learning Module Context
+function initPhotoVideoHoverEffect() {
+  // Wait a bit for content to be fully rendered
+  setTimeout(() => {
+    // Use more specific selectors to avoid conflicts with other demos
+    const demoContainer = document.querySelector('#website-design-photo-video-hover');
+    if (!demoContainer) return;
+    
+    // Look inside the preview container where the actual demo content is nested
+    const previewContainer = demoContainer.querySelector('.css-live-preview');
+    if (!previewContainer) {
+      console.log('❌ Preview container not found in demo');
+      return;
+    }
+    
+    const mediaWrapper = previewContainer.querySelector('.media-wrapper');
+    const video = previewContainer.querySelector('.surf-video');
+    const videoLayer = previewContainer.querySelector('.video-layer');
+    const photoLayer = previewContainer.querySelector('.photo-layer');
+    
+    if (!mediaWrapper || !video || !videoLayer || !photoLayer) {
+      console.log('❌ Photo to Video elements not found in demo container');
+      return;
+    }
+    
+    let hasUserInteracted = false;
+    
+    // Preload video immediately on page load
+    video.load();
+    console.log('🎥 Video preloading started...');
+    
+    // Detect first user interaction to enable autoplay
+    document.addEventListener('click', function() {
+      hasUserInteracted = true;
+      console.log('✅ User interaction detected - video autoplay enabled');
+    }, { once: true });
+    
+    // Synchronized hover enter - control visibility and playback together
+    mediaWrapper.addEventListener('mouseenter', function() {
+      if (hasUserInteracted) {
+        // Start video first
+        video.currentTime = 0;
+        video.play().then(() => {
+          // Only show video if playback started successfully
+          photoLayer.classList.add('js-hide');
+          videoLayer.classList.add('js-show');
+          console.log('✅ Video playing and visible');
+        }).catch(e => {
+          console.warn('Video play failed, showing poster:', e);
+          // Fallback: show video layer (will show poster)
+          photoLayer.classList.add('js-hide');
+          videoLayer.classList.add('js-show');
+        });
+      } else {
+        console.log('💡 Click "Enable Video" button first');
+      }
+    });
+    
+    // Synchronized hover leave - hide video and pause
+    mediaWrapper.addEventListener('mouseleave', function() {
+      photoLayer.classList.remove('js-hide');
+      videoLayer.classList.remove('js-show');
+      video.pause();
+      console.log('📸 Showing photo, video paused');
+    });
+    
+    // Enable video button functionality
+    const enableVideoBtn = previewContainer.querySelector('.enable-video-btn');
+    if (enableVideoBtn) {
+      enableVideoBtn.addEventListener('click', function() {
+        hasUserInteracted = true;
+        this.style.background = '#28a745';
+        this.textContent = '✅ Video Enabled - Hover to Play';
+        this.disabled = true;
+        console.log('🎥 Video enabled by user interaction');
+      });
+    }
+    
+    // Click to toggle as fallback
+    mediaWrapper.addEventListener('click', function() {
+      hasUserInteracted = true;
+      if (videoLayer.classList.contains('js-show')) {
+        // Hide video, show photo
+        photoLayer.classList.remove('js-hide');
+        videoLayer.classList.remove('js-show');
+        video.pause();
+      } else {
+        // Show video, hide photo
+        video.currentTime = 0;
+        video.play().catch(e => console.log('Click play failed:', e));
+        photoLayer.classList.add('js-hide');
+        videoLayer.classList.add('js-show');
+      }
+    });
+    
+    // Initialize
+    console.log('🚀 Photo to Video Hover Effect initialized with synchronized playback');
+    
+  }, 500); // Wait 500ms for content to render
+}
+
+// Initialize when content loads or immediately if already loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPhotoVideoHoverEffect);
+} else {
+  initPhotoVideoHoverEffect();
+}`
+},
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Photo with Text Overlay on Hover",
+    description: "Learn how to create elegant text overlay effects that appear on photo hover. This component demonstrates smooth CSS animations, typography effects, and interactive design patterns perfect for image galleries, portfolios, and call-to-action elements.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg",
+    link: "Learn.html#website-design-photo-text-overlay",
+    topic: "Interactive Media",
+    demoHtml: `<!-- Photo with Text Overlay Effect -->
+<div class="photo-text-container">
+  <div class="photo-text-wrapper">
+    <!-- Photo -->
+    <div class="photo-section">
+      <img 
+        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
+        alt="Surfing Photo"
+        class="main-photo"
+      >
+      
+      <!-- Overlay Background -->
+      <div class="overlay-background"></div>
+      
+      <!-- Text Overlay -->
+      <div class="text-overlay">
+        <div class="text-content">
+          <h2 class="overlay-title">Learn Surfing</h2>
+          <p class="overlay-subtitle">Ride the waves with confidence</p>
+          <div class="overlay-button">
+            <span>Get Started</span>
+            <i class="arrow">→</i>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Photo Info -->
+    <div class="photo-info">
+      <div class="info-content">
+        <h3>Interactive Text Overlay</h3>
+        <p>Hover to reveal content</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Instructions -->
+  <div class="photo-instructions">
+    <p>✨ Hover over the image to see the text overlay effect</p>
+  </div>
+</div>`,
+    demoCss: `/* Photo with Text Overlay Styles */
+.photo-text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.photo-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Photo Section */
+.photo-section {
+  position: relative;
+  width: 320px;
+  height: 480px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.photo-section:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.main-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.6s ease;
+}
+
+.photo-section:hover .main-photo {
+  transform: scale(1.1);
+}
+
+/* Overlay Background */
+.overlay-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(17, 153, 142, 0.8),
+    rgba(45, 27, 105, 0.8)
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 1;
+}
+
+.photo-section:hover .overlay-background {
+  opacity: 1;
+}
+
+/* Text Overlay */
+.text-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition-delay: 0.1s;
+}
+
+.photo-section:hover .text-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.text-content {
+  text-align: center;
+  color: white;
+  padding: 30px;
+  max-width: 260px;
+}
+
+.overlay-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-title {
+  animation-delay: 0.2s;
+}
+
+.overlay-subtitle {
+  font-size: 16px;
+  font-weight: 400;
+  margin: 0 0 25px 0;
+  opacity: 0.9;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-subtitle {
+  animation-delay: 0.3s;
+}
+
+.overlay-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 30px;
+  padding: 12px 24px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-button {
+  animation-delay: 0.4s;
+}
+
+.overlay-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.arrow {
+  font-style: normal;
+  transition: transform 0.3s ease;
+}
+
+.overlay-button:hover .arrow {
+  transform: translateX(5px);
+}
+
+/* Slide in animation */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Photo Info */
+.photo-info {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+  color: white;
+  max-width: 320px;
+}
+
+.info-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.info-content p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Instructions */
+.photo-instructions {
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.7;
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Advanced Hover Effects */
+.photo-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.photo-section:hover::before {
+  opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .photo-section {
+    width: 280px;
+    height: 420px;
+  }
+  
+  .photo-text-container {
+    padding: 20px 10px;
+  }
+  
+  .overlay-title {
+    font-size: 28px;
+  }
+  
+  .text-content {
+    padding: 20px;
+  }
+}
+
+/* Performance Optimizations */
+.photo-section {
+  will-change: transform;
+}
+
+.text-overlay {
+  will-change: opacity, transform;
+}
+
+.main-photo {
+  will-change: transform;
+}`,
+    demoJs: `// Photo with Text Overlay JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+  const photoSection = document.querySelector('.photo-section');
+  const overlayButton = document.querySelector('.overlay-button');
+  
+  if (!photoSection) return;
+  
+  let isAnimating = false;
+  
+  // Enhanced hover enter
+  photoSection.addEventListener('mouseenter', function() {
+    if (isAnimating) return;
+    isAnimating = true;
+    
+    console.log('📸 Photo hover activated - showing text overlay');
+    
+    // Add visual feedback
+    this.style.transform = 'translateY(-8px) scale(1.02)';
+    
+    setTimeout(() => {
+      isAnimating = false;
+    }, 600);
+  });
+  
+  // Enhanced hover leave
+  photoSection.addEventListener('mouseleave', function() {
+    console.log('👋 Photo hover ended - hiding text overlay');
+    
+    // Reset transform
+    this.style.transform = '';
+  });
+  
+  // Button click handler
+  if (overlayButton) {
+    overlayButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      console.log('🏄‍♂️ Learn Surfing button clicked!');
+      
+      // Add click effect
+      this.style.transform = 'scale(0.95)';
+      
+      setTimeout(() => {
+        this.style.transform = '';
+        
+        // Simulate navigation or action
+        alert('🌊 Ready to learn surfing? This would navigate to a surfing course!');
+      }, 150);
+    });
+  }
+  
+  // Keyboard accessibility
+  photoSection.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.dispatchEvent(new Event('mouseenter'));
+      
+      setTimeout(() => {
+        this.dispatchEvent(new Event('mouseleave'));
+      }, 2000);
+    }
+  });
+  
+  // Focus management for accessibility
+  photoSection.setAttribute('tabindex', '0');
+  photoSection.setAttribute('role', 'button');
+  photoSection.setAttribute('aria-label', 'View surfing content with text overlay');
+  
+  // Performance optimization - preload overlay effects
+  const textOverlay = document.querySelector('.text-overlay');
+  if (textOverlay) {
+    // Warm up animations
+    textOverlay.style.willChange = 'opacity, transform';
+  }
+  
+  // Initialize
+  console.log('✨ Photo Text Overlay Effect initialized');
+  console.log('🎯 Hover over photo to see "Learn Surfing" text appear');
+});`
+},
+
+{
     section: ["Learning", "CSS"],
     program: {
         name: "CSS",
@@ -5027,10 +2768,8 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
     },
 
 
-
-
-
-{  
+{
+  
         section:"Templates",
         program:{
             name:"PowerPoint",
@@ -8904,7 +6643,62 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         topic:"Tab Management"
     },
 
+    // ===== TOOLS SECTION =====
+    // Simulations Program
+    {
+        section: ["Learning", "Tools"],
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png"
+        },
+        title: "Call Center Training Simulation",
+        description: "Interactive call center training simulation with realistic customer scenarios, verification processes, and performance tracking. Practice customer service skills in a safe environment.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
+        link: "Tools.html#call-center-simulation",
+        simulationType: "callcenter",
+        topic: "Customer Service Training"
+    },
+    {
+        section: ["Learning", "Tools"], 
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a331d0a27cc8cbf01bbb48c974b676f4c7ed475f/icons/Simicon.png"
+        },
+        title: "Excel VLOOKUP Master Training",
+        description: "Comprehensive interactive Excel VLOOKUP training simulation. Learn to build lookup formulas step-by-step with real-time feedback and validation in a realistic Excel environment.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
+        link: "Tools.html#vlookup-simulation",
+        simulationType: "vlookup",
+        topic: "Excel Training"
+    },
 
+    // Calculators Program  
+    {
+        section: ["Learning", "Tools"],
+        program: {
+            name: "Calculators",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
+        },
+        title: "Business Case Development Calculator",
+        description: "Comprehensive business case calculator for analyzing ROI, cost savings, revenue generation, and payback periods. Build compelling business cases with detailed financial projections and downloadable reports.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/businesscase.png",
+        link: "Tools.html#business-case-calculator",
+        calculatorType: "businesscase", 
+        topic: "Business Analysis"
+    },
+    {
+        section: ["Learning", "Tools"],
+        program: {
+            name: "Calculators",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
+        },
+        title: "Amortization Calculator",
+        description: "Calculate loan payments and view detailed amortization schedules. Enter loan amount, interest rate, and term to see monthly payments, total interest, and a complete payment breakdown by month.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/businesscase.png",
+        link: "Tools.html#amortization-calculator",
+        calculatorType: "amortization", 
+        topic: "Financial Analysis"
+    }
 
   ];  // <-- close the array here
 
