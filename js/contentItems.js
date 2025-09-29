@@ -77,7 +77,7 @@ window.contentItems = [
     description: "Learn how to create elegant text overlay effects that appear on photo hover. This component demonstrates smooth CSS animations, typography effects, and interactive design patterns perfect for image galleries, portfolios, and call-to-action elements.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
     link: "Learn.html#website-design-photo-text-overlay",
-    topic: "Interactive Media",
+    topic: "Hover Effects",
     demoHtml: `<!-- Photo with Text Overlay Effect -->
 <div class="photo-text-container">
   <div class="photo-text-wrapper">
@@ -473,9 +473,9 @@ document.addEventListener('DOMContentLoaded', function() {
     },
     title: "Photo to Video Hover Effect",
     description: "Learn how to create smooth photo-to-video hover transitions with fade effects. This interactive component demonstrates modern web techniques using CSS transforms, video controls, and smooth animations perfect for portfolio galleries and interactive media displays.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
     link: "Learn.html#website-design-photo-video-hover",
-    topic: "Interactive Media",
+    topic: "Hover Effects",
     demoHtml: `<!-- Photo to Video Hover Effect -->
 <div class="media-container">
   <div class="media-wrapper">
