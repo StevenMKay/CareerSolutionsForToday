@@ -76,7 +76,7 @@ window.contentItems = [
     },
     title: "Interactive Electric Border Effect",
     description: "Learn how to create a stunning interactive electric border effect with real-time controls. Features dynamic SVG filters, CSS animations, responsive design, and collapsible controls. Perfect for modern cards, buttons, or any UI element that needs an electrifying visual impact.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/17f8a8fc6ac84ed8954c68cf412964926d03aae2/Thumbnails/electricborderthumb.pptx",
     link: "Learn.html#website-design-electric-border-effect",
     topic: "Interactive Effects",
     demoHtml: `<!-- Interactive Electric Border Effect -->
