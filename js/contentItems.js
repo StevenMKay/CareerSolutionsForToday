@@ -68,6 +68,40 @@ if (window.contentItems) {
 window.contentItems = [
 
 
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
+https:"https://youtu.be/YZWG1oqnE6k",
+ title:"Automate Presentation Building with Beautiful.AI",
+        description:"In this video we cover a site called beautiful.ai, where you can create amazing presentations using AI prompts, templates, and more.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
+       link:"https://youtu.be/YZWG1oqnE6k",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/YZWG1oqnE6k"
+      },
+      {
+            text:"Visit Zapier",
+            url:"https://www.beautiful.ai/"
+      }
+  ],
+        topic:"Automate Presentations"
+    },
+
+  
+
 {
     section: ["Learning", "Website Design"],
     program: {
