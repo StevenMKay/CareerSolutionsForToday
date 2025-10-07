@@ -93,7 +93,7 @@ https:"https://youtu.be/YZWG1oqnE6k",
           url:"https://youtu.be/YZWG1oqnE6k"
       },
       {
-            text:"Visit Zapier",
+            text:"Visit Beautiful.AI",
             url:"https://www.beautiful.ai/"
       }
   ],
