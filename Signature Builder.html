@@ -68,6 +68,28 @@
     .photo-size-control { margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 8px; }
     .photo-size-control label { display: block; font-size: 0.9rem; margin-bottom: 8px; font-weight: 500; }
     .photo-size-slider { width: 100%; cursor: pointer; }
+    
+    /* Crop Modal */
+    .crop-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; }
+    .crop-modal.active { display: flex; }
+    .crop-container { background: white; border-radius: 12px; padding: 20px; max-width: 600px; width: 90%; max-height: 90vh; overflow: auto; }
+    .crop-container h3 { margin: 0 0 15px; color: #0b4f6c; }
+    .crop-canvas-wrapper { position: relative; max-width: 500px; margin: 0 auto 20px; background: #f0f0f0; border: 2px solid #d1d5db; border-radius: 8px; overflow: hidden; }
+    .crop-canvas { display: block; max-width: 100%; cursor: move; }
+    .crop-overlay { position: absolute; border: 2px dashed #0b4f6c; background: rgba(11, 79, 108, 0.1); cursor: move; }
+    .crop-handle { position: absolute; width: 12px; height: 12px; background: #0b4f6c; border: 2px solid white; border-radius: 50%; }
+    .crop-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+    .crop-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+    .crop-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+    .crop-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+    .crop-buttons { display: flex; gap: 10px; justify-content: center; }
+    .crop-preview { margin: 15px 0; text-align: center; }
+    .crop-preview img { max-width: 150px; max-height: 150px; border: 2px solid #e5e7eb; border-radius: 8px; }
+    .zoom-controls { display: flex; gap: 10px; justify-content: center; align-items: center; margin: 15px 0; }
+    .zoom-btn { width: 40px; height: 40px; border: none; border-radius: 8px; background: #0b4f6c; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease; }
+    .zoom-btn:hover { background: #1976d2; transform: scale(1.05); }
+    .zoom-btn:active { transform: scale(0.95); }
+    .zoom-label { font-size: 0.9rem; color: #666; }
 
     /* ===== Signature preview ===== */
     .signature-preview { background: #ffffff; border-radius:10px; border:1px solid #e5e7eb; padding:18px; }
@@ -203,14 +225,37 @@
   <!-- Tiny toast -->
   <div id="toast" style="position:fixed; right:20px; top:20px; background:#10b981; color:#fff; padding:10px 14px; border-radius:8px; opacity:0; transform:translateY(-10px); transition:all .25s;">copied</div>
 
+  <!-- Crop Modal -->
+  <div id="cropModal" class="crop-modal">
+    <div class="crop-container">
+      <h3>Crop & Adjust Image</h3>
+      <p style="font-size: 0.85rem; color: #666; margin: 0 0 12px;">Drag the crop area to reposition. Use zoom controls or mouse wheel to adjust size.</p>
+      <div class="crop-canvas-wrapper" id="cropCanvasWrapper">
+        <canvas id="cropCanvas" class="crop-canvas"></canvas>
+      </div>
+      <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+        <span class="zoom-label">Zoom</span>
+        <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</button>
+      </div>
+      <div class="crop-preview">
+        <label style="font-size: 0.9rem; font-weight: 500; display: block; margin-bottom: 8px;">Preview:</label>
+        <canvas id="cropPreviewCanvas" style="max-width: 150px; max-height: 150px; border: 2px solid #e5e7eb; border-radius: 8px;"></canvas>
+      </div>
+      <div class="crop-buttons">
+        <button class="btn btn-ghost" onclick="cancelCrop()">Cancel</button>
+        <button class="btn btn-success" onclick="applyCrop()">✓ Apply Crop</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ===== State =====
     let textFields = [
       { id: '1', label: 'Full Name', value: 'John Doe', type: 'text' },
       { id: '2', label: 'Job Title', value: 'Senior Developer', type: 'text' },
-      { id: '3', label: 'Company', value: 'Tech Corp', type: 'text' },
-      { id: '4', label: 'Phone', value: '+1 (555) 123-4567', type: 'tel' },
-      { id: '5', label: 'Email', value: 'john.doe@techcorp.com', type: 'email' }
+      { id: '3', label: 'Phone', value: '+1 (555) 123-4567', type: 'tel' },
+      { id: '4', label: 'Email', value: 'john.doe@techcorp.com', type: 'email' }
     ];
 
     let iconStyle = 'square'; // default to square icons
@@ -307,43 +352,248 @@
         </div>`).join('');
     }
 
-    // ===== Image uploads (with aspect ratio correction) =====
+    // ===== Crop Modal State =====
+    let cropState = {
+      image: null,
+      canvas: null,
+      ctx: null,
+      cropX: 0,
+      cropY: 0,
+      cropSize: 0,
+      scale: 1,
+      isDragging: false,
+      dragStartX: 0,
+      dragStartY: 0,
+      currentKey: null,
+      previewId: null,
+      boxId: null
+    };
+
+    // ===== Image uploads (with interactive cropping) =====
     function wireUpload(boxId, inputId, previewId, imagesKey){
       $(boxId).addEventListener('click', ()=> $(inputId).click());
       $(inputId).addEventListener('change', e=>{
         const f=e.target.files[0]; if(!f) return; const reader=new FileReader();
         reader.onload=ev=>{ 
-          // Create image to get dimensions
           const img = new Image();
           img.onload = function() {
-            // Create canvas for cropping to square
-            const canvas = document.createElement('canvas');
-            const size = Math.min(img.width, img.height);
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            
-            // Calculate center crop
-            const startX = (img.width - size) / 2;
-            const startY = (img.height - size) / 2;
-            ctx.drawImage(img, startX, startY, size, size, 0, 0, size, size);
-            
-            // Convert back to data URL
-            images[imagesKey] = canvas.toDataURL('image/jpeg', 0.9);
-            $(previewId).innerHTML=`<img src="${images[imagesKey]}" class="image-preview" alt=""/>`;
-            $(boxId).classList.add('has-image');
-            
-            // Show photo size control for profile photo
-            if(imagesKey === 'profile') {
-              $('#photoSizeControl').style.display = 'block';
-            }
-            
-            updatePreview();
+            openCropModal(img, imagesKey, previewId, boxId);
           };
           img.src = ev.target.result;
         };
         reader.readAsDataURL(f);
       });
+    }
+    
+    function openCropModal(img, imagesKey, previewId, boxId) {
+      cropState.image = img;
+      cropState.currentKey = imagesKey;
+      cropState.previewId = previewId;
+      cropState.boxId = boxId;
+      
+      const modal = $('#cropModal');
+      const canvas = $('#cropCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Calculate canvas size to fit image
+      const maxSize = 500;
+      let canvasWidth = img.width;
+      let canvasHeight = img.height;
+      
+      if (canvasWidth > maxSize || canvasHeight > maxSize) {
+        const scale = Math.min(maxSize / canvasWidth, maxSize / canvasHeight);
+        canvasWidth *= scale;
+        canvasHeight *= scale;
+        cropState.scale = scale;
+      } else {
+        cropState.scale = 1;
+      }
+      
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+      
+      // Initialize crop area (centered square)
+      const cropSize = Math.min(canvasWidth, canvasHeight) * 0.8;
+      cropState.cropX = (canvasWidth - cropSize) / 2;
+      cropState.cropY = (canvasHeight - cropSize) / 2;
+      cropState.cropSize = cropSize;
+      
+      // Show modal and draw initial crop
+      modal.classList.add('active');
+      drawCropOverlay();
+      updateCropPreview();
+      
+      // Add drag events
+      canvas.onmousedown = startDrag;
+      canvas.onmousemove = doDrag;
+      canvas.onmouseup = endDrag;
+      canvas.onmouseleave = endDrag;
+      
+      // Add scroll zoom
+      canvas.onwheel = (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -20 : 20;
+        const newSize = Math.max(50, Math.min(Math.min(canvas.width, canvas.height), cropState.cropSize + delta));
+        
+        // Adjust position to keep crop centered
+        const centerX = cropState.cropX + cropState.cropSize / 2;
+        const centerY = cropState.cropY + cropState.cropSize / 2;
+        
+        cropState.cropSize = newSize;
+        cropState.cropX = Math.max(0, Math.min(centerX - newSize / 2, canvas.width - newSize));
+        cropState.cropY = Math.max(0, Math.min(centerY - newSize / 2, canvas.height - newSize));
+        
+        drawCropOverlay();
+        updateCropPreview();
+      };
+    }
+    
+    function drawCropOverlay() {
+      const canvas = $('#cropCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Redraw image
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(cropState.image, 0, 0, canvas.width, canvas.height);
+      
+      // Draw dimmed overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Clear crop area
+      ctx.clearRect(cropState.cropX, cropState.cropY, cropState.cropSize, cropState.cropSize);
+      ctx.drawImage(
+        cropState.image,
+        cropState.cropX / cropState.scale, cropState.cropY / cropState.scale,
+        cropState.cropSize / cropState.scale, cropState.cropSize / cropState.scale,
+        cropState.cropX, cropState.cropY, cropState.cropSize, cropState.cropSize
+      );
+      
+      // Draw crop border
+      ctx.strokeStyle = '#0b4f6c';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(cropState.cropX, cropState.cropY, cropState.cropSize, cropState.cropSize);
+      ctx.setLineDash([]);
+    }
+    
+    function updateCropPreview() {
+      const previewCanvas = $('#cropPreviewCanvas');
+      const previewSize = 150;
+      previewCanvas.width = previewSize;
+      previewCanvas.height = previewSize;
+      const previewCtx = previewCanvas.getContext('2d');
+      
+      previewCtx.drawImage(
+        cropState.image,
+        cropState.cropX / cropState.scale, cropState.cropY / cropState.scale,
+        cropState.cropSize / cropState.scale, cropState.cropSize / cropState.scale,
+        0, 0, previewSize, previewSize
+      );
+    }
+    
+    function startDrag(e) {
+      const rect = $('#cropCanvas').getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Check if click is inside crop area
+      if (x >= cropState.cropX && x <= cropState.cropX + cropState.cropSize &&
+          y >= cropState.cropY && y <= cropState.cropY + cropState.cropSize) {
+        cropState.isDragging = true;
+        cropState.dragStartX = x - cropState.cropX;
+        cropState.dragStartY = y - cropState.cropY;
+      }
+    }
+    
+    function doDrag(e) {
+      if (!cropState.isDragging) return;
+      
+      const rect = $('#cropCanvas').getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Calculate new position
+      let newX = x - cropState.dragStartX;
+      let newY = y - cropState.dragStartY;
+      
+      // Keep crop area within bounds
+      const canvas = $('#cropCanvas');
+      newX = Math.max(0, Math.min(newX, canvas.width - cropState.cropSize));
+      newY = Math.max(0, Math.min(newY, canvas.height - cropState.cropSize));
+      
+      cropState.cropX = newX;
+      cropState.cropY = newY;
+      
+      drawCropOverlay();
+      updateCropPreview();
+    }
+    
+    function endDrag() {
+      cropState.isDragging = false;
+    }
+    
+    function applyCrop() {
+      const outputCanvas = document.createElement('canvas');
+      const outputSize = 800; // High quality output
+      outputCanvas.width = outputSize;
+      outputCanvas.height = outputSize;
+      const outputCtx = outputCanvas.getContext('2d', { alpha: true });
+      
+      // Draw cropped area with transparency support
+      outputCtx.drawImage(
+        cropState.image,
+        cropState.cropX / cropState.scale, cropState.cropY / cropState.scale,
+        cropState.cropSize / cropState.scale, cropState.cropSize / cropState.scale,
+        0, 0, outputSize, outputSize
+      );
+      
+      // Convert to PNG to preserve transparency
+      images[cropState.currentKey] = outputCanvas.toDataURL('image/png', 1.0);
+      $(cropState.previewId).innerHTML = `<img src="${images[cropState.currentKey]}" class="image-preview" alt=""/>`;
+      $(cropState.boxId).classList.add('has-image');
+      
+      // Show photo size control for profile photo
+      if(cropState.currentKey === 'profile') {
+        $('#photoSizeControl').style.display = 'block';
+      }
+      
+      updatePreview();
+      closeCropModal();
+    }
+    
+    function cancelCrop() {
+      closeCropModal();
+    }
+    
+    function closeCropModal() {
+      $('#cropModal').classList.remove('active');
+      cropState = { image: null, canvas: null, ctx: null, cropX: 0, cropY: 0, cropSize: 0, scale: 1, isDragging: false, dragStartX: 0, dragStartY: 0, currentKey: null, previewId: null, boxId: null };
+    }
+    
+    function zoomIn() {
+      adjustZoom(30);
+    }
+    
+    function zoomOut() {
+      adjustZoom(-30);
+    }
+    
+    function adjustZoom(delta) {
+      const canvas = $('#cropCanvas');
+      const newSize = Math.max(50, Math.min(Math.min(canvas.width, canvas.height), cropState.cropSize + delta));
+      
+      // Adjust position to keep crop centered
+      const centerX = cropState.cropX + cropState.cropSize / 2;
+      const centerY = cropState.cropY + cropState.cropSize / 2;
+      
+      cropState.cropSize = newSize;
+      cropState.cropX = Math.max(0, Math.min(centerX - newSize / 2, canvas.width - newSize));
+      cropState.cropY = Math.max(0, Math.min(centerY - newSize / 2, canvas.height - newSize));
+      
+      drawCropOverlay();
+      updateCropPreview();
     }
 
     // ===== Preview =====
