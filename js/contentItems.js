@@ -74,59 +74,70 @@ window.contentItems = [
         name: "CSS",
         image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
     },
-    title: "CSS Cosmic Galaxy Button with Particle Effects",
-    description: "Create a stunning cosmic button with particle animations and galaxy effects. Features rotating stars, dynamic glow effects, and smooth hover transitions. This advanced CSS button uses custom properties, 3D transforms, and JavaScript-powered particle systems for a mesmerizing space-themed interaction.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
-    link: "Cosmic Button.html",
+    title: "CSS Cosmic Galaxy Button",
+    description: "Create a stunning cosmic button with particle animations, galaxy effects, and interactive text changes. Features three states: Cosmic (default), Journey (on hover with purple glow), and Warp Speed (on click with green glow). Includes particle systems, 3D transforms, and smooth state transitions.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2c77a5197be5cf69fde4447b64ff7562578b33fc/Thumbnails/Warp%20Speed%20Thumb.png",
+    link: "Learn.html#css-cosmic-button-demo",
     topic: "CSS Button Effects",
-    demoHtml: `<div class="galaxy-button">
-  <button class="cosmic-btn">
-    <span class="spark"></span>
-    <span class="backdrop"></span>
-    <span class="galaxy__container">
-      <span class="star star--static"></span>
-      <span class="star star--static"></span>
-      <span class="star star--static"></span>
-      <span class="star star--static"></span>
-    </span>
-    <span class="galaxy">
-      <span class="galaxy__ring">
-        <span class="star"></span>
-        <span class="star"></span>
-        <span class="star"></span>
-        <span class="star"></span>
-        <span class="star"></span>
+    demoHtml: `<div class="cosmic-demo-container">
+  <div class="galaxy-button">
+    <button class="cosmic-btn" id="cosmicBtn">
+      <span class="spark"></span>
+      <span class="backdrop"></span>
+      <span class="galaxy__container">
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
       </span>
-    </span>
-    <span class="text">Cosmic</span>
-  </button>
+      <span class="galaxy">
+        <span class="galaxy__ring">
+          <span class="star"></span>
+          <span class="star"></span>
+          <span class="star"></span>
+          <span class="star"></span>
+          <span class="star"></span>
+        </span>
+      </span>
+      <span class="text" id="cosmicText">Cosmic</span>
+    </button>
+  </div>
+  <p style="color: white; text-align: center; margin-top: 20px; font-size: 0.9rem;">
+    Hover to see "Journey" • Click for "Warp Speed"
+  </p>
 </div>`,
     demoCss: `/* Cosmic Galaxy Button */
-:root {
-  --hue: 275;
-  --transition: 0.25s;
+.cosmic-demo-container {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1a0033, #0a0015);
+  border-radius: 10px;
+  padding: 40px 20px;
+  position: relative;
+  overflow: hidden;
 }
 
 .galaxy-button {
   position: relative;
-  display: inline-block;
 }
 
 .cosmic-btn {
+  --hue: 275;
   --active: 0;
-  --bg: hsl(var(--hue) calc(var(--active) * 100%) calc(12% - (var(--active) * 8%)));
-  background: var(--bg);
-  font-size: 2rem;
+  --transition: 0.25s;
+  background: hsl(var(--hue) calc(var(--active) * 100%) calc(12% - (var(--active) * 8%)));
+  font-size: 1.5rem;
   font-weight: 500;
   border: 0;
   cursor: pointer;
   padding: 0.9em 1.3em;
   border-radius: 2rem;
   position: relative;
-  box-shadow: 
-    0 0 calc(var(--active) * 6em) calc(var(--active) * 3em) hsl(var(--hue) 97% 61% / 0.5),
-    0 0.05em 0 0 hsl(var(--hue) calc(var(--active) * 97%) calc((var(--active) * 50%) + 30%)) inset;
-  transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+  box-shadow: 0 0 calc(var(--active) * 6em) calc(var(--active) * 3em) hsl(var(--hue) 97% 61% / 0.5);
+  transition: all var(--transition);
   transform: scale(calc(1 + (var(--active) * 0.1)));
   overflow: hidden;
   color: hsl(0 0% calc(60% + (var(--active) * 26%)));
@@ -136,84 +147,82 @@ window.contentItems = [
   --active: 1;
 }
 
-.cosmic-btn:active {
-  transform: scale(1);
+.cosmic-btn.warp-speed {
+  --hue: 140;
+  --active: 1;
+  animation: warp-pulse 0.6s ease-in-out infinite alternate;
+}
+
+.cosmic-btn.warp-speed .text {
+  color: hsl(140 100% 90%);
+  text-shadow: 0 0 10px hsl(140 100% 60%), 0 0 20px hsl(140 100% 50%);
+}
+
+@keyframes warp-pulse {
+  0% { transform: scale(1.1); filter: brightness(1.2); }
+  100% { transform: scale(1.15); filter: brightness(1.5); }
 }
 
 .star {
-  height: calc(var(--size) * 1px);
-  aspect-ratio: 1;
+  height: 3px;
+  width: 3px;
   background: white;
   border-radius: 50%;
   position: absolute;
-  opacity: var(--alpha);
+  opacity: 0.8;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) rotate(0deg) translateY(calc(var(--distance) * 1px));
-  animation: orbit calc(var(--duration) * 1s) calc(var(--delay) * -1s) infinite linear;
+  transform: translate(-50%, -50%);
+  animation: twinkle 2s infinite;
 }
 
-@keyframes orbit {
-  to {
-    transform: translate(-50%, -50%) rotate(360deg) translateY(calc(var(--distance) * 1px));
-  }
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
 }
 
-.galaxy {
-  position: absolute;
-  width: 100%;
-  aspect-ratio: 1;
-  top: 50%;
-  left: 50%;
-  translate: -50% -50%;
-  overflow: hidden;
-  opacity: var(--active);
-  transition: opacity var(--transition);
+.text {
+  position: relative;
+  z-index: 10;
+  transition: all 0.3s ease;
 }
 
-.galaxy__ring {
-  height: 200%;
-  width: 200%;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 50%;
-  transform: translate(-28%, -40%) rotateX(-24deg) rotateY(-30deg) rotateX(90deg);
-}
-
-.spark {
-  position: absolute;
-  inset: 0;
-  border-radius: 2rem;
-  overflow: hidden;
-  mask: linear-gradient(white, transparent 50%);
-  animation: flip 3.6s infinite steps(2, end);
-}
-
-@keyframes flip {
-  to { rotate: 360deg; }
-}
-
-.backdrop {
-  position: absolute;
-  inset: 0.1em;
-  background: var(--bg);
-  border-radius: 2rem;
+.spark, .backdrop, .galaxy__container, .galaxy, .galaxy__ring, .star--static {
+  pointer-events: none;
 }`,
-    demoJs: `// JavaScript for Cosmic Button Particle System
-const RANDOM = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
-const stars = document.querySelectorAll('.star');
+    demoJs: `// Cosmic Button Interactive States
+const cosmicBtn = document.getElementById('cosmicBtn');
+const cosmicText = document.getElementById('cosmicText');
 
-stars.forEach(star => {
-  star.setAttribute('style', \`
-    --angle: \${RANDOM(0, 360)};
-    --duration: \${RANDOM(6, 20)};
-    --delay: \${RANDOM(1, 10)};
-    --alpha: \${RANDOM(40, 90) / 100};
-    --size: \${RANDOM(2, 6)};
-    --distance: \${RANDOM(40, 200)};
-  \`);
-});`
+if (cosmicBtn && cosmicText) {
+  let isWarped = false;
+  
+  // Hover - change to "Journey"
+  cosmicBtn.addEventListener('mouseenter', () => {
+    if (!isWarped) {
+      cosmicText.textContent = 'Journey';
+    }
+  });
+  
+  cosmicBtn.addEventListener('mouseleave', () => {
+    if (!isWarped) {
+      cosmicText.textContent = 'Cosmic';
+    }
+  });
+  
+  // Click - toggle "Warp Speed"
+  cosmicBtn.addEventListener('click', () => {
+    if (!isWarped) {
+      isWarped = true;
+      cosmicText.textContent = 'Warp Speed';
+      cosmicBtn.classList.add('warp-speed');
+    } else {
+      isWarped = false;
+      cosmicText.textContent = 'Cosmic';
+      cosmicBtn.classList.remove('warp-speed');
+    }
+  });
+}`
 },
   
 {
