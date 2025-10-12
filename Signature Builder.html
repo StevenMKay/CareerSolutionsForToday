@@ -762,15 +762,33 @@
             <button class="btn btn-primary" id="btnCopyHTML">🔗 Copy HTML Code</button>
           </div>
           
-          <!-- Share Link Section (Desktop Only) -->
+          <!-- Email Signature Section (Desktop Only) -->
           <div class="desktop-only" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
-            <h3 style="font-size: 1rem; color: #0b4f6c; margin: 0 0 12px;">📧 Email Link to Yourself</h3>
-            <p style="font-size: 0.85rem; color: #666; margin: 0 0 10px;">Access this signature setup on another device</p>
+            <h3 style="font-size: 1rem; color: #0b4f6c; margin: 0 0 8px;">📱 Send to Phone</h3>
+            <p style="font-size: 0.85rem; color: #666; margin: 0 0 12px;">Email yourself the signature HTML to add to your mobile email app</p>
             <div style="display: flex; gap: 8px; align-items: stretch;">
               <input type="email" id="shareEmail" placeholder="Your email address" required style="flex: 1; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem;">
-              <button class="btn btn-primary" id="btnShareLink" style="white-space: nowrap;">📧 Email Link</button>
+              <button class="btn btn-success" id="btnEmailSignature" style="white-space: nowrap;">📧 Email Signature</button>
             </div>
-            <div id="shareLinkResult" style="margin-top: 10px; font-size: 0.85rem;"></div>
+            <div id="emailSignatureResult" style="margin-top: 10px; font-size: 0.85rem;"></div>
+            
+            <details style="margin-top: 12px; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+              <summary style="cursor: pointer; font-weight: 600; color: #374151; font-size: 0.9rem;">📖 How to add to your phone</summary>
+              <div style="margin-top: 10px; font-size: 0.85rem; color: #4b5563; line-height: 1.6;">
+                <p style="margin: 8px 0;"><strong>iPhone (Mail app):</strong><br>
+                Settings → Mail → Signature → Paste HTML</p>
+                
+                <p style="margin: 8px 0;"><strong>Gmail (Mobile):</strong><br>
+                Gmail app → Menu → Settings → [Your account] → Mobile Signature → Paste</p>
+                
+                <p style="margin: 8px 0;"><strong>Outlook (Mobile):</strong><br>
+                Outlook app → Profile icon → Settings → Signature → Paste HTML</p>
+                
+                <p style="margin: 8px 0; padding: 8px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+                  <strong>💡 Tip:</strong> Most mobile email apps support plain signatures better than HTML. The emailed version will include both formats!
+                </p>
+              </div>
+            </details>
           </div>
         </div>
       </div>
@@ -1625,7 +1643,7 @@
       navigator.clipboard.writeText(html).then(()=>toast('HTML code copied!'));
     }
     
-    // ===== Share/Load State Functions =====
+    // ===== Email Signature Functions =====
     function getSignatureState() {
       return {
         textFields: textFields,
@@ -1677,9 +1695,36 @@
       return url.toString();
     }
     
-    function handleShareLink() {
+    function generatePlainTextSignature() {
+      const name = textFields.find(f => f.label.toLowerCase().includes('name'))?.value || '';
+      const title = textFields.find(f => f.label.toLowerCase().includes('title'))?.value || '';
+      const phone = textFields.find(f => f.label.toLowerCase().includes('phone'))?.value || '';
+      const email = textFields.find(f => f.label.toLowerCase().includes('email'))?.value || '';
+      
+      let plainText = '';
+      if (name) plainText += name + '\n';
+      if (title) plainText += title + '\n';
+      if (phone) plainText += 'Phone: ' + phone + '\n';
+      if (email) plainText += 'Email: ' + email + '\n';
+      
+      // Add active social links
+      const activeSocial = socialOrder
+        .filter(key => socialLinks[key] && socialLinks[key].trim())
+        .map(key => [key, socialLinks[key]]);
+      
+      if (activeSocial.length > 0) {
+        plainText += '\n';
+        activeSocial.forEach(([platform, url]) => {
+          plainText += platform.charAt(0).toUpperCase() + platform.slice(1) + ': ' + url + '\n';
+        });
+      }
+      
+      return plainText;
+    }
+    
+    function handleEmailSignature() {
       const email = $('#shareEmail').value.trim();
-      const resultDiv = $('#shareLinkResult');
+      const resultDiv = $('#emailSignatureResult');
       
       if (!email) {
         resultDiv.innerHTML = `
@@ -1699,21 +1744,25 @@
         return;
       }
       
-      const shareLink = generateShareLink();
+      const htmlSignature = buildTables(true);
+      const plainTextSignature = generatePlainTextSignature();
       
-      // Create shortened display link
-      const url = new URL(shareLink);
-      const shortLink = url.origin + url.pathname + '#...';
-      
-      // Create mailto link
-      const subject = encodeURIComponent('Your Email Signature Setup');
+      // Create mailto link with signature
+      const subject = encodeURIComponent('Your Email Signature - Ready to Use');
       const body = encodeURIComponent(
-        `Hi there!\n\n` +
-        `Here's the link to access your email signature setup:\n\n` +
-        `${shareLink}\n\n` +
-        `Open this link on any device to load your signature configuration.\n\n` +
-        `Best regards,\n` +
-        `Email Signature Builder`
+        `Your Email Signature is ready!\n\n` +
+        `=== PLAIN TEXT VERSION (for most mobile apps) ===\n\n` +
+        `${plainTextSignature}\n\n` +
+        `=== INSTRUCTIONS ===\n\n` +
+        `1. Copy the plain text above, OR\n` +
+        `2. Use the HTML version below for desktop email clients\n\n` +
+        `iPhone Mail: Settings → Mail → Signature → Paste\n` +
+        `Gmail Mobile: Menu → Settings → Mobile Signature → Paste\n` +
+        `Outlook Mobile: Profile → Settings → Signature → Paste\n\n` +
+        `=== HTML VERSION (for desktop/advanced use) ===\n\n` +
+        `${htmlSignature}\n\n` +
+        `---\n` +
+        `Generated by Email Signature Builder`
       );
       
       const mailtoLink = `mailto:${email}?subject=${subject}&body=${body}`;
@@ -1721,24 +1770,14 @@
       // Open email client
       window.location.href = mailtoLink;
       
-      // Show success message with shortened link
+      // Show success message
       resultDiv.innerHTML = `
         <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; border-radius: 8px; color: #065f46;">
           ✅ <strong>Email client opened!</strong><br>
-          <span style="font-size: 0.8rem;">Send the email to receive your signature link.</span>
-        </div>
-        <div style="margin-top: 10px; padding: 12px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px;">
-          <div style="font-weight: 600; color: #374151; margin-bottom: 6px;">Your Signature Link:</div>
-          <div style="font-size: 0.8rem; color: #6b7280; word-break: break-all; font-family: monospace; background: white; padding: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">
-            ${shortLink}
-          </div>
-          <button onclick="navigator.clipboard.writeText('${shareLink.replace(/'/g, "\\'")}').then(()=>toast('Link copied!'))" 
-                  style="margin-top: 8px; padding: 6px 12px; background: #0b4f6c; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">
-            📋 Copy Full Link
-          </button>
+          <span style="font-size: 0.8rem;">Check your email - it contains both plain text and HTML versions of your signature.</span>
         </div>`;
       
-      toast('Opening email client...');
+      toast('Email opened with your signature!');
     }
     
     function loadFromURL() {
@@ -1761,7 +1800,7 @@
     });
     document.getElementById('btnCopySig').addEventListener('click', copySignature);
     document.getElementById('btnCopyHTML').addEventListener('click', copyHTML);
-    document.getElementById('btnShareLink').addEventListener('click', handleShareLink);
+    document.getElementById('btnEmailSignature').addEventListener('click', handleEmailSignature);
 
     // toggles
     document.getElementById('chkDark').addEventListener('change', e=>{ document.documentElement.classList.toggle('dark', e.target.checked); });
@@ -1778,14 +1817,9 @@
 
     // uploads
     function init(){
-      // Check if loading from URL
-      loadFromURL();
-      
-      // If not loaded from URL, render defaults
-      if (!window.location.hash) {
-        renderTextFields(); renderSocialFields(); updatePreview();
-      }
-      
+      renderTextFields(); 
+      renderSocialFields(); 
+      updatePreview();
       wireUpload('#uaProfile', '#profilePhoto', '#profilePreview', 'profile');
       wireUpload('#uaLogo', '#companyLogo', '#logoPreview', 'logo');
     }
