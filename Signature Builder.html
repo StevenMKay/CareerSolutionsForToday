@@ -761,6 +761,17 @@
             <button class="btn btn-success" id="btnCopySig">📋 Copy Signature</button>
             <button class="btn btn-primary" id="btnCopyHTML">🔗 Copy HTML Code</button>
           </div>
+          
+          <!-- Share Link Section (Desktop Only) -->
+          <div class="desktop-only" style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+            <h3 style="font-size: 1rem; color: #0b4f6c; margin: 0 0 12px;">📧 Access on Another Device</h3>
+            <p style="font-size: 0.85rem; color: #666; margin: 0 0 10px;">Get a link to open this signature setup on mobile or another device</p>
+            <div style="display: flex; gap: 8px; align-items: stretch;">
+              <input type="email" id="shareEmail" placeholder="Your email address" style="flex: 1; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.9rem;">
+              <button class="btn btn-primary" id="btnShareLink" style="white-space: nowrap;">📤 Get Link</button>
+            </div>
+            <div id="shareLinkResult" style="margin-top: 10px; font-size: 0.85rem;"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -932,10 +943,13 @@
         row.addEventListener('dragenter', handleDragEnter);
         row.addEventListener('dragleave', handleDragLeave);
         
-        // Touch events for mobile
-        row.addEventListener('touchstart', handleTouchStart, { passive: false });
-        row.addEventListener('touchmove', handleTouchMove, { passive: false });
-        row.addEventListener('touchend', handleTouchEnd);
+        // Touch events for mobile - only on drag handle
+        const dragHandle = row.querySelector('.drag-handle');
+        if (dragHandle) {
+          dragHandle.addEventListener('touchstart', handleTouchStart, { passive: false });
+          dragHandle.addEventListener('touchmove', handleTouchMove, { passive: false });
+          dragHandle.addEventListener('touchend', handleTouchEnd);
+        }
       });
     }
     
@@ -944,11 +958,11 @@
     let isDragging = false;
     
     function handleTouchStart(e) {
-      if (e.target.closest('.drag-handle')) {
-        touchDragElement = this;
-        touchStartY = e.touches[0].clientY;
-        isDragging = false;
-        this.style.transition = 'none';
+      touchDragElement = this.closest('.soc-row');
+      touchStartY = e.touches[0].clientY;
+      isDragging = false;
+      if (touchDragElement) {
+        touchDragElement.style.transition = 'none';
       }
     }
     
@@ -1610,6 +1624,102 @@
       const html = buildTables(true);
       navigator.clipboard.writeText(html).then(()=>toast('HTML code copied!'));
     }
+    
+    // ===== Share/Load State Functions =====
+    function getSignatureState() {
+      return {
+        textFields: textFields,
+        socialLinks: socialLinks,
+        socialOrder: socialOrder,
+        photoSize: photoSize,
+        iconPosition: iconPosition,
+        showIconBorders: showIconBorders,
+        showPhotoBorder: showPhotoBorder,
+        removeBorders: removeBorders,
+        images: images
+      };
+    }
+    
+    function loadSignatureState(state) {
+      if (state.textFields) textFields = state.textFields;
+      if (state.socialLinks) socialLinks = state.socialLinks;
+      if (state.socialOrder) socialOrder = state.socialOrder;
+      if (state.photoSize) photoSize = state.photoSize;
+      if (state.iconPosition) iconPosition = state.iconPosition;
+      if (state.showIconBorders !== undefined) showIconBorders = state.showIconBorders;
+      if (state.showPhotoBorder !== undefined) showPhotoBorder = state.showPhotoBorder;
+      if (state.removeBorders !== undefined) removeBorders = state.removeBorders;
+      if (state.images) images = state.images;
+      
+      // Update UI
+      renderTextFields();
+      renderSocialFields();
+      updatePreview();
+      
+      // Update checkboxes
+      $('#chkNoBorders').checked = removeBorders;
+      $('#chkPhotoBorder').checked = showPhotoBorder;
+      $('#chkIconBorders').checked = showIconBorders;
+      
+      // Update photo size slider if photo exists
+      if (images.profile) {
+        $('#photoSizeControl').style.display = 'block';
+        $('#photoSizeSlider').value = photoSize;
+        $('#photoSizeValue').textContent = photoSize;
+      }
+    }
+    
+    function generateShareLink() {
+      const state = getSignatureState();
+      const encoded = btoa(encodeURIComponent(JSON.stringify(state)));
+      const url = new URL(window.location.href);
+      url.hash = encoded;
+      return url.toString();
+    }
+    
+    function handleShareLink() {
+      const email = $('#shareEmail').value.trim();
+      const shareLink = generateShareLink();
+      const resultDiv = $('#shareLinkResult');
+      
+      // Copy to clipboard
+      navigator.clipboard.writeText(shareLink).then(() => {
+        resultDiv.innerHTML = `
+          <div style="padding: 12px; background: #d1fae5; border: 1px solid #10b981; border-radius: 8px; color: #065f46;">
+            ✅ <strong>Link copied to clipboard!</strong><br>
+            <span style="font-size: 0.8rem;">Share this link or paste it on your mobile device to access this signature setup.</span>
+          </div>`;
+        
+        if (email) {
+          // Show email option
+          resultDiv.innerHTML += `
+            <div style="margin-top: 8px; padding: 10px; background: #e0f2fe; border: 1px solid #0284c7; border-radius: 8px; color: #0c4a6e; font-size: 0.8rem;">
+              💡 <strong>Email yourself:</strong> Open your email app and paste the link to send it to ${email}
+            </div>`;
+        }
+        
+        toast('Link copied to clipboard!');
+      }).catch(() => {
+        resultDiv.innerHTML = `
+          <div style="padding: 12px; background: #fee2e2; border: 1px solid #ef4444; border-radius: 8px; color: #991b1b; font-size: 0.85rem;">
+            ❌ Unable to copy link. Please copy it manually:<br>
+            <input type="text" value="${shareLink}" readonly style="width: 100%; margin-top: 6px; padding: 6px; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 4px;" onclick="this.select()">
+          </div>`;
+      });
+    }
+    
+    function loadFromURL() {
+      const hash = window.location.hash.substring(1);
+      if (hash) {
+        try {
+          const decoded = JSON.parse(decodeURIComponent(atob(hash)));
+          loadSignatureState(decoded);
+          toast('Signature loaded from link!');
+        } catch (e) {
+          console.error('Failed to load signature from URL:', e);
+        }
+      }
+    }
 
     // ===== Event wiring =====
     document.getElementById('btnAddField').addEventListener('click', ()=>{
@@ -1618,6 +1728,7 @@
     });
     document.getElementById('btnCopySig').addEventListener('click', copySignature);
     document.getElementById('btnCopyHTML').addEventListener('click', copyHTML);
+    document.getElementById('btnShareLink').addEventListener('click', handleShareLink);
 
     // toggles
     document.getElementById('chkDark').addEventListener('change', e=>{ document.documentElement.classList.toggle('dark', e.target.checked); });
@@ -1634,7 +1745,14 @@
 
     // uploads
     function init(){
-      renderTextFields(); renderSocialFields(); updatePreview();
+      // Check if loading from URL
+      loadFromURL();
+      
+      // If not loaded from URL, render defaults
+      if (!window.location.hash) {
+        renderTextFields(); renderSocialFields(); updatePreview();
+      }
+      
       wireUpload('#uaProfile', '#profilePhoto', '#profilePreview', 'profile');
       wireUpload('#uaLogo', '#companyLogo', '#logoPreview', 'logo');
     }
