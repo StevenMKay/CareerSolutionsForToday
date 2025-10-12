@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -180,9 +181,46 @@
     }
 
     /* Social inputs laid out clearly */
-    .soc-row { display:grid; grid-template-columns: 28px 90px 1fr; align-items:center; gap:12px; margin:8px 0; }
-    .soc-row > div:nth-child(2) { white-space: nowrap; min-width: 90px; }
+    .soc-row { 
+      display:grid; 
+      grid-template-columns: 16px 28px 90px 1fr; 
+      align-items:center; 
+      gap:12px; 
+      margin:8px 0; 
+      padding: 8px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      cursor: move;
+    }
+    .soc-row:hover {
+      background: rgba(11, 79, 108, 0.05);
+      transform: translateY(-1px);
+    }
+    .soc-row.dragging {
+      opacity: 0.5;
+      transform: rotate(2deg);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .soc-row.drag-over {
+      background: rgba(11, 79, 108, 0.1);
+      border: 2px dashed #0b4f6c;
+    }
+    .soc-row > div:nth-child(3) { white-space: nowrap; min-width: 90px; }
     .social-icon { width:20px; height:20px; object-fit:contain; }
+    .drag-handle {
+      color: #9ca3af;
+      cursor: grab;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .drag-handle:hover {
+      color: #0b4f6c;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
     
     /* Icon style selector */
     .icon-style-selector { margin: 12px 0; padding: 12px; background: #f8f9fa; border-radius: 8px; }
@@ -533,13 +571,16 @@
         overflow-x: hidden;
       }
       .soc-row {
-        grid-template-columns: 28px 75px 1fr;
-        gap: 10px;
+        grid-template-columns: 12px 28px 75px 1fr;
+        gap: 8px;
       }
-      .soc-row > div:nth-child(2) { 
+      .soc-row > div:nth-child(3) { 
         white-space: nowrap; 
         min-width: 75px; 
         font-size: 0.85rem;
+      }
+      .drag-handle {
+        font-size: 10px;
       }
       .signature-preview {
         overflow-x: auto;
@@ -705,6 +746,9 @@
               </label>
             </div>
           </div>
+          <div style="margin-bottom: 12px; padding: 8px; background: rgba(11, 79, 108, 0.05); border-radius: 6px; font-size: 0.85rem; color: #374151;">
+            💡 <strong>Tip:</strong> Drag and drop the social media rows to reorder them as desired
+          </div>
           <div id="socialMediaFields"></div>
         </div>
       </div>
@@ -793,6 +837,7 @@
     }
 
     let socialLinks = { instagram:'', facebook:'', linkedin:'', website:'', youtube:'', github:'', tiktok:'' };
+    let socialOrder = ['instagram', 'facebook', 'linkedin', 'website', 'youtube', 'github', 'tiktok']; // Order of social media icons
     let images = { profile:null, logo:null };
     let photoSize = 120; // default photo size in pixels
     let iconPosition = 'side'; // 'side' or 'bottom'
@@ -847,23 +892,191 @@
     function removeTextField(id){ if(textFields.length>1){ textFields = textFields.filter(x=>x.id!==id); updatePreview(); renderTextFields(); } }
 
     function renderSocialFields(){
-      const list = [
-        {key:'instagram', name:'Instagram', ph:'https://instagram.com/username'},
-        {key:'facebook' , name:'Facebook' , ph:'https://facebook.com/username'},
-        {key:'linkedin' , name:'LinkedIn' , ph:'https://linkedin.com/in/username'},
-        {key:'website'  , name:'Website'  , ph:'https://yourwebsite.com'},
-        {key:'youtube'  , name:'YouTube'  , ph:'https://youtube.com/@username'},
-        {key:'github'   , name:'GitHub'   , ph:'https://github.com/username'},
-        {key:'tiktok'   , name:'TikTok'   , ph:'https://tiktok.com/@username'}
-      ];
+      const socialData = {
+        instagram: {name:'Instagram', ph:'https://instagram.com/username'},
+        facebook: {name:'Facebook', ph:'https://facebook.com/username'},
+        linkedin: {name:'LinkedIn', ph:'https://linkedin.com/in/username'},
+        website: {name:'Website', ph:'https://yourwebsite.com'},
+        youtube: {name:'YouTube', ph:'https://youtube.com/@username'},
+        github: {name:'GitHub', ph:'https://github.com/username'},
+        tiktok: {name:'TikTok', ph:'https://tiktok.com/@username'}
+      };
+      
       const c = $('#socialMediaFields');
       const icons = getSocialIcons();
-      c.innerHTML = list.map(p=>`
-        <div class="soc-row">
-          <img class="social-icon" src="${icons[p.key]}" alt="" />
-          <div style="font-size:.9rem; color:#374151;">${p.name}</div>
-          <input type="url" placeholder="${p.ph}" value="${socialLinks[p.key]}" oninput="socialLinks['${p.key}']=this.value; updatePreview();" />
-        </div>`).join('');
+      
+      c.innerHTML = socialOrder.map((key, index) => {
+        const p = socialData[key];
+        return `
+          <div class="soc-row" draggable="true" data-social-key="${key}" data-index="${index}">
+            <div class="drag-handle">⋮⋮</div>
+            <img class="social-icon" src="${icons[key]}" alt="" />
+            <div style="font-size:.9rem; color:#374151;">${p.name}</div>
+            <input type="url" placeholder="${p.ph}" value="${socialLinks[key]}" oninput="socialLinks['${key}']=this.value; updatePreview();" />
+          </div>`;
+      }).join('');
+      
+      // Add drag and drop event listeners
+      setupDragAndDrop();
+    }
+    
+    function setupDragAndDrop() {
+      const rows = document.querySelectorAll('.soc-row');
+      
+      rows.forEach(row => {
+        // Desktop drag and drop
+        row.addEventListener('dragstart', handleDragStart);
+        row.addEventListener('dragover', handleDragOver);
+        row.addEventListener('drop', handleDrop);
+        row.addEventListener('dragend', handleDragEnd);
+        row.addEventListener('dragenter', handleDragEnter);
+        row.addEventListener('dragleave', handleDragLeave);
+        
+        // Touch events for mobile
+        row.addEventListener('touchstart', handleTouchStart, { passive: false });
+        row.addEventListener('touchmove', handleTouchMove, { passive: false });
+        row.addEventListener('touchend', handleTouchEnd);
+      });
+    }
+    
+    let touchDragElement = null;
+    let touchStartY = 0;
+    let isDragging = false;
+    
+    function handleTouchStart(e) {
+      if (e.target.closest('.drag-handle')) {
+        touchDragElement = this;
+        touchStartY = e.touches[0].clientY;
+        isDragging = false;
+        this.style.transition = 'none';
+      }
+    }
+    
+    function handleTouchMove(e) {
+      if (!touchDragElement) return;
+      
+      e.preventDefault();
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - touchStartY;
+      
+      if (Math.abs(deltaY) > 10 && !isDragging) {
+        isDragging = true;
+        touchDragElement.classList.add('dragging');
+        touchDragElement.style.zIndex = '1000';
+      }
+      
+      if (isDragging) {
+        touchDragElement.style.transform = `translateY(${deltaY}px)`;
+        
+        // Find element at touch position
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetRow = elementBelow?.closest('.soc-row');
+        
+        // Remove drag-over from all rows
+        document.querySelectorAll('.soc-row').forEach(row => row.classList.remove('drag-over'));
+        
+        // Add drag-over to target
+        if (targetRow && targetRow !== touchDragElement) {
+          targetRow.classList.add('drag-over');
+        }
+      }
+    }
+    
+    function handleTouchEnd(e) {
+      if (!touchDragElement || !isDragging) {
+        touchDragElement = null;
+        return;
+      }
+      
+      const touch = e.changedTouches[0];
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetRow = elementBelow?.closest('.soc-row');
+      
+      if (targetRow && targetRow !== touchDragElement) {
+        const draggedKey = touchDragElement.dataset.socialKey;
+        const targetKey = targetRow.dataset.socialKey;
+        
+        const draggedIndex = socialOrder.indexOf(draggedKey);
+        const targetIndex = socialOrder.indexOf(targetKey);
+        
+        // Remove dragged item and insert at new position
+        socialOrder.splice(draggedIndex, 1);
+        socialOrder.splice(targetIndex, 0, draggedKey);
+        
+        // Re-render and update preview
+        renderSocialFields();
+        updatePreview();
+      }
+      
+      // Clean up
+      document.querySelectorAll('.soc-row').forEach(row => {
+        row.classList.remove('dragging', 'drag-over');
+        row.style.transform = '';
+        row.style.zIndex = '';
+        row.style.transition = '';
+      });
+      
+      touchDragElement = null;
+      isDragging = false;
+    }
+    
+    let draggedElement = null;
+    
+    function handleDragStart(e) {
+      draggedElement = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', this.innerHTML);
+    }
+    
+    function handleDragOver(e) {
+      if (e.preventDefault) {
+        e.preventDefault();
+      }
+      e.dataTransfer.dropEffect = 'move';
+      return false;
+    }
+    
+    function handleDragEnter(e) {
+      if (this !== draggedElement) {
+        this.classList.add('drag-over');
+      }
+    }
+    
+    function handleDragLeave(e) {
+      this.classList.remove('drag-over');
+    }
+    
+    function handleDrop(e) {
+      if (e.stopPropagation) {
+        e.stopPropagation();
+      }
+      
+      if (draggedElement !== this) {
+        const draggedKey = draggedElement.dataset.socialKey;
+        const targetKey = this.dataset.socialKey;
+        
+        const draggedIndex = socialOrder.indexOf(draggedKey);
+        const targetIndex = socialOrder.indexOf(targetKey);
+        
+        // Remove dragged item and insert at new position
+        socialOrder.splice(draggedIndex, 1);
+        socialOrder.splice(targetIndex, 0, draggedKey);
+        
+        // Re-render and update preview
+        renderSocialFields();
+        updatePreview();
+      }
+      
+      return false;
+    }
+    
+    function handleDragEnd(e) {
+      const rows = document.querySelectorAll('.soc-row');
+      rows.forEach(row => {
+        row.classList.remove('dragging', 'drag-over');
+      });
+      draggedElement = null;
     }
 
     // ===== Crop Modal State =====
@@ -1215,7 +1428,8 @@
     // ===== Preview =====
     function updatePreview(){
       const wrap = $('#signaturePreview');
-      const activeSocial = Object.entries(socialLinks).filter(([,u])=>u && u.trim());
+      // Use socialOrder to maintain the user's preferred order
+      const activeSocial = socialOrder.filter(key => socialLinks[key] && socialLinks[key].trim()).map(key => [key, socialLinks[key]]);
 
       const borderColor = removeBorders ? 'transparent' : '#e5e7eb';
       const icons = getSocialIcons();
@@ -1282,7 +1496,7 @@
 
     // ===== Copy functions (robust, email-safe) =====
     function buildTables(forHtml){
-      const activeSocial = Object.entries(socialLinks).filter(([,u])=>u && u.trim());
+      const activeSocial = socialOrder.filter(key => socialLinks[key] && socialLinks[key].trim()).map(key => [key, socialLinks[key]]);
       const borderColor = removeBorders ? 'transparent' : '#dee2e6';
       const icons = getSocialIcons();
       
