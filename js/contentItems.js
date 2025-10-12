@@ -20,7 +20,7 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
   Teams:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7089aaa3a231f641039fc581114c260617291f1/icons/2025%20Teams%20Icon.png",
     Excel:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png",
   PowerPoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png",
-  Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png",
+  Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/195b4ed5242a495897d57f4bfe1b67b617d3980c/icons/2025%20Word%20Icon.png",
   YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png",
   Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png",
   Calculators:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
