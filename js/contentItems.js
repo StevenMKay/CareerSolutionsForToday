@@ -69,6 +69,154 @@ window.contentItems = [
 
 
 {
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Cosmic Galaxy Button with Particle Effects",
+    description: "Create a stunning cosmic button with particle animations and galaxy effects. Features rotating stars, dynamic glow effects, and smooth hover transitions. This advanced CSS button uses custom properties, 3D transforms, and JavaScript-powered particle systems for a mesmerizing space-themed interaction.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Cosmic Button.html",
+    topic: "CSS Button Effects",
+    demoHtml: `<div class="galaxy-button">
+  <button class="cosmic-btn">
+    <span class="spark"></span>
+    <span class="backdrop"></span>
+    <span class="galaxy__container">
+      <span class="star star--static"></span>
+      <span class="star star--static"></span>
+      <span class="star star--static"></span>
+      <span class="star star--static"></span>
+    </span>
+    <span class="galaxy">
+      <span class="galaxy__ring">
+        <span class="star"></span>
+        <span class="star"></span>
+        <span class="star"></span>
+        <span class="star"></span>
+        <span class="star"></span>
+      </span>
+    </span>
+    <span class="text">Cosmic</span>
+  </button>
+</div>`,
+    demoCss: `/* Cosmic Galaxy Button */
+:root {
+  --hue: 275;
+  --transition: 0.25s;
+}
+
+.galaxy-button {
+  position: relative;
+  display: inline-block;
+}
+
+.cosmic-btn {
+  --active: 0;
+  --bg: hsl(var(--hue) calc(var(--active) * 100%) calc(12% - (var(--active) * 8%)));
+  background: var(--bg);
+  font-size: 2rem;
+  font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  padding: 0.9em 1.3em;
+  border-radius: 2rem;
+  position: relative;
+  box-shadow: 
+    0 0 calc(var(--active) * 6em) calc(var(--active) * 3em) hsl(var(--hue) 97% 61% / 0.5),
+    0 0.05em 0 0 hsl(var(--hue) calc(var(--active) * 97%) calc((var(--active) * 50%) + 30%)) inset;
+  transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+  transform: scale(calc(1 + (var(--active) * 0.1)));
+  overflow: hidden;
+  color: hsl(0 0% calc(60% + (var(--active) * 26%)));
+}
+
+.cosmic-btn:hover {
+  --active: 1;
+}
+
+.cosmic-btn:active {
+  transform: scale(1);
+}
+
+.star {
+  height: calc(var(--size) * 1px);
+  aspect-ratio: 1;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  opacity: var(--alpha);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(0deg) translateY(calc(var(--distance) * 1px));
+  animation: orbit calc(var(--duration) * 1s) calc(var(--delay) * -1s) infinite linear;
+}
+
+@keyframes orbit {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) translateY(calc(var(--distance) * 1px));
+  }
+}
+
+.galaxy {
+  position: absolute;
+  width: 100%;
+  aspect-ratio: 1;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  overflow: hidden;
+  opacity: var(--active);
+  transition: opacity var(--transition);
+}
+
+.galaxy__ring {
+  height: 200%;
+  width: 200%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-28%, -40%) rotateX(-24deg) rotateY(-30deg) rotateX(90deg);
+}
+
+.spark {
+  position: absolute;
+  inset: 0;
+  border-radius: 2rem;
+  overflow: hidden;
+  mask: linear-gradient(white, transparent 50%);
+  animation: flip 3.6s infinite steps(2, end);
+}
+
+@keyframes flip {
+  to { rotate: 360deg; }
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0.1em;
+  background: var(--bg);
+  border-radius: 2rem;
+}`,
+    demoJs: `// JavaScript for Cosmic Button Particle System
+const RANDOM = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+const stars = document.querySelectorAll('.star');
+
+stars.forEach(star => {
+  star.setAttribute('style', \`
+    --angle: \${RANDOM(0, 360)};
+    --duration: \${RANDOM(6, 20)};
+    --delay: \${RANDOM(1, 10)};
+    --alpha: \${RANDOM(40, 90) / 100};
+    --size: \${RANDOM(2, 6)};
+    --distance: \${RANDOM(40, 200)};
+  \`);
+});`
+},
+  
+{
  section:[
             "Learning",
             "Videos"
