@@ -67,6 +67,40 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"General",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5081bef9abd3db6fb93b96a3f0441e9db909aebb/icons/generalicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b7ccfbcf9154a4a8c3de9b0054500a38075d99a0/Thumbnails/dup2.png",
+https:"https://youtu.be/P4ZLehr19Vg",
+ title:"Create Custom Email Signatures",
+        description:"In this video we cover a free tool I created to help you create custom, professional, and engaging email signatures. These can be used on both PC and mobile devices.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/816af82e8b3930c33e328db97156cfdb2e0a7b06/Thumbnails/custom.png",
+       link:"https://youtu.be/P4ZLehr19Vg",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/P4ZLehr19Vg"
+      },
+      {
+            text:"Custom Signature Page",
+            url:"https://www.careersolutionsfortoday.com/Signature%20Builder.html"
+      }
+  ],
+        topic:"Email Signature"
+    },
+
+
+  
 {
  section:[
             "Learning",
