@@ -77,7 +77,7 @@ window.contentItems = [
     title: "CSS Cosmic Galaxy Button",
     description: "Create a stunning cosmic button with particle animations, galaxy effects, and interactive text changes. Features three states: Cosmic (default), Journey (on hover with purple glow), and Warp Speed (on click with green glow). Includes particle systems, 3D transforms, and smooth state transitions.",
     thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2c77a5197be5cf69fde4447b64ff7562578b33fc/Thumbnails/Warp%20Speed%20Thumb.png",
-    link: "Learn.html#css-cosmic-button-demo",
+        link: "Learn.html#css-cosmic-button-demo",
     topic: "CSS Button Effects",
     demoHtml: `<div class="cosmic-demo-container">
   <div class="galaxy-button">
@@ -224,6 +224,7 @@ if (cosmicBtn && cosmicText) {
   });
 }`
 },
+
   
 {
  section:[
