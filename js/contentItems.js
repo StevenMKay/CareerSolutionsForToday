@@ -67,7 +67,41 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b7ccfbcf9154a4a8c3de9b0054500a38075d99a0/Thumbnails/dup2.png",
+https:"https://youtu.be/YZWG1oqnE6k",
+ title:"How to Find and Remove Duplicates",
+        description:"In this video we cover how to find and remove duplicates in Excel.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b7ccfbcf9154a4a8c3de9b0054500a38075d99a0/Thumbnails/dup2.png",
+       link:"https://youtu.be/YCIskoCQAh8",
 
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/YCIskoCQAh8"
+      },
+      {
+            text:"Practice File",
+            url:"https://docs.google.com/spreadsheets/d/1msrqTjmKZ1J6J9mUSmFiy3hr5UFD2N-w/export?format=xlsx"
+      }
+  ],
+        topic:"Remove Duplicates"
+    },
+
+
+
+
+  
 
 {
  section:[
