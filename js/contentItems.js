@@ -78,219 +78,206 @@ window.contentItems = [
   link: "Learn.html#website-design-image-magnifier",
   topic: "Interactive Effects",
   demoHtml:
-`<div id="imgMagDemo" class="img-mag-demo">
-  <div class="img-magnifier-container" id="magnifierContainer" tabindex="0" aria-label="Image magnifier demo">
+`
+<div class="img-mag-demo">
+  <div class="img-magnifier-container" tabindex="0" aria-label="Image magnifier demo">
     <img
-      id="magnifierImage"
+      class="img-magnifier-image"
       src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg"
       alt="Barn Owl — hover or touch to magnify"
       draggable="false"
-    >
+    />
   </div>
 
   <div class="controls">
     <div class="control-group">
-      <label for="zoomLevel">Zoom: <span class="zoom-value" id="zoomValue">3x</span></label>
-      <input type="range" id="zoomLevel" min="2" max="6" value="3" step="0.25">
+      <label>Zoom: <span class="zoom-value">3x</span></label>
+      <input type="range" class="zoom-input" min="2" max="6" value="3" step="0.25" />
     </div>
     <div class="control-group">
-      <label for="glassSize">Glass: <span class="zoom-value" id="sizeValue">150px</span></label>
-      <input type="range" id="glassSize" min="80" max="260" value="150" step="10">
+      <label>Glass: <span class="size-value">150px</span></label>
+      <input type="range" class="size-input" min="80" max="260" value="150" step="10" />
     </div>
   </div>
 
   <p class="subtitle">Hover / drag to explore details. Use the sliders to adjust zoom and glass size.</p>
 </div>`,
   demoCss:
-`/* Scoped wrapper */
-#imgMagDemo {
+`
+.img-mag-demo {
   --glass-size: 150px;
   --zoom: 3;
   font-family: system-ui, Segoe UI, Roboto, sans-serif;
-  display:flex; flex-direction:column; align-items:center; gap:16px;
-  padding: 20px; border-radius: 14px; background: #0b1020;
-  color:#e6e6e6; min-height: 320px;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 20px; border-radius: 14px; background: #0b1020; color: #e6e6e6;
+  min-height: 320px;
 }
 
-#imgMagDemo .subtitle { opacity:.8; text-align:center; font-size:.95rem; }
+.img-mag-demo .subtitle { opacity: .8; text-align: center; font-size: .95rem; }
+.img-mag-demo .controls { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.img-mag-demo .control-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.img-mag-demo .zoom-value { font-weight: 700; color: #8ab4ff; }
 
-#imgMagDemo .controls {
-  display:flex; gap:20px; flex-wrap:wrap; justify-content:center;
+.img-mag-demo .img-magnifier-container {
+  position: relative; width: 100%; max-width: 800px;
+  cursor: crosshair; touch-action: none; z-index: 0; /* stacking context */
 }
-#imgMagDemo .control-group { display:flex; flex-direction:column; align-items:center; gap:6px; }
-#imgMagDemo .zoom-value { font-weight:700; color:#8ab4ff; }
-
-#imgMagDemo .img-magnifier-container {
-  position: relative; width: 100%; max-width: 800px; cursor: crosshair; touch-action: none;
-  z-index: 0; /* create a stacking context */
-}
-#imgMagDemo .img-magnifier-container img {
-  width: 100%; height: auto; display:block; border-radius:12px;
-  user-select:none; -webkit-user-drag: none;
+.img-mag-demo .img-magnifier-container .img-magnifier-image {
+  width: 100%; height: auto; display: block; border-radius: 12px;
+  user-select: none; -webkit-user-drag: none;
   box-shadow: 0 10px 30px rgba(0,0,0,.45);
 }
 
-#imgMagDemo .img-magnifier-glass {
-  position:absolute; 
-  top: -9999px; left: -9999px; /* offscreen until positioned */
+.img-mag-demo .img-magnifier-glass {
+  position: absolute; top: -9999px; left: -9999px; /* offscreen until moved */
   border: 3px solid #000; border-radius: 50%;
   width: var(--glass-size); height: var(--glass-size);
   background-repeat: no-repeat; pointer-events: none;
-  box-shadow:
-    0 0 0 7px rgba(255,255,255,.85),
-    0 12px 24px rgba(0,0,0,.45),
-    inset 0 0 15px rgba(0,0,0,.15);
-  opacity:0; transition: opacity .15s ease;
-  z-index: 99999; /* sit above any preview chrome */
+  box-shadow: 0 0 0 7px rgba(255,255,255,.85), 0 12px 24px rgba(0,0,0,.45), inset 0 0 15px rgba(0,0,0,.15);
+  opacity: 0; transition: opacity .15s ease;
+  z-index: 9999; /* above preview chrome */
 }
 
 /* never block input */
-#imgMagDemo .img-magnifier-glass,
-#imgMagDemo .img-magnifier-container:before { pointer-events: none; }
+.img-mag-demo .img-magnifier-glass,
+.img-mag-demo .img-magnifier-container::before { pointer-events: none; }
 
-/* CSS fallback: ensure visible when container is hovered/focused */
-#imgMagDemo .img-magnifier-container:hover .img-magnifier-glass,
-#imgMagDemo .img-magnifier-container:focus .img-magnifier-glass { opacity:1; }
+/* CSS fallback visibility on hover/focus */
+.img-mag-demo .img-magnifier-container:hover .img-magnifier-glass,
+.img-mag-demo .img-magnifier-container:focus .img-magnifier-glass { opacity: 1; }
 
-#imgMagDemo .img-magnifier-glass.active { opacity:1; }
+.img-mag-demo .img-magnifier-glass.active { opacity: 1; }
 
 @media (max-width: 768px) {
-  #imgMagDemo { padding:14px; }
-  #imgMagDemo .img-magnifier-glass { border-width:2px; }
-}`,
+  .img-mag-demo { padding: 14px; }
+  .img-mag-demo .img-magnifier-glass { border-width: 2px; }
+}
+`,
   demoJs:
-`(() => {
-  const ROOT_ID = 'imgMagDemo';
-  let mounted = false;
+`
+(() => {
+  // Find the nearest demo root for THIS script execution
+  const root = document.currentScript
+    ? (document.currentScript.closest('.content-item') && document.currentScript.closest('.content-item').querySelector('.img-mag-demo')) ||
+      document.querySelector('.img-mag-demo')  // fallback
+    : document.querySelector('.img-mag-demo');
 
-  const state = {
-    zoom: 3,
-    size: 150,
-    glass: null,
-    cleanupFns: [],
-    hasMoved: false
-  };
+  if (!root) return;
 
-  const init = () => {
-    if (mounted) return true;
-    const root = document.getElementById(ROOT_ID);
-    if (!root) return false;
+  const container = root.querySelector('.img-magnifier-container');
+  const img       = root.querySelector('.img-magnifier-image');
+  const zoomEl    = root.querySelector('.zoom-input');
+  const zoomVal   = root.querySelector('.zoom-value');
+  const sizeEl    = root.querySelector('.size-input');
+  const sizeVal   = root.querySelector('.size-value');
 
-    const container = root.querySelector('#magnifierContainer');
-    const img       = root.querySelector('#magnifierImage');
-    const zoomEl    = root.querySelector('#zoomLevel');
-    const zoomVal   = root.querySelector('#zoomValue');
-    const sizeEl    = root.querySelector('#glassSize');
-    const sizeVal   = root.querySelector('#sizeValue');
-    if (!container || !img || !zoomEl || !sizeEl) return false;
+  const state = { zoom: 3, size: 150, glass: null, shownOnce: false };
 
-    const on = (el, ev, fn, opt) => { el.addEventListener(ev, fn, opt); state.cleanupFns.push(() => el.removeEventListener(ev, fn, opt)); };
+  function buildGlass() {
+    if (state.glass && state.glass.isConnected) state.glass.remove();
+    const g = document.createElement('div');
+    g.className = 'img-magnifier-glass';
+    container.appendChild(g);
+    state.glass = g;
+    g.style.backgroundImage = "url('" + (img.currentSrc || img.src) + "')";
+    updateBgSize();
+    updateGlassSize(state.size);
+  }
 
-    const buildGlass = () => {
-      if (state.glass?.isConnected) state.glass.remove();
-      const g = document.createElement('div');
-      g.className = 'img-magnifier-glass';
-      container.appendChild(g);
-      state.glass = g;
-      g.style.backgroundImage = \`url('\${img.currentSrc || img.src}')\`;
-      updateSizes();
-      updateGlassSize(state.size);
-      return g;
-    };
+  function updateBgSize() {
+    const rect = img.getBoundingClientRect();
+    state.glass.style.backgroundSize = (rect.width * state.zoom) + "px " + (rect.height * state.zoom) + "px";
+  }
 
-    const updateSizes = () => {
-      const rect = img.getBoundingClientRect();
-      state.glass.style.backgroundSize = \`\${rect.width * state.zoom}px \${rect.height * state.zoom}px\`;
-    };
+  function updateGlassSize(px) {
+    state.size = px;
+    state.glass.style.setProperty('--glass-size', px + 'px');
+  }
 
-    const updateGlassSize = (px) => {
-      state.size = px;
-      state.glass.style.setProperty('--glass-size', px + 'px');
-    };
+  function getPos(e) {
+    const rect = img.getBoundingClientRect();
+    const clientX = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width / 2));
+    const clientY = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height / 2));
+    const x = Math.max(0, Math.min(rect.width,  clientX - rect.left));
+    const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+    return { x: x, y: y };
+  }
 
-    const getPos = (e) => {
-      const rect = img.getBoundingClientRect();
-      const clientX = e?.clientX ?? (e?.touches && e.touches[0]?.clientX) ?? (rect.left + rect.width/2);
-      const clientY = e?.clientY ?? (e?.touches && e.touches[0]?.clientY) ?? (rect.top  + rect.height/2);
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      return {
-        x: Math.max(0, Math.min(rect.width,  x)),
-        y: Math.max(0, Math.min(rect.height, y))
-      };
-    };
+  function move(e) {
+    if (!state.glass) return;
+    if (e && e.preventDefault) e.preventDefault();
+    const pos = getPos(e);
+    const bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
+    const w = state.size / 2, h = state.size / 2;
 
-    const move = (e) => {
-      if (!state.glass) return;
-      e && e.preventDefault && e.preventDefault();
-      state.hasMoved = true;
+    state.glass.style.left = (pos.x - w) + 'px';
+    state.glass.style.top  = (pos.y - h) + 'px';
 
-      const bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
-      const w = state.size / 2, h = state.size / 2;
-      const { x, y } = getPos(e);
+    const bgX = -((pos.x * state.zoom) - w + bw);
+    const bgY = -((pos.y * state.zoom) - h + bw);
+    state.glass.style.backgroundPosition = bgX + "px " + bgY + "px";
+  }
 
-      state.glass.style.left = (x - w) + 'px';
-      state.glass.style.top  = (y - h) + 'px';
+  function showOnceCentered() {
+    if (state.shownOnce) return;
+    state.glass.classList.add('active');
+    move(); // center
+    state.shownOnce = true;
+    setTimeout(function(){ state.glass.classList.remove('active'); }, 250);
+  }
 
-      const bgX = -((x * state.zoom) - w + bw);
-      const bgY = -((y * state.zoom) - h + bw);
-      state.glass.style.backgroundPosition = \`\${bgX}px \${bgY}px\`;
-    };
+  function show() { state.glass.classList.add('active'); }
+  function hide() { state.glass.classList.remove('active'); }
 
-    const show = () => {
-      state.glass.classList.add('active');
-      if (!state.hasMoved) move(); // center on first show
-    };
-    const hide = () => state.glass.classList.remove('active');
+  function start() {
+    buildGlass();
+    // Prove visibility on mount
+    showOnceCentered();
 
-    const start = () => {
-      buildGlass();
+    // Pointer (preferred)
+    container.addEventListener('pointerenter', show, { passive: true });
+    container.addEventListener('pointerleave', hide, { passive: true });
+    container.addEventListener('pointerdown',  function(e){ show(); move(e); }, { passive: false });
+    container.addEventListener('pointermove',  move, { passive: false });
+    container.addEventListener('pointerup',    function(e){ move(e); }, { passive: false });
 
-      // Make it obvious it's working: briefly show centered on mount
-      show();
-      setTimeout(hide, 300);
+    // Mouse fallback (if PointerEvents blocked)
+    container.addEventListener('mouseenter', show, { passive: true });
+    container.addEventListener('mouseleave', hide, { passive: true });
+    container.addEventListener('mousemove',  move, { passive: false });
 
-      // Pointer (mouse/touch/pen)
-      on(container, 'pointerenter', show, { passive: true });
-      on(container, 'pointerleave', hide, { passive: true });
-      on(container, 'pointerdown',  (e) => { show(); move(e); }, { passive: false });
-      on(container, 'pointermove',  move, { passive: false });
-      on(container, 'pointerup',    (e) => move(e), { passive: false });
+    // Resize
+    window.addEventListener('resize', updateBgSize, { passive: true });
 
-      // Mouse fallback (if preview disables PointerEvents)
-      on(container, 'mouseenter', show, { passive: true });
-      on(container, 'mouseleave', hide, { passive: true });
-      on(container, 'mousemove',  move, { passive: false });
+    // Controls
+    zoomEl.addEventListener('input', function(e){
+      state.zoom = parseFloat(e.target.value);
+      zoomVal.textContent = state.zoom + 'x';
+      updateBgSize();
+    }, { passive: true });
 
-      // Resize
-      on(window, 'resize', updateSizes, { passive: true });
+    sizeEl.addEventListener('input', function(e){
+      var px = parseInt(e.target.value, 10);
+      sizeVal.textContent = px + 'px';
+      updateGlassSize(px);
+      updateBgSize();
+    }, { passive: true });
+  }
 
-      // Controls
-      on(zoomEl, 'input', (e) => {
-        state.zoom = parseFloat(e.target.value);
-        zoomVal.textContent = state.zoom + 'x';
-        updateSizes();
-      }, { passive: true });
-
-      on(sizeEl, 'input', (e) => {
-        const px = parseInt(e.target.value, 10);
-        sizeVal.textContent = px + 'px';
-        updateGlassSize(px);
-        updateSizes();
-      }, { passive: true });
-    };
-
-    if (img.complete) start();
-    else on(img, 'load', start, { once: true });
-
-    mounted = true;
+  // Mount after image is ready, retry if preview injects late
+  function tryStart() {
+    if (!container || !img) return false;
+    if (img.complete && img.naturalWidth) { start(); return true; }
+    img.addEventListener('load', start, { once: true });
     return true;
-  };
+  }
 
-  if (!init()) {
-    let tries = 0, max = 60; // ~1s of retries in case preview injects HTML late
-    const tick = () => { if (init() || tries++ >= max) return; requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
+  if (!tryStart()) {
+    var tries = 0, max = 60;
+    (function tick(){
+      if (tryStart() || tries++ >= max) return;
+      requestAnimationFrame(tick);
+    })();
   }
 })();`
 },
