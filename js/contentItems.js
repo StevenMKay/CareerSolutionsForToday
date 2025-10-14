@@ -66,7 +66,6 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
-
 {
   section: ["Learning", "Website Design"],
   program: {
@@ -131,7 +130,9 @@ window.contentItems = [
 }
 
 #imgMagDemo .img-magnifier-glass {
-  position:absolute; top:0; left:0; translate:-9999px -9999px;
+  position:absolute; 
+  top: -9999px;            /* ⬅️ offscreen via top/left so JS left/top works */
+  left: -9999px;
   border: 3px solid #000; border-radius: 50%;
   width: var(--glass-size); height: var(--glass-size);
   background-repeat: no-repeat; pointer-events: none;
@@ -163,6 +164,7 @@ window.contentItems = [
     size: 150,
     glass: null,
     cleanupFns: [],
+    hasMoved: false
   };
 
   const init = () => {
@@ -213,8 +215,10 @@ window.contentItems = [
     // get cursor/touch position relative to the image box
     const getPos = (e) => {
       const rect = img.getBoundingClientRect();
-      const x = (e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0) - rect.left;
-      const y = (e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0) - rect.top;
+      const clientX = e?.clientX ?? (e?.touches && e.touches[0]?.clientX) ?? (rect.left + rect.width/2);
+      const clientY = e?.clientY ?? (e?.touches && e.touches[0]?.clientY) ?? (rect.top  + rect.height/2);
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
       // clamp inside image
       return {
         x: Math.max(0, Math.min(rect.width,  x)),
@@ -225,7 +229,9 @@ window.contentItems = [
     // live move handler
     const move = (e) => {
       if (!state.glass) return;
-      e.preventDefault();
+      e && e.preventDefault && e.preventDefault();
+      state.hasMoved = true;
+
       const rect = img.getBoundingClientRect();
       const bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
       const w = state.size / 2;
@@ -244,7 +250,11 @@ window.contentItems = [
     };
 
     // show/hide
-    const show = () => state.glass.classList.add('active');
+    const show = (e) => {
+      state.glass.classList.add('active');
+      // position to center on first show so it's visible even before move
+      if (!state.hasMoved) move();
+    };
     const hide = () => state.glass.classList.remove('active');
 
     // mount once image is ready
@@ -269,7 +279,6 @@ window.contentItems = [
         const px = parseInt(e.target.value, 10);
         sizeVal.textContent = px + 'px';
         updateGlassSize(px);
-        // keep background math aligned
         updateSizes();
       }, { passive: true });
     };
@@ -288,6 +297,7 @@ window.contentItems = [
   }
 })();`
 },
+
 
 {
   section: ["Learning", "CSS"],
