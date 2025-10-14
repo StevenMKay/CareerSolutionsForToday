@@ -80,6 +80,8 @@ window.contentItems = [
   demoHtml:
 `
 <div id="imgMagDemo-wd" class="img-mag-demo">
+  <div class="status-badge" aria-live="polite">loading…</div>
+
   <div class="img-magnifier-container" tabindex="0" aria-label="Image magnifier demo">
     <img
       class="img-magnifier-image"
@@ -110,7 +112,14 @@ window.contentItems = [
   font-family: system-ui, Segoe UI, Roboto, sans-serif;
   display: flex; flex-direction: column; align-items: center; gap: 16px;
   padding: 20px; border-radius: 14px; background: #0b1020; color: #e6e6e6;
-  min-height: 320px;
+  min-height: 320px; position: relative;
+}
+
+/* little status badge so you can *see* what stage we’re at */
+.img-mag-demo .status-badge {
+  position: absolute; top: 8px; right: 10px;
+  font-size: 12px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
+  padding: 4px 8px; border-radius: 6px; color: #d7e3ff; z-index: 100000;
 }
 
 .img-mag-demo .subtitle { opacity: .8; text-align: center; font-size: .95rem; }
@@ -136,7 +145,7 @@ window.contentItems = [
   background-repeat: no-repeat; pointer-events: none;
   box-shadow: 0 0 0 7px rgba(255,255,255,.85), 0 12px 24px rgba(0,0,0,.45), inset 0 0 15px rgba(0,0,0,.15);
   opacity: 0; transition: opacity .15s ease;
-  z-index: 99999; /* above preview chrome */
+  z-index: 100001; /* above preview chrome */
 }
 
 /* never block input */
@@ -156,10 +165,12 @@ window.contentItems = [
 `,
   demoJs:
 `
-(() => {
-  // Hard-bind to this specific demo instance by id (no document.currentScript assumptions)
+(function(){
   var root = document.getElementById('imgMagDemo-wd');
   if (!root) return;
+
+  var status = root.querySelector('.status-badge');
+  function setStatus(t){ if(status) status.textContent = t; }
 
   var container = root.querySelector('.img-magnifier-container');
   var img       = root.querySelector('.img-magnifier-image');
@@ -169,6 +180,7 @@ window.contentItems = [
   var sizeVal   = root.querySelector('.size-value');
 
   var state = { zoom: 3, size: 150, glass: null, shownOnce: false };
+  setStatus('JS loaded ✅');
 
   function buildGlass() {
     if (state.glass && state.glass.isConnected) state.glass.remove();
@@ -179,11 +191,12 @@ window.contentItems = [
     g.style.backgroundImage = "url('" + (img.currentSrc || img.src) + "')";
     updateBgSize();
     updateGlassSize(state.size);
+    setStatus('lens built ✅');
   }
 
   function updateBgSize() {
-    var rect = img.getBoundingClientRect();
     if (!state.glass) return;
+    var rect = img.getBoundingClientRect();
     state.glass.style.backgroundSize = (rect.width * state.zoom) + "px " + (rect.height * state.zoom) + "px";
   }
 
@@ -192,19 +205,19 @@ window.contentItems = [
     if (state.glass) state.glass.style.setProperty('--glass-size', px + 'px');
   }
 
-  function getPos(e) {
+  function getPosFromEvent(e){
     var rect = img.getBoundingClientRect();
-    var clientX = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width / 2));
-    var clientY = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height / 2));
-    var x = Math.max(0, Math.min(rect.width,  clientX - rect.left));
-    var y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+    var cx = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width/2));
+    var cy = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height/2));
+    var x = Math.max(0, Math.min(rect.width,  cx - rect.left));
+    var y = Math.max(0, Math.min(rect.height, cy - rect.top));
     return { x: x, y: y };
   }
 
   function move(e) {
     if (!state.glass) return;
     if (e && e.preventDefault) e.preventDefault();
-    var pos = getPos(e);
+    var pos = getPosFromEvent(e);
     var bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
     var w = state.size / 2, h = state.size / 2;
 
@@ -214,6 +227,7 @@ window.contentItems = [
     var bgX = -((pos.x * state.zoom) - w + bw);
     var bgY = -((pos.y * state.zoom) - h + bw);
     state.glass.style.backgroundPosition = bgX + "px " + bgY + "px";
+    setStatus('moving ✅');
   }
 
   function showOnceCentered() {
@@ -221,16 +235,14 @@ window.contentItems = [
     state.glass.classList.add('active');
     move(); // center once
     state.shownOnce = true;
-    setTimeout(function(){ state.glass.classList.remove('active'); }, 300);
+    setTimeout(function(){ state.glass.classList.remove('active'); setStatus('ready ✨'); }, 400);
   }
 
-  function show() { state.glass.classList.add('active'); }
-  function hide() { state.glass.classList.remove('active'); }
+  function show(){ if(state.glass) state.glass.classList.add('active'); }
+  function hide(){ if(state.glass) state.glass.classList.remove('active'); }
 
-  function start() {
+  function start(){
     buildGlass();
-
-    // Prove it’s visible on mount
     showOnceCentered();
 
     // Pointer (preferred)
@@ -240,13 +252,23 @@ window.contentItems = [
     container.addEventListener('pointermove',  move, { passive: false });
     container.addEventListener('pointerup',    function(e){ move(e); }, { passive: false });
 
-    // Mouse fallback (if PointerEvents are disabled by the preview)
+    // Mouse fallback (if PointerEvents get swallowed by preview)
     container.addEventListener('mouseenter', show, { passive: true });
     container.addEventListener('mouseleave', hide, { passive: true });
     container.addEventListener('mousemove',  move, { passive: false });
 
-    // Resize
-    window.addEventListener('resize', updateBgSize, { passive: true });
+    // Document-level emergency fallback (some wrappers intercept container events)
+    document.addEventListener('mousemove', function(e){
+      // only react if mouse is over/near the image rect
+      var r = img.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+        show(); move(e);
+      }
+    }, { passive: false });
+
+    // Keep sizes in sync
+    var ro = new ResizeObserver(function(){ updateBgSize(); });
+    ro.observe(img);
 
     // Controls
     if (zoomEl) zoomEl.addEventListener('input', function(e){
@@ -263,13 +285,12 @@ window.contentItems = [
     }, { passive: true });
   }
 
-  // Mount once the DOM & image are ready; also survive late injection
   function ready(fn){
     if (document.readyState !== 'loading') fn();
     else document.addEventListener('DOMContentLoaded', fn, { once: true });
   }
 
-  function tryStart() {
+  function tryStart(){
     if (!container || !img) return false;
     if (img.complete && img.naturalWidth) { start(); return true; }
     img.addEventListener('load', start, { once: true });
@@ -278,15 +299,14 @@ window.contentItems = [
 
   ready(function(){
     if (tryStart()) return;
-    var tries = 0, max = 120; // ~2s of retries
+    var tries = 0, max = 180; // ~3s of retries for late injection
     (function tick(){
       if (tryStart() || tries++ >= max) return;
       requestAnimationFrame(tick);
     })();
   });
 })();`
-}
-,
+},
 
 
 {
