@@ -67,184 +67,227 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
-
 {
-    section: ["Learning", "Website Design"],
-    program: {
-        name: "Website Design",
-        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
-    },
-    title: "Image Magnifier Glass Effect",
-    description: "Learn how to create an interactive image magnifier glass that follows your mouse cursor. This effect uses advanced JavaScript calculations and CSS transforms to create a zoom lens that reveals fine details of any image. Perfect for product photography, artwork galleries, and detailed image viewing.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg",
-    link: "Learn.html#website-design-image-magnifier",
-    topic: "Interactive Effects",
-    demoHtml: `<!-- Image Magnifier Glass Effect -->
-<div class="magnifier-demo-container">
-  <h3 style="text-align: center; margin-bottom: 20px; color: #333;">Hover over the image to magnify</h3>
+  section: ["Learning", "CSS"],
+  program: {
+    name: "CSS",
+    image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+  },
+  title: "Image Magnifier Glass",
+  description: "Responsive magnifier with zoom/size controls, pointer + touch support, and crisp positioning on scaled images.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg",
+  link: "Learn.html#image-magnifier-demo",
+  topic: "CSS & JS Interactions",
+  demoHtml:
+`<div id="imgMagDemo" class="img-mag-demo">
   <div class="img-magnifier-container" id="magnifierContainer">
-    <img 
-      id="magnifierImage" 
-      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg" 
-      alt="Barn Owl"
-      style="width: 100%; max-width: 600px; height: auto; display: block; margin: 0 auto;"
+    <img
+      id="magnifierImage"
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg"
+      alt="Barn Owl — hover or touch to magnify"
+      draggable="false"
     >
   </div>
-  <p style="text-align: center; margin-top: 15px; font-size: 0.9rem; color: #666;">
-    Move your mouse over the owl to see the magnification effect
-  </p>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="zoomLevel">Zoom: <span class="zoom-value" id="zoomValue">3x</span></label>
+      <input type="range" id="zoomLevel" min="2" max="6" value="3" step="0.25">
+    </div>
+    <div class="control-group">
+      <label for="glassSize">Glass: <span class="zoom-value" id="sizeValue">150px</span></label>
+      <input type="range" id="glassSize" min="80" max="260" value="150" step="10">
+    </div>
+  </div>
+
+  <p class="subtitle">Hover / drag to explore details. Use the sliders to adjust zoom and glass size.</p>
 </div>`,
-    demoCss: `/* Image Magnifier Glass Effect */
-* {
-  box-sizing: border-box;
+  demoCss:
+`/* Scoped wrapper */
+#imgMagDemo {
+  --glass-size: 150px;
+  --zoom: 3;
+  font-family: system-ui, Segoe UI, Roboto, sans-serif;
+  display:flex; flex-direction:column; align-items:center; gap:16px;
+  padding: 20px; border-radius: 14px; background: #0b1020;
+  color:#e6e6e6; min-height: 320px;
 }
 
-.magnifier-demo-container {
-  padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 12px;
-  margin: 20px 0;
+#imgMagDemo .subtitle { opacity:.8; text-align:center; font-size:.95rem; }
+
+#imgMagDemo .controls {
+  display:flex; gap:20px; flex-wrap:wrap; justify-content:center;
+}
+#imgMagDemo .control-group { display:flex; flex-direction:column; align-items:center; gap:6px; }
+#imgMagDemo .zoom-value { font-weight:700; color:#8ab4ff; }
+
+#imgMagDemo .img-magnifier-container {
+  position: relative; width: 100%; max-width: 800px; cursor: crosshair; touch-action: none;
+}
+#imgMagDemo .img-magnifier-container img {
+  width: 100%; height: auto; display:block; border-radius:12px;
+  user-select:none; -webkit-user-drag: none;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
 }
 
-.img-magnifier-container {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  cursor: crosshair;
+#imgMagDemo .img-magnifier-glass {
+  position:absolute; top:0; left:0; translate:-9999px -9999px;
+  border: 3px solid #000; border-radius: 50%;
+  width: var(--glass-size); height: var(--glass-size);
+  background-repeat: no-repeat; pointer-events: none;
+  box-shadow:
+    0 0 0 7px rgba(255,255,255,.85),
+    0 12px 24px rgba(0,0,0,.45),
+    inset 0 0 15px rgba(0,0,0,.15);
+  opacity:0; transition: opacity .15s ease;
+  z-index: 2;
 }
 
-.img-magnifier-container img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
+/* ensure visuals never block input on the image */
+#imgMagDemo .img-magnifier-glass,
+#imgMagDemo .img-magnifier-container:before { pointer-events: none; }
 
-.img-magnifier-glass {
-  position: absolute;
-  border: 3px solid #000;
-  border-radius: 50%;
-  cursor: none;
-  /* Size of the magnifier glass */
-  width: 150px;
-  height: 150px;
-  /* Shadow and styling */
-  box-shadow: 
-    0 0 0 7px rgba(255, 255, 255, 0.85),
-    0 0 15px rgba(0, 0, 0, 0.5),
-    inset 0 0 15px rgba(0, 0, 0, 0.1);
-  background-repeat: no-repeat;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
+#imgMagDemo .img-magnifier-glass.active { opacity:1; }
 
-.img-magnifier-glass.active {
-  opacity: 1;
-}
-
-/* Responsive adjustments */
 @media (max-width: 768px) {
-  .img-magnifier-glass {
-    width: 100px;
-    height: 100px;
-    border-width: 2px;
-  }
-  
-  .magnifier-demo-container {
-    padding: 15px;
-  }
+  #imgMagDemo { padding:14px; }
+  #imgMagDemo .img-magnifier-glass { border-width:2px; }
 }`,
-    demoJs: `// Image Magnifier Glass Effect JavaScript
+  demoJs:
+`(() => {
+  const ROOT_ID = 'imgMagDemo';
+  let mounted = false;
 
-function magnify(imgID, zoom) {
-  const img = document.getElementById(imgID);
-  const container = img.parentElement;
-  
-  // Create magnifier glass element
-  const glass = document.createElement("DIV");
-  glass.setAttribute("class", "img-magnifier-glass");
-  container.appendChild(glass);
-  
-  // Set background properties for the magnifier glass
-  glass.style.backgroundImage = "url('" + img.src + "')";
-  glass.style.backgroundRepeat = "no-repeat";
-  glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
-  
-  const bw = 3; // Border width
-  const w = glass.offsetWidth / 2;
-  const h = glass.offsetHeight / 2;
-  
-  // Mouse move event
-  glass.addEventListener("mousemove", moveMagnifier);
-  img.addEventListener("mousemove", moveMagnifier);
-  container.addEventListener("mousemove", moveMagnifier);
-  
-  // Touch events for mobile
-  glass.addEventListener("touchmove", moveMagnifier);
-  img.addEventListener("touchmove", moveMagnifier);
-  container.addEventListener("touchmove", moveMagnifier);
-  
-  // Show glass on mouse enter
-  container.addEventListener("mouseenter", () => {
-    glass.classList.add("active");
-  });
-  
-  // Hide glass on mouse leave
-  container.addEventListener("mouseleave", () => {
-    glass.classList.remove("active");
-  });
-  
-  function moveMagnifier(e) {
-    e.preventDefault();
-    
-    // Get cursor position
-    const pos = getCursorPos(e);
-    let x = pos.x;
-    let y = pos.y;
-    
-    // Prevent magnifier from going outside image boundaries
-    if (x > img.width - (w / zoom)) { x = img.width - (w / zoom); }
-    if (x < w / zoom) { x = w / zoom; }
-    if (y > img.height - (h / zoom)) { y = img.height - (h / zoom); }
-    if (y < h / zoom) { y = h / zoom; }
-    
-    // Set the position of the magnifier glass
-    glass.style.left = (x - w) + "px";
-    glass.style.top = (y - h) + "px";
-    
-    // Display what the magnifier glass "sees"
-    glass.style.backgroundPosition = "-" + ((x * zoom) - w + bw) + "px -" + ((y * zoom) - h + bw) + "px";
+  const state = {
+    zoom: 3,
+    size: 150,
+    glass: null,
+    cleanupFns: [],
+  };
+
+  const init = () => {
+    if (mounted) return true;
+    const root = document.getElementById(ROOT_ID);
+    if (!root) return false;
+
+    const container = root.querySelector('#magnifierContainer');
+    const img       = root.querySelector('#magnifierImage');
+    const zoomEl    = root.querySelector('#zoomLevel');
+    const zoomVal   = root.querySelector('#zoomValue');
+    const sizeEl    = root.querySelector('#glassSize');
+    const sizeVal   = root.querySelector('#sizeValue');
+    if (!container || !img || !zoomEl || !sizeEl) return false;
+
+    // helpers
+    const on = (el, ev, fn, opt) => { el.addEventListener(ev, fn, opt); state.cleanupFns.push(() => el.removeEventListener(ev, fn, opt)); };
+    const css = (el, map) => Object.entries(map).forEach(([k,v]) => el.style.setProperty(k, v));
+
+    // build glass once
+    const buildGlass = () => {
+      if (state.glass?.isConnected) state.glass.remove();
+      const g = document.createElement('div');
+      g.className = 'img-magnifier-glass';
+      container.appendChild(g);
+      state.glass = g;
+
+      // background image as the same src
+      g.style.backgroundImage = \`url('\${img.currentSrc || img.src}')\`;
+      updateSizes(); // sets background-size based on current zoom + image box
+      updateGlassSize(state.size);
+      return g;
+    };
+
+    // compute background-size based on displayed size (crisp on responsive images)
+    const updateSizes = () => {
+      const rect = img.getBoundingClientRect();
+      const bgW = rect.width  * state.zoom;
+      const bgH = rect.height * state.zoom;
+      state.glass.style.backgroundSize = \`\${bgW}px \${bgH}px\`;
+    };
+
+    const updateGlassSize = (px) => {
+      state.size = px;
+      css(state.glass, { '--glass-size': px + 'px' });
+    };
+
+    // get cursor/touch position relative to the image box
+    const getPos = (e) => {
+      const rect = img.getBoundingClientRect();
+      const x = (e.clientX ?? (e.touches && e.touches[0]?.clientX) ?? 0) - rect.left;
+      const y = (e.clientY ?? (e.touches && e.touches[0]?.clientY) ?? 0) - rect.top;
+      // clamp inside image
+      return {
+        x: Math.max(0, Math.min(rect.width,  x)),
+        y: Math.max(0, Math.min(rect.height, y))
+      };
+    };
+
+    // live move handler
+    const move = (e) => {
+      if (!state.glass) return;
+      e.preventDefault();
+      const rect = img.getBoundingClientRect();
+      const bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
+      const w = state.size / 2;
+      const h = state.size / 2;
+
+      const { x, y } = getPos(e);
+
+      // position glass center
+      state.glass.style.left = (x - w) + 'px';
+      state.glass.style.top  = (y - h) + 'px';
+
+      // background position (based on displayed size * zoom)
+      const bgX = -((x * state.zoom) - w + bw);
+      const bgY = -((y * state.zoom) - h + bw);
+      state.glass.style.backgroundPosition = \`\${bgX}px \${bgY}px\`;
+    };
+
+    // show/hide
+    const show = () => state.glass.classList.add('active');
+    const hide = () => state.glass.classList.remove('active');
+
+    // mount once image is ready
+    const start = () => {
+      buildGlass();
+      // listeners (pointer works for mouse + touch + pen)
+      on(container, 'pointerenter', show, { passive: true });
+      on(container, 'pointerleave', hide, { passive: true });
+      on(container, 'pointerdown',  (e) => { show(); move(e); }, { passive: false });
+      on(container, 'pointermove',  move, { passive: false });
+      on(container, 'pointerup',    (e) => move(e), { passive: false });
+      on(window,    'resize',       () => { updateSizes(); }, { passive: true });
+
+      // controls
+      on(zoomEl, 'input', (e) => {
+        state.zoom = parseFloat(e.target.value);
+        zoomVal.textContent = state.zoom + 'x';
+        updateSizes();
+      }, { passive: true });
+
+      on(sizeEl, 'input', (e) => {
+        const px = parseInt(e.target.value, 10);
+        sizeVal.textContent = px + 'px';
+        updateGlassSize(px);
+        // keep background math aligned
+        updateSizes();
+      }, { passive: true });
+    };
+
+    if (img.complete) start();
+    else on(img, 'load', start, { once: true });
+
+    mounted = true;
+    return true;
+  };
+
+  if (!init()) {
+    let tries = 0, max = 40;
+    const tick = () => { if (init() || tries++ >= max) return; requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
   }
-  
-  function getCursorPos(e) {
-    const a = img.getBoundingClientRect();
-    let x = e.pageX - a.left;
-    let y = e.pageY - a.top;
-    
-    // Consider page scroll
-    x = x - window.pageXOffset;
-    y = y - window.pageYOffset;
-    
-    return { x: x, y: y };
-  }
-}
-
-// Initialize magnifier with 3x zoom
-// Wait for image to load before initializing
-document.getElementById('magnifierImage').addEventListener('load', function() {
-  magnify('magnifierImage', 3);
-});
-
-// If image is already loaded (cached)
-if (document.getElementById('magnifierImage').complete) {
-  magnify('magnifierImage', 3);
-}`
+})();`
 },
-
 
 
   
