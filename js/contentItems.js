@@ -79,7 +79,7 @@ window.contentItems = [
   topic: "Interactive Effects",
   demoHtml:
 `
-<div class="img-mag-demo">
+<div id="imgMagDemo-wd" class="img-mag-demo">
   <div class="img-magnifier-container" tabindex="0" aria-label="Image magnifier demo">
     <img
       class="img-magnifier-image"
@@ -121,6 +121,7 @@ window.contentItems = [
 .img-mag-demo .img-magnifier-container {
   position: relative; width: 100%; max-width: 800px;
   cursor: crosshair; touch-action: none; z-index: 0; /* stacking context */
+  overflow: visible; /* avoid clipping in card layouts */
 }
 .img-mag-demo .img-magnifier-container .img-magnifier-image {
   width: 100%; height: auto; display: block; border-radius: 12px;
@@ -135,7 +136,7 @@ window.contentItems = [
   background-repeat: no-repeat; pointer-events: none;
   box-shadow: 0 0 0 7px rgba(255,255,255,.85), 0 12px 24px rgba(0,0,0,.45), inset 0 0 15px rgba(0,0,0,.15);
   opacity: 0; transition: opacity .15s ease;
-  z-index: 9999; /* above preview chrome */
+  z-index: 99999; /* above preview chrome */
 }
 
 /* never block input */
@@ -156,26 +157,22 @@ window.contentItems = [
   demoJs:
 `
 (() => {
-  // Find the nearest demo root for THIS script execution
-  const root = document.currentScript
-    ? (document.currentScript.closest('.content-item') && document.currentScript.closest('.content-item').querySelector('.img-mag-demo')) ||
-      document.querySelector('.img-mag-demo')  // fallback
-    : document.querySelector('.img-mag-demo');
-
+  // Hard-bind to this specific demo instance by id (no document.currentScript assumptions)
+  var root = document.getElementById('imgMagDemo-wd');
   if (!root) return;
 
-  const container = root.querySelector('.img-magnifier-container');
-  const img       = root.querySelector('.img-magnifier-image');
-  const zoomEl    = root.querySelector('.zoom-input');
-  const zoomVal   = root.querySelector('.zoom-value');
-  const sizeEl    = root.querySelector('.size-input');
-  const sizeVal   = root.querySelector('.size-value');
+  var container = root.querySelector('.img-magnifier-container');
+  var img       = root.querySelector('.img-magnifier-image');
+  var zoomEl    = root.querySelector('.zoom-input');
+  var zoomVal   = root.querySelector('.zoom-value');
+  var sizeEl    = root.querySelector('.size-input');
+  var sizeVal   = root.querySelector('.size-value');
 
-  const state = { zoom: 3, size: 150, glass: null, shownOnce: false };
+  var state = { zoom: 3, size: 150, glass: null, shownOnce: false };
 
   function buildGlass() {
     if (state.glass && state.glass.isConnected) state.glass.remove();
-    const g = document.createElement('div');
+    var g = document.createElement('div');
     g.className = 'img-magnifier-glass';
     container.appendChild(g);
     state.glass = g;
@@ -185,45 +182,46 @@ window.contentItems = [
   }
 
   function updateBgSize() {
-    const rect = img.getBoundingClientRect();
+    var rect = img.getBoundingClientRect();
+    if (!state.glass) return;
     state.glass.style.backgroundSize = (rect.width * state.zoom) + "px " + (rect.height * state.zoom) + "px";
   }
 
   function updateGlassSize(px) {
     state.size = px;
-    state.glass.style.setProperty('--glass-size', px + 'px');
+    if (state.glass) state.glass.style.setProperty('--glass-size', px + 'px');
   }
 
   function getPos(e) {
-    const rect = img.getBoundingClientRect();
-    const clientX = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width / 2));
-    const clientY = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height / 2));
-    const x = Math.max(0, Math.min(rect.width,  clientX - rect.left));
-    const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
+    var rect = img.getBoundingClientRect();
+    var clientX = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width / 2));
+    var clientY = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height / 2));
+    var x = Math.max(0, Math.min(rect.width,  clientX - rect.left));
+    var y = Math.max(0, Math.min(rect.height, clientY - rect.top));
     return { x: x, y: y };
   }
 
   function move(e) {
     if (!state.glass) return;
     if (e && e.preventDefault) e.preventDefault();
-    const pos = getPos(e);
-    const bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
-    const w = state.size / 2, h = state.size / 2;
+    var pos = getPos(e);
+    var bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
+    var w = state.size / 2, h = state.size / 2;
 
     state.glass.style.left = (pos.x - w) + 'px';
     state.glass.style.top  = (pos.y - h) + 'px';
 
-    const bgX = -((pos.x * state.zoom) - w + bw);
-    const bgY = -((pos.y * state.zoom) - h + bw);
+    var bgX = -((pos.x * state.zoom) - w + bw);
+    var bgY = -((pos.y * state.zoom) - h + bw);
     state.glass.style.backgroundPosition = bgX + "px " + bgY + "px";
   }
 
   function showOnceCentered() {
     if (state.shownOnce) return;
     state.glass.classList.add('active');
-    move(); // center
+    move(); // center once
     state.shownOnce = true;
-    setTimeout(function(){ state.glass.classList.remove('active'); }, 250);
+    setTimeout(function(){ state.glass.classList.remove('active'); }, 300);
   }
 
   function show() { state.glass.classList.add('active'); }
@@ -231,7 +229,8 @@ window.contentItems = [
 
   function start() {
     buildGlass();
-    // Prove visibility on mount
+
+    // Prove it’s visible on mount
     showOnceCentered();
 
     // Pointer (preferred)
@@ -241,7 +240,7 @@ window.contentItems = [
     container.addEventListener('pointermove',  move, { passive: false });
     container.addEventListener('pointerup',    function(e){ move(e); }, { passive: false });
 
-    // Mouse fallback (if PointerEvents blocked)
+    // Mouse fallback (if PointerEvents are disabled by the preview)
     container.addEventListener('mouseenter', show, { passive: true });
     container.addEventListener('mouseleave', hide, { passive: true });
     container.addEventListener('mousemove',  move, { passive: false });
@@ -250,21 +249,26 @@ window.contentItems = [
     window.addEventListener('resize', updateBgSize, { passive: true });
 
     // Controls
-    zoomEl.addEventListener('input', function(e){
+    if (zoomEl) zoomEl.addEventListener('input', function(e){
       state.zoom = parseFloat(e.target.value);
-      zoomVal.textContent = state.zoom + 'x';
+      if (zoomVal) zoomVal.textContent = state.zoom + 'x';
       updateBgSize();
     }, { passive: true });
 
-    sizeEl.addEventListener('input', function(e){
+    if (sizeEl) sizeEl.addEventListener('input', function(e){
       var px = parseInt(e.target.value, 10);
-      sizeVal.textContent = px + 'px';
+      if (sizeVal) sizeVal.textContent = px + 'px';
       updateGlassSize(px);
       updateBgSize();
     }, { passive: true });
   }
 
-  // Mount after image is ready, retry if preview injects late
+  // Mount once the DOM & image are ready; also survive late injection
+  function ready(fn){
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+
   function tryStart() {
     if (!container || !img) return false;
     if (img.complete && img.naturalWidth) { start(); return true; }
@@ -272,15 +276,17 @@ window.contentItems = [
     return true;
   }
 
-  if (!tryStart()) {
-    var tries = 0, max = 60;
+  ready(function(){
+    if (tryStart()) return;
+    var tries = 0, max = 120; // ~2s of retries
     (function tick(){
       if (tryStart() || tries++ >= max) return;
       requestAnimationFrame(tick);
     })();
-  }
+  });
 })();`
-},
+}
+,
 
 
 {
