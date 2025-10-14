@@ -181,66 +181,52 @@
       }, 3000);
     }
 
-    function updatePreview() {
-      // This function updates the live preview when code is edited
-      const cssCards = document.querySelectorAll('.css-interactive-card');
-      
-      cssCards.forEach(card => {
-        const htmlEditor = card.querySelector('.html-editor');
-        const cssEditor = card.querySelector('.css-editor');
-        const jsEditor = card.querySelector('.js-editor');
-        const preview = card.querySelector('.css-live-preview');
-        const styleTag = card.querySelector('style');
-        
-        if (htmlEditor && cssEditor && preview && styleTag) {
-          // Update the preview HTML
-          preview.innerHTML = htmlEditor.value;
-          
-          // Update the CSS
-          styleTag.textContent = cssEditor.value;
-          
-          // SIMPLIFIED 3D TILT EXECUTION - Direct approach
-          if (jsEditor) {
-            setTimeout(() => {
-              // Find 3D tilt elements and attach events directly
-              const containers = preview.querySelectorAll('.card-container-3d');
-              const cards = preview.querySelectorAll('.card-3d');
-              
-              containers.forEach((container, index) => {
-                const card = cards[index];
-                if (card && container) {
-                  // Remove existing listeners by replacing the element
-                  const newContainer = container.cloneNode(true);
-                  const newCard = newContainer.querySelector('.card-3d');
-                  container.parentNode.replaceChild(newContainer, container);
-                  
-                  // Add 3D tilt functionality directly
-                  newContainer.onmousemove = function(e) {
-                    const rect = newCard.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    const centerX = rect.width / 2;
-                    const centerY = rect.height / 2;
-                    const rotateX = (centerY - y) / 10;
-                    const rotateY = (x - centerX) / 10;
-
-                    newCard.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
-                    newCard.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
-                  };
-
-                  newContainer.onmouseleave = function() {
-                    newCard.style.transform = 'rotateX(0deg) rotateY(0deg)';
-                    newCard.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
-                  };
-                }
-              });
-            }, 200);
-          }
-        }
-      });
-    }
     
-    // Also execute 3D tilt when page loads
+function updatePreview() {
+  const cssCards = document.querySelectorAll('.css-interactive-card');
+
+  cssCards.forEach(card => {
+    const htmlEditor = card.querySelector('.html-editor');
+    const cssEditor  = card.querySelector('.css-editor');
+    const jsEditor   = card.querySelector('.js-editor');
+    const preview    = card.querySelector('.css-live-preview');
+    const styleTag   = card.querySelector('style');
+
+    if (!preview) return;
+
+    // 1) HTML
+    if (htmlEditor) preview.innerHTML = htmlEditor.value || '';
+
+    // 2) CSS
+    if (styleTag && cssEditor) styleTag.textContent = cssEditor.value || '';
+
+    // 3) JS — run in an isolated scope for THIS preview
+    // clean any previous runners for this card
+    preview.querySelectorAll('script[data-live-runner]').forEach(s => s.remove());
+
+    if (jsEditor && jsEditor.value && jsEditor.value.trim()) {
+      const runner = document.createElement('script');
+      runner.type = 'text/javascript';
+      runner.dataset.liveRunner = 'true';
+
+      // attach a 'root' var to scope queries to this preview
+      const code = [
+        '(function(){',
+        '  try {',
+        '    var root = document.currentScript && document.currentScript.closest(".css-live-preview");',
+        jsEditor.value,
+        '  } catch (e) { console.error("Live preview JS error:", e); }',
+        '})();',
+        '//# sourceURL=live-preview-' + (card.id || 'card') + '.js'
+      ].join('\n');
+
+      runner.textContent = code;
+      preview.appendChild(runner);
+    }
+  });
+}
+
+// Also execute 3D tilt when page loads
     document.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() {
         updatePreview(); // Trigger on initial load
@@ -295,5 +281,4 @@
  
   </body>
 </html>
-
 
