@@ -68,16 +68,16 @@ if (window.contentItems) {
 window.contentItems = [
 
 {
-  section: ["Learning", "CSS"],
+  section: ["Learning", "Website Design"],
   program: {
-    name: "CSS",
-    image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    name: "Website Design",
+    image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
   },
-  title: "Image Magnifier Glass",
-  description: "Responsive magnifier with zoom/size controls, pointer + touch support, and crisp positioning on scaled images.",
+  title: "Image Magnifier Glass Effect",
+  description: "Learn how to create an interactive image magnifier glass that follows your mouse cursor. This effect uses advanced JavaScript calculations and CSS transforms to create a zoom lens that reveals fine details of any image. Perfect for product photography, artwork galleries, and detailed image viewing.",
   thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg",
-  link: "Learn.html#image-magnifier-demo",
-  topic: "CSS & JS Interactions",
+  link: "Learn.html#website-design-image-magnifier",
+  topic: "Interactive Effects",
   demoHtml:
 `<div id="imgMagDemo" class="img-mag-demo">
   <div class="img-magnifier-container" id="magnifierContainer">
@@ -288,7 +288,6 @@ window.contentItems = [
   }
 })();`
 },
-
 
   
 {
