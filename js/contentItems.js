@@ -73,13 +73,13 @@ window.contentItems = [
     image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
   },
   title: "Image Magnifier Glass Effect",
-  description: "Learn how to create an interactive image magnifier glass that follows your mouse cursor. This effect uses advanced JavaScript calculations and CSS transforms to create a zoom lens that reveals fine details of any image. Perfect for product photography, artwork galleries, and detailed image viewing.",
+  description: "Interactive image magnifier with responsive math, touch/pointer support, and reliable visibility in live preview.",
   thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg",
   link: "Learn.html#website-design-image-magnifier",
   topic: "Interactive Effects",
   demoHtml:
 `<div id="imgMagDemo" class="img-mag-demo">
-  <div class="img-magnifier-container" id="magnifierContainer">
+  <div class="img-magnifier-container" id="magnifierContainer" tabindex="0" aria-label="Image magnifier demo">
     <img
       id="magnifierImage"
       src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg"
@@ -122,6 +122,7 @@ window.contentItems = [
 
 #imgMagDemo .img-magnifier-container {
   position: relative; width: 100%; max-width: 800px; cursor: crosshair; touch-action: none;
+  z-index: 0; /* create a stacking context */
 }
 #imgMagDemo .img-magnifier-container img {
   width: 100%; height: auto; display:block; border-radius:12px;
@@ -131,8 +132,7 @@ window.contentItems = [
 
 #imgMagDemo .img-magnifier-glass {
   position:absolute; 
-  top: -9999px;            /* ⬅️ offscreen via top/left so JS left/top works */
-  left: -9999px;
+  top: -9999px; left: -9999px; /* offscreen until positioned */
   border: 3px solid #000; border-radius: 50%;
   width: var(--glass-size); height: var(--glass-size);
   background-repeat: no-repeat; pointer-events: none;
@@ -141,12 +141,16 @@ window.contentItems = [
     0 12px 24px rgba(0,0,0,.45),
     inset 0 0 15px rgba(0,0,0,.15);
   opacity:0; transition: opacity .15s ease;
-  z-index: 2;
+  z-index: 99999; /* sit above any preview chrome */
 }
 
-/* ensure visuals never block input on the image */
+/* never block input */
 #imgMagDemo .img-magnifier-glass,
 #imgMagDemo .img-magnifier-container:before { pointer-events: none; }
+
+/* CSS fallback: ensure visible when container is hovered/focused */
+#imgMagDemo .img-magnifier-container:hover .img-magnifier-glass,
+#imgMagDemo .img-magnifier-container:focus .img-magnifier-glass { opacity:1; }
 
 #imgMagDemo .img-magnifier-glass.active { opacity:1; }
 
@@ -180,95 +184,88 @@ window.contentItems = [
     const sizeVal   = root.querySelector('#sizeValue');
     if (!container || !img || !zoomEl || !sizeEl) return false;
 
-    // helpers
     const on = (el, ev, fn, opt) => { el.addEventListener(ev, fn, opt); state.cleanupFns.push(() => el.removeEventListener(ev, fn, opt)); };
-    const css = (el, map) => Object.entries(map).forEach(([k,v]) => el.style.setProperty(k, v));
 
-    // build glass once
     const buildGlass = () => {
       if (state.glass?.isConnected) state.glass.remove();
       const g = document.createElement('div');
       g.className = 'img-magnifier-glass';
       container.appendChild(g);
       state.glass = g;
-
-      // background image as the same src
       g.style.backgroundImage = \`url('\${img.currentSrc || img.src}')\`;
-      updateSizes(); // sets background-size based on current zoom + image box
+      updateSizes();
       updateGlassSize(state.size);
       return g;
     };
 
-    // compute background-size based on displayed size (crisp on responsive images)
     const updateSizes = () => {
       const rect = img.getBoundingClientRect();
-      const bgW = rect.width  * state.zoom;
-      const bgH = rect.height * state.zoom;
-      state.glass.style.backgroundSize = \`\${bgW}px \${bgH}px\`;
+      state.glass.style.backgroundSize = \`\${rect.width * state.zoom}px \${rect.height * state.zoom}px\`;
     };
 
     const updateGlassSize = (px) => {
       state.size = px;
-      css(state.glass, { '--glass-size': px + 'px' });
+      state.glass.style.setProperty('--glass-size', px + 'px');
     };
 
-    // get cursor/touch position relative to the image box
     const getPos = (e) => {
       const rect = img.getBoundingClientRect();
       const clientX = e?.clientX ?? (e?.touches && e.touches[0]?.clientX) ?? (rect.left + rect.width/2);
       const clientY = e?.clientY ?? (e?.touches && e.touches[0]?.clientY) ?? (rect.top  + rect.height/2);
       const x = clientX - rect.left;
       const y = clientY - rect.top;
-      // clamp inside image
       return {
         x: Math.max(0, Math.min(rect.width,  x)),
         y: Math.max(0, Math.min(rect.height, y))
       };
     };
 
-    // live move handler
     const move = (e) => {
       if (!state.glass) return;
       e && e.preventDefault && e.preventDefault();
       state.hasMoved = true;
 
-      const rect = img.getBoundingClientRect();
       const bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
-      const w = state.size / 2;
-      const h = state.size / 2;
-
+      const w = state.size / 2, h = state.size / 2;
       const { x, y } = getPos(e);
 
-      // position glass center
       state.glass.style.left = (x - w) + 'px';
       state.glass.style.top  = (y - h) + 'px';
 
-      // background position (based on displayed size * zoom)
       const bgX = -((x * state.zoom) - w + bw);
       const bgY = -((y * state.zoom) - h + bw);
       state.glass.style.backgroundPosition = \`\${bgX}px \${bgY}px\`;
     };
 
-    // show/hide
-    const show = (e) => {
+    const show = () => {
       state.glass.classList.add('active');
-      // position to center on first show so it's visible even before move
-      if (!state.hasMoved) move();
+      if (!state.hasMoved) move(); // center on first show
     };
     const hide = () => state.glass.classList.remove('active');
 
-    // mount once image is ready
     const start = () => {
       buildGlass();
-      // listeners (pointer works for mouse + touch + pen)
+
+      // Make it obvious it's working: briefly show centered on mount
+      show();
+      setTimeout(hide, 300);
+
+      // Pointer (mouse/touch/pen)
       on(container, 'pointerenter', show, { passive: true });
       on(container, 'pointerleave', hide, { passive: true });
       on(container, 'pointerdown',  (e) => { show(); move(e); }, { passive: false });
       on(container, 'pointermove',  move, { passive: false });
       on(container, 'pointerup',    (e) => move(e), { passive: false });
-      on(window,    'resize',       () => { updateSizes(); }, { passive: true });
 
-      // controls
+      // Mouse fallback (if preview disables PointerEvents)
+      on(container, 'mouseenter', show, { passive: true });
+      on(container, 'mouseleave', hide, { passive: true });
+      on(container, 'mousemove',  move, { passive: false });
+
+      // Resize
+      on(window, 'resize', updateSizes, { passive: true });
+
+      // Controls
       on(zoomEl, 'input', (e) => {
         state.zoom = parseFloat(e.target.value);
         zoomVal.textContent = state.zoom + 'x';
@@ -291,7 +288,7 @@ window.contentItems = [
   };
 
   if (!init()) {
-    let tries = 0, max = 40;
+    let tries = 0, max = 60; // ~1s of retries in case preview injects HTML late
     const tick = () => { if (init() || tries++ >= max) return; requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   }
