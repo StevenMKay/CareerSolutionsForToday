@@ -66,6 +66,188 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
+
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Image Magnifier Glass Effect",
+    description: "Learn how to create an interactive image magnifier glass that follows your mouse cursor. This effect uses advanced JavaScript calculations and CSS transforms to create a zoom lens that reveals fine details of any image. Perfect for product photography, artwork galleries, and detailed image viewing.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg",
+    link: "Learn.html#website-design-image-magnifier",
+    topic: "Interactive Effects",
+    demoHtml: `<!-- Image Magnifier Glass Effect -->
+<div class="magnifier-demo-container">
+  <h3 style="text-align: center; margin-bottom: 20px; color: #333;">Hover over the image to magnify</h3>
+  <div class="img-magnifier-container" id="magnifierContainer">
+    <img 
+      id="magnifierImage" 
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg" 
+      alt="Barn Owl"
+      style="width: 100%; max-width: 600px; height: auto; display: block; margin: 0 auto;"
+    >
+  </div>
+  <p style="text-align: center; margin-top: 15px; font-size: 0.9rem; color: #666;">
+    Move your mouse over the owl to see the magnification effect
+  </p>
+</div>`,
+    demoCss: `/* Image Magnifier Glass Effect */
+* {
+  box-sizing: border-box;
+}
+
+.magnifier-demo-container {
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.img-magnifier-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  cursor: crosshair;
+}
+
+.img-magnifier-container img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.img-magnifier-glass {
+  position: absolute;
+  border: 3px solid #000;
+  border-radius: 50%;
+  cursor: none;
+  /* Size of the magnifier glass */
+  width: 150px;
+  height: 150px;
+  /* Shadow and styling */
+  box-shadow: 
+    0 0 0 7px rgba(255, 255, 255, 0.85),
+    0 0 15px rgba(0, 0, 0, 0.5),
+    inset 0 0 15px rgba(0, 0, 0, 0.1);
+  background-repeat: no-repeat;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.img-magnifier-glass.active {
+  opacity: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .img-magnifier-glass {
+    width: 100px;
+    height: 100px;
+    border-width: 2px;
+  }
+  
+  .magnifier-demo-container {
+    padding: 15px;
+  }
+}`,
+    demoJs: `// Image Magnifier Glass Effect JavaScript
+
+function magnify(imgID, zoom) {
+  const img = document.getElementById(imgID);
+  const container = img.parentElement;
+  
+  // Create magnifier glass element
+  const glass = document.createElement("DIV");
+  glass.setAttribute("class", "img-magnifier-glass");
+  container.appendChild(glass);
+  
+  // Set background properties for the magnifier glass
+  glass.style.backgroundImage = "url('" + img.src + "')";
+  glass.style.backgroundRepeat = "no-repeat";
+  glass.style.backgroundSize = (img.width * zoom) + "px " + (img.height * zoom) + "px";
+  
+  const bw = 3; // Border width
+  const w = glass.offsetWidth / 2;
+  const h = glass.offsetHeight / 2;
+  
+  // Mouse move event
+  glass.addEventListener("mousemove", moveMagnifier);
+  img.addEventListener("mousemove", moveMagnifier);
+  container.addEventListener("mousemove", moveMagnifier);
+  
+  // Touch events for mobile
+  glass.addEventListener("touchmove", moveMagnifier);
+  img.addEventListener("touchmove", moveMagnifier);
+  container.addEventListener("touchmove", moveMagnifier);
+  
+  // Show glass on mouse enter
+  container.addEventListener("mouseenter", () => {
+    glass.classList.add("active");
+  });
+  
+  // Hide glass on mouse leave
+  container.addEventListener("mouseleave", () => {
+    glass.classList.remove("active");
+  });
+  
+  function moveMagnifier(e) {
+    e.preventDefault();
+    
+    // Get cursor position
+    const pos = getCursorPos(e);
+    let x = pos.x;
+    let y = pos.y;
+    
+    // Prevent magnifier from going outside image boundaries
+    if (x > img.width - (w / zoom)) { x = img.width - (w / zoom); }
+    if (x < w / zoom) { x = w / zoom; }
+    if (y > img.height - (h / zoom)) { y = img.height - (h / zoom); }
+    if (y < h / zoom) { y = h / zoom; }
+    
+    // Set the position of the magnifier glass
+    glass.style.left = (x - w) + "px";
+    glass.style.top = (y - h) + "px";
+    
+    // Display what the magnifier glass "sees"
+    glass.style.backgroundPosition = "-" + ((x * zoom) - w + bw) + "px -" + ((y * zoom) - h + bw) + "px";
+  }
+  
+  function getCursorPos(e) {
+    const a = img.getBoundingClientRect();
+    let x = e.pageX - a.left;
+    let y = e.pageY - a.top;
+    
+    // Consider page scroll
+    x = x - window.pageXOffset;
+    y = y - window.pageYOffset;
+    
+    return { x: x, y: y };
+  }
+}
+
+// Initialize magnifier with 3x zoom
+// Wait for image to load before initializing
+document.getElementById('magnifierImage').addEventListener('load', function() {
+  magnify('magnifierImage', 3);
+});
+
+// If image is already loaded (cached)
+if (document.getElementById('magnifierImage').complete) {
+  magnify('magnifierImage', 3);
+}`
+},
+
+
+
+  
 {
   section: ["Learning", "CSS"],
   program: {
