@@ -66,23 +66,21 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
-
 {
-    section: ["Learning", "CSS"],
-    program: {
-        name: "CSS",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
-    },
-    title: "CSS Cosmic Galaxy Button",
-    description: "Create a stunning cosmic button with particle animations, galaxy effects, and interactive text changes. Features three states: Cosmic (default), Journey (on hover with purple glow), and Warp Speed (on click with green glow). Includes particle systems, 3D transforms, and smooth state transitions.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2c77a5197be5cf69fde4447b64ff7562578b33fc/Thumbnails/Warp%20Speed%20Thumb.png",
-        link: "Learn.html#css-cosmic-button-demo",
-    topic: "CSS Button Effects",
-    demoHtml: 
-    
-    `<div class="cosmic-demo-container" id="cosmicDemo">
+  section: ["Learning", "CSS"],
+  program: {
+    name: "CSS",
+    image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+  },
+  title: "CSS Cosmic Galaxy Button",
+  description: "Create a stunning cosmic button with particle animations, galaxy effects, and interactive text changes. Features three states: Cosmic (default), Journey (on hover with purple glow), and Warp Speed (on click with green glow). Includes particle systems, 3D transforms, and smooth state transitions.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2c77a5197be5cf69fde4447b64ff7562578b33fc/Thumbnails/Warp%20Speed%20Thumb.png",
+  link: "Learn.html#css-cosmic-button-demo",
+  topic: "CSS Button Effects",
+  demoHtml:
+`<div class="cosmic-demo-container" id="cosmicDemo">
   <div class="galaxy-button">
-    <button class="cosmic-btn" id="cosmicBtn" aria-label="Cosmic Button">
+    <button class="cosmic-btn" id="cosmicBtn" type="button" aria-label="Cosmic Button">
       <span class="spark"></span>
       <span class="backdrop"></span>
 
@@ -118,10 +116,8 @@ window.contentItems = [
     Hover to see “Journey” • Click for “Warp Speed”
   </p>
 </div>`,
-    demoCss:
-    
-    `
-    
+  demoCss:
+`
 /* Cosmic Galaxy Button (scoped) */
 #cosmicDemo {
   --transition: 0.25s;
@@ -268,68 +264,106 @@ window.contentItems = [
   transition: background 0.5s ease;
 }
 
+/* Ensure inner visuals never block clicks */
+.cosmic-btn .spark,
+.cosmic-btn .backdrop,
+.cosmic-btn .galaxy,
+.cosmic-btn .galaxy__container,
+.cosmic-btn .galaxy__ring,
+.cosmic-btn .star { pointer-events: none; }
+
 @media (max-width: 768px){ .cosmic-btn{ font-size:1.5rem; } }
-
-  
 `,
-    demoJs: `
-    
-// Cosmic Button Interactive States (scoped to the live preview)
+  demoJs:
+`// Cosmic Button Interactive States (robust mount + full input support)
 (() => {
-  const root = document.getElementById('cosmicDemo');
-  if (!root) return;
+  const MOUNT_ID = 'cosmicDemo';
+  let mounted = false;
 
-  const button = root.querySelector('#cosmicBtn');
-  const textEl = root.querySelector('#cosmicText');
-  const bodydrop = root.querySelector('#cosmicBodydrop');
-  const stars = root.querySelectorAll('.star');
+  const init = () => {
+    if (mounted) return true;
+    const root = document.getElementById(MOUNT_ID);
+    if (!root) return false;
 
-  // particle randomization (same behavior, local scope)
-  const RAND = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
-  stars.forEach(s => {
-    s.style.setProperty('--duration', RAND(6, 20));
-    s.style.setProperty('--delay', RAND(1, 10));
-    s.style.setProperty('--alpha', RAND(40, 90) / 100);
-    s.style.setProperty('--size', RAND(2, 6));
-    s.style.setProperty('--distance', RAND(40, 200));
-  });
+    const button   = root.querySelector('#cosmicBtn');
+    const textEl   = root.querySelector('#cosmicText');
+    const bodydrop = root.querySelector('#cosmicBodydrop');
+    const stars    = root.querySelectorAll('.star');
+    if (!button || !textEl || !bodydrop) return false;
 
-  let isWarped = false;
-  const ORIGINAL = 'Cosmic';
-  const HOVER = 'Journey';
-  const WARP  = 'Warp Speed';
+    // Particle randomization
+    const RAND = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+    stars.forEach(s => {
+      s.style.setProperty('--duration', RAND(6, 20));
+      s.style.setProperty('--delay', RAND(1, 10));
+      s.style.setProperty('--alpha', RAND(40, 90) / 100);
+      s.style.setProperty('--size', RAND(2, 6));
+      s.style.setProperty('--distance', RAND(40, 200));
+    });
 
-  // hover -> Journey
-  button.addEventListener('mouseenter', () => {
-    if (!isWarped) textEl.textContent = HOVER;
-    // keep container “active” for the background glow
-    root.classList.add('active');
-  });
-  button.addEventListener('mouseleave', () => {
-    if (!isWarped) textEl.textContent = ORIGINAL;
-    root.classList.remove('active');
-  });
+    let isWarped = false;
+    const ORIGINAL = 'Cosmic';
+    const HOVER    = 'Journey';
+    const WARP     = 'Warp Speed';
 
-  // click -> toggle Warp Speed (green)
-  button.addEventListener('click', () => {
-    isWarped = !isWarped;
-    if (isWarped) {
-      textEl.textContent = WARP;
-      button.classList.add('warp-speed');
-      root.classList.add('warp-active');
-      bodydrop.classList.add('warp-active');
-      if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
-    } else {
-      textEl.textContent = ORIGINAL;
-      button.classList.remove('warp-speed');
-      root.classList.remove('warp-active');
-      bodydrop.classList.remove('warp-active');
-    }
-  });
-})();  
-  `
+    // Hover state (desktop)
+    button.addEventListener('mouseenter', () => {
+      if (!isWarped) textEl.textContent = HOVER;
+      root.classList.add('active');
+    });
+    button.addEventListener('mouseleave', () => {
+      if (!isWarped) textEl.textContent = ORIGINAL;
+      root.classList.remove('active');
+    });
+
+    // Click / tap / keyboard toggle -> Warp
+    const toggleWarp = (e) => {
+      if (e) e.preventDefault();
+      isWarped = !isWarped;
+      if (isWarped) {
+        textEl.textContent = WARP;
+        button.classList.add('warp-speed');
+        root.classList.add('warp-active');
+        bodydrop.classList.add('warp-active');
+        if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+      } else {
+        textEl.textContent = ORIGINAL;
+        button.classList.remove('warp-speed');
+        root.classList.remove('warp-active');
+        bodydrop.classList.remove('warp-active');
+      }
+    };
+
+    button.addEventListener('click', toggleWarp, { passive: false });
+    // Touch support (some previewers swallow click after touch)
+    button.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') toggleWarp(e);
+    }, { passive: false });
+
+    // Keyboard accessibility: Space/Enter toggle
+    button.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.key === ' ' || e.key === 'Enter') {
+        toggleWarp(e);
+      }
+    });
+
+    mounted = true;
+    return true;
+  };
+
+  // Try immediately, then retry a few times if the preview injects HTML after JS runs
+  if (!init()) {
+    let tries = 0;
+    const MAX_TRIES = 40; // ~2s total
+    const tick = () => {
+      if (init() || tries++ >= MAX_TRIES) return;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+})();
+`
 },
-
 
 
   
