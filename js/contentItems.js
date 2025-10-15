@@ -2205,12 +2205,10 @@ https:"https://youtu.be/BwEq5QTCwEI",
             name:"Excel",
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
         },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
-https:"https://youtu.be/g46C_wkCXnM",
- title:"Learn VLOOKUP with Interactive Simulation",
+        title:"Learn VLOOKUP with Interactive Simulation",
         description:"This is a simulation I created on how to use the VLOOKUP function.",
         thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
-       link:"https://youtu.be/g46C_wkCXnM",
+        link:"https://youtu.be/g46C_wkCXnM",
 
 
   related: [
