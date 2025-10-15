@@ -74,7 +74,7 @@ window.contentItems = [
   },
   title: "Image Magnifier Glass Effect",
   description: "Interactive image magnifier with responsive math, touch/pointer support, and reliable visibility in live preview.",
-  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9472d04e7b6a2117b692ab021ba08580247cd82f/photos/maghover.png",
   link: "Learn.html#website-design-image-magnifier",
   topic: "Interactive Effects",
   demoHtml:
