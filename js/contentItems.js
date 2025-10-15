@@ -85,8 +85,8 @@ window.contentItems = [
   <div class="img-magnifier-container" tabindex="0" aria-label="Image magnifier demo">
     <img
       class="img-magnifier-image"
-      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6ea11f3eca7a00d656d9aa8a39f98a50232ca863/photos/Barn%20Own%20Photo%20for%20Hover.jpg"
-      alt="Barn Owl — hover or touch to magnify"
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/95ebd87f8e8a7f1bb16849394b49b53d77bb9aed/photos/Steven%20and%20Owl.png"
+      alt="Steven and Owl — hover or touch to magnify"
       draggable="false"
     />
   </div>
