@@ -4664,7 +4664,7 @@ document.addEventListener('DOMContentLoaded', function() {
         title: "Call Center Training Simulation",
         description: "Download the complete HTML/CSS/JavaScript source code for an interactive call center training simulation. Study customer service workflows, verification processes, and performance tracking implementation.",
         thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
-        link: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t",
+        link: "Learn.html#call-center-training-simulation",
         related: [
             {
                 text: "Download code",
@@ -4675,7 +4675,75 @@ document.addEventListener('DOMContentLoaded', function() {
                 url: "https://youtu.be/VsivDUMm9lE"
             }
         ],
-        topic: "Simulation Examples"
+        topic: "Simulation Examples",
+        demoHtml: `<div class="simulation-demo-container">
+  <iframe src="Simulations/CallCenter.html" 
+          class="simulation-iframe" 
+          title="Call Center Training Simulation"
+          frameborder="0">
+    Your browser does not support iframes. Please use a modern browser to view this simulation.
+  </iframe>
+  <div class="simulation-links">
+    <a href="https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t" target="_blank" class="download-btn">📥 Download Source Code</a>
+    <a href="https://youtu.be/VsivDUMm9lE" target="_blank" class="video-btn">🎥 Watch Tutorial Video</a>
+  </div>
+</div>`,
+        demoCss: `.simulation-demo-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 20px auto;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.simulation-iframe {
+  width: 100%;
+  height: 600px;
+  border: 2px solid #0b4f6c;
+  border-radius: 6px;
+  background: white;
+}
+
+.simulation-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.download-btn, .video-btn {
+  padding: 12px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #0b4f6c, #1976d2);
+  color: white;
+}
+
+.download-btn:hover {
+  background: linear-gradient(135deg, #1976d2, #0b4f6c);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.4);
+}
+
+.video-btn {
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  color: white;
+}
+
+.video-btn:hover {
+  background: linear-gradient(135deg, #f7931e, #ff6b35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}`
     },
     {
         section: ["Learning", "Coding"], 
@@ -4686,7 +4754,7 @@ document.addEventListener('DOMContentLoaded', function() {
         title: "Excel VLOOKUP Training Simulation",
         description: "Download the complete HTML/CSS/JavaScript source code for an interactive Excel VLOOKUP training simulation. Learn step-by-step tutorial development with real-time feedback and validation.",
         thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
-        link: "https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_",
+        link: "Learn.html#excel-vlookup-training-simulation",
         related: [
             {
                 text:"Download code",
@@ -4697,7 +4765,75 @@ document.addEventListener('DOMContentLoaded', function() {
                 url:"https://youtu.be/VsivDUMm9lE"
             }
         ],
-        topic: "Simulation Examples"
+        topic: "Simulation Examples",
+        demoHtml: `<div class="simulation-demo-container">
+  <iframe src="Simulations/VLOOKUPSimulation.html" 
+          class="simulation-iframe" 
+          title="Excel VLOOKUP Training Simulation"
+          frameborder="0">
+    Your browser does not support iframes. Please use a modern browser to view this simulation.
+  </iframe>
+  <div class="simulation-links">
+    <a href="https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_" target="_blank" class="download-btn">📥 Download Source Code</a>
+    <a href="https://youtu.be/VsivDUMm9lE" target="_blank" class="video-btn">🎥 Watch Tutorial Video</a>
+  </div>
+</div>`,
+        demoCss: `.simulation-demo-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 20px auto;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.simulation-iframe {
+  width: 100%;
+  height: 600px;
+  border: 2px solid #0b4f6c;
+  border-radius: 6px;
+  background: white;
+}
+
+.simulation-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.download-btn, .video-btn {
+  padding: 12px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #0b4f6c, #1976d2);
+  color: white;
+}
+
+.download-btn:hover {
+  background: linear-gradient(135deg, #1976d2, #0b4f6c);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.4);
+}
+
+.video-btn {
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  color: white;
+}
+
+.video-btn:hover {
+  background: linear-gradient(135deg, #f7931e, #ff6b35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}`
     },
 
 
