@@ -66,7 +66,37 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
-{
+
+  {
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8b6f5371503324d5284e3aab43d668a0469216e6/Thumbnails/FreezeColumnsandRowsThumb2.png",
+https:"https://youtu.be/5K3okQQbtw4",
+ title:"How to Freeze Rows and Columns",
+        description:"This video covers how to freeze rows and columns in Excel.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8b6f5371503324d5284e3aab43d668a0469216e6/Thumbnails/FreezeColumnsandRowsThumb2.png",
+       link:"https://youtu.be/5K3okQQbtw4",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/5K3okQQbtw4"
+        },
+        topic:"Freeze Columns and Rows"
+    },
+
+  
+  
+  
+  
+  
+  {
   section: ["Learning", "Website Design"],
   program: {
     name: "Website Design",
@@ -9702,25 +9732,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Create Dynamic Dropdowns"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Freeze Columns and Rows / Freeze Panes",
-        description:"This video explains how to freeze panes (columns and rows) in Excel.",
-        thumbnail:"https://i.ytimg.com/vi/GNb5Nocqj7k/hqdefault.jpg",
-        link:"https://youtu.be/GNb5Nocqj7k",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/GNb5Nocqj7k"
-        },
-        topic:"Freeze Rows and Columns"
-    },
+  
     {
         section:[
             "Learning",
