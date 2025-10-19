@@ -67,6 +67,69 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
+https:"https://youtu.be/Fp2dy-lkjlE",
+ title:"Automate Presentation Building with WorkPPT",
+        description:"This helpful AI site can assist you in creating PowerPoint presentations in seconds.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
+       link:"https://youtu.be/YZWG1oqnE6k",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/Fp2dy-lkjlE"
+      },
+      {
+            text:"WorkPPT Site",
+            url:"https://ppt.softtooler.com/"
+      }
+  ],
+        topic:"Automate Presentations"
+    },
+
+  
+
+  {
+ section:[
+            "Learning",
+            "Templates"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
+https:"https://youtu.be/Fp2dy-lkjlE",
+ title:"Build Presentations Using AI",
+        description:"Check out this great AI PowerPoint presentation tool.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
+       link:"https://youtu.be/Fp2dy-lkjlE",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/Fp2dy-lkjlE"
+        },
+        topic:"AI Tips"
+    },
+
+
+
+  
   {
  section:[
             "Learning",
