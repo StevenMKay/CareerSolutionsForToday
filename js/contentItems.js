@@ -2307,11 +2307,11 @@ https:"https://youtu.be/BwEq5QTCwEI",
   related: [
     {
       text:"PC Simulation Link",
-            url:" https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
+            url:"https://careersolutionsfortoday.com/VLOOKUPSimulation.html"
         },
     {
        text:"Mobile Simulation Link",
-            url:"https://drive.google.com/uc?export=download&id=1TxPvhimh3Nb5hJw35hYDR6_9-YErYbq7"
+            url:"https://careersolutionsfortoday.com/VLOOKUPMobileSim.html"
     }
     ],
         topic:"VLOOKUP Learning Simulation"
@@ -4850,7 +4850,7 @@ document.addEventListener('DOMContentLoaded', function() {
         link: "Learn.html#excel-vlookup-training-simulation",
         related: [
             {
-                text:"Download code",
+                text:"Download PC code",
                 url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
             },
             {
