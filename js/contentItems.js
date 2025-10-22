@@ -67,7 +67,198 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+{
+  section: ["Learning", "Website Design"],
+  program: {
+    name: "Website Design",
+    image: window.PROGRAM_ICONS["Website Design"]
+  },
+  title: "Drag & Drop Image Boxes",
+  description: "Drag a photo between two boxes using native HTML5 Drag & Drop. Lightweight, accessible, and framework-free.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6254ebc7a7c21f77140f18141464f20337715db4/Thumbnails/drag%20and%20dropthumb.png",
+  link: "Learn.html#website-design-drag-drop-image-boxes",   // ← direct external link
+  topic: "Interactive Effects",
 
+  // =============== DEMO HTML (scoped) ===============
+  demoHtml: `
+<div id="ddPreview" class="dd-wrap" aria-label="Drag and Drop Demo">
+  <div class="dd-box" data-box="1">
+    <img
+      id="ddSurfImg"
+      class="dd-img"
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d783824ed432add28169e72a003fa3539c689c03/photos/Surfing.png"
+      alt="Surfing"
+      draggable="true"
+    />
+  </div>
+  <div class="dd-box" data-box="2">
+    <span class="dd-placeholder">Drop here</span>
+  </div>
+</div>`,
+
+  // =============== DEMO CSS (scoped) ===============
+  demoCss: `
+/* Drag & Drop Demo (scoped to #ddPreview) */
+#ddPreview.dd-wrap{
+  --size: 220px;
+  display:flex; gap:20px; flex-wrap:wrap; align-items:center; justify-content:center;
+  padding:20px; min-height:320px; border-radius:14px;
+  /* Blue -> grey gradient background inside the preview box */
+  background: linear-gradient(135deg, #1e3a8a 0%, #9aa3af 100%);
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+#ddPreview .dd-box{
+  position:relative; width:var(--size); height:var(--size);
+  border:2px solid #333; border-radius:14px; overflow:hidden;
+  background: rgba(255,255,255,.9);
+  display:grid; place-items:center;
+}
+
+#ddPreview .dd-placeholder{
+  color:#6b7280; font-weight:600; user-select:none;
+}
+
+#ddPreview .dd-img{
+  width:100%; height:100%; object-fit:cover; border-radius:12px; cursor:grab;
+}
+
+#ddPreview .dd-box.dd-hover {
+  outline: 3px dashed #2563eb;
+  outline-offset: 4px;
+}
+`,
+
+  // =============== DEMO JS (using global demo manager) ===============
+  demoJs: `(function() {
+  
+  function initDragDrop() {
+    const container = document.getElementById('ddPreview');
+    if (!container) {
+      return false;
+    }
+    
+    const boxes = container.querySelectorAll('.dd-box');
+    const img = container.querySelector('#ddSurfImg');
+    
+    if (!img || boxes.length < 2) {
+      return false;
+    }
+    
+    // Check if already initialized for this specific container
+    if (container.dataset.dragDropInitialized === 'true') {
+      return true;
+    }
+    
+    console.log('🎯 Initializing drag and drop...');
+    
+    // Mark this container as initialized
+    container.dataset.dragDropInitialized = 'true';
+    
+    // Ensure image is draggable
+    img.draggable = true;
+    
+    // Store dragged element reference
+    let draggedElement = null;
+    
+    // Drag start
+    img.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', this.id);
+      e.dataTransfer.effectAllowed = 'move';
+      this.style.opacity = '0.5';
+      draggedElement = this;
+    });
+    
+    // Drag end
+    img.addEventListener('dragend', function(e) {
+      this.style.opacity = '1';
+      // Remove hover classes from all boxes in this container
+      container.querySelectorAll('.dd-box').forEach(box => box.classList.remove('dd-hover'));
+      draggedElement = null;
+    });
+    
+    // Set up drop zones
+    boxes.forEach(function(box, index) {
+      box.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        this.classList.add('dd-hover');
+      });
+      
+      box.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        this.classList.add('dd-hover');
+      });
+      
+      box.addEventListener('dragleave', function(e) {
+        // Check if we're really leaving the box
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+          this.classList.remove('dd-hover');
+        }
+      });
+      
+      box.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        this.classList.remove('dd-hover');
+        
+        if (!draggedElement) {
+          return;
+        }
+        
+        // Don't do anything if dropping on the same box
+        if (this === draggedElement.parentNode) {
+          return;
+        }
+        
+        // Get the old parent before moving
+        const oldParent = draggedElement.parentNode;
+        
+        // Remove placeholder from target box if it exists
+        const targetPlaceholder = this.querySelector('.dd-placeholder');
+        if (targetPlaceholder) {
+          targetPlaceholder.remove();
+        }
+        
+        // Move the image to the new box
+        this.appendChild(draggedElement);
+        
+        // Add placeholder to the old box if it's now empty
+        if (oldParent && oldParent.classList.contains('dd-box')) {
+          const remainingImg = oldParent.querySelector('.dd-img');
+          if (!remainingImg) {
+            const placeholder = document.createElement('span');
+            placeholder.className = 'dd-placeholder';
+            placeholder.textContent = 'Drop here';
+            oldParent.appendChild(placeholder);
+          }
+        }
+      });
+    });
+    
+    console.log('✅ Drag and drop initialized successfully!');
+    return true;
+  }
+  
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('dragDrop', initDragDrop);
+  }
+  
+  // Fallback initialization for immediate execution
+  const attempts = [0, 100, 300, 500, 1000];
+  attempts.forEach(function(delay) {
+    setTimeout(initDragDrop, delay);
+  });
+  
+})();`
+},
 
 
 {
@@ -259,144 +450,184 @@ https:"https://youtu.be/5K3okQQbtw4",
   demoJs:
 `
 (function(){
-  var root = document.getElementById('imgMagDemo-wd');
-  if (!root) return;
+  function initImageMagnifier() {
+    var root = document.getElementById('imgMagDemo-wd');
+    if (!root) {
+      return false;
+    }
 
-  var status = root.querySelector('.status-badge');
-  function setStatus(t){ if(status) status.textContent = t; }
+    // Check if already initialized
+    if (root.dataset.magnifierInitialized === 'true') {
+      return true;
+    }
 
-  var container = root.querySelector('.img-magnifier-container');
-  var img       = root.querySelector('.img-magnifier-image');
-  var zoomEl    = root.querySelector('.zoom-input');
-  var zoomVal   = root.querySelector('.zoom-value');
-  var sizeEl    = root.querySelector('.size-input');
-  var sizeVal   = root.querySelector('.size-value');
+    var status = root.querySelector('.status-badge');
+    function setStatus(t){ if(status) status.textContent = t; }
 
-  var state = { zoom: 3, size: 150, glass: null, shownOnce: false };
-  setStatus('JS loaded ✅');
+    var container = root.querySelector('.img-magnifier-container');
+    var img       = root.querySelector('.img-magnifier-image');
+    var zoomEl    = root.querySelector('.zoom-input');
+    var zoomVal   = root.querySelector('.zoom-value');
+    var sizeEl    = root.querySelector('.size-input');
+    var sizeVal   = root.querySelector('.size-value');
 
-  function buildGlass() {
-    if (state.glass && state.glass.isConnected) state.glass.remove();
-    var g = document.createElement('div');
-    g.className = 'img-magnifier-glass';
-    container.appendChild(g);
-    state.glass = g;
-    g.style.backgroundImage = "url('" + (img.currentSrc || img.src) + "')";
-    updateBgSize();
-    updateGlassSize(state.size);
-    setStatus('lens built ✅');
-  }
+    if (!container || !img) {
+      return false;
+    }
 
-  function updateBgSize() {
-    if (!state.glass) return;
-    var rect = img.getBoundingClientRect();
-    state.glass.style.backgroundSize = (rect.width * state.zoom) + "px " + (rect.height * state.zoom) + "px";
-  }
+    console.log('🔍 Initializing image magnifier...');
+    root.dataset.magnifierInitialized = 'true';
 
-  function updateGlassSize(px) {
-    state.size = px;
-    if (state.glass) state.glass.style.setProperty('--glass-size', px + 'px');
-  }
+    var state = { zoom: 3, size: 150, glass: null, shownOnce: false };
+    setStatus('JS loaded ✅');
 
-  function getPosFromEvent(e){
-    var rect = img.getBoundingClientRect();
-    var cx = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width/2));
-    var cy = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height/2));
-    var x = Math.max(0, Math.min(rect.width,  cx - rect.left));
-    var y = Math.max(0, Math.min(rect.height, cy - rect.top));
-    return { x: x, y: y };
-  }
+    function buildGlass() {
+      if (state.glass && state.glass.isConnected) state.glass.remove();
+      var g = document.createElement('div');
+      g.className = 'img-magnifier-glass';
+      container.appendChild(g);
+      state.glass = g;
+      g.style.backgroundImage = "url('" + (img.currentSrc || img.src) + "')";
+      updateBgSize();
+      updateGlassSize(state.size);
+      setStatus('lens built ✅');
+    }
 
-  function move(e) {
-    if (!state.glass) return;
-    if (e && e.preventDefault) e.preventDefault();
-    var pos = getPosFromEvent(e);
-    var bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
-    var w = state.size / 2, h = state.size / 2;
+    function updateBgSize() {
+      if (!state.glass) return;
+      var rect = img.getBoundingClientRect();
+      state.glass.style.backgroundSize = (rect.width * state.zoom) + "px " + (rect.height * state.zoom) + "px";
+    }
 
-    state.glass.style.left = (pos.x - w) + 'px';
-    state.glass.style.top  = (pos.y - h) + 'px';
+    function updateGlassSize(px) {
+      state.size = px;
+      if (state.glass) state.glass.style.setProperty('--glass-size', px + 'px');
+    }
 
-    var bgX = -((pos.x * state.zoom) - w + bw);
-    var bgY = -((pos.y * state.zoom) - h + bw);
-    state.glass.style.backgroundPosition = bgX + "px " + bgY + "px";
-    setStatus('moving ✅');
-  }
+    function getPosFromEvent(e){
+      var rect = img.getBoundingClientRect();
+      var cx = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width/2));
+      var cy = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height/2));
+      var x = Math.max(0, Math.min(rect.width,  cx - rect.left));
+      var y = Math.max(0, Math.min(rect.height, cy - rect.top));
+      return { x: x, y: y };
+    }
 
-  function showOnceCentered() {
-    if (state.shownOnce) return;
-    state.glass.classList.add('active');
-    move(); // center once
-    state.shownOnce = true;
-    setTimeout(function(){ state.glass.classList.remove('active'); setStatus('ready ✨'); }, 400);
-  }
+    function move(e) {
+      if (!state.glass) return;
+      if (e && e.preventDefault) e.preventDefault();
+      var pos = getPosFromEvent(e);
+      var bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
+      var w = state.size / 2, h = state.size / 2;
 
-  function show(){ if(state.glass) state.glass.classList.add('active'); }
-  function hide(){ if(state.glass) state.glass.classList.remove('active'); }
+      state.glass.style.left = (pos.x - w) + 'px';
+      state.glass.style.top  = (pos.y - h) + 'px';
 
-  function start(){
-    buildGlass();
-    showOnceCentered();
+      var bgX = -((pos.x * state.zoom) - w + bw);
+      var bgY = -((pos.y * state.zoom) - h + bw);
+      state.glass.style.backgroundPosition = bgX + "px " + bgY + "px";
+      setStatus('moving ✅');
+    }
 
-    // Pointer (preferred)
-    container.addEventListener('pointerenter', show, { passive: true });
-    container.addEventListener('pointerleave', hide, { passive: true });
-    container.addEventListener('pointerdown',  function(e){ show(); move(e); }, { passive: false });
-    container.addEventListener('pointermove',  move, { passive: false });
-    container.addEventListener('pointerup',    function(e){ move(e); }, { passive: false });
+    function showOnceCentered() {
+      if (state.shownOnce) return;
+      state.glass.classList.add('active');
+      move(); // center once
+      state.shownOnce = true;
+      setTimeout(function(){ state.glass.classList.remove('active'); setStatus('ready ✨'); }, 400);
+    }
 
-    // Mouse fallback (if PointerEvents get swallowed by preview)
-    container.addEventListener('mouseenter', show, { passive: true });
-    container.addEventListener('mouseleave', hide, { passive: true });
-    container.addEventListener('mousemove',  move, { passive: false });
+    function show(){ if(state.glass) state.glass.classList.add('active'); }
+    function hide(){ if(state.glass) state.glass.classList.remove('active'); }
 
-    // Document-level emergency fallback (some wrappers intercept container events)
-    document.addEventListener('mousemove', function(e){
-      // only react if mouse is over/near the image rect
-      var r = img.getBoundingClientRect();
-      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-        show(); move(e);
+    function start(){
+      buildGlass();
+      showOnceCentered();
+
+      // Pointer (preferred)
+      container.addEventListener('pointerenter', show, { passive: true });
+      container.addEventListener('pointerleave', hide, { passive: true });
+      container.addEventListener('pointerdown',  function(e){ show(); move(e); }, { passive: false });
+      container.addEventListener('pointermove',  move, { passive: false });
+      container.addEventListener('pointerup',    function(e){ move(e); }, { passive: false });
+
+      // Mouse fallback (if PointerEvents get swallowed by preview)
+      container.addEventListener('mouseenter', show, { passive: true });
+      container.addEventListener('mouseleave', hide, { passive: true });
+      container.addEventListener('mousemove',  move, { passive: false });
+
+      // Document-level emergency fallback (some wrappers intercept container events)
+      document.addEventListener('mousemove', function(e){
+        // only react if mouse is over/near the image rect
+        var r = img.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          show(); move(e);
+        }
+      }, { passive: false });
+
+      // Keep sizes in sync
+      var ro = new ResizeObserver(function(){ updateBgSize(); });
+      ro.observe(img);
+
+      // Controls
+      if (zoomEl) zoomEl.addEventListener('input', function(e){
+        state.zoom = parseFloat(e.target.value);
+        if (zoomVal) zoomVal.textContent = state.zoom + 'x';
+        updateBgSize();
+      }, { passive: true });
+
+      if (sizeEl) sizeEl.addEventListener('input', function(e){
+        var px = parseInt(e.target.value, 10);
+        if (sizeVal) sizeVal.textContent = px + 'px';
+        updateGlassSize(px);
+        updateBgSize();
+      }, { passive: true });
+    }
+
+    function tryStart(){
+      if (!container || !img) return false;
+      if (img.complete && img.naturalWidth) { start(); return true; }
+      img.addEventListener('load', start, { once: true });
+      return true;
+    }
+
+    // Try to start immediately
+    if (tryStart()) {
+      console.log('✅ Image magnifier initialized successfully!');
+      return true;
+    }
+    
+    // Retry if image not ready
+    var tries = 0, max = 180; // ~3s of retries for late injection
+    (function tick(){
+      if (tryStart() || tries++ >= max) {
+        if (tries <= max) {
+          console.log('✅ Image magnifier initialized successfully!');
+        }
+        return;
       }
-    }, { passive: false });
-
-    // Keep sizes in sync
-    var ro = new ResizeObserver(function(){ updateBgSize(); });
-    ro.observe(img);
-
-    // Controls
-    if (zoomEl) zoomEl.addEventListener('input', function(e){
-      state.zoom = parseFloat(e.target.value);
-      if (zoomVal) zoomVal.textContent = state.zoom + 'x';
-      updateBgSize();
-    }, { passive: true });
-
-    if (sizeEl) sizeEl.addEventListener('input', function(e){
-      var px = parseInt(e.target.value, 10);
-      if (sizeVal) sizeVal.textContent = px + 'px';
-      updateGlassSize(px);
-      updateBgSize();
-    }, { passive: true });
+      requestAnimationFrame(tick);
+    })();
+    
+    return true;
   }
 
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('imageMagnifier', initImageMagnifier);
+  }
+
+  // Fallback initialization for immediate execution
   function ready(fn){
     if (document.readyState !== 'loading') fn();
     else document.addEventListener('DOMContentLoaded', fn, { once: true });
   }
 
-  function tryStart(){
-    if (!container || !img) return false;
-    if (img.complete && img.naturalWidth) { start(); return true; }
-    img.addEventListener('load', start, { once: true });
-    return true;
-  }
-
   ready(function(){
-    if (tryStart()) return;
-    var tries = 0, max = 180; // ~3s of retries for late injection
-    (function tick(){
-      if (tryStart() || tries++ >= max) return;
-      requestAnimationFrame(tick);
-    })();
+    var attempts = [0, 100, 300, 500, 1000];
+    attempts.forEach(function(delay) {
+      setTimeout(initImageMagnifier, delay);
+    });
   });
 })();`
 },
