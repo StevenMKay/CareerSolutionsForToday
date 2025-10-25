@@ -27,6 +27,68 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
       // Add more as needed
 };
 
+// =============== DEMO UTILITY FUNCTIONS (Define early to avoid ReferenceErrors) ===============
+
+// Toggle controls panel
+function toggleControlsDemo() {
+  const panel = document.getElementById('controlsPanelDemo');
+  const icon = document.getElementById('toggleIconDemo');
+  
+  if (panel && icon) {
+    panel.classList.toggle('visible');
+    
+    if (panel.classList.contains('visible')) {
+      icon.textContent = '✕';
+    } else {
+      icon.textContent = '⚙️';
+    }
+  }
+}
+
+// Reset to defaults function
+function resetToDefaultsDemo() {
+  const colorPicker = document.getElementById('colorPickerDemo');
+  const widthSlider = document.getElementById('widthSliderDemo');
+  const blurSlider = document.getElementById('blurSliderDemo');
+  const scaleSlider = document.getElementById('scaleSliderDemo');
+  const opacitySlider = document.getElementById('opacitySliderDemo');
+  
+  if (colorPicker) colorPicker.value = '#46DD96';
+  if (widthSlider) widthSlider.value = '2';
+  if (blurSlider) blurSlider.value = '4';
+  if (scaleSlider) scaleSlider.value = '50';
+  if (opacitySlider) opacitySlider.value = '0.8';
+  
+  // Trigger all change events
+  [colorPicker, widthSlider, blurSlider, scaleSlider, opacitySlider].forEach(el => {
+    if (el) el.dispatchEvent(new Event('input'));
+  });
+}
+
+// Random color generator
+function randomizeColorsDemo() {
+  const colors = [
+    '#46DD96', '#4a90dd', '#dd4a90', '#90dd4a', 
+    '#9a4add', '#dd4a4a', '#4adddd', '#dddd4a',
+    '#ff6b35', '#35ff6b'
+  ];
+  
+  const colorPicker = document.getElementById('colorPickerDemo');
+  if (colorPicker) {
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    colorPicker.value = randomColor;
+    colorPicker.dispatchEvent(new Event('input'));
+  }
+}
+
+// Update CSS property function
+function updatePropertyDemo(property, value) {
+  const root = document.documentElement;
+  if (root) {
+    root.style.setProperty(property, value);
+  }
+}
+
 // Auto-generate Learn.html links for HTML and CSS content items
 function generateLearnLink(item) {
   // Check if this is an HTML or CSS learning item without a link
@@ -1542,145 +1604,8 @@ https:"https://youtu.be/YZWG1oqnE6k",
     demoJs: `// Interactive Electric Border Effect JavaScript
 function updatePropertyDemo(property, value, unit = '') {
   document.documentElement.style.setProperty(property, value + unit);
-}
-
-// Toggle controls panel
-function toggleControlsDemo() {
-  const panel = document.getElementById('controlsPanelDemo');
-  const icon = document.getElementById('toggleIconDemo');
-  
-  panel.classList.toggle('visible');
-  
-  if (panel.classList.contains('visible')) {
-    icon.textContent = '✕';
-  } else {
-    icon.textContent = '⚙️';
-  }
-}
-
-// Reset to defaults function
-function resetToDefaultsDemo() {
-  const colorPicker = document.getElementById('colorPickerDemo');
-  const widthSlider = document.getElementById('widthSliderDemo');
-  const blurSlider = document.getElementById('blurSliderDemo');
-  const scaleSlider = document.getElementById('scaleSliderDemo');
-  const opacitySlider = document.getElementById('opacitySliderDemo');
-  
-  if (colorPicker) colorPicker.value = '#46DD96';
-  if (widthSlider) widthSlider.value = '2';
-  if (blurSlider) blurSlider.value = '4';
-  if (scaleSlider) scaleSlider.value = '50';
-  if (opacitySlider) opacitySlider.value = '0.8';
-  
-  // Trigger all change events
-  [colorPicker, widthSlider, blurSlider, scaleSlider, opacitySlider].forEach(el => {
-    if (el) el.dispatchEvent(new Event('input'));
-  });
-}
-
-// Random color generator
-function randomizeColorsDemo() {
-  const colors = [
-    '#46DD96', '#4a90dd', '#dd4a90', '#90dd4a', 
-    '#9a4add', '#dd4a4a', '#4adddd', '#dddd4a',
-    '#ff6b35', '#35ff6b'
-  ];
-  
-  const colorPicker = document.getElementById('colorPickerDemo');
-  if (colorPicker) {
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    colorPicker.value = randomColor;
-    colorPicker.dispatchEvent(new Event('input'));
-  }
-}
-
-// Initialize controls when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-  // Color picker handler
-  const colorPicker = document.getElementById('colorPickerDemo');
-  if (colorPicker) {
-    colorPicker.addEventListener('input', (e) => {
-      const color = e.target.value;
-      updatePropertyDemo('--electric-border-color-demo', color);
-      const colorValue = document.getElementById('colorValueDemo');
-      if (colorValue) colorValue.textContent = color.toUpperCase();
-    });
-  }
-
-  // Width slider handler
-  const widthSlider = document.getElementById('widthSliderDemo');
-  if (widthSlider) {
-    widthSlider.addEventListener('input', (e) => {
-      const width = e.target.value;
-      updatePropertyDemo('--electric-width-demo', width);
-      const widthValue = document.getElementById('widthValueDemo');
-      if (widthValue) widthValue.textContent = width + 'px';
-    });
-  }
-
-  // Blur slider handler
-  const blurSlider = document.getElementById('blurSliderDemo');
-  if (blurSlider) {
-    blurSlider.addEventListener('input', (e) => {
-      const blur = e.target.value;
-      updatePropertyDemo('--electric-blur-demo', blur);
-      const blurValue = document.getElementById('blurValueDemo');
-      if (blurValue) blurValue.textContent = blur + 'px';
-    });
-  }
-
-  // Scale slider handler
-  const scaleSlider = document.getElementById('scaleSliderDemo');
-  if (scaleSlider) {
-    scaleSlider.addEventListener('input', (e) => {
-      const scale = e.target.value;
-      updatePropertyDemo('--electric-scale-demo', scale);
-      const displacementMap = document.getElementById('displacementMapDemo');
-      if (displacementMap) {
-        displacementMap.setAttribute('scale', scale);
-      }
-      const scaleValue = document.getElementById('scaleValueDemo');
-      if (scaleValue) scaleValue.textContent = scale;
-    });
-  }
-
-  // Opacity slider handler
-  const opacitySlider = document.getElementById('opacitySliderDemo');
-  if (opacitySlider) {
-    opacitySlider.addEventListener('input', (e) => {
-      const opacity = e.target.value;
-      updatePropertyDemo('--electric-opacity-demo', opacity);
-      const opacityValue = document.getElementById('opacityValueDemo');
-      if (opacityValue) opacityValue.textContent = opacity;
-    });
-  }
-
-  // Keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (e.code === 'Space') {
-      e.preventDefault();
-      randomizeColorsDemo();
-    }
-    if (e.code === 'Escape') {
-      const panel = document.getElementById('controlsPanelDemo');
-      const icon = document.getElementById('toggleIconDemo');
-      if (panel && panel.classList.contains('visible')) {
-        panel.classList.remove('visible');
-        if (icon) icon.textContent = '⚙️';
-      }
-    }
-    if (e.code === 'KeyC' && e.ctrlKey) {
-      e.preventDefault();
-      toggleControlsDemo();
-    }
-  });
-
-  console.log('🔥 Interactive Electric Border Effect Loaded!');
-  console.log('💡 Press SPACE for random colors');
-  console.log('⚙️ Press Ctrl+C to toggle controls');
-  console.log('🚪 Press ESC to close controls panel');
-});`
-},
+}`
+  },
   
   {
     section: ["Learning", "Website Design"],
@@ -2527,25 +2452,21 @@ https:"https://youtu.be/BwEq5QTCwEI",
         ],
         program:{
             name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/98d03107b6b4a62657bec5b372ba43f4a7e772ad/Thumbnails/ExcelSimulationContentThumb.png"
         },
-        title:"Learn VLOOKUP with Interactive Simulation",
-        description:"This is a simulation I created on how to use the VLOOKUP function.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c53a3f7d6c58f32ed0058cebafbb3a6bf134f5d6/Thumbnails/simsss.png",
-        link:"https://youtu.be/g46C_wkCXnM",
+        title:"Learn Excel with Interactive Simulation",
+        description:"These are simulations I created on using the Excel application.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/98d03107b6b4a62657bec5b372ba43f4a7e772ad/Thumbnails/ExcelSimulationContentThumb.png",
+        link:"Excel.html",
 
 
   related: [
     {
-      text:"PC Simulation Link",
-            url:"https://careersolutionsfortoday.com/VLOOKUPSimulation.html"
-        },
-    {
-       text:"Mobile Simulation Link",
-            url:"https://careersolutionsfortoday.com/VLOOKUPMobileSim.html"
+      text:"Excel Learning Page",
+            url:"Excel.html"
     }
     ],
-        topic:"VLOOKUP Learning Simulation"
+        topic:"Excel Learning Simulations"
     },
 
 
