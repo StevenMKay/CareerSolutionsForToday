@@ -129,6 +129,90 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/Easy.png",
+https:"https://youtu.be/hSjmoc64DA4",
+ title:"Automate Presentation Building with WorkPPT",
+        description:"In this video we look at how to easily create web applications using VS Code and the GitHub Copilot Chat.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/Easy.png",
+       link:"https://youtu.be/hSjmoc64DA4",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/hSjmoc64DA4"
+      },
+      {
+            text:"Download VS Code",
+            url:"https://code.visualstudio.com/download"
+      }
+  ],
+        topic:"Coding"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  {
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/rankwidethumb.png",
+https:"https://youtu.be/gjJTba6Shm8",
+ title:"How to Freeze Rows and Columns",
+        description:"In this video we cover how you can automatically rank data in Excel using the RANK.EQ function.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/rankwidethumb.png",
+       link:"https://youtu.be/gjJTba6Shm8",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/gjJTba6Shm8"
+        },
+        topic:"Rank Data"
+    },
+
+
+
+
+
+
+
+
+
+
+  
 {
   section: ["Learning", "Website Design"],
   program: {
