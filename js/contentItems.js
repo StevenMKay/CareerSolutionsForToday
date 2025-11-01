@@ -128,6 +128,36 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec46096af2df955a0228999d97431745d4dc15cb/Thumbnails/promptthumb.png",
+https:"https://youtu.be/hSjmoc64DA4",
+ title:"Helpful AI Site to Generate LLLM Prompts",
+        description:"In this video we cover an AI prompt generator tool that is free to use.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec46096af2df955a0228999d97431745d4dc15cb/Thumbnails/promptthumb.png",
+       link:"https://youtu.be/4KT-94j4QpY",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/4KT-94j4QpY"
+      },
+      {
+            text:"Visit Prompt Cowboy",
+            url:"https://www.promptcowboy.ai/"
+      }
+  ],
+        topic:"LLM Prompts"
+    },
 
 
 {
