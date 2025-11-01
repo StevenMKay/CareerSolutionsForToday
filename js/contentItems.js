@@ -129,6 +129,62 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/61672e2cd29118b2e06f897862fc43f4dfd9c5c0/Thumbnails/circthumb.png",
+https:"https://youtu.be/HWiS8Cxs-Fw",
+ title:"Professional Circular PowerPoint Template",
+        description:"In this video we cover how to create this awesome circular PowerPoint template slide.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/61672e2cd29118b2e06f897862fc43f4dfd9c5c0/Thumbnails/circthumb.png",
+       link:"https://youtu.be/HWiS8Cxs-Fw",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/HWiS8Cxs-Fw"
+      },
+      {
+            text:"Download Template",
+            url:"https://docs.google.com/presentation/d/1jEpHrXmaGz_sYMaLKYMPkzHK00sAzzJH/export/pptx"
+      }
+  ],
+        topic:"Professional Templates"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
  {
         section: ["Learning", "Website Design"],
         program: {
