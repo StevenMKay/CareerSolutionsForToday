@@ -129,7 +129,6 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
-
 {
   section: ["Learning", "Website Design"],
   program: {
