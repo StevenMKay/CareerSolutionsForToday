@@ -1,35 +1,6544 @@
+
 window.PROGRAM_ICONS = {
-  Outlook:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/outlookicon.png",
+  Outlook:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/15915cf6ce97f13abce1e50ff9f3bec486295636/icons/2025%20Outlook%20Icon.png",
  'Google Chrome':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a4f299d05ef28e41160723f72b439f29a3868b0a/chromeicon.png",
  'Windows Edge':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a4f299d05ef28e41160723f72b439f29a3868b0a/edgeicon.png",
  Firefox:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a4f299d05ef28e41160723f72b439f29a3868b0a/firefoxicon.png",
 General:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5081bef9abd3db6fb93b96a3f0441e9db909aebb/icons/generalicon.png",
 SQL:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ae90f4fb10d0211b5042bfcd3b072a41dc9ce917/icons/sqlicon.png",
-
+AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/icons/AIicon.png",
 
 'Helpful Websites':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ccb7bdd06de647ea39a8a8644798db5d7c790525/icons/interneticon.png",
-
+'Website Design':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png",
   Windows:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/windowsicon.png",
   HTML:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png",
-  SharePoint:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/sharepointicon.png",
-  Word:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/word.png",
+  SharePoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d864e5b49cd7968c9369676c1ecf40951d726d20/icons/2025%20SharePoint%20Icon.png",
+  Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/195b4ed5242a495897d57f4bfe1b67b617d3980c/icons/2025%20Word%20Icon.png",
   'Google Sheets': "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/googlesheetsicon.png",
   JavaScript:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/javaicon.png",
   CSS:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png",
-  Teams:"https://github.com/StevenMKay/CareerSolutionsForToday/raw/35f9470d4f4daceda899cf41727b04a740a93f92/icons/teamsicon.png",
-    Excel:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png",
-  PowerPoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png",
-  Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png",
-  YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+  Teams:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7089aaa3a231f641039fc581114c260617291f1/icons/2025%20Teams%20Icon.png",
+    Excel:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png",
+  PowerPoint:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png",
+  Word:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/195b4ed5242a495897d57f4bfe1b67b617d3980c/icons/2025%20Word%20Icon.png",
+  YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png",
+  Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png",
+  Calculators:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png"
       // Add more as needed
 };
+
+// =============== DEMO UTILITY FUNCTIONS (Define early to avoid ReferenceErrors) ===============
+
+// Toggle controls panel
+function toggleControlsDemo() {
+  const panel = document.getElementById('controlsPanelDemo');
+  const icon = document.getElementById('toggleIconDemo');
+  
+  if (panel && icon) {
+    panel.classList.toggle('visible');
+    
+    if (panel.classList.contains('visible')) {
+      icon.textContent = '✕';
+    } else {
+      icon.textContent = '⚙️';
+    }
+  }
+}
+
+// Reset to defaults function
+function resetToDefaultsDemo() {
+  const colorPicker = document.getElementById('colorPickerDemo');
+  const widthSlider = document.getElementById('widthSliderDemo');
+  const blurSlider = document.getElementById('blurSliderDemo');
+  const scaleSlider = document.getElementById('scaleSliderDemo');
+  const opacitySlider = document.getElementById('opacitySliderDemo');
+  
+  if (colorPicker) colorPicker.value = '#46DD96';
+  if (widthSlider) widthSlider.value = '2';
+  if (blurSlider) blurSlider.value = '4';
+  if (scaleSlider) scaleSlider.value = '50';
+  if (opacitySlider) opacitySlider.value = '0.8';
+  
+  // Trigger all change events
+  [colorPicker, widthSlider, blurSlider, scaleSlider, opacitySlider].forEach(el => {
+    if (el) el.dispatchEvent(new Event('input'));
+  });
+}
+
+// Random color generator
+function randomizeColorsDemo() {
+  const colors = [
+    '#46DD96', '#4a90dd', '#dd4a90', '#90dd4a', 
+    '#9a4add', '#dd4a4a', '#4adddd', '#dddd4a',
+    '#ff6b35', '#35ff6b'
+  ];
+  
+  const colorPicker = document.getElementById('colorPickerDemo');
+  if (colorPicker) {
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    colorPicker.value = randomColor;
+    colorPicker.dispatchEvent(new Event('input'));
+  }
+}
+
+// Update CSS property function
+function updatePropertyDemo(property, value) {
+  const root = document.documentElement;
+  if (root) {
+    root.style.setProperty(property, value);
+  }
+}
+
+// Auto-generate Learn.html links for HTML and CSS content items
+function generateLearnLink(item) {
+  // Check if this is an HTML or CSS learning item without a link
+  if (item.section && Array.isArray(item.section) && 
+      item.section.includes('Learning') && 
+      (item.section.includes('HTML') || item.section.includes('CSS')) &&
+      !item.link) {
+    
+    // Generate anchor ID from title
+    const anchorId = item.title.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+    
+    // Create the Learn.html link with anchor
+    item.link = `Learn.html#${anchorId}-demo`;
+  }
+  return item;
+}
+
+// Process all content items on load to ensure they have Learn.html links
+function processContentItems() {
+  if (window.contentItems && Array.isArray(window.contentItems)) {
+    window.contentItems = window.contentItems.map(generateLearnLink);
+  }
+}
+
+// Auto-process when contentItems are loaded
+document.addEventListener('DOMContentLoaded', processContentItems);
+if (window.contentItems) {
+  processContentItems();
+}
 
 
 
 
 // 1) First declare your static items:
 window.contentItems = [
+
+{
+  section: ["Learning", "Website Design"],
+  program: {
+    name: "Website Design",
+    image: window.PROGRAM_ICONS["Website Design"]
+  },
+  title: "Drag & Drop Image Boxes",
+  description: "Drag a photo between two boxes using native HTML5 Drag & Drop. Lightweight, accessible, and framework-free.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6254ebc7a7c21f77140f18141464f20337715db4/Thumbnails/drag%20and%20dropthumb.png",
+  link: "Learn.html#website-design-drag-drop-image-boxes",   // ← direct external link
+  topic: "Interactive Effects",
+
+  // =============== DEMO HTML (scoped) ===============
+  demoHtml: `
+<div id="ddPreview" class="dd-wrap" aria-label="Drag and Drop Demo">
+  <div class="dd-box" data-box="1">
+    <img
+      id="ddSurfImg"
+      class="dd-img"
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d783824ed432add28169e72a003fa3539c689c03/photos/Surfing.png"
+      alt="Surfing"
+      draggable="true"
+    />
+  </div>
+  <div class="dd-box" data-box="2">
+    <span class="dd-placeholder">Drop here</span>
+  </div>
+</div>`,
+
+  // =============== DEMO CSS (scoped) ===============
+  demoCss: `
+/* Drag & Drop Demo (scoped to #ddPreview) */
+#ddPreview.dd-wrap{
+  --size: 220px;
+  display:flex; gap:20px; flex-wrap:wrap; align-items:center; justify-content:center;
+  padding:20px; min-height:320px; border-radius:14px;
+  /* Blue -> grey gradient background inside the preview box */
+  background: linear-gradient(135deg, #1e3a8a 0%, #9aa3af 100%);
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+#ddPreview .dd-box{
+  position:relative; width:var(--size); height:var(--size);
+  border:2px solid #333; border-radius:14px; overflow:hidden;
+  background: rgba(255,255,255,.9);
+  display:grid; place-items:center;
+}
+
+#ddPreview .dd-placeholder{
+  color:#6b7280; font-weight:600; user-select:none;
+}
+
+#ddPreview .dd-img{
+  width:100%; height:100%; object-fit:cover; border-radius:12px; cursor:grab;
+}
+
+#ddPreview .dd-box.dd-hover {
+  outline: 3px dashed #2563eb;
+  outline-offset: 4px;
+}
+`,
+
+  // =============== DEMO JS (using global demo manager) ===============
+  demoJs: `(function() {
+  
+  function initDragDrop() {
+    const container = document.getElementById('ddPreview');
+    if (!container) {
+      return false;
+    }
+    
+    const boxes = container.querySelectorAll('.dd-box');
+    const img = container.querySelector('#ddSurfImg');
+    
+    if (!img || boxes.length < 2) {
+      return false;
+    }
+    
+    // Check if already initialized for this specific container
+    if (container.dataset.dragDropInitialized === 'true') {
+      return true;
+    }
+    
+    console.log('🎯 Initializing drag and drop...');
+    
+    // Mark this container as initialized
+    container.dataset.dragDropInitialized = 'true';
+    
+    // Ensure image is draggable
+    img.draggable = true;
+    
+    // Store dragged element reference
+    let draggedElement = null;
+    
+    // Drag start
+    img.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', this.id);
+      e.dataTransfer.effectAllowed = 'move';
+      this.style.opacity = '0.5';
+      draggedElement = this;
+    });
+    
+    // Drag end
+    img.addEventListener('dragend', function(e) {
+      this.style.opacity = '1';
+      // Remove hover classes from all boxes in this container
+      container.querySelectorAll('.dd-box').forEach(box => box.classList.remove('dd-hover'));
+      draggedElement = null;
+    });
+    
+    // Set up drop zones
+    boxes.forEach(function(box, index) {
+      box.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        this.classList.add('dd-hover');
+      });
+      
+      box.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        this.classList.add('dd-hover');
+      });
+      
+      box.addEventListener('dragleave', function(e) {
+        // Check if we're really leaving the box
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+          this.classList.remove('dd-hover');
+        }
+      });
+      
+      box.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        this.classList.remove('dd-hover');
+        
+        if (!draggedElement) {
+          return;
+        }
+        
+        // Don't do anything if dropping on the same box
+        if (this === draggedElement.parentNode) {
+          return;
+        }
+        
+        // Get the old parent before moving
+        const oldParent = draggedElement.parentNode;
+        
+        // Remove placeholder from target box if it exists
+        const targetPlaceholder = this.querySelector('.dd-placeholder');
+        if (targetPlaceholder) {
+          targetPlaceholder.remove();
+        }
+        
+        // Move the image to the new box
+        this.appendChild(draggedElement);
+        
+        // Add placeholder to the old box if it's now empty
+        if (oldParent && oldParent.classList.contains('dd-box')) {
+          const remainingImg = oldParent.querySelector('.dd-img');
+          if (!remainingImg) {
+            const placeholder = document.createElement('span');
+            placeholder.className = 'dd-placeholder';
+            placeholder.textContent = 'Drop here';
+            oldParent.appendChild(placeholder);
+          }
+        }
+      });
+    });
+    
+    console.log('✅ Drag and drop initialized successfully!');
+    return true;
+  }
+  
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('dragDrop', initDragDrop);
+  }
+  
+  // Fallback initialization for immediate execution
+  const attempts = [0, 100, 300, 500, 1000];
+  attempts.forEach(function(delay) {
+    setTimeout(initDragDrop, delay);
+  });
+  
+})();`
+},
+
+{
+  section: ["Learning", "Website Design"],
+  program: {
+    name: "Website Design",
+    image: window.PROGRAM_ICONS["Website Design"]
+  },
+  title: "Animated Loading Effect with Color Controls",
+  description: "Create a beautiful animated loading spinner with customizable colors. Features smooth letter animations, rotating shadow effects, and an interactive color picker to customize the appearance in real-time.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/df46cb0ce98eeb582f057e39706df4310d0b9c2d/Thumbnails/electricthumb.png",
+  link: "Loading.html",
+  topic: "Loading Animations",
+  
+  demoHtml: `
+<div class="loading-demo-container">
+  <div class="loader-wrapper">
+    <span class="loader-letter">L</span>
+    <span class="loader-letter">o</span>
+    <span class="loader-letter">a</span>
+    <span class="loader-letter">d</span>
+    <span class="loader-letter">i</span>
+    <span class="loader-letter">n</span>
+    <span class="loader-letter">g</span>
+    <div class="loader"></div>
+  </div>
+
+  <div class="loading-controls">
+    <div class="control-group">
+      <label class="control-label">
+        <span>Primary Color</span>
+        <span class="color-value" id="loadingPrimaryValue">#ad5fff</span>
+      </label>
+      <input type="color" class="color-input" id="loadingPrimaryColor" value="#ad5fff">
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">
+        <span>Secondary Color</span>
+        <span class="color-value" id="loadingSecondaryValue">#471eec</span>
+      </label>
+      <input type="color" class="color-input" id="loadingSecondaryColor" value="#471eec">
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">
+        <span>Accent Color</span>
+        <span class="color-value" id="loadingAccentValue">#d60a47</span>
+      </label>
+      <input type="color" class="color-input" id="loadingAccentColor" value="#d60a47">
+    </div>
+  </div>
+</div>`,
+
+  demoCss: `
+/* Animated Loading Effect (scoped to .loading-demo-container) */
+.loading-demo-container {
+  --loading-primary: #ad5fff;
+  --loading-secondary: #471eec;
+  --loading-accent: #d60a47;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  padding: 40px 20px;
+  min-height: 400px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 14px;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.loading-demo-container .loader-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 180px;
+  height: 180px;
+  font-size: 1.2em;
+  font-weight: 300;
+  color: white;
+  border-radius: 50%;
+  background-color: transparent;
+  user-select: none;
+}
+
+.loading-demo-container .loader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background-color: transparent;
+  animation: loader-rotate 2s linear infinite;
+  z-index: 0;
+}
+
+@keyframes loader-rotate {
+  0% {
+    transform: rotate(90deg);
+    box-shadow:
+      0 10px 20px 0 #fff inset,
+      0 20px 30px 0 var(--loading-primary) inset,
+      0 60px 60px 0 var(--loading-secondary) inset;
+  }
+  50% {
+    transform: rotate(270deg);
+    box-shadow:
+      0 10px 20px 0 #fff inset,
+      0 20px 10px 0 var(--loading-accent) inset,
+      0 40px 60px 0 #311e80 inset;
+  }
+  100% {
+    transform: rotate(450deg);
+    box-shadow:
+      0 10px 20px 0 #fff inset,
+      0 20px 30px 0 var(--loading-primary) inset,
+      0 60px 60px 0 var(--loading-secondary) inset;
+  }
+}
+
+.loading-demo-container .loader-letter {
+  display: inline-block;
+  opacity: 0.4;
+  transform: translateY(0);
+  animation: loader-letter-anim 2s infinite;
+  z-index: 1;
+  border-radius: 50ch;
+  border: none;
+}
+
+.loading-demo-container .loader-letter:nth-child(1) { animation-delay: 0s; }
+.loading-demo-container .loader-letter:nth-child(2) { animation-delay: 0.1s; }
+.loading-demo-container .loader-letter:nth-child(3) { animation-delay: 0.2s; }
+.loading-demo-container .loader-letter:nth-child(4) { animation-delay: 0.3s; }
+.loading-demo-container .loader-letter:nth-child(5) { animation-delay: 0.4s; }
+.loading-demo-container .loader-letter:nth-child(6) { animation-delay: 0.5s; }
+.loading-demo-container .loader-letter:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes loader-letter-anim {
+  0%, 100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  40% {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+}
+
+.loading-demo-container .loading-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.loading-demo-container .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loading-demo-container .control-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.loading-demo-container .color-value {
+  font-family: 'Courier New', monospace;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.loading-demo-container .color-input {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.loading-demo-container .color-input:hover {
+  transform: scale(1.02);
+}
+
+@media (max-width: 768px) {
+  .loading-demo-container .loader-wrapper {
+    width: 150px;
+    height: 150px;
+    font-size: 1rem;
+  }
+}`,
+
+  demoJs: `
+(function() {
+  function initLoadingDemo() {
+    const container = document.querySelector('.loading-demo-container');
+    if (!container) {
+      return false;
+    }
+    
+    // Check if already initialized
+    if (container.dataset.loadingInitialized === 'true') {
+      return true;
+    }
+    
+    console.log('🔄 Initializing loading animation demo...');
+    
+    const primaryColor = document.getElementById('loadingPrimaryColor');
+    const secondaryColor = document.getElementById('loadingSecondaryColor');
+    const accentColor = document.getElementById('loadingAccentColor');
+    const primaryValue = document.getElementById('loadingPrimaryValue');
+    const secondaryValue = document.getElementById('loadingSecondaryValue');
+    const accentValue = document.getElementById('loadingAccentValue');
+    
+    if (!primaryColor || !secondaryColor || !accentColor) {
+      return false;
+    }
+    
+    function updateColors() {
+      container.style.setProperty('--loading-primary', primaryColor.value);
+      container.style.setProperty('--loading-secondary', secondaryColor.value);
+      container.style.setProperty('--loading-accent', accentColor.value);
+      
+      if (primaryValue) primaryValue.textContent = primaryColor.value;
+      if (secondaryValue) secondaryValue.textContent = secondaryColor.value;
+      if (accentValue) accentValue.textContent = accentColor.value;
+    }
+    
+    primaryColor.addEventListener('input', updateColors);
+    secondaryColor.addEventListener('input', updateColors);
+    accentColor.addEventListener('input', updateColors);
+    
+    // Initialize colors
+    updateColors();
+    
+    container.dataset.loadingInitialized = 'true';
+    console.log('✅ Loading animation demo initialized successfully!');
+    return true;
+  }
+  
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('loadingAnimation', initLoadingDemo);
+  }
+  
+  // Fallback initialization
+  const attempts = [0, 100, 300, 500, 1000];
+  attempts.forEach(function(delay) {
+    setTimeout(initLoadingDemo, delay);
+  });
+})();`
+},
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
+https:"https://youtu.be/Fp2dy-lkjlE",
+ title:"Automate Presentation Building with WorkPPT",
+        description:"This helpful AI site can assist you in creating PowerPoint presentations in seconds.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
+       link:"https://youtu.be/YZWG1oqnE6k",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/Fp2dy-lkjlE"
+      },
+      {
+            text:"WorkPPT Site",
+            url:"https://ppt.softtooler.com/"
+      }
+  ],
+        topic:"Automate Presentations"
+    },
+
+  
+
+  {
+ section:[
+            "Learning",
+            "Templates"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
+https:"https://youtu.be/Fp2dy-lkjlE",
+ title:"Build Presentations Using AI",
+        description:"Check out this great AI PowerPoint presentation tool.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
+       link:"https://youtu.be/Fp2dy-lkjlE",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/Fp2dy-lkjlE"
+        },
+        topic:"AI Tips"
+    },
+
+
+
+  
+  {
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8b6f5371503324d5284e3aab43d668a0469216e6/Thumbnails/FreezeColumnsandRowsThumb2.png",
+https:"https://youtu.be/5K3okQQbtw4",
+ title:"How to Freeze Rows and Columns",
+        description:"This video covers how to freeze rows and columns in Excel.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8b6f5371503324d5284e3aab43d668a0469216e6/Thumbnails/FreezeColumnsandRowsThumb2.png",
+       link:"https://youtu.be/5K3okQQbtw4",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/5K3okQQbtw4"
+        },
+        topic:"Freeze Columns and Rows"
+    },
+
+  
+  
+  
+  
+  
+  {
+  section: ["Learning", "Website Design"],
+  program: {
+    name: "Website Design",
+    image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+  },
+  title: "Image Magnifier Glass Effect",
+  description: "Interactive image magnifier with responsive math, touch/pointer support, and reliable visibility in live preview.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9472d04e7b6a2117b692ab021ba08580247cd82f/photos/maghover.png",
+  link: "Learn.html#website-design-image-magnifier",
+  topic: "Interactive Effects",
+  demoHtml:
+`
+<div id="imgMagDemo-wd" class="img-mag-demo">
+  <div class="status-badge" aria-live="polite">loading…</div>
+
+  <div class="img-magnifier-container" tabindex="0" aria-label="Image magnifier demo">
+    <img
+      class="img-magnifier-image"
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/95ebd87f8e8a7f1bb16849394b49b53d77bb9aed/photos/Steven%20and%20Owl.png"
+      alt="Steven and Owl — hover or touch to magnify"
+      draggable="false"
+    />
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>Zoom: <span class="zoom-value">3x</span></label>
+      <input type="range" class="zoom-input" min="2" max="6" value="3" step="0.25" />
+    </div>
+    <div class="control-group">
+      <label>Glass: <span class="size-value">150px</span></label>
+      <input type="range" class="size-input" min="80" max="260" value="150" step="10" />
+    </div>
+  </div>
+
+  <p class="subtitle">Hover / drag to explore details. Use the sliders to adjust zoom and glass size.</p>
+</div>`,
+  demoCss:
+`
+.img-mag-demo {
+  --glass-size: 150px;
+  --zoom: 3;
+  font-family: system-ui, Segoe UI, Roboto, sans-serif;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 20px; border-radius: 14px; background: #0b1020; color: #e6e6e6;
+  min-height: 320px; position: relative;
+}
+
+/* little status badge so you can *see* what stage we’re at */
+.img-mag-demo .status-badge {
+  position: absolute; top: 8px; right: 10px;
+  font-size: 12px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
+  padding: 4px 8px; border-radius: 6px; color: #d7e3ff; z-index: 100000;
+}
+
+.img-mag-demo .subtitle { opacity: .8; text-align: center; font-size: .95rem; }
+.img-mag-demo .controls { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.img-mag-demo .control-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.img-mag-demo .zoom-value { font-weight: 700; color: #8ab4ff; }
+
+.img-mag-demo .img-magnifier-container {
+  position: relative; width: 100%; max-width: 800px;
+  cursor: crosshair; touch-action: none; z-index: 0; /* stacking context */
+  overflow: visible; /* avoid clipping in card layouts */
+}
+.img-mag-demo .img-magnifier-container .img-magnifier-image {
+  width: 100%; height: auto; display: block; border-radius: 12px;
+  user-select: none; -webkit-user-drag: none;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+
+.img-mag-demo .img-magnifier-glass {
+  position: absolute; top: -9999px; left: -9999px; /* offscreen until moved */
+  border: 3px solid #000; border-radius: 50%;
+  width: var(--glass-size); height: var(--glass-size);
+  background-repeat: no-repeat; pointer-events: none;
+  box-shadow: 0 0 0 7px rgba(255,255,255,.85), 0 12px 24px rgba(0,0,0,.45), inset 0 0 15px rgba(0,0,0,.15);
+  opacity: 0; transition: opacity .15s ease;
+  z-index: 100001; /* above preview chrome */
+}
+
+/* never block input */
+.img-mag-demo .img-magnifier-glass,
+.img-mag-demo .img-magnifier-container::before { pointer-events: none; }
+
+/* CSS fallback visibility on hover/focus */
+.img-mag-demo .img-magnifier-container:hover .img-magnifier-glass,
+.img-mag-demo .img-magnifier-container:focus .img-magnifier-glass { opacity: 1; }
+
+.img-mag-demo .img-magnifier-glass.active { opacity: 1; }
+
+@media (max-width: 768px) {
+  .img-mag-demo { padding: 14px; }
+  .img-mag-demo .img-magnifier-glass { border-width: 2px; }
+}
+`,
+  demoJs:
+`
+(function(){
+  function initImageMagnifier() {
+    var root = document.getElementById('imgMagDemo-wd');
+    if (!root) {
+      return false;
+    }
+
+    // Check if already initialized
+    if (root.dataset.magnifierInitialized === 'true') {
+      return true;
+    }
+
+    var status = root.querySelector('.status-badge');
+    function setStatus(t){ if(status) status.textContent = t; }
+
+    var container = root.querySelector('.img-magnifier-container');
+    var img       = root.querySelector('.img-magnifier-image');
+    var zoomEl    = root.querySelector('.zoom-input');
+    var zoomVal   = root.querySelector('.zoom-value');
+    var sizeEl    = root.querySelector('.size-input');
+    var sizeVal   = root.querySelector('.size-value');
+
+    if (!container || !img) {
+      return false;
+    }
+
+    console.log('🔍 Initializing image magnifier...');
+    root.dataset.magnifierInitialized = 'true';
+
+    var state = { zoom: 3, size: 150, glass: null, shownOnce: false };
+    setStatus('JS loaded ✅');
+
+    function buildGlass() {
+      if (state.glass && state.glass.isConnected) state.glass.remove();
+      var g = document.createElement('div');
+      g.className = 'img-magnifier-glass';
+      container.appendChild(g);
+      state.glass = g;
+      g.style.backgroundImage = "url('" + (img.currentSrc || img.src) + "')";
+      updateBgSize();
+      updateGlassSize(state.size);
+      setStatus('lens built ✅');
+    }
+
+    function updateBgSize() {
+      if (!state.glass) return;
+      var rect = img.getBoundingClientRect();
+      state.glass.style.backgroundSize = (rect.width * state.zoom) + "px " + (rect.height * state.zoom) + "px";
+    }
+
+    function updateGlassSize(px) {
+      state.size = px;
+      if (state.glass) state.glass.style.setProperty('--glass-size', px + 'px');
+    }
+
+    function getPosFromEvent(e){
+      var rect = img.getBoundingClientRect();
+      var cx = (e && ('clientX' in e)) ? e.clientX : (e && e.touches && e.touches[0] ? e.touches[0].clientX : (rect.left + rect.width/2));
+      var cy = (e && ('clientY' in e)) ? e.clientY : (e && e.touches && e.touches[0] ? e.touches[0].clientY : (rect.top  + rect.height/2));
+      var x = Math.max(0, Math.min(rect.width,  cx - rect.left));
+      var y = Math.max(0, Math.min(rect.height, cy - rect.top));
+      return { x: x, y: y };
+    }
+
+    function move(e) {
+      if (!state.glass) return;
+      if (e && e.preventDefault) e.preventDefault();
+      var pos = getPosFromEvent(e);
+      var bw = parseFloat(getComputedStyle(state.glass).borderWidth) || 0;
+      var w = state.size / 2, h = state.size / 2;
+
+      state.glass.style.left = (pos.x - w) + 'px';
+      state.glass.style.top  = (pos.y - h) + 'px';
+
+      var bgX = -((pos.x * state.zoom) - w + bw);
+      var bgY = -((pos.y * state.zoom) - h + bw);
+      state.glass.style.backgroundPosition = bgX + "px " + bgY + "px";
+      setStatus('moving ✅');
+    }
+
+    function showOnceCentered() {
+      if (state.shownOnce) return;
+      state.glass.classList.add('active');
+      move(); // center once
+      state.shownOnce = true;
+      setTimeout(function(){ state.glass.classList.remove('active'); setStatus('ready ✨'); }, 400);
+    }
+
+    function show(){ if(state.glass) state.glass.classList.add('active'); }
+    function hide(){ if(state.glass) state.glass.classList.remove('active'); }
+
+    function start(){
+      buildGlass();
+      showOnceCentered();
+
+      // Pointer (preferred)
+      container.addEventListener('pointerenter', show, { passive: true });
+      container.addEventListener('pointerleave', hide, { passive: true });
+      container.addEventListener('pointerdown',  function(e){ show(); move(e); }, { passive: false });
+      container.addEventListener('pointermove',  move, { passive: false });
+      container.addEventListener('pointerup',    function(e){ move(e); }, { passive: false });
+
+      // Mouse fallback (if PointerEvents get swallowed by preview)
+      container.addEventListener('mouseenter', show, { passive: true });
+      container.addEventListener('mouseleave', hide, { passive: true });
+      container.addEventListener('mousemove',  move, { passive: false });
+
+      // Document-level emergency fallback (some wrappers intercept container events)
+      document.addEventListener('mousemove', function(e){
+        // only react if mouse is over/near the image rect
+        var r = img.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          show(); move(e);
+        }
+      }, { passive: false });
+
+      // Keep sizes in sync
+      var ro = new ResizeObserver(function(){ updateBgSize(); });
+      ro.observe(img);
+
+      // Controls
+      if (zoomEl) zoomEl.addEventListener('input', function(e){
+        state.zoom = parseFloat(e.target.value);
+        if (zoomVal) zoomVal.textContent = state.zoom + 'x';
+        updateBgSize();
+      }, { passive: true });
+
+      if (sizeEl) sizeEl.addEventListener('input', function(e){
+        var px = parseInt(e.target.value, 10);
+        if (sizeVal) sizeVal.textContent = px + 'px';
+        updateGlassSize(px);
+        updateBgSize();
+      }, { passive: true });
+    }
+
+    function tryStart(){
+      if (!container || !img) return false;
+      if (img.complete && img.naturalWidth) { start(); return true; }
+      img.addEventListener('load', start, { once: true });
+      return true;
+    }
+
+    // Try to start immediately
+    if (tryStart()) {
+      console.log('✅ Image magnifier initialized successfully!');
+      return true;
+    }
+    
+    // Retry if image not ready
+    var tries = 0, max = 180; // ~3s of retries for late injection
+    (function tick(){
+      if (tryStart() || tries++ >= max) {
+        if (tries <= max) {
+          console.log('✅ Image magnifier initialized successfully!');
+        }
+        return;
+      }
+      requestAnimationFrame(tick);
+    })();
+    
+    return true;
+  }
+
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('imageMagnifier', initImageMagnifier);
+  }
+
+  // Fallback initialization for immediate execution
+  function ready(fn){
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+
+  ready(function(){
+    var attempts = [0, 100, 300, 500, 1000];
+    attempts.forEach(function(delay) {
+      setTimeout(initImageMagnifier, delay);
+    });
+  });
+})();`
+},
+
+
+{
+  section: ["Learning", "CSS"],
+  program: {
+    name: "CSS",
+    image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+  },
+  title: "CSS Cosmic Galaxy Button",
+  description: "Create a stunning cosmic button with particle animations, galaxy effects, and interactive text changes. Features three states: Cosmic (default), Journey (on hover with purple glow), and Warp Speed (on click with green glow). Includes particle systems, 3D transforms, and smooth state transitions.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2c77a5197be5cf69fde4447b64ff7562578b33fc/Thumbnails/Warp%20Speed%20Thumb.png",
+  link: "Learn.html#css-cosmic-button-demo",
+  topic: "CSS Button Effects",
+  demoHtml:
+`<div class="cosmic-demo-container" id="cosmicDemo">
+  <div class="galaxy-button">
+    <button class="cosmic-btn" id="cosmicBtn" type="button" aria-label="Cosmic Button">
+      <span class="spark"></span>
+      <span class="backdrop"></span>
+
+      <span class="galaxy__container">
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+        <span class="star star--static"></span>
+      </span>
+
+      <span class="galaxy">
+        <span class="galaxy__ring">
+          <!-- orbiting stars (lighter weight than the standalone page) -->
+          <span class="star"></span><span class="star"></span><span class="star"></span>
+          <span class="star"></span><span class="star"></span><span class="star"></span>
+          <span class="star"></span><span class="star"></span><span class="star"></span>
+          <span class="star"></span><span class="star"></span><span class="star"></span>
+        </span>
+      </span>
+
+      <span class="text" id="cosmicText">Cosmic</span>
+    </button>
+
+    <!-- local background layer so we don't modify page <body> -->
+    <div class="bodydrop" id="cosmicBodydrop" aria-hidden="true"></div>
+  </div>
+
+  <p style="color:#ddd; text-align:center; margin-top:20px; font-size:0.9rem;">
+    Hover to see “Journey” • Click for “Warp Speed”
+  </p>
+</div>`,
+  demoCss:
+`
+/* Cosmic Galaxy Button (scoped) */
+#cosmicDemo {
+  --transition: 0.25s;
+  --spark: 1.8s;
+  --hue: 275;
+  --active: 0;
+  min-height: 320px;
+  padding: 24px 16px;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+
+  /* mimic the standalone body background inside the demo box */
+  background:
+    radial-gradient(circle at 15% 80%, hsl(280 calc(var(--active)*90%) 25% / calc(var(--active)*0.6)) 0%, transparent 40%),
+    radial-gradient(circle at 10% 85%, hsl(260 calc(var(--active)*85%) 20% / calc(var(--active)*0.5)) 0%, transparent 35%),
+    radial-gradient(circle at 50% 50%, hsl(240 calc(var(--active)*70%) 15% / calc(var(--active)*0.3)) 0%, transparent 50%),
+    hsl(var(--hue) calc(var(--active)*97%) 6%);
+  transition: background 0.5s ease;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-family: system-ui, sans-serif;
+}
+
+/* hover proxy (works even if :has is unsupported) */
+#cosmicDemo:has(.cosmic-btn:is(:hover, :focus-visible)),
+#cosmicDemo.active {
+  --active: 1;
+}
+
+.galaxy-button { position: relative; }
+
+.cosmic-btn {
+  --cut: 0.1em;
+  --active: 0;
+  --bg:
+    radial-gradient(130% 130% at -26% 126%,
+      hsl(280 calc(var(--active)*97%) 85% / calc(var(--active)*0.8)) 20%,
+      hsl(260 calc(var(--active)*90%) 75% / calc(var(--active)*0.6)) 35%, transparent 55%)
+      calc(100px - (var(--active)*100px)) 0 / 100% 100% no-repeat,
+    radial-gradient(100% 100% at -20% 120%,
+      hsl(290 calc(var(--active)*95%) 70% / calc(var(--active)*0.9)) 25%,
+      hsl(270 calc(var(--active)*90%) 60% / calc(var(--active)*0.7)) 40%, transparent 65%)
+      calc(100px - (var(--active)*100px)) 0 / 100% 100% no-repeat,
+    radial-gradient(80% 80% at 50% 50%,
+      hsl(240 calc(var(--active)*80%) 50% / calc(var(--active)*0.3)) 0%, transparent 60%),
+    hsl(var(--hue) calc(var(--active)*100%) calc(12% - (var(--active)*8%)));
+  background: var(--bg);
+  font-size: 1.8rem;
+  font-weight: 500;
+  border: 0;
+  cursor: pointer;
+  padding: 0.9em 1.3em;
+  display: inline-flex;
+  align-items: center;
+  gap: .25em;
+  white-space: nowrap;
+  border-radius: 2rem;
+  position: relative;
+  box-shadow:
+    0 0 calc(var(--active)*6em) calc(var(--active)*3em) hsl(var(--hue) 97% 61% / 0.5),
+    0 0 calc(var(--active)*3em) calc(var(--active)*1.5em) hsl(280 90% 70% / 0.4),
+    0 0.05em 0 0 hsl(var(--hue) calc(var(--active)*97%) calc((var(--active)*50%)+30%)) inset,
+    0 -0.05em 0 0 hsl(var(--hue) calc(var(--active)*97%) calc(var(--active)*10%)) inset;
+  transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+  transform: scale(calc(1 + (var(--active)*0.1)));
+  transform-style: preserve-3d;
+  perspective: 100vmin;
+  overflow: hidden;
+  color: hsl(0 0% calc(60% + (var(--active)*26%)));
+}
+.cosmic-btn:active { transform: scale(1); }
+.cosmic-btn:is(:hover, :focus-visible) { --active: 1; }
+
+.text { translate: 2% -6%; letter-spacing: 0.01ch; transition: all 0.3s ease; }
+.cosmic-btn svg { inline-size: 1.25em; translate: -25% -5%; }
+
+.star {
+  height: calc(var(--size,3) * 1px);
+  aspect-ratio: 1;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  opacity: var(--alpha, .8);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(10deg) rotate(0deg) translateY(calc(var(--distance,80) * 1px));
+  animation: orbit calc(var(--duration,12) * 1s) calc(var(--delay,0) * -1s) infinite linear;
+}
+@keyframes orbit {
+  to { transform: translate(-50%,-50%) rotate(10deg) rotate(360deg) translateY(calc(var(--distance,80) * 1px)); }
+}
+
+.galaxy { position:absolute; width:100%; aspect-ratio:1; top:50%; left:50%; translate:-50% -50%; overflow:hidden; opacity:var(--active); transition:opacity var(--transition); }
+.galaxy__ring { height:200%; width:200%; position:absolute; top:50%; left:50%; border-radius:50%;
+  transform: translate(-28%,-40%) rotateX(-24deg) rotateY(-30deg) rotateX(90deg); transform-style:preserve-3d; }
+.galaxy__container { position:absolute; inset:0; opacity:var(--active); transition:opacity var(--transition); mask: radial-gradient(white, transparent); }
+
+.star--static {
+  animation: none; max-height:4px; filter: brightness(4); opacity: 0.9;
+  animation: move-x calc(var(--duration,12)*0.1s) calc(var(--delay,0)*-0.1s) infinite linear,
+             move-y calc(var(--duration,12)*0.2s) calc(var(--delay,0)*-0.2s) infinite linear;
+}
+.cosmic-btn:hover .star--static { animation-play-state: paused; }
+@keyframes move-x { 0% { translate:-100px 0 } 100% { translate:100px 0 } }
+@keyframes move-y { 0% { transform: translate(0,-50px) } 100% { transform: translate(0,50px) } }
+
+.spark { position:absolute; inset:0; border-radius:2rem; rotate:0deg; overflow:hidden; mask:linear-gradient(white, transparent 50%); animation: flip calc(var(--spark)*2) infinite steps(2,end); }
+@keyframes flip { to { rotate:360deg } }
+.spark:before{
+  content:""; position:absolute; width:200%; aspect-ratio:1; top:0%; left:50%; z-index:-1;
+  translate:-50% -15%; transform: rotate(-90deg);
+  opacity: calc((var(--active)) + 0.4);
+  background: conic-gradient(from 0deg, transparent 0 340deg, white 360deg);
+  transition: opacity var(--transition);
+  animation: rotate var(--spark) linear infinite both;
+}
+@keyframes rotate { to { transform: rotate(90deg) } }
+.spark:after{ content:""; position:absolute; inset:var(--cut); border-radius:2rem; }
+.backdrop{ position:absolute; inset:var(--cut); background: var(--bg); border-radius:2rem; transition: background var(--transition); }
+
+/* Local “warp speed” state */
+.cosmic-btn.warp-speed {
+  --hue: 140; --active: 1; animation: warp-pulse 0.6s ease-in-out infinite alternate;
+}
+.cosmic-btn.warp-speed .text {
+  color: hsl(140 100% 90%);
+  text-shadow: 0 0 10px hsl(140 100% 60%), 0 0 20px hsl(140 100% 50%), 0 0 30px hsl(140 100% 40%);
+}
+@keyframes warp-pulse { 0% { transform:scale(1.1); filter:brightness(1.2) } 100% { transform:scale(1.15); filter:brightness(1.5) } }
+
+/* background shift when warped (scoped to demo container) */
+#cosmicDemo.warp-active,
+#cosmicDemo .bodydrop.warp-active{
+  background:
+    radial-gradient(circle at 15% 80%, hsl(140 90% 25% / 0.6) 0%, transparent 40%),
+    radial-gradient(circle at 10% 85%, hsl(130 85% 20% / 0.5) 0%, transparent 35%),
+    radial-gradient(circle at 50% 50%, hsl(150 70% 15% / 0.3) 0%, transparent 50%),
+    hsl(140 97% 8%);
+  transition: background 0.5s ease;
+}
+
+/* visual layer behind button, scoped */
+#cosmicDemo .bodydrop{
+  position: absolute; inset: 0; z-index: -1;
+  transition: background 0.5s ease;
+}
+
+/* Ensure inner visuals never block clicks */
+.cosmic-btn .spark,
+.cosmic-btn .backdrop,
+.cosmic-btn .galaxy,
+.cosmic-btn .galaxy__container,
+.cosmic-btn .galaxy__ring,
+.cosmic-btn .star { pointer-events: none; }
+
+@media (max-width: 768px){ .cosmic-btn{ font-size:1.5rem; } }
+`,
+  demoJs:
+`// Cosmic Button Interactive States (robust mount + full input support)
+(() => {
+  const MOUNT_ID = 'cosmicDemo';
+  let mounted = false;
+
+  const init = () => {
+    if (mounted) return true;
+    const root = document.getElementById(MOUNT_ID);
+    if (!root) return false;
+
+    const button   = root.querySelector('#cosmicBtn');
+    const textEl   = root.querySelector('#cosmicText');
+    const bodydrop = root.querySelector('#cosmicBodydrop');
+    const stars    = root.querySelectorAll('.star');
+    if (!button || !textEl || !bodydrop) return false;
+
+    // Particle randomization
+    const RAND = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+    stars.forEach(s => {
+      s.style.setProperty('--duration', RAND(6, 20));
+      s.style.setProperty('--delay', RAND(1, 10));
+      s.style.setProperty('--alpha', RAND(40, 90) / 100);
+      s.style.setProperty('--size', RAND(2, 6));
+      s.style.setProperty('--distance', RAND(40, 200));
+    });
+
+    let isWarped = false;
+    const ORIGINAL = 'Cosmic';
+    const HOVER    = 'Journey';
+    const WARP     = 'Warp Speed';
+
+    // Hover state (desktop)
+    button.addEventListener('mouseenter', () => {
+      if (!isWarped) textEl.textContent = HOVER;
+      root.classList.add('active');
+    });
+    button.addEventListener('mouseleave', () => {
+      if (!isWarped) textEl.textContent = ORIGINAL;
+      root.classList.remove('active');
+    });
+
+    // Click / tap / keyboard toggle -> Warp
+    const toggleWarp = (e) => {
+      if (e) e.preventDefault();
+      isWarped = !isWarped;
+      if (isWarped) {
+        textEl.textContent = WARP;
+        button.classList.add('warp-speed');
+        root.classList.add('warp-active');
+        bodydrop.classList.add('warp-active');
+        if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+      } else {
+        textEl.textContent = ORIGINAL;
+        button.classList.remove('warp-speed');
+        root.classList.remove('warp-active');
+        bodydrop.classList.remove('warp-active');
+      }
+    };
+
+    button.addEventListener('click', toggleWarp, { passive: false });
+    // Touch support (some previewers swallow click after touch)
+    button.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') toggleWarp(e);
+    }, { passive: false });
+
+    // Keyboard accessibility: Space/Enter toggle
+    button.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.key === ' ' || e.key === 'Enter') {
+        toggleWarp(e);
+      }
+    });
+
+    mounted = true;
+    return true;
+  };
+
+  // Try immediately, then retry a few times if the preview injects HTML after JS runs
+  if (!init()) {
+    let tries = 0;
+    const MAX_TRIES = 40; // ~2s total
+    const tick = () => {
+      if (init() || tries++ >= MAX_TRIES) return;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+})();
+`
+},
+
+  
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"General",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5081bef9abd3db6fb93b96a3f0441e9db909aebb/icons/generalicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b7ccfbcf9154a4a8c3de9b0054500a38075d99a0/Thumbnails/dup2.png",
+https:"https://youtu.be/P4ZLehr19Vg",
+ title:"Create Custom Email Signatures",
+        description:"In this video we cover a free tool I created to help you create custom, professional, and engaging email signatures. These can be used on both PC and mobile devices.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/816af82e8b3930c33e328db97156cfdb2e0a7b06/Thumbnails/custom.png",
+       link:"https://youtu.be/P4ZLehr19Vg",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/P4ZLehr19Vg"
+      },
+      {
+            text:"Custom Signature Page",
+            url:"https://www.careersolutionsfortoday.com/Signature%20Builder.html"
+      }
+  ],
+        topic:"Email Signature"
+    },
+
+
+  
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b7ccfbcf9154a4a8c3de9b0054500a38075d99a0/Thumbnails/dup2.png",
+https:"https://youtu.be/YZWG1oqnE6k",
+ title:"How to Find and Remove Duplicates",
+        description:"In this video we cover how to find and remove duplicates in Excel.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b7ccfbcf9154a4a8c3de9b0054500a38075d99a0/Thumbnails/dup2.png",
+       link:"https://youtu.be/YCIskoCQAh8",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/YCIskoCQAh8"
+      },
+      {
+            text:"Practice File",
+            url:"https://docs.google.com/spreadsheets/d/1msrqTjmKZ1J6J9mUSmFiy3hr5UFD2N-w/export?format=xlsx"
+      }
+  ],
+        topic:"Remove Duplicates"
+    },
+
+
+
+
+  
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
+https:"https://youtu.be/YZWG1oqnE6k",
+ title:"Automate Presentation Building with Beautiful.AI",
+        description:"In this video we cover a site called beautiful.ai, where you can create amazing presentations using AI prompts, templates, and more.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
+       link:"https://youtu.be/YZWG1oqnE6k",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/YZWG1oqnE6k"
+      },
+      {
+            text:"Visit Beautiful.AI",
+            url:"https://www.beautiful.ai/"
+      }
+  ],
+        topic:"Automate Presentations"
+    },
+
+  
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Interactive Electric Border Effect",
+    description: "Learn how to create a stunning interactive electric border effect with real-time controls. Features dynamic SVG filters, CSS animations, responsive design, and collapsible controls. Perfect for modern cards, buttons, or any UI element that needs an electrifying visual impact.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/df46cb0ce98eeb582f057e39706df4310d0b9c2d/Thumbnails/electricthumb.png",
+    link: "Learn.html#website-design-electric-border-effect",
+    topic: "Interactive Effects",
+    demoHtml: `<!-- Interactive Electric Border Effect -->
+<div class="electric-demo-container">
+  <!-- Toggle button for controls -->
+  <button class="toggle-controls-demo" onclick="toggleControlsDemo()" title="Toggle Controls">
+    <span id="toggleIconDemo">⚙️</span>
+  </button>
+
+  <!-- Controls Panel -->
+  <div class="controls-panel-demo" id="controlsPanelDemo">
+    <h3 class="controls-title-demo">⚡ Electric Border Controls</h3>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Border Color
+        <span class="control-value-demo" id="colorValueDemo">#46DD96</span>
+      </label>
+      <input type="color" class="color-picker-demo" id="colorPickerDemo" value="#46DD96">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Border Width
+        <span class="control-value-demo" id="widthValueDemo">2px</span>
+      </label>
+      <input type="range" class="slider-demo" id="widthSliderDemo" min="1" max="8" value="2" step="0.5">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Electric Blur
+        <span class="control-value-demo" id="blurValueDemo">4px</span>
+      </label>
+      <input type="range" class="slider-demo" id="blurSliderDemo" min="1" max="12" value="4" step="0.5">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Displacement Scale
+        <span class="control-value-demo" id="scaleValueDemo">50</span>
+      </label>
+      <input type="range" class="slider-demo" id="scaleSliderDemo" min="10" max="60" value="50" step="5">
+    </div>
+    
+    <div class="control-group-demo">
+      <label class="control-label-demo">
+        Glow Opacity
+        <span class="control-value-demo" id="opacityValueDemo">0.8</span>
+      </label>
+      <input type="range" class="slider-demo" id="opacitySliderDemo" min="0.1" max="1" value="0.8" step="0.1">
+    </div>
+    
+    <button class="reset-button-demo" onclick="resetToDefaultsDemo()">Reset to Defaults</button>
+  </div>
+
+  <main class="main-container-demo">
+    <svg class="svg-container-demo">
+      <defs>
+        <filter id="turbulent-displace-demo" colorInterpolationFilters="sRGB" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise1" seed="1" />
+          <feOffset in="noise1" dx="0" dy="0" result="offsetNoise1">
+            <animate attributeName="dy" values="700; 0" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise2" seed="1" />
+          <feOffset in="noise2" dx="0" dy="0" result="offsetNoise2">
+            <animate attributeName="dy" values="0; -700" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise1" seed="2" />
+          <feOffset in="noise1" dx="0" dy="0" result="offsetNoise3">
+            <animate attributeName="dx" values="490; 0" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="10" result="noise2" seed="2" />
+          <feOffset in="noise2" dx="0" dy="0" result="offsetNoise4">
+            <animate attributeName="dx" values="0; -490" dur="6s" repeatCount="indefinite" calcMode="linear" />
+          </feOffset>
+          <feComposite in="offsetNoise1" in2="offsetNoise2" result="part1" />
+          <feComposite in="offsetNoise3" in2="offsetNoise4" result="part2" />
+          <feBlend in="part1" in2="part2" mode="color-dodge" result="combinedNoise" />
+          <feDisplacementMap id="displacementMapDemo" in="SourceGraphic" in2="combinedNoise" scale="50" xChannelSelector="R" yChannelSelector="B" />
+        </filter>
+      </defs>
+    </svg>
+
+    <div class="card-container-demo">
+      <div class="inner-container-demo">
+        <div class="border-outer-demo">
+          <div class="main-card-demo"></div>
+        </div>
+        <div class="glow-layer-1-demo"></div>
+        <div class="glow-layer-2-demo"></div>
+      </div>
+
+      <div class="overlay-1-demo"></div>
+      <div class="overlay-2-demo"></div>
+      <div class="background-glow-demo"></div>
+
+      <div class="content-container-demo">
+        <div class="content-top-demo">
+          <div class="scrollbar-glass-demo" onclick="randomizeColorsDemo()">
+            Interactive
+          </div>
+          <p class="title-demo">Electric Border</p>
+        </div>
+
+        <hr class="divider-demo" />
+
+        <div class="content-bottom-demo">
+          <p class="description-demo">
+            Customize the electric border effect with real-time controls. 
+            Adjust colors, width, blur, and animation to create your perfect electric effect.
+            Click "Interactive" for random colors!
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>`,
+    demoCss: `/* Interactive Electric Border Effect Styles */
+:root {
+  --electric-border-color-demo: #46DD96;
+  --electric-width-demo: 2px;
+  --electric-blur-demo: 4px;
+  --electric-scale-demo: 50;
+  --electric-opacity-demo: 0.8;
+  --animation-speed-demo: 6s;
+}
+
+.electric-demo-container {
+  position: relative;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  min-height: 100vh;
+  color: #ffffff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  padding: 20px;
+  overflow: hidden;
+}
+
+/* Toggle button for controls */
+.toggle-controls-demo {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 12px 15px;
+  color: white;
+  cursor: pointer;
+  z-index: 1001;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-controls-demo:hover {
+  background: rgba(0, 0, 0, 0.95);
+  transform: scale(1.05);
+}
+
+/* Controls panel - collapsed by default */
+.controls-panel-demo {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  z-index: 1000;
+  min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transform: translateX(-100%);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.controls-panel-demo.visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.controls-title-demo {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.control-group-demo {
+  margin-bottom: 16px;
+}
+
+.control-label-demo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #cccccc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.control-value-demo {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+}
+
+.slider-demo {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.slider-demo::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--electric-border-color-demo), #ffffff);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.color-picker-demo {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--electric-border-color-demo);
+  transition: transform 0.2s ease;
+}
+
+.reset-button-demo {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 16px;
+}
+
+.reset-button-demo:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Main container */
+.main-container-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  position: relative;
+}
+
+.svg-container-demo {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+/* Card container */
+.card-container-demo {
+  padding: calc(var(--electric-width-demo) * 1px);
+  border-radius: 24px;
+  position: relative;
+  background: linear-gradient(
+    -30deg,
+    color-mix(in srgb, var(--electric-border-color-demo) 20%, transparent),
+    transparent,
+    color-mix(in srgb, var(--electric-border-color-demo) 20%, transparent)
+  );
+  transition: all 0.3s ease;
+}
+
+.inner-container-demo {
+  position: relative;
+}
+
+.border-outer-demo {
+  border: calc(var(--electric-width-demo) * 1px) solid color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent);
+  border-radius: 24px;
+  padding-right: 4px;
+  padding-bottom: 4px;
+  transition: all 0.3s ease;
+}
+
+.main-card-demo {
+  width: 280px;
+  height: 400px;
+  border-radius: 20px;
+  border: calc(var(--electric-width-demo) * 1px) solid var(--electric-border-color-demo);
+  margin-top: -4px;
+  margin-left: -4px;
+  filter: url(#turbulent-displace-demo);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  
+  box-shadow: 
+    0 0 10px var(--electric-border-color-demo),
+    0 0 20px var(--electric-border-color-demo),
+    0 0 40px color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent),
+    inset 0 0 15px color-mix(in srgb, var(--electric-border-color-demo) 20%, transparent);
+  
+  animation: electricPulseDemo 2s ease-in-out infinite alternate,
+             electricFlickerDemo 0.15s linear infinite;
+}
+
+/* Enhanced hover effect */
+.main-card-demo:hover {
+  transform: scale(1.08) rotate(1deg);
+  box-shadow: 
+    0 0 25px var(--electric-border-color-demo),
+    0 0 50px var(--electric-border-color-demo),
+    0 0 100px color-mix(in srgb, var(--electric-border-color-demo) 90%, transparent),
+    inset 0 0 40px color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent);
+  animation: electricPulseHoverDemo 0.6s ease-in-out infinite alternate,
+             electricFlickerHoverDemo 0.08s linear infinite,
+             electricIntensePulseDemo 0.3s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes electricPulseDemo {
+  0% { 
+    box-shadow: 
+      0 0 10px var(--electric-border-color-demo),
+      0 0 20px var(--electric-border-color-demo),
+      0 0 40px color-mix(in srgb, var(--electric-border-color-demo) 50%, transparent);
+  }
+  100% { 
+    box-shadow: 
+      0 0 15px var(--electric-border-color-demo),
+      0 0 30px var(--electric-border-color-demo),
+      0 0 60px color-mix(in srgb, var(--electric-border-color-demo) 70%, transparent);
+  }
+}
+
+@keyframes electricPulseHoverDemo {
+  0% { 
+    box-shadow: 
+      0 0 25px var(--electric-border-color-demo),
+      0 0 50px var(--electric-border-color-demo),
+      0 0 100px color-mix(in srgb, var(--electric-border-color-demo) 90%, transparent);
+  }
+  100% { 
+    box-shadow: 
+      0 0 35px var(--electric-border-color-demo),
+      0 0 70px var(--electric-border-color-demo),
+      0 0 140px color-mix(in srgb, var(--electric-border-color-demo) 100%, transparent);
+  }
+}
+
+@keyframes electricIntensePulseDemo {
+  0% { 
+    filter: url(#turbulent-displace-demo) brightness(1) saturate(1.2);
+  }
+  100% { 
+    filter: url(#turbulent-displace-demo) brightness(1.3) saturate(1.5);
+  }
+}
+
+@keyframes electricFlickerDemo {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.95; }
+}
+
+@keyframes electricFlickerHoverDemo {
+  0%, 85%, 100% { opacity: 1; }
+  90% { opacity: 0.9; }
+  95% { opacity: 0.95; }
+}
+
+/* Content styling */
+.content-container-demo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.content-top-demo {
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  padding-bottom: 16px;
+  height: 100%;
+}
+
+.content-bottom-demo {
+  display: flex;
+  flex-direction: column;
+  padding: 48px;
+  padding-top: 16px;
+}
+
+.scrollbar-glass-demo {
+  background: radial-gradient(
+    47.2% 50% at 50.39% 88.37%,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0) 100%
+  ),
+  rgba(255, 255, 255, 0.04);
+  position: relative;
+  transition: background 0.3s ease;
+  border-radius: 14px;
+  width: fit-content;
+  height: fit-content;
+  padding: 8px 16px;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.title-demo {
+  font-size: 36px;
+  font-weight: 500;
+  margin-top: auto;
+  background: linear-gradient(135deg, var(--electric-border-color-demo), #ffffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.description-demo {
+  opacity: 0.7;
+  line-height: 1.5;
+  color: #cccccc;
+}
+
+.divider-demo {
+  margin-top: auto;
+  border: none;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--electric-border-color-demo),
+    transparent
+  );
+  opacity: 0.5;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .main-card-demo {
+    width: 260px;
+    height: 360px;
+  }
+  
+  .controls-panel-demo {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    min-width: 280px;
+    max-width: 85vw;
+    margin: 0;
+    border-radius: 0 16px 16px 0;
+  }
+}`,
+    demoJs: `// Interactive Electric Border Effect JavaScript
+function updatePropertyDemo(property, value, unit = '') {
+  document.documentElement.style.setProperty(property, value + unit);
+}`
+  },
+  
+  {
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Photo with Text Overlay on Hover",
+    description: "Learn how to create elegant text overlay effects that appear on photo hover. This component demonstrates smooth CSS animations, typography effects, and interactive design patterns perfect for image galleries, portfolios, and call-to-action elements.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
+    link: "Learn.html#website-design-photo-text-overlay",
+    topic: "Hover Effects",
+    demoHtml: `<!-- Photo with Text Overlay Effect -->
+<div class="photo-text-container">
+  <div class="photo-text-wrapper">
+    <!-- Photo -->
+    <div class="photo-section">
+      <img 
+        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
+        alt="Surfing Photo"
+        class="main-photo"
+      >
+      
+      <!-- Overlay Background -->
+      <div class="overlay-background"></div>
+      
+      <!-- Text Overlay -->
+      <div class="text-overlay">
+        <div class="text-content">
+          <h2 class="overlay-title">Learn Surfing</h2>
+          <p class="overlay-subtitle">Ride the waves with confidence</p>
+          <div class="overlay-button">
+            <span>Get Started</span>
+            <i class="arrow">→</i>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Photo Info -->
+    <div class="photo-info">
+      <div class="info-content">
+        <h3>Interactive Text Overlay</h3>
+        <p>Hover to reveal content</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Instructions -->
+  <div class="photo-instructions">
+    <p>✨ Hover over the image to see the text overlay effect</p>
+  </div>
+</div>`,
+    demoCss: `/* Photo with Text Overlay Styles */
+.photo-text-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.photo-text-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Photo Section */
+.photo-section {
+  position: relative;
+  width: 320px;
+  height: 480px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.photo-section:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.main-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.6s ease;
+}
+
+.photo-section:hover .main-photo {
+  transform: scale(1.1);
+}
+
+/* Overlay Background */
+.overlay-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(17, 153, 142, 0.8),
+    rgba(45, 27, 105, 0.8)
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 1;
+}
+
+.photo-section:hover .overlay-background {
+  opacity: 1;
+}
+
+/* Text Overlay */
+.text-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition-delay: 0.1s;
+}
+
+.photo-section:hover .text-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.text-content {
+  text-align: center;
+  color: white;
+  padding: 30px;
+  max-width: 260px;
+}
+
+.overlay-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-title {
+  animation-delay: 0.2s;
+}
+
+.overlay-subtitle {
+  font-size: 16px;
+  font-weight: 400;
+  margin: 0 0 25px 0;
+  opacity: 0.9;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-subtitle {
+  animation-delay: 0.3s;
+}
+
+.overlay-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 30px;
+  padding: 12px 24px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  animation: slideInUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.photo-section:hover .overlay-button {
+  animation-delay: 0.4s;
+}
+
+.overlay-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.arrow {
+  font-style: normal;
+  transition: transform 0.3s ease;
+}
+
+.overlay-button:hover .arrow {
+  transform: translateX(5px);
+}
+
+/* Slide in animation */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Photo Info */
+.photo-info {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+  color: white;
+  max-width: 320px;
+}
+
+.info-content h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.info-content p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Instructions */
+.photo-instructions {
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.7;
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Advanced Hover Effects */
+.photo-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.photo-section:hover::before {
+  opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .photo-section {
+    width: 280px;
+    height: 420px;
+  }
+  
+  .photo-text-container {
+    padding: 20px 10px;
+  }
+  
+  .overlay-title {
+    font-size: 28px;
+  }
+  
+  .text-content {
+    padding: 20px;
+  }
+}
+
+/* Performance Optimizations */
+.photo-section {
+  will-change: transform;
+}
+
+.text-overlay {
+  will-change: opacity, transform;
+}
+
+.main-photo {
+  will-change: transform;
+}`,
+    demoJs: `// Photo with Text Overlay JavaScript
+document.addEventListener('DOMContentLoaded', function() {
+  const photoSection = document.querySelector('.photo-section');
+  const overlayButton = document.querySelector('.overlay-button');
+  
+  if (!photoSection) return;
+  
+  let isAnimating = false;
+  
+  // Enhanced hover enter
+  photoSection.addEventListener('mouseenter', function() {
+    if (isAnimating) return;
+    isAnimating = true;
+    
+    console.log('📸 Photo hover activated - showing text overlay');
+    
+    // Add visual feedback
+    this.style.transform = 'translateY(-8px) scale(1.02)';
+    
+    setTimeout(() => {
+      isAnimating = false;
+    }, 600);
+  });
+  
+  // Enhanced hover leave
+  photoSection.addEventListener('mouseleave', function() {
+    console.log('👋 Photo hover ended - hiding text overlay');
+    
+    // Reset transform
+    this.style.transform = '';
+  });
+  
+  // Button click handler
+  if (overlayButton) {
+    overlayButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      console.log('🏄‍♂️ Learn Surfing button clicked!');
+      
+      // Add click effect
+      this.style.transform = 'scale(0.95)';
+      
+      setTimeout(() => {
+        this.style.transform = '';
+        
+        // Simulate navigation or action
+        alert('🌊 Ready to learn surfing? This would navigate to a surfing course!');
+      }, 150);
+    });
+  }
+  
+  // Keyboard accessibility
+  photoSection.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.dispatchEvent(new Event('mouseenter'));
+      
+      setTimeout(() => {
+        this.dispatchEvent(new Event('mouseleave'));
+      }, 2000);
+    }
+  });
+  
+  // Focus management for accessibility
+  photoSection.setAttribute('tabindex', '0');
+  photoSection.setAttribute('role', 'button');
+  photoSection.setAttribute('aria-label', 'View surfing content with text overlay');
+  
+  // Performance optimization - preload overlay effects
+  const textOverlay = document.querySelector('.text-overlay');
+  if (textOverlay) {
+    // Warm up animations
+    textOverlay.style.willChange = 'opacity, transform';
+  }
+  
+  // Initialize
+  console.log('✨ Photo Text Overlay Effect initialized');
+  console.log('🎯 Hover over photo to see "Learn Surfing" text appear');
+});`
+},
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Photo to Video Hover Effect",
+    description: "Learn how to create smooth photo-to-video hover transitions with fade effects. This interactive component demonstrates modern web techniques using CSS transforms, video controls, and smooth animations perfect for portfolio galleries and interactive media displays.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/653e4e96a66ce216ab29d40759a7bb70a385e937/photos/Surf%20Photo.jpeg",
+    link: "Learn.html#website-design-photo-video-hover",
+    topic: "Hover Effects",
+    demoHtml: `<!-- Photo to Video Hover Effect -->
+<div class="media-container">
+  <div class="media-wrapper">
+    <!-- Photo Layer -->
+    <div class="photo-layer">
+      <img 
+        src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/618ea3020969a2f912bef52381d88d988adac4b2/photos/Surf%20Photo%20Vertical.jpeg" 
+        alt="Surfing Photo"
+        class="surf-photo"
+      >
+    </div>
+    
+    <!-- Video Layer -->
+    <div class="video-layer">
+      <video 
+        class="surf-video" 
+        muted 
+        loop 
+        playsinline
+        preload="auto"
+       autoplay>
+        <source 
+          src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9645f9d5ec4ac5e0b6776abdc8458b8f133833d1/Videos/Smaller%20Surf%20Video.mp4" 
+          type="video/mp4"
+        >
+        Your browser does not support the video tag.
+      </video>
+    </div>
+    
+    <!-- Overlay Info -->
+    <div class="media-overlay">
+      <div class="overlay-content">
+        <h3>Hover Effect</h3>
+        <p>Photo → Video</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Instructions -->
+  <div class="instructions">
+    <p>🎥 Hover over the image to see the video transition</p>
+  </div>
+</div>`,
+    demoCss: `/* Photo to Video Hover Effect Styles */
+.media-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.media-wrapper {
+  position: relative;
+  width: 320px;
+  height: 480px;
+  border-radius: 20px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.media-wrapper:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* Photo Layer */
+.photo-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.surf-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.8s ease;
+}
+
+/* Video Layer */
+.video-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.surf-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Hover Effects */
+.media-wrapper:hover .photo-layer {
+  opacity: 0;
+}
+
+.media-wrapper:hover .video-layer {
+  opacity: 1;
+}
+
+.media-wrapper:hover .surf-photo {
+  transform: scale(1.1);
+}
+
+/* Media Overlay */
+.media-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(0, 0, 0, 0.3),
+    transparent,
+    rgba(0, 0, 0, 0.3)
+  );
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 30px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.media-wrapper:hover .media-overlay {
+  opacity: 1;
+}
+
+.overlay-content {
+  text-align: center;
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  padding: 15px 25px;
+  border-radius: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+}
+
+.media-wrapper:hover .overlay-content {
+  transform: translateY(0);
+}
+
+.overlay-content h3 {
+  margin: 0 0 5px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-content p {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Instructions */
+.instructions {
+  text-align: center;
+  color: #ffffff;
+  opacity: 0.7;
+  font-size: 14px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Loading Spinner for Video */
+.video-layer::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 0.3s ease;
+}
+
+.video-layer.loading::before {
+  opacity: 1;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .media-wrapper {
+    width: 280px;
+    height: 420px;
+  }
+  
+  .media-container {
+    padding: 20px 10px;
+  }
+}
+
+/* Performance Optimizations */
+.media-wrapper {
+  will-change: transform;
+}
+
+.photo-layer,
+.video-layer {
+  will-change: opacity;
+}`,
+    demoJs: `// Photo to Video Hover Effect JavaScript - Fixed for Learning Module Confunction initPhotoVideoHoverEffect() {
+  // Wait a bit for content to be fully rendered
+  setTimeout(() => {
+    // Use more specific selectors to avoid conflicts with other demos
+    const demoContainer = document.querySelector('#website-design-photo-video-hover');
+    if (!demoContainer) return;
+    
+    const mediaWrapper = demoContainer.querySelector('.media-wrapper');
+    const video = demoContainer.querySelector('.surf-video');
+    const videoLayer = demoContainer.querySelector('.video-layer');
+    
+    if (!mediaWrapper || !video || !videoLayer) {
+      console.log('❌ Photo to Video elements not found in demo container');
+      return;
+    }
+    
+    let isVideoLoaded = false;
+    let isHovering = false;
+// Preload video on first interaction
+    function preloadVideo() {
+      if (!isVideoLoaded) {
+        videoLayer.classList.add('loading');
+        video.muted = true;
+        video.setAttribute('autoplay', '');
+        video.load();
+        video.addEventListener('canplaythrough', function() {
+          isVideoLoaded = true;
+          videoLayer.classList.remove('loading');
+          console.log('✅ Video loaded successfully for demo');
+          if (isHovering) {
+            video.currentTime = 0;
+            video.play().catch(()=>{});
+          }
+        }, { once: true });
+        
+        video.addEventListener('error', function() {
+          console.error('❌ Video failed to load in demo');
+          videoLayer.classList.remove('loading');
+        }, { once: true });
+      }
+    }
+    
+    // Mouse enter event with user interaction check
+    mediaWrapper.addEventListener('mouseenter', function() {
+      isHovering = true;
+      preloadVideo();
+      
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        if (isHovering && isVideoLoaded) {
+          video.currentTime = 0;
+          if (isVideoLoaded) {
+          video.currentTime = 0;
+          video.play().catch(()=>{});
+        }
+}, 100);
+    });
+    
+    // Mouse leave event  
+    mediaWrapper.addEventListener('mouseleave', function() {
+      isHovering = false;
+      
+      // Pause video with slight delay for smooth transition
+      setTimeout(() => {
+        if (!isHovering) {
+          video.pause();
+        }
+      }, 200);
+    });
+    
+    // Handle video ended (restart loop)
+    video.addEventListener('ended', function() {
+      if (isHovering) {
+        video.currentTime = 0;
+        video.play().catch(e => {
+          console.warn('Video replay failed in demo:', e);
+        });
+      }
+    });
+    
+    // Add click to play functionality as fallback
+    mediaWrapper.addEventListener('click', function() {
+if (isVideoLoaded) {
+        if (video.paused) {
+          video.play().catch(e => console.log('Click play failed:', e));
+        } else {
+          video.pause();
+        }
+      }
+    });
+    
+    // Initialize
+    console.log('🚀 Photo to Video Hover Effect initialized for learning module');
+    
+  }, 500); // Wait 500ms for content to render
+}der
+}
+
+// Initialize when content loads or immediately if already loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPhotoVideoHoverEffect);
+} else {
+  initPhotoVideoHoverEffect();
+}`
+},
+
+  {
+ section:[
+            "Learning",
+            "Templates"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+https:"https://youtu.be/ers-81-bFO4",
+ title:"Interactive Morph Template",
+        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+       link:"https://youtu.be/ers-81-bFO4",
+
+
+  related:{
+            text:"Link to Template",
+            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
+        },
+        topic:"Morph Templates"
+    },
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Templates"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+https:"https://youtu.be/y1gPf0kbf-Y",
+ title:"Timeline Morph Transition",
+        description:"In this video we cover how to create an awesome PowerPoint timeline presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+       link:"https://youtu.be/y1gPf0kbf-Y",
+
+
+  related:{
+            text:"Link to Template",
+            url:"https://docs.google.com/presentation/d/18-Kc8ofXcFfDj-kdTZdkK0d0WWqTPulu/export/pptx"
+        },
+        topic:"Timelines"
+    },
+
+
+  
+  
+  {
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+https:"https://youtu.be/BwEq5QTCwEI",
+ title:"Timeline Morph Transition",
+        description:"In this video we cover how to create an awesome PowerPoint timeline presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7010d4dbc6432223ee66b93865306ae9aaabc28b/Thumbnails/time.png",
+       link:"https://youtu.be/BwEq5QTCwEI",
+
+
+   related: [
+    {
+      text:"Watch on YouTube",
+            url:"https://youtu.be/BwEq5QTCwEI"
+        },
+    {
+       text:"Link to Template",
+            url:" https://docs.google.com/presentation/d/18-Kc8ofXcFfDj-kdTZdkK0d0WWqTPulu/export/pptx"
+    }
+    ],
+        topic:"Timelines"
+    },
+
+{
+ section:[
+            "Learning",           
+            "Simulations"
+       
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/98d03107b6b4a62657bec5b372ba43f4a7e772ad/Thumbnails/ExcelSimulationContentThumb.png"
+        },
+        title:"Learn Excel with Interactive Simulation",
+        description:"These are simulations I created on using the Excel application.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/98d03107b6b4a62657bec5b372ba43f4a7e772ad/Thumbnails/ExcelSimulationContentThumb.png",
+        link:"Excel.html",
+
+
+  related: [
+    {
+      text:"Excel Learning Page",
+            url:"Excel.html"
+    }
+    ],
+        topic:"Excel Learning Simulations"
+    },
+
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "Professional Login Form with Validation",
+    description: "Learn how to create a modern, professional login form with advanced validation, password visibility toggle, loading states, and social authentication options. Features responsive design, accessibility compliance, and enterprise-grade styling perfect for business applications.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0a51e4f4adfc3d8b62851081f74a7dd2a4bbd65c/Thumbnails/Screenshot%202025-09-26%20052218.png",
+    link: "Learn.html#website-design-professional-login-form",
+    topic: "Form Design",
+    demoHtml: `<!-- Professional Login Form -->
+<div class="login-container">
+  <!-- Header -->
+  <div class="login-header">
+    <div class="logo">
+      <i class="fas fa-user-shield"></i>
+    </div>
+    <h1 class="login-title">Welcome Back</h1>
+    <p class="login-subtitle">Please sign in to your account to continue</p>
+  </div>
+
+  <!-- Login Form -->
+  <form class="login-form" id="loginForm">
+    <!-- Email Input -->
+    <div class="input-group">
+      <label for="email" class="input-label">
+        Email Address <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <i class="fas fa-envelope input-icon"></i>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          class="input-field" 
+          placeholder="Enter your email address" 
+          required
+        >
+      </div>
+      <div id="email-error" class="error-message"></div>
+    </div>
+
+    <!-- Password Input -->
+    <div class="input-group">
+      <label for="password" class="input-label">
+        Password <span class="required">*</span>
+      </label>
+      <div class="input-wrapper">
+        <i class="fas fa-lock input-icon"></i>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="input-field" 
+          placeholder="Enter your password" 
+          required
+        >
+        <button 
+          type="button" 
+          class="password-toggle" 
+          onclick="togglePassword()"
+        >
+          <i class="fas fa-eye" id="password-icon"></i>
+        </button>
+      </div>
+      <div id="password-error" class="error-message"></div>
+    </div>
+
+    <!-- Remember Me & Forgot Password -->
+    <div class="remember-forgot">
+      <div class="remember-me">
+        <input type="checkbox" id="remember" name="remember" class="checkbox">
+        <label for="remember">Remember me</label>
+      </div>
+      <a href="#" class="forgot-link">Forgot Password?</a>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit" class="login-button" id="loginBtn">
+      <i class="fas fa-sign-in-alt"></i>
+      <span>Sign In</span>
+    </button>
+  </form>
+
+  <!-- Divider -->
+  <div class="divider">
+    <span class="divider-text">Or continue with</span>
+  </div>
+
+  <!-- Social Login -->
+  <div class="social-login">
+    <a href="#" class="social-button">
+      <i class="fab fa-google"></i>
+      <span>Google</span>
+    </a>
+    <a href="#" class="social-button">
+      <i class="fab fa-microsoft"></i>
+      <span>Microsoft</span>
+    </a>
+  </div>
+
+  <!-- Sign-up Link -->
+  <div class="signup-link">
+    Don't have an account? <a href="#">Sign up here</a>
+  </div>
+</div>
+
+<!-- Font Awesome -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">`,
+    demoCss: `/* Professional Login Form Styles */
+/* CSS Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* CSS Variables for consistent theming */
+:root {
+  --primary-color: #2563eb;
+  --primary-dark: #1d4ed8;
+  --secondary-color: #64748b;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --surface-color: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+}
+
+/* Body - creates full-height centered layout */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+/* Main login container */
+.login-container {
+  background: var(--surface-color);
+  padding: 2.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+}
+
+/* Header section */
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+/* Logo styling */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Title styling */
+.login-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Subtitle */
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Form styling */
+.login-form {
+  position: relative;
+}
+
+/* Input group container */
+.input-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+/* Input labels */
+.input-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+/* Required field indicator */
+.required {
+  color: var(--error-color);
+}
+
+/* Input wrapper */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Input icons */
+.input-icon {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Input fields */
+.input-field {
+  width: 100%;
+  padding: 0.75rem 2.75rem 0.75rem 2.5rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--surface-color);
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+/* Input focus state */
+.input-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* Password toggle button */
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--text-primary);
+}
+
+/* Remember me section */
+.remember-forgot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkbox:checked {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.forgot-link {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.forgot-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+/* Login button */
+.login-button {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.login-button:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Loading state */
+.login-button.loading {
+  background: var(--secondary-color);
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Divider */
+.divider {
+  margin: 1.5rem 0;
+  position: relative;
+  text-align: center;
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+}
+
+.divider-text {
+  background: var(--surface-color);
+  padding: 0 1rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Social login */
+.social-login {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.social-button {
+  flex: 1;
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-color);
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  gap: 0.5rem;
+}
+
+.social-button:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* Sign-up link */
+.signup-link {
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.signup-link a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.signup-link a:hover {
+  text-decoration: underline;
+}
+
+/* Error messages */
+.error-message {
+  color: var(--error-color);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  min-height: 1rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 640px) {
+  .login-container {
+    padding: 2rem 1.5rem;
+    margin: 1rem;
+  }
+  
+  .login-title {
+    font-size: 1.5rem;
+  }
+  
+  .social-login {
+    flex-direction: column;
+  }
+}`,
+    demoJs: `// Professional Login Form JavaScript
+// Password visibility toggle
+function togglePassword() {
+  const passwordInput = document.getElementById('password');
+  const passwordIcon = document.getElementById('password-icon');
+  
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    passwordIcon.className = 'fas fa-eye-slash';
+  } else {
+    passwordInput.type = 'password';
+    passwordIcon.className = 'fas fa-eye';
+  }
+}
+
+// Form validation
+function validateForm() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const emailError = document.getElementById('email-error');
+  const passwordError = document.getElementById('password-error');
+  let isValid = true;
+
+  // Clear previous errors
+  emailError.textContent = '';
+  passwordError.textContent = '';
+
+  // Email validation
+  const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+  if (!email) {
+    emailError.textContent = 'Email address is required.';
+    isValid = false;
+  } else if (!emailRegex.test(email)) {
+    emailError.textContent = 'Please enter a valid email address.';
+    isValid = false;
+  }
+
+  // Password validation
+  if (!password) {
+    passwordError.textContent = 'Password is required.';
+    isValid = false;
+  } else if (password.length < 6) {
+    passwordError.textContent = 'Password must be at least 6 characters long.';
+    isValid = false;
+  }
+
+  return isValid;
+}
+
+// Form submission handler
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  if (validateForm()) {
+    const loginBtn = document.getElementById('loginBtn');
+    const btnText = loginBtn.querySelector('span');
+    const btnIcon = loginBtn.querySelector('i');
+    
+    // Show loading state
+    loginBtn.classList.add('loading');
+    btnIcon.className = 'spinner';
+    btnText.textContent = 'Signing In...';
+    
+    // Simulate authentication
+    setTimeout(() => {
+      loginBtn.classList.remove('loading');
+      btnIcon.className = 'fas fa-check';
+      btnText.textContent = 'Success!';
+      
+      setTimeout(() => {
+        alert('Login successful!');
+        // Reset for demo
+        btnIcon.className = 'fas fa-sign-in-alt';
+        btnText.textContent = 'Sign In';
+      }, 1500);
+    }, 2000);
+  }
+});
+
+// Clear errors on input
+document.getElementById('email').addEventListener('input', function() {
+  document.getElementById('email-error').textContent = '';
+});
+
+document.getElementById('password').addEventListener('input', function() {
+  document.getElementById('password-error').textContent = '';
+});
+
+// Initialize form when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Professional Login Form initialized successfully');
+});`
+},
+
+{
+    section: ["Learning", "Website Design"],
+    program: {
+        name: "Website Design",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c64cb5330505f1def1e6e7fb62755a2f49ca4205/icons/websitedesignicon.png"
+    },
+    title: "9 Dot Interactive Navigation Menu",
+    description: "Learn how to create a stunning 9-dot grid navigation menu with smooth reveal animations, staggered timing effects, and interactive hover states. Features backdrop blur, glassmorphism design, and floating particle animations. Perfect for modern web interfaces and app-style navigation.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e60929327344cb1a9d8809e01c13096eb05175eb/Thumbnails/9dotnavmenuthumb.png",
+    link: "Learn.html#website-design-9dot-nav-menu",
+    topic: "Interactive Navigation",
+    demoHtml: `<!-- 9 Dot Navigation Menu -->
+<div class="nav-container">
+  <div class="navigation">
+    <div class="nav-item" data-tooltip="Coffee">
+      <i class="fas fa-coffee"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Notifications">
+      <i class="fas fa-bell"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Weather">
+      <i class="fas fa-cloud-rain"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Camera">
+      <i class="fas fa-camera"></i>
+    </div>
+    <div class="nav-item active" data-tooltip="Close">
+      <i class="fas fa-times"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Settings">
+      <i class="fas fa-cog"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Games">
+      <i class="fas fa-gamepad"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Alarm">
+      <i class="fas fa-clock"></i>
+    </div>
+    <div class="nav-item" data-tooltip="Profile">
+      <i class="fas fa-user"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">`,
+    demoCss: `/* 9 Dot Navigation Menu Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  padding: 40px 20px;
+}
+
+.nav-container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.navigation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 20px;
+  width: 400px;
+  height: 400px;
+  position: relative;
+}
+
+.nav-item {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: scale(0);
+}
+
+/* Center item (trigger) - always visible */
+.nav-item:nth-child(5) {
+  opacity: 1;
+  transform: scale(1);
+  background: #4ade80;
+  border-color: #4ade80;
+  box-shadow: 
+    0 20px 40px rgba(74, 222, 128, 0.4),
+    0 0 30px rgba(74, 222, 128, 0.3);
+}
+
+/* Show all items when hovering over the navigation container */
+.navigation:hover .nav-item {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Staggered animation delays for smooth entrance */
+.navigation:hover .nav-item:nth-child(1) { transition-delay: 0.1s; }
+.navigation:hover .nav-item:nth-child(2) { transition-delay: 0.15s; }
+.navigation:hover .nav-item:nth-child(3) { transition-delay: 0.2s; }
+.navigation:hover .nav-item:nth-child(4) { transition-delay: 0.05s; }
+.navigation:hover .nav-item:nth-child(5) { transition-delay: 0s; } /* Center - no delay */
+.navigation:hover .nav-item:nth-child(6) { transition-delay: 0.05s; }
+.navigation:hover .nav-item:nth-child(7) { transition-delay: 0.2s; }
+.navigation:hover .nav-item:nth-child(8) { transition-delay: 0.15s; }
+.navigation:hover .nav-item:nth-child(9) { transition-delay: 0.1s; }
+
+/* When not hovering, hide items with reverse delay */
+.nav-item:nth-child(1) { transition-delay: 0.2s; }
+.nav-item:nth-child(2) { transition-delay: 0.15s; }
+.nav-item:nth-child(3) { transition-delay: 0.1s; }
+.nav-item:nth-child(4) { transition-delay: 0.25s; }
+.nav-item:nth-child(5) { transition-delay: 0s; } /* Center - always visible */
+.nav-item:nth-child(6) { transition-delay: 0.25s; }
+.nav-item:nth-child(7) { transition-delay: 0.1s; }
+.nav-item:nth-child(8) { transition-delay: 0.15s; }
+.nav-item:nth-child(9) { transition-delay: 0.2s; }
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.nav-item:hover::before {
+  left: 100%;
+}
+
+.nav-item:hover {
+  transform: translateY(-8px) scale(1.05);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(255, 255, 255, 0.1);
+}
+
+.nav-item.active {
+  background: #4ade80;
+  border-color: #4ade80;
+  box-shadow: 
+    0 20px 40px rgba(74, 222, 128, 0.4),
+    0 0 30px rgba(74, 222, 128, 0.3);
+  opacity: 1;
+  transform: scale(1);
+}
+
+.nav-item.active:hover {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.nav-item i {
+  font-size: 32px;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.nav-item:hover i {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+/* Individual item colors on hover */
+.nav-item:nth-child(1):hover { background: rgba(139, 69, 19, 0.3); border-color: #8b4513; }
+.nav-item:nth-child(2):hover { background: rgba(255, 193, 7, 0.3); border-color: #ffc107; }
+.nav-item:nth-child(3):hover { background: rgba(0, 123, 255, 0.3); border-color: #007bff; }
+.nav-item:nth-child(4):hover { background: rgba(220, 53, 69, 0.3); border-color: #dc3545; }
+.nav-item:nth-child(6):hover { background: rgba(108, 117, 125, 0.3); border-color: #6c757d; }
+.nav-item:nth-child(7):hover { background: rgba(102, 16, 242, 0.3); border-color: #6610f2; }
+.nav-item:nth-child(8):hover { background: rgba(253, 126, 20, 0.3); border-color: #fd7e14; }
+.nav-item:nth-child(9):hover { background: rgba(32, 201, 151, 0.3); border-color: #20c997; }
+
+/* Ripple effect */
+.nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.nav-item:active::after {
+  width: 300px;
+  height: 300px;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .title {
+    font-size: 36px;
+    margin-bottom: 40px;
+  }
+  
+  .navigation {
+    width: 300px;
+    height: 300px;
+    gap: 15px;
+  }
+  
+  .nav-container {
+    padding: 30px;
+  }
+  
+  .nav-item i {
+    font-size: 24px;
+  }
+}`,
+    demoJs: `// 9 Dot Navigation Menu JavaScript
+// Add click functionality and ripple effects
+const navItems = document.querySelectorAll('.nav-item');
+
+navItems.forEach((item, index) => {
+  item.addEventListener('click', function() {
+    // Remove active class from all items
+    navItems.forEach(nav => nav.classList.remove('active'));
+    
+    // Add active class to clicked item
+    this.classList.add('active');
+    
+    // Optional: Add functionality for each item
+    const tooltips = [
+      'Coffee', 'Notifications', 'Weather', 'Camera', 
+      'Close', 'Settings', 'Games', 'Alarm', 'Profile'
+    ];
+    
+    console.log(\`Clicked: \${tooltips[index]}\`);
+    
+    // You can add navigation logic here
+    // For example: window.location.href = 'page.html';
+  });
+  
+  // Add hover sound effect (optional)
+  item.addEventListener('mouseenter', function() {
+    // You can add a subtle sound effect here if desired
+    this.style.transform = 'translateY(-8px) scale(1.05)';
+  });
+  
+  item.addEventListener('mouseleave', function() {
+    this.style.transform = '';
+  });
+});`
+},
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/361ad8a40587881852dd710b33c9a5cdea0091bf/Thumbnails/aitoolsthumb9.22.png",
+https:"https://youtu.be/sNF-ewlfqmw",
+ title:"Automate Any Task or Workflow with Zapier",
+        description:"In this video we cover an awesome AI tool called Zapier. It can be used to automate tasks by connecting over 6000 applications.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/361ad8a40587881852dd710b33c9a5cdea0091bf/Thumbnails/aitoolsthumb9.22.png",
+       link:"https://youtu.be/sNF-ewlfqmw",
+
+
+  related:
+  [
+      {
+          text:"Check it out on YouTube",
+          url:"https://youtu.be/sNF-ewlfqmw"
+      },
+      {
+            text:"Visit Zapier",
+            url:"https://www.zapier.com"
+      }
+  ],
+        topic:"Automate Tasks"
+    },
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7d4cae5047e954b54f512e3fd8ca3a3783d49a2/Thumbnails/glassmorphism9.22.png",
+https:"https://youtu.be/YhaGxBoY9PY",
+ title:"Glass Morphism Effect",
+        description:"This sleek design technique adds a polished, modern aesthetic often seen in apps and websites — and now you can bring it into your slides.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c7d4cae5047e954b54f512e3fd8ca3a3783d49a2/Thumbnails/glassmorphism9.22.png",
+       link:"https://youtu.be/YhaGxBoY9PY",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/YhaGxBoY9PY"
+        },
+        topic:"Glass Morphism Effect"
+    },
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+https:"https://youtu.be/ers-81-bFO4",
+ title:"Interactive Morph Template",
+        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
+       link:"https://youtu.be/ers-81-bFO4",
+
+
+  related: [
+        {
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/ers-81-bFO4"
+        },
+        {
+            text:"Template File Link",
+            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
+        }
+    ],
+        topic:"Interactive Morph Template"
+    },
+
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
+https:"https://youtu.be/y1gPf0kbf-Y",
+ title:"Change Selected Cell Color",
+        description:"In this video we cover how to change the background color of specific cells in Excel.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
+       link:"https://youtu.be/y1gPf0kbf-Y",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/y1gPf0kbf-Y"
+        },
+        topic:"Change Selected Cell Color"
+    },
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
+https:"https://youtu.be/faXUCxA4Koc",
+ title:"Formula for Number Series",
+        description:"In this video, we explore how to generate number series, date series, and text/ID series in Excel using modern formulas like SEQUENCE.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d8cda80b7134f433f39869efca9ffc75e0dd3ca5/Thumbnails/seq.png",
+       link:"https://youtu.be/r4iBjEWwZ74",
+
+
+  related: [
+    {
+      text:"Check it out on YouTube",
+            url:"https://youtu.be/faXUCxA4Koc"
+        },
+    {
+       text:"Practice File Link",
+            url:"https://docs.google.com/spreadsheets/d/11cV9viIb-eCFkgkd5_2bbbBWRioGQQkw/export?format=xlsx"
+    }
+    ],
+        topic:"Formula for Number Series"
+    },
+
+
+
+
+
+
+
+
+
+
+  
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Cyberpunk Electric Button Effect",
+    description: "Create an electrifying cyberpunk button with lightning bolts, electric particles, and dynamic surge effects. This advanced CSS effect features electric field animations, particle systems, lightning decorations, and intense electric glitch effects. Perfect for high-tech or sci-fi themed interfaces with realistic electric discharge animations.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-cyberpunk-electric-demo",
+    topic: "CSS Cyberpunk Effects",
+    demoHtml: `<div class="electric-container">
+  <!-- Electric background -->
+  <div class="electric-bg"></div>
+  
+  <!-- Animated electric grid -->
+  <div class="electric-grid"></div>
+  
+  <!-- Floating electric particles -->
+  <div class="electric-particles" id="electric-particles"></div>
+  
+  <!-- Main button -->
+  <div class="button-container">
+    <button class="electric-cyber-button" onclick="handleElectricClick()">
+      <div class="hud-frame"></div>
+      <div class="corner-element top-left"></div>
+      <div class="corner-element top-right"></div>
+      <div class="corner-element bottom-left"></div>
+      <div class="corner-element bottom-right"></div>
+      <div class="lightning-bolt bolt-1"></div>
+      <div class="lightning-bolt bolt-2"></div>
+      <div class="lightning-bolt bolt-3"></div>
+      <span class="text" data-text="CHARGE">CHARGE</span>
+      <div class="data-stream">
+        [VOLTAGE_001]<br>
+        [ELECTRIC_READY]<br>
+        [POWER_NOMINAL]<br>
+        [CHARGE_LEVEL_95%]
+      </div>
+    </button>
+  </div>
+  
+  <!-- Demo information -->
+  <div class="demo-info">
+    Hover to activate electric field<br>
+    Click to initiate power surge
+  </div>
+</div>`,
+    demoCss: `/* Import electric cyberpunk fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono:wght@400&display=swap');
+
+.electric-container {
+  position: relative;
+  height: 400px;
+  background: linear-gradient(135deg, #000510 0%, #001122 25%, #001a33 50%, #000f1f 75%, #000008 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Share Tech Mono', 'Orbitron', monospace;
+  overflow: hidden;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+/* Electric field background */
+.electric-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 15% 70%, rgba(0, 255, 255, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(0, 128, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(128, 0, 255, 0.06) 0%, transparent 60%);
+  animation: electricPulse 6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes electricPulse {
+  0% { 
+    filter: brightness(0.9) contrast(1.3);
+    transform: scale(1);
+  }
+  100% { 
+    filter: brightness(1.2) contrast(1.6);
+    transform: scale(1.03);
+  }
+}
+
+/* Electric grid pattern */
+.electric-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 128, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(128, 0, 255, 0.025) 2px, transparent 2px);
+  background-size: 35px 35px, 35px 35px, 70px 70px;
+  animation: electricGridMove 15s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes electricGridMove {
+  0% { 
+    transform: translate(0, 0);
+    opacity: 0.7;
+  }
+  50% { 
+    opacity: 1;
+  }
+  100% { 
+    transform: translate(35px, 35px);
+    opacity: 0.7;
+  }
+}
+
+/* Electric particles floating */
+.electric-particles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  animation: particleFloat 12s infinite linear;
+}
+
+.particle.spark {
+  width: 3px;
+  height: 8px;
+  background: linear-gradient(180deg, #00ffff, #0080ff);
+  box-shadow: 0 0 8px #00ffff, 0 0 12px #00ffff;
+  border-radius: 1px;
+}
+
+.particle.bolt {
+  width: 1px;
+  height: 12px;
+  background: #ffffff;
+  box-shadow: 0 0 6px #00ffff, 0 0 10px #0080ff;
+}
+
+.particle.charge {
+  width: 2px;
+  height: 2px;
+  background: #8000ff;
+  box-shadow: 0 0 5px #8000ff;
+  border-radius: 50%;
+}
+
+@keyframes particleFloat {
+  0% { 
+    transform: translateY(100%) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  5% { opacity: 0.8; }
+  95% { opacity: 0.8; }
+  100% { 
+    transform: translateY(-15px) translateX(150px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Main button container */
+.button-container {
+  position: relative;
+  z-index: 10;
+}
+
+/* Cyberpunk electric button */
+.electric-cyber-button {
+  position: relative;
+  padding: 30px 60px;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Orbitron', monospace;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #00ffff;
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.15) 0%, 
+    rgba(0, 0, 0, 0.6) 30%, 
+    rgba(0, 128, 255, 0.12) 70%, 
+    rgba(128, 0, 255, 0.1) 100%);
+  border: 3px solid #00ffff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  
+  /* Electric angular corners */
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 15px) 0, 
+    100% 15px, 
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 
+    8px 100%, 
+    0 calc(100% - 15px)
+  );
+  
+  /* Electric glow effect */
+  box-shadow: 
+    0 0 40px rgba(0, 255, 255, 0.4),
+    0 0 80px rgba(0, 128, 255, 0.2),
+    0 0 120px rgba(128, 0, 255, 0.15),
+    inset 0 0 40px rgba(0, 255, 255, 0.08);
+}
+
+/* Button text with electric styling */
+.electric-cyber-button .text {
+  position: relative;
+  z-index: 3;
+  display: block;
+  transition: all 0.3s ease;
+  text-shadow: 
+    0 0 20px rgba(0, 255, 255, 0.8),
+    2px 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* Electric scanlines */
+.electric-cyber-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 255, 0.08) 2px,
+    rgba(0, 255, 255, 0.08) 4px,
+    transparent 4px,
+    transparent 6px,
+    rgba(0, 128, 255, 0.06) 6px,
+    rgba(0, 128, 255, 0.06) 8px
+  );
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Electric surge wave effect */
+.electric-cyber-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 255, 255, 0.4) 15%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(0, 128, 255, 0.4) 85%,
+    transparent 100%
+  );
+  z-index: 2;
+  transition: left 0.4s ease;
+}
+
+/* Hover state - Electric activation */
+.electric-cyber-button:hover {
+  color: #ffffff;
+  border-color: #ffffff;
+  background: linear-gradient(135deg, 
+    rgba(0, 255, 255, 0.25) 0%, 
+    rgba(0, 0, 0, 0.7) 30%, 
+    rgba(0, 128, 255, 0.2) 70%, 
+    rgba(128, 0, 255, 0.15) 100%);
+  box-shadow: 
+    0 0 60px rgba(0, 255, 255, 0.6),
+    0 0 120px rgba(255, 255, 255, 0.4),
+    0 0 180px rgba(0, 128, 255, 0.3),
+    inset 0 0 60px rgba(0, 255, 255, 0.15);
+  transform: translateY(-5px) scale(1.02);
+}
+
+.electric-cyber-button:hover .text {
+  color: #ffffff;
+  text-shadow: 
+    0 0 25px rgba(255, 255, 255, 1),
+    0 0 35px rgba(0, 255, 255, 0.8),
+    2px 2px 8px rgba(0, 0, 0, 0.9);
+  animation: electricGlitch 0.3s ease-in-out;
+}
+
+.electric-cyber-button:hover::before {
+  opacity: 1;
+  animation: electricScan 0.3s ease-in-out;
+}
+
+.electric-cyber-button:hover::after {
+  left: 100%;
+}
+
+/* Electric glitch effect */
+@keyframes electricGlitch {
+  0%, 100% { 
+    transform: translate(0);
+    filter: contrast(1) brightness(1);
+  }
+  8% { 
+    transform: translate(-2px, 0);
+    filter: contrast(1.4) brightness(1.3);
+  }
+  16% { 
+    transform: translate(2px, -1px);
+    filter: contrast(0.8) brightness(0.8);
+  }
+  24% { 
+    transform: translate(0, 2px);
+    filter: contrast(1.2) brightness(1.2);
+  }
+  32% { 
+    transform: translate(-1px, 0);
+    filter: contrast(1.5) brightness(1.4);
+  }
+  48% { 
+    transform: translate(2px, -2px);
+    filter: contrast(0.9) brightness(0.9);
+  }
+  64% { 
+    transform: translate(0, 1px);
+    filter: contrast(1.1) brightness(1.1);
+  }
+  80% { 
+    transform: translate(-2px, 0);
+    filter: contrast(1.3) brightness(1.2);
+  }
+}
+
+@keyframes electricScan {
+  0% { 
+    background-position: 0 0;
+    opacity: 0.6;
+  }
+  50% { 
+    background-position: 0 -20px;
+    opacity: 1;
+  }
+  100% { 
+    background-position: 0 -40px;
+    opacity: 0.6;
+  }
+}
+
+/* Multi-layer electric glitch text */
+.electric-cyber-button:hover .text::before,
+.electric-cyber-button:hover .text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.electric-cyber-button:hover .text::before {
+  animation: electricGlitch1 0.3s ease-in-out;
+  color: #00ffff;
+  text-shadow: 0 0 15px #00ffff;
+}
+
+.electric-cyber-button:hover .text::after {
+  animation: electricGlitch2 0.3s ease-in-out;
+  color: #8000ff;
+  text-shadow: 0 0 15px #8000ff;
+}
+
+@keyframes electricGlitch1 {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(2px, -2px); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 2px); }
+}
+
+@keyframes electricGlitch2 {
+  0%, 100% { transform: translate(0); }
+  15% { transform: translate(2px, -1px); }
+  35% { transform: translate(-2px, 2px); }
+  55% { transform: translate(2px, 1px); }
+  75% { transform: translate(-1px, -2px); }
+}
+
+/* Active/clicked state */
+.electric-cyber-button:active {
+  transform: translateY(-3px) scale(0.98);
+  box-shadow: 
+    0 0 100px rgba(255, 255, 255, 0.8),
+    0 0 150px rgba(0, 255, 255, 0.6),
+    0 0 200px rgba(0, 128, 255, 0.4),
+    inset 0 0 100px rgba(255, 255, 255, 0.25);
+}
+
+/* Electric corner elements */
+.corner-element {
+  position: absolute;
+  transition: all 0.3s ease;
+}
+
+.corner-element.top-left {
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #00ffff;
+  border-top: 2px solid #00ffff;
+}
+
+.corner-element.top-right {
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #00ffff;
+  border-top: 2px solid #00ffff;
+}
+
+.corner-element.bottom-left {
+  bottom: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #00ffff;
+  border-bottom: 2px solid #00ffff;
+}
+
+.corner-element.bottom-right {
+  bottom: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #00ffff;
+  border-bottom: 2px solid #00ffff;
+}
+
+.electric-cyber-button:hover .corner-element {
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  animation: cornerSpark 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes cornerSpark {
+  0% { 
+    opacity: 1; 
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% { 
+    opacity: 0.8; 
+    transform: scale(1.15);
+    filter: brightness(1.3);
+  }
+}
+
+/* Electric HUD frame */
+.hud-frame {
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  right: -15px;
+  bottom: -15px;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 20px) 0, 
+    100% 20px, 
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 
+    12px 100%, 
+    0 calc(100% - 20px)
+  );
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.electric-cyber-button:hover .hud-frame {
+  border-color: rgba(255, 255, 255, 0.6);
+  animation: hudElectric 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes hudElectric {
+  0% { 
+    border-color: rgba(0, 255, 255, 0.4);
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% { 
+    border-color: rgba(255, 255, 255, 0.8);
+    transform: scale(1.02);
+    filter: brightness(1.2);
+  }
+}
+
+/* Demo info with electric styling */
+.demo-info {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #00ffff;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.8;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+  animation: electricInfoPulse 4s ease-in-out infinite;
+}
+
+@keyframes electricInfoPulse {
+  0%, 100% { 
+    opacity: 0.8; 
+    color: #00ffff;
+  }
+  20% { 
+    opacity: 1; 
+    color: #ffffff;
+  }
+  40% { 
+    opacity: 0.9; 
+    color: #0080ff;
+  }
+  60% { 
+    opacity: 1; 
+    color: #8000ff;
+  }
+  80% { 
+    opacity: 0.95; 
+    color: #ffffff;
+  }
+}
+
+/* Electric data stream elements */
+.data-stream {
+  position: absolute;
+  top: 50%;
+  right: -100px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: #0080ff;
+  opacity: 0.4;
+  animation: dataElectricScroll 10s linear infinite;
+}
+
+@keyframes dataElectricScroll {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(-200px); opacity: 0; }
+}
+
+/* Lightning bolt decorations */
+.lightning-bolt {
+  position: absolute;
+  width: 2px;
+  height: 15px;
+  background: linear-gradient(180deg, #ffffff, #00ffff);
+  box-shadow: 0 0 8px #00ffff;
+  animation: lightningFlicker 2s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.lightning-bolt.bolt-1 {
+  top: 15px;
+  left: -25px;
+  transform: rotate(15deg);
+  animation-delay: 0s;
+}
+
+.lightning-bolt.bolt-2 {
+  bottom: 25px;
+  right: -20px;
+  transform: rotate(-20deg);
+  animation-delay: 0.7s;
+}
+
+.lightning-bolt.bolt-3 {
+  top: 60%;
+  left: -35px;
+  transform: rotate(25deg);
+  animation-delay: 1.2s;
+}
+
+@keyframes lightningFlicker {
+  0%, 90%, 100% { 
+    opacity: 0.6;
+    transform: scale(1) rotate(var(--rotation, 0deg));
+  }
+  5%, 85% { 
+    opacity: 1;
+    transform: scale(1.1) rotate(var(--rotation, 0deg));
+  }
+  10%, 80% { 
+    opacity: 0.3;
+    transform: scale(0.9) rotate(var(--rotation, 0deg));
+  }
+}`,
+    demoJs: `// Create electric particles
+function createElectricParticles() {
+  const particleContainer = document.getElementById('electric-particles');
+  if (!particleContainer) return;
+  
+  const particleCount = 20;
+  const particleTypes = ['spark', 'bolt', 'charge'];
+  
+  for (let i = 0; i < particleCount; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'particle ' + particleTypes[Math.floor(Math.random() * particleTypes.length)];
+    particle.style.left = Math.random() * 100 + '%';
+    particle.style.animationDelay = Math.random() * 12 + 's';
+    particle.style.animationDuration = (10 + Math.random() * 8) + 's';
+    particleContainer.appendChild(particle);
+  }
+}
+
+// Handle electric button click
+function handleElectricClick() {
+  const button = document.querySelector('.electric-cyber-button');
+  const text = button.querySelector('.text');
+  
+  // Temporary text change
+  const originalText = text.textContent;
+  text.textContent = 'CHARGED';
+  text.style.color = '#ffffff';
+  text.style.textShadow = '0 0 30px #ffffff, 0 0 40px #00ffff, 0 0 50px #0080ff';
+  
+  // Add intense electric glitch effect
+  button.style.animation = 'electricScreenDistort 0.15s ease-in-out 4';
+  
+  // Reset after animation
+  setTimeout(() => {
+    text.textContent = originalText;
+    text.style.color = '';
+    text.style.textShadow = '';
+    button.style.animation = '';
+  }, 1200);
+  
+  // Create electric lightning burst
+  createElectricBurst();
+  
+  console.log('Electric Cyberpunk button charged! ⚡💙🔌');
+}
+
+// Electric burst effect
+function createElectricBurst() {
+  const button = document.querySelector('.electric-cyber-button');
+  const rect = button.getBoundingClientRect();
+  
+  for (let i = 0; i < 20; i++) {
+    const lightning = document.createElement('div');
+    lightning.style.position = 'fixed';
+    lightning.style.left = rect.left + rect.width/2 + 'px';
+    lightning.style.top = rect.top + rect.height/2 + 'px';
+    lightning.style.width = '2px';
+    lightning.style.height = (8 + Math.random() * 12) + 'px';
+    
+    // Electric colors
+    const colors = ['#00ffff', '#ffffff', '#0080ff', '#8000ff'];
+    const color = colors[i % colors.length];
+    lightning.style.background = 'linear-gradient(180deg, ' + color + ', ' + (color === '#ffffff' ? '#00ffff' : color === '#8000ff' ? '#4000ff' : '#003366') + ')';
+    lightning.style.boxShadow = '0 0 10px ' + color + ', 0 0 20px ' + color;
+    lightning.style.pointerEvents = 'none';
+    lightning.style.zIndex = '1000';
+    
+    // Create jagged lightning effect
+    if (i % 3 === 0) {
+      lightning.style.clipPath = 'polygon(40% 0%, 60% 35%, 80% 35%, 50% 100%, 30% 65%, 20% 65%)';
+      lightning.style.width = '6px';
+    } else if (i % 3 === 1) {
+      lightning.style.transform = 'rotate(' + (Math.random() * 60 - 30) + 'deg)';
+    }
+    
+    document.body.appendChild(lightning);
+    
+    const angle = (i / 20) * Math.PI * 2;
+    const distance = 80 + Math.random() * 60;
+    
+    lightning.animate([
+      {
+        transform: 'translate(0, 0) scale(1) rotate(0deg)',
+        opacity: 1
+      },
+      {
+        transform: 'translate(' + (Math.cos(angle) * distance) + 'px, ' + (Math.sin(angle) * distance) + 'px) scale(0.2) rotate(' + (Math.random() * 360) + 'deg)',
+        opacity: 0
+      }
+    ], {
+      duration: 800,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+    }).onfinish = () => {
+      lightning.remove();
+    };
+  }
+}
+
+// Enhanced mouse interaction with electric effects
+document.addEventListener('DOMContentLoaded', function() {
+  createElectricParticles();
+  
+  const button = document.querySelector('.electric-cyber-button');
+  if (button) {
+    button.addEventListener('mouseenter', function() {
+      const rect = this.getBoundingClientRect();
+      
+      // Create electric static sparks
+      for (let i = 0; i < 8; i++) {
+        const staticSpark = document.createElement('div');
+        staticSpark.style.position = 'fixed';
+        staticSpark.style.left = rect.left + Math.random() * rect.width + 'px';
+        staticSpark.style.top = rect.top + Math.random() * rect.height + 'px';
+        staticSpark.style.width = '1px';
+        staticSpark.style.height = '6px';
+        
+        const sparkColors = ['#00ffff', '#ffffff', '#0080ff', '#8000ff'];
+        const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+        staticSpark.style.background = sparkColor;
+        staticSpark.style.boxShadow = '0 0 8px ' + sparkColor + ', 0 0 12px ' + sparkColor;
+        staticSpark.style.pointerEvents = 'none';
+        staticSpark.style.zIndex = '999';
+        
+        document.body.appendChild(staticSpark);
+        
+        staticSpark.animate([
+          { 
+            opacity: 1, 
+            transform: 'scale(1) rotate(0deg)' 
+          },
+          { 
+            opacity: 0, 
+            transform: 'scale(0.3) rotate(180deg)' 
+          }
+        ], {
+          duration: 400,
+          easing: 'ease-out'
+        }).onfinish = () => {
+          staticSpark.remove();
+        };
+      }
+    });
+  }
+});`
+},
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Cyberpunk Thermal Button Effect",
+    description: "Create a stunning cyberpunk-inspired thermal button with industrial styling, floating debris, dynamic hover effects, and futuristic animations. This advanced CSS effect combines multiple animation techniques including glitch effects, thermal waves, industrial scanlines, and interactive particle systems. Perfect for sci-fi or gaming themed websites.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-cyberpunk-thermal-demo",
+    topic: "CSS Cyberpunk Effects",
+    demoHtml: `<div class="cyberpunk-container">
+  <!-- Industrial background -->
+  <div class="industrial-bg"></div>
+  
+  <!-- Animated industrial grid -->
+  <div class="industrial-grid"></div>
+  
+  <!-- Floating industrial debris -->
+  <div class="industrial-debris" id="industrial-debris"></div>
+  
+  <!-- Main button -->
+  <div class="button-container">
+    <button class="industrial-cyber-button" onclick="handleIndustrialClick()">
+      <div class="hud-frame"></div>
+      <div class="corner-element top-left"></div>
+      <div class="corner-element top-right"></div>
+      <div class="corner-element bottom-left"></div>
+      <div class="corner-element bottom-right"></div>
+      <span class="text" data-text="BREACH">BREACH</span>
+      <div class="data-stream">
+        [DATA_STREAM_001]<br>
+        [THERMAL_READY]<br>
+        [SYSTEMS_NOMINAL]
+      </div>
+    </button>
+  </div>
+  
+  <!-- Demo information -->
+  <div class="demo-info">
+    Hover to activate thermal systems<br>
+    Click to initiate breach protocol
+  </div>
+</div>`,
+    demoCss: `/* Import cyberpunk fonts */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono:wght@400&display=swap');
+
+.cyberpunk-container {
+  position: relative;
+  height: 400px;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 25%, #2a1810 50%, #1a1a1a 75%, #0a0a0a 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: 'Share Tech Mono', 'Orbitron', monospace;
+  overflow: hidden;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+/* Industrial cityscape background */
+.industrial-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    radial-gradient(circle at 15% 70%, rgba(255, 165, 0, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(255, 69, 0, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(70, 130, 180, 0.04) 0%, transparent 60%);
+  animation: industrialPulse 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes industrialPulse {
+  0% { 
+    filter: brightness(0.8) contrast(1.2);
+    transform: scale(1);
+  }
+  100% { 
+    filter: brightness(1.1) contrast(1.4);
+    transform: scale(1.02);
+  }
+}
+
+/* Gritty industrial grid */
+.industrial-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(255, 165, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(70, 130, 180, 0.02) 1px, transparent 1px),
+    linear-gradient(45deg, rgba(255, 69, 0, 0.015) 2px, transparent 2px);
+  background-size: 40px 40px, 40px 40px, 80px 80px;
+  animation: industrialGridMove 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes industrialGridMove {
+  0% { 
+    transform: translate(0, 0);
+    opacity: 0.6;
+  }
+  50% { 
+    opacity: 0.8;
+  }
+  100% { 
+    transform: translate(40px, 40px);
+    opacity: 0.6;
+  }
+}
+
+/* Industrial floating debris */
+.industrial-debris {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.debris {
+  position: absolute;
+  animation: debrisFloat 15s infinite linear;
+}
+
+.debris.spark {
+  width: 2px;
+  height: 6px;
+  background: linear-gradient(180deg, #ffa500, #ff4500);
+  box-shadow: 0 0 6px #ffa500;
+}
+
+.debris.dust {
+  width: 1px;
+  height: 1px;
+  background: #4682b4;
+  box-shadow: 0 0 4px #4682b4;
+  border-radius: 50%;
+}
+
+.debris.fragment {
+  width: 3px;
+  height: 3px;
+  background: #696969;
+  transform: rotate(45deg);
+}
+
+@keyframes debrisFloat {
+  0% { 
+    transform: translateY(100%) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  3% { opacity: 0.7; }
+  97% { opacity: 0.7; }
+  100% { 
+    transform: translateY(-10px) translateX(100px) rotate(180deg);
+    opacity: 0;
+  }
+}
+
+/* Main button container */
+.button-container {
+  position: relative;
+  z-index: 10;
+}
+
+/* Cyberpunk industrial button */
+.industrial-cyber-button {
+  position: relative;
+  padding: 30px 60px;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Orbitron', monospace;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #ffa500;
+  background: linear-gradient(135deg, 
+    rgba(255, 165, 0, 0.1) 0%, 
+    rgba(0, 0, 0, 0.4) 30%, 
+    rgba(70, 130, 180, 0.08) 70%, 
+    rgba(255, 69, 0, 0.1) 100%);
+  border: 3px solid #ffa500;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  
+  /* Industrial angular corners */
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 15px) 0, 
+    100% 15px, 
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 
+    8px 100%, 
+    0 calc(100% - 15px)
+  );
+  
+  /* Industrial glow effect */
+  box-shadow: 
+    0 0 30px rgba(255, 165, 0, 0.3),
+    0 0 60px rgba(70, 130, 180, 0.15),
+    0 0 90px rgba(255, 69, 0, 0.1),
+    inset 0 0 30px rgba(255, 165, 0, 0.05);
+}
+
+/* Button text with industrial styling */
+.industrial-cyber-button .text {
+  position: relative;
+  z-index: 3;
+  display: block;
+  transition: all 0.3s ease;
+  text-shadow: 
+    0 0 15px rgba(255, 165, 0, 0.6),
+    2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Industrial scanlines */
+.industrial-cyber-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 165, 0, 0.05) 3px,
+    rgba(255, 165, 0, 0.05) 6px,
+    transparent 6px,
+    transparent 9px,
+    rgba(70, 130, 180, 0.03) 9px,
+    rgba(70, 130, 180, 0.03) 12px
+  );
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Industrial thermal wave effect */
+.industrial-cyber-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 165, 0, 0.3) 20%,
+    rgba(255, 69, 0, 0.5) 50%,
+    rgba(255, 165, 0, 0.3) 80%,
+    transparent 100%
+  );
+  z-index: 2;
+  transition: left 0.5s ease;
+}
+
+/* Hover state - Industrial thermal activation */
+.industrial-cyber-button:hover {
+  color: #ffffff;
+  border-color: #ff4500;
+  background: linear-gradient(135deg, 
+    rgba(255, 69, 0, 0.2) 0%, 
+    rgba(0, 0, 0, 0.6) 30%, 
+    rgba(70, 130, 180, 0.15) 70%, 
+    rgba(255, 165, 0, 0.2) 100%);
+  box-shadow: 
+    0 0 50px rgba(255, 69, 0, 0.5),
+    0 0 100px rgba(255, 165, 0, 0.3),
+    0 0 150px rgba(70, 130, 180, 0.2),
+    inset 0 0 50px rgba(255, 69, 0, 0.1);
+  transform: translateY(-4px) scale(1.01);
+}
+
+.industrial-cyber-button:hover .text {
+  color: #ffffff;
+  text-shadow: 
+    0 0 20px rgba(255, 69, 0, 0.8),
+    0 0 30px rgba(255, 165, 0, 0.6),
+    2px 2px 6px rgba(0, 0, 0, 0.9);
+  animation: industrialGlitch 0.4s ease-in-out;
+}
+
+.industrial-cyber-button:hover::before {
+  opacity: 1;
+  animation: industrialScan 0.4s ease-in-out;
+}
+
+.industrial-cyber-button:hover::after {
+  left: 100%;
+}
+
+/* Industrial glitch effect */
+@keyframes industrialGlitch {
+  0%, 100% { 
+    transform: translate(0);
+    filter: contrast(1) brightness(1);
+  }
+  10% { 
+    transform: translate(-1px, 0);
+    filter: contrast(1.2) brightness(1.1);
+  }
+  20% { 
+    transform: translate(1px, -1px);
+    filter: contrast(0.9) brightness(0.9);
+  }
+  30% { 
+    transform: translate(0, 1px);
+    filter: contrast(1.1) brightness(1.05);
+  }
+  40% { 
+    transform: translate(-1px, 0);
+    filter: contrast(1.15) brightness(1.08);
+  }
+  60% { 
+    transform: translate(1px, -1px);
+    filter: contrast(0.95) brightness(0.95);
+  }
+  80% { 
+    transform: translate(0, 1px);
+    filter: contrast(1.05) brightness(1.02);
+  }
+}
+
+@keyframes industrialScan {
+  0% { 
+    background-position: 0 0;
+    opacity: 0.5;
+  }
+  50% { 
+    background-position: 0 -15px;
+    opacity: 0.8;
+  }
+  100% { 
+    background-position: 0 -30px;
+    opacity: 0.5;
+  }
+}
+
+/* Multi-layer industrial glitch text */
+.industrial-cyber-button:hover .text::before,
+.industrial-cyber-button:hover .text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.industrial-cyber-button:hover .text::before {
+  animation: industrialGlitch1 0.4s ease-in-out;
+  color: #ff4500;
+  text-shadow: 0 0 10px #ff4500;
+}
+
+.industrial-cyber-button:hover .text::after {
+  animation: industrialGlitch2 0.4s ease-in-out;
+  color: #4682b4;
+  text-shadow: 0 0 10px #4682b4;
+}
+
+@keyframes industrialGlitch1 {
+  0%, 100% { transform: translate(0); }
+  25% { transform: translate(-1px, 1px); }
+  50% { transform: translate(1px, -1px); }
+  75% { transform: translate(-1px, -1px); }
+}
+
+@keyframes industrialGlitch2 {
+  0%, 100% { transform: translate(0); }
+  25% { transform: translate(1px, -1px); }
+  50% { transform: translate(-1px, 1px); }
+  75% { transform: translate(1px, 1px); }
+}
+
+/* Active/clicked state */
+.industrial-cyber-button:active {
+  transform: translateY(-2px) scale(0.99);
+  box-shadow: 
+    0 0 80px rgba(255, 69, 0, 0.8),
+    0 0 120px rgba(255, 165, 0, 0.6),
+    0 0 180px rgba(70, 130, 180, 0.4),
+    inset 0 0 80px rgba(255, 69, 0, 0.2);
+}
+
+/* Industrial corner elements */
+.corner-element {
+  position: absolute;
+  transition: all 0.3s ease;
+}
+
+.corner-element.top-left {
+  top: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #ffa500;
+  border-top: 2px solid #ffa500;
+}
+
+.corner-element.top-right {
+  top: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ffa500;
+  border-top: 2px solid #ffa500;
+}
+
+.corner-element.bottom-left {
+  bottom: 8px;
+  left: 8px;
+  width: 12px;
+  height: 12px;
+  border-left: 2px solid #ffa500;
+  border-bottom: 2px solid #ffa500;
+}
+
+.corner-element.bottom-right {
+  bottom: 8px;
+  right: 8px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ffa500;
+  border-bottom: 2px solid #ffa500;
+}
+
+.industrial-cyber-button:hover .corner-element {
+  border-color: #ff4500;
+  box-shadow: 0 0 8px rgba(255, 69, 0, 0.6);
+  animation: cornerFlicker 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes cornerFlicker {
+  0% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  100% { 
+    opacity: 0.7; 
+    transform: scale(1.1);
+  }
+}
+
+/* Industrial HUD frame */
+.hud-frame {
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  right: -15px;
+  bottom: -15px;
+  border: 1px solid rgba(255, 165, 0, 0.2);
+  clip-path: polygon(
+    0 0, 
+    calc(100% - 20px) 0, 
+    100% 20px, 
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 
+    12px 100%, 
+    0 calc(100% - 20px)
+  );
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.industrial-cyber-button:hover .hud-frame {
+  border-color: rgba(255, 69, 0, 0.4);
+  animation: hudPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes hudPulse {
+  0% { 
+    border-color: rgba(255, 69, 0, 0.3);
+    transform: scale(1);
+  }
+  100% { 
+    border-color: rgba(255, 165, 0, 0.6);
+    transform: scale(1.01);
+  }
+}
+
+/* Demo info with industrial styling */
+.demo-info {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffa500;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.7;
+  text-shadow: 0 0 8px rgba(255, 165, 0, 0.4);
+  animation: industrialInfoPulse 3s ease-in-out infinite;
+}
+
+@keyframes industrialInfoPulse {
+  0%, 100% { 
+    opacity: 0.7; 
+    color: #ffa500;
+  }
+  25% { 
+    opacity: 0.9; 
+    color: #ff4500;
+  }
+  50% { 
+    opacity: 0.8; 
+    color: #4682b4;
+  }
+  75% { 
+    opacity: 0.9; 
+    color: #ff4500;
+  }
+}
+
+/* Data stream elements */
+.data-stream {
+  position: absolute;
+  top: 50%;
+  right: -80px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8px;
+  color: #4682b4;
+  opacity: 0.3;
+  animation: dataScroll 8s linear infinite;
+}
+
+@keyframes dataScroll {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.3; }
+  90% { opacity: 0.3; }
+  100% { transform: translateY(-100px); opacity: 0; }
+}`,
+    demoJs: `// Create industrial debris particles
+function createIndustrialDebris() {
+  const debrisContainer = document.getElementById('industrial-debris');
+  if (!debrisContainer) return;
+  
+  const debrisCount = 15;
+  const debrisTypes = ['spark', 'dust', 'fragment'];
+  
+  for (let i = 0; i < debrisCount; i++) {
+    const debris = document.createElement('div');
+    debris.className = 'debris ' + debrisTypes[Math.floor(Math.random() * debrisTypes.length)];
+    debris.style.left = Math.random() * 100 + '%';
+    debris.style.animationDelay = Math.random() * 15 + 's';
+    debris.style.animationDuration = (12 + Math.random() * 8) + 's';
+    debrisContainer.appendChild(debris);
+  }
+}
+
+// Handle industrial button click
+function handleIndustrialClick() {
+  const button = document.querySelector('.industrial-cyber-button');
+  const text = button.querySelector('.text');
+  
+  // Temporary text change
+  const originalText = text.textContent;
+  text.textContent = 'BREACHED';
+  text.style.color = '#00ff00';
+  text.style.textShadow = '0 0 20px #00ff00, 0 0 30px #00ff00';
+  
+  // Add intense industrial glitch effect
+  button.style.animation = 'industrialScreenDistort 0.2s ease-in-out 3';
+  
+  // Reset after animation
+  setTimeout(() => {
+    text.textContent = originalText;
+    text.style.color = '';
+    text.style.textShadow = '';
+    button.style.animation = '';
+  }, 1000);
+  
+  // Create industrial sparks burst
+  createIndustrialSparks();
+  
+  console.log('Industrial Cyberpunk button breached! ⚡🔥💻');
+}
+
+// Industrial sparks burst effect
+function createIndustrialSparks() {
+  const button = document.querySelector('.industrial-cyber-button');
+  const rect = button.getBoundingClientRect();
+  
+  for (let i = 0; i < 15; i++) {
+    const spark = document.createElement('div');
+    spark.style.position = 'fixed';
+    spark.style.left = rect.left + rect.width/2 + 'px';
+    spark.style.top = rect.top + rect.height/2 + 'px';
+    spark.style.width = '3px';
+    spark.style.height = '8px';
+    
+    // Industrial spark colors
+    const colors = ['#ffa500', '#ff4500', '#4682b4'];
+    const color = colors[i % colors.length];
+    spark.style.background = 'linear-gradient(180deg, ' + color + ', ' + (color === '#4682b4' ? '#87ceeb' : '#8b0000') + ')';
+    spark.style.boxShadow = '0 0 8px ' + color;
+    spark.style.pointerEvents = 'none';
+    spark.style.zIndex = '1000';
+    
+    document.body.appendChild(spark);
+    
+    const angle = (i / 15) * Math.PI * 2;
+    const distance = 60 + Math.random() * 40;
+    
+    spark.animate([
+      {
+        transform: 'translate(0, 0) scale(1)',
+        opacity: 1
+      },
+      {
+        transform: 'translate(' + (Math.cos(angle) * distance) + 'px, ' + (Math.sin(angle) * distance) + 'px) scale(0.3)',
+        opacity: 0
+      }
+    ], {
+      duration: 600,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+    }).onfinish = () => {
+      spark.remove();
+    };
+  }
+}
+
+// Enhanced mouse interaction with industrial effects
+document.addEventListener('DOMContentLoaded', function() {
+  createIndustrialDebris();
+  
+  const button = document.querySelector('.industrial-cyber-button');
+  if (button) {
+    button.addEventListener('mouseenter', function() {
+      const rect = this.getBoundingClientRect();
+      
+      // Create industrial static sparks
+      for (let i = 0; i < 6; i++) {
+        const staticSpark = document.createElement('div');
+        staticSpark.style.position = 'fixed';
+        staticSpark.style.left = rect.left + Math.random() * rect.width + 'px';
+        staticSpark.style.top = rect.top + Math.random() * rect.height + 'px';
+        staticSpark.style.width = '2px';
+        staticSpark.style.height = '4px';
+        
+        const sparkColors = ['#ffa500', '#ff4500', '#4682b4'];
+        const sparkColor = sparkColors[Math.floor(Math.random() * sparkColors.length)];
+        staticSpark.style.background = sparkColor;
+        staticSpark.style.boxShadow = '0 0 6px ' + sparkColor;
+        staticSpark.style.pointerEvents = 'none';
+        staticSpark.style.zIndex = '999';
+        
+        document.body.appendChild(staticSpark);
+        
+        staticSpark.animate([
+          { 
+            opacity: 1, 
+            transform: 'scale(1)' 
+          },
+          { 
+            opacity: 0, 
+            transform: 'scale(0.5)' 
+          }
+        ], {
+          duration: 300,
+          easing: 'ease-out'
+        }).onfinish = () => {
+          staticSpark.remove();
+        };
+      }
+    });
+  }
+});`
+},
+
+
+
+   // ===== TOOLS SECTION =====
+    // Simulations Program
+    // Simulation Downloads - Learning Items Only
+    {
+        section: ["Learning", "Coding"], 
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
+        },
+        title: "Call Center Training Simulation",
+        description: "Download the complete HTML/CSS/JavaScript source code for an interactive call center training simulation. Study customer service workflows, verification processes, and performance tracking implementation.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/callcenterthumbnail.png",
+        link: "Learn.html#call-center-training-simulation",
+        related: [
+            {
+                text: "Download code",
+                url: "https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t"
+            },
+            {
+                text: "Video on topic",
+                url: "https://youtu.be/VsivDUMm9lE"
+            }
+        ],
+        topic: "Simulation Examples",
+        demoHtml: `<div class="simulation-demo-container">
+  <iframe src="Simulations/CallCenter.html" 
+          class="simulation-iframe" 
+          title="Call Center Training Simulation"
+          frameborder="0">
+    Your browser does not support iframes. Please use a modern browser to view this simulation.
+  </iframe>
+  <div class="simulation-links">
+    <a href="https://drive.google.com/uc?export=download&id=1MFhESZXZztO-rnv-yQ1UmTajuEHdqF6t" target="_blank" class="download-btn">📥 Download Source Code</a>
+    <a href="https://youtu.be/VsivDUMm9lE" target="_blank" class="video-btn">🎥 Watch Tutorial Video</a>
+  </div>
+</div>`,
+        demoCss: `.simulation-demo-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 20px auto;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.simulation-iframe {
+  width: 100%;
+  height: 600px;
+  border: 2px solid #0b4f6c;
+  border-radius: 6px;
+  background: white;
+}
+
+.simulation-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.download-btn, .video-btn {
+  padding: 12px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #0b4f6c, #1976d2);
+  color: white;
+}
+
+.download-btn:hover {
+  background: linear-gradient(135deg, #1976d2, #0b4f6c);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.4);
+}
+
+.video-btn {
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  color: white;
+}
+
+.video-btn:hover {
+  background: linear-gradient(135deg, #f7931e, #ff6b35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}`
+    },
+    {
+        section: ["Learning", "Coding"], 
+        program: {
+            name: "Simulations",
+            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
+        },
+        title: "Excel VLOOKUP Training Simulation",
+        description: "Download the complete HTML/CSS/JavaScript source code for an interactive Excel VLOOKUP training simulation. Learn step-by-step tutorial development with real-time feedback and validation.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
+        link: "Learn.html#excel-vlookup-training-simulation",
+        related: [
+            {
+                text:"Download PC code",
+                url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
+            },
+            {
+                text:"Video on topic",
+                url:"https://youtu.be/VsivDUMm9lE"
+            }
+        ],
+        topic: "Simulation Examples",
+        demoHtml: `<div class="simulation-demo-container">
+  <iframe src="Simulations/VLOOKUPSimulation.html" 
+          class="simulation-iframe" 
+          title="Excel VLOOKUP Training Simulation"
+          frameborder="0">
+    Your browser does not support iframes. Please use a modern browser to view this simulation.
+  </iframe>
+  <div class="simulation-links">
+    <a href="https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_" target="_blank" class="download-btn">📥 Download Source Code</a>
+    <a href="https://youtu.be/VsivDUMm9lE" target="_blank" class="video-btn">🎥 Watch Tutorial Video</a>
+  </div>
+</div>`,
+        demoCss: `.simulation-demo-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 20px auto;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.simulation-iframe {
+  width: 100%;
+  height: 600px;
+  border: 2px solid #0b4f6c;
+  border-radius: 6px;
+  background: white;
+}
+
+.simulation-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.download-btn, .video-btn {
+  padding: 12px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #0b4f6c, #1976d2);
+  color: white;
+}
+
+.download-btn:hover {
+  background: linear-gradient(135deg, #1976d2, #0b4f6c);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.4);
+}
+
+.video-btn {
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  color: white;
+}
+
+.video-btn:hover {
+  background: linear-gradient(135deg, #f7931e, #ff6b35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}`
+    },
+
+
+{
+  
+        section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
+        link:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l",
+        title:"Morph Transition Tutorial",
+        description:"Quick video on how to make a cool slide using morph transitions.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e81150277e03f88b43c271c2c9ff82174575ba01/Thumbnails/surfmorphtutorialthumbnail.png",
+       link:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l",
+         related:{
+           text:"Watch YouTube Video",
+           url:"https://youtube.com/shorts/DjKv6sjiE1U?si=WhYQjXMBumaZha6l"
+       },
+       topic:"Morph Transition Tutorial",
+    },
+
+
+
+
+{
+    section: [
+        "Learning",
+        "Videos"
+    ],
+    program: {
+        name: "AI",
+        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+    },
+    title: "Vibe Coding for Websites and Training Simulations",
+    description: "In this video we cover how to use vibe coding to easily and quickly build effective websites, training simulations, and other tools.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/Thumbnails/thumb.png",
+    link: "https://youtu.be/VsivDUMm9lE",
+    related: {
+        text: "Check it out on YouTube",
+        url: "https://youtu.be/VsivDUMm9lE"
+    },
+    topic: "Vibe Coding"
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Elements",
+    description: "HTML elements are the building blocks of HTML pages. An HTML element is defined by a start tag, content, and an end tag. Some elements are self-closing and don't require an end tag.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-elements-demo",
+    topic: "HTML Basics",
+    demoHtml: `<h1>This is a heading element</h1>
+<p>This is a paragraph element</p>
+<strong>This is a strong element</strong>
+<em>This is an emphasis element</em>
+<br>
+<hr>
+<img src="https://via.placeholder.com/150" alt="Placeholder">`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Attributes",
+    description: "HTML attributes provide additional information about HTML elements. Attributes are always specified in the start tag and come in name/value pairs. Common attributes include id, class, src, href, alt, and style.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-attributes-demo",
+    topic: "HTML Basics",
+    demoHtml: `<h1 id="main-title" class="blue-text">Title with ID and Class</h1>
+<p class="highlight" style="color: red;">Paragraph with class and style</p>
+<a href="https://www.example.com" target="_blank">Link with href and target</a>
+<img src="https://via.placeholder.com/100" alt="Example image" width="100" height="100">
+<input type="text" placeholder="Enter text here" value="Default value">`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Headings",
+    description: "HTML headings are defined with 'h1' to 'h6' tags. 'h1' defines the most important heading, while 'h6' defines the least important. Headings help organize content hierarchy and are important for SEO and accessibility.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-headings-demo",
+    topic: "HTML Text Elements",
+    demoHtml: `<h1>Heading Level 1 - Main Title</h1>
+<h2>Heading Level 2 - Section Title</h2>
+<h3>Heading Level 3 - Subsection</h3>
+<h4>Heading Level 4 - Sub-subsection</h4>
+<h5>Heading Level 5 - Minor heading</h5>
+<h6>Heading Level 6 - Smallest heading</h6>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Paragraphs",
+    description: "The HTML <p> element defines a paragraph. A paragraph always starts on a new line, and browsers automatically add some white space (margins) before and after a paragraph. Multiple spaces and line breaks in HTML are collapsed to single spaces.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-paragraphs-demo",
+    topic: "HTML Text Elements",
+    demoHtml: `<p>This is a paragraph.</p>
+<p>This is another paragraph with more text to demonstrate how paragraphs work in HTML. Notice how the browser adds space between paragraphs automatically.</p>
+<p>You can have multiple
+lines in your HTML code, but the browser will display them as a single line unless you use line break tags.</p>
+<p>Use the &lt;br&gt; tag for line breaks:<br>
+This text appears on a new line.<br>
+And this on another line.</p>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Text Formatting",
+    description: "HTML provides several elements for text formatting. These include bold, italic, underline, strikethrough, superscript, subscript, and more. These elements help emphasize content and improve readability.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-formatting-demo",
+    topic: "HTML Text Elements",
+    demoHtml: `<p><b>Bold text using b tag</b></p>
+<p><strong>Important text using strong tag</strong></p>
+<p><i>Italic text using i tag</i></p>
+<p><em>Emphasized text using em tag</em></p>
+<p><u>Underlined text</u></p>
+<p><s>Strikethrough text</s></p>
+<p>This is <sup>superscript</sup> and this is <sub>subscript</sub></p>
+<p><mark>Highlighted text</mark></p>
+<p><small>Small text</small></p>
+<p><del>Deleted text</del> and <ins>inserted text</ins></p>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Links",
+    description: "HTML links are created with the <a> tag. The href attribute specifies the URL of the page the link goes to. Links can point to other web pages, sections within the same page, email addresses, or files.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-links-demo",
+    topic: "HTML Navigation",
+    demoHtml: `<p><a href="https://www.example.com">External link to example.com</a></p>
+<p><a href="https://www.google.com" target="_blank">Opens in new tab</a></p>
+<p><a href="#section1">Link to section within same page</a></p>
+<p><a href="mailto:someone@example.com">Send email</a></p>
+<p><a href="tel:+1234567890">Call phone number</a></p>
+<p><a href="/path/to/document.pdf" download>Download file</a></p>
+<h3 id="section1">This is Section 1</h3>
+<p>This section can be linked to from the anchor above.</p>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Images",
+    description: "The HTML <img> tag is used to embed images in a web page. The src attribute specifies the path to the image, and the alt attribute provides alternative text for accessibility and SEO.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-images-demo",
+    topic: "HTML Media",
+    demoHtml: `<img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/IMG_0358.jpg" alt="Beautiful mountain landscape" width="250" height="180">
+<br><br>
+
+<figure>
+    <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/12642175ff9f8e24ac76c1747bdf69defa70e6ee/photos/Oregon.jpg" alt="Oregon coastline" width="250" height="180">
+    <figcaption>Oregon coastline with a figure caption</figcaption>
+</figure>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Lists",
+    description: "HTML supports three types of lists: ordered lists, unordered lists, and description lists. Lists are useful for organizing related items and improving content structure.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-lists-demo",
+    topic: "HTML Structure",
+    demoHtml: `<h3>Unordered List</h3>
+<ul>
+    <li>First item</li>
+    <li>Second item</li>
+    <li>Third item</li>
+</ul>
+
+<h3>Ordered List</h3>
+<ol>
+    <li>First item</li>
+    <li>Second item</li>
+    <li>Third item</li>
+</ol>
+
+<h3>Nested List</h3>
+<ul>
+    <li>Main item 1
+        <ul>
+            <li>Sub item 1</li>
+            <li>Sub item 2</li>
+        </ul>
+    </li>
+    <li>Main item 2</li>
+</ul>
+
+<h3>Description List</h3>
+<dl>
+    <dt>HTML</dt>
+    <dd>HyperText Markup Language</dd>
+    <dt>CSS</dt>
+    <dd>Cascading Style Sheets</dd>
+</dl>`
+},
+
+
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Forms",
+    description: "HTML forms are used to collect user input. Forms contain various input elements like text fields, checkboxes, radio buttons, select dropdowns, and buttons. The <form> element wraps all form controls.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-forms-demo",
+    topic: "HTML Forms",
+    demoHtml: `<form action="#" method="post">
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" required>
+    <br><br>
+    
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" required>
+    <br><br>
+    
+    <label for="age">Age:</label>
+    <input type="number" id="age" name="age" min="1" max="120">
+    <br><br>
+    
+    <label>Gender:</label>
+    <input type="radio" id="male" name="gender" value="male">
+    <label for="male">Male</label>
+    <input type="radio" id="female" name="gender" value="female">
+    <label for="female">Female</label>
+    <br><br>
+    
+    <label for="country">Country:</label>
+    <select id="country" name="country">
+        <option value="">Select Country</option>
+        <option value="us">United States</option>
+        <option value="uk">United Kingdom</option>
+        <option value="ca">Canada</option>
+    </select>
+    <br><br>
+    
+    <label for="message">Message:</label><br>
+    <textarea id="message" name="message" rows="4" cols="50"></textarea>
+    <br><br>
+    
+    <input type="submit" value="Submit">
+    <input type="reset" value="Reset">
+</form>`
+},
+
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Classes and IDs",
+    description: "The class and id attributes are used to identify HTML elements for styling with CSS and JavaScript. Classes can be used multiple times, while IDs should be unique on a page.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-classes-ids-demo",
  
+    topic: "HTML Attributes",
+    demoHtml: `<style>
+.highlight { background-color: yellow; }
+.bold-text { font-weight: bold; }
+#unique-element { color: red; border: 2px solid blue; padding: 10px; }
+</style>
+
+<p class="highlight">This paragraph has a class</p>
+<p class="highlight bold-text">This paragraph has multiple classes</p>
+<div id="unique-element">This div has a unique ID</div>
+<p>Regular paragraph without classes or IDs</p>
+<span class="bold-text">Span with class</span>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Semantic Elements",
+    description: "HTML5 introduced semantic elements that clearly describe their meaning to both browser and developer. These include header, nav, main, article, section, aside, and footer.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-semantic-demo",
+  
+    topic: "HTML5 Semantics",
+    demoHtml: `<header style="background: #f0f0f0; padding: 10px;">
+    <h1>Website Header</h1>
+    <nav style="background: #e0e0e0; padding: 5px;">
+        <a href="#home">Home</a> |
+        <a href="#about">About</a> |
+        <a href="#contact">Contact</a>
+    </nav>
+</header>
+
+<main style="display: flex; margin: 10px 0;">
+    <article style="flex: 2; padding: 10px; border: 1px solid #ccc; margin-right: 10px;">
+        <h2>Main Article</h2>
+        <section>
+            <h3>Article Section 1</h3>
+            <p>Content of the first section</p>
+        </section>
+        <section>
+            <h3>Article Section 2</h3>
+            <p>Content of the second section</p>
+        </section>
+    </article>
+    
+    <aside style="flex: 1; padding: 10px; background: #f9f9f9; border: 1px solid #ccc;">
+        <h3>Sidebar</h3>
+        <p>Additional information</p>
+    </aside>
+</main>
+
+<footer style="background: #f0f0f0; padding: 10px; text-align: center;">
+    <p>&copy; 2025 Website Footer</p>
+</footer>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Comments",
+    description: "HTML comments are not displayed in the browser but help developers document their code. Comments start with <!-- and end with -->. They're useful for leaving notes and temporarily disabling code.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-comments-demo",
+    topic: "HTML Basics",
+    demoHtml: `<!-- This is a comment and won't be displayed -->
+<h2>Visible Content</h2>
+<p>This paragraph is visible</p>
+
+<!-- 
+This is a multi-line comment
+that spans several lines
+and can contain detailed explanations
+-->
+
+<p>Another visible paragraph</p>
+
+<!-- <p>This paragraph is commented out and won't show</p> -->
+
+<!-- TODO: Add more content here later -->
+<div>
+    <!-- Comments can be placed anywhere in HTML -->
+    <p>Content inside a div</p>
+    <!-- End of div content -->
+</div>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Entities",
+    description: "HTML entities are used to display special characters that are reserved in HTML or not easily typeable. They start with & and end with ;. Common entities include &lt;, &gt;, &amp;, and &copy;.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-entities-demo",
+    
+    topic: "HTML Special Characters",
+    demoHtml: `<h3>Reserved Characters:</h3>
+<p>&lt; - Less than</p>
+<p>&gt; - Greater than</p>
+<p>&amp; - Ampersand</p>
+<p>&quot; - Quote</p>
+
+<h3>Common Symbols:</h3>
+<p>&copy; - Copyright</p>
+<p>&trade; - Trademark</p>
+<p>&euro; - Euro sign</p>
+<p>&hearts; &clubs; &diams; &spades; - Card suits</p>`
+},
+
+
+
+// === MORE HTML LEARNING CONTENT ===
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Block and Inline Elements",
+    description: "HTML elements are categorized as block-level or inline elements. Block elements take up the full width and start on a new line, while inline elements only take up necessary space and flow with text.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-block-inline-demo",
+  
+    topic: "HTML Structure",
+    demoHtml: `<h3>Block Elements:</h3>
+<div style="background: lightblue; margin: 5px 0; padding: 5px;">Block div</div>
+<p style="background: lightgreen; margin: 5px 0; padding: 5px;">Block paragraph</p>
+
+<h3>Inline Elements:</h3>
+<p>Text with <span style="background: pink; padding: 2px;">inline span</span> and <strong style="background: lightcoral; padding: 2px;">bold text</strong>.</p>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Input Types",
+    description: "HTML5 introduced many new input types for forms. These include email, password, number, date, color, range, and more. Each type has specific validation and user interface features.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-input-types-demo",
+   
+    topic: "HTML Forms",
+    demoHtml: `<form>
+    <p><label>Text: </label><input type="text" placeholder="Enter text"></p>
+    <p><label>Password: </label><input type="password" placeholder="Enter password"></p>
+    <p><label>Email: </label><input type="email" placeholder="Enter email"></p>
+    <p><label>Number: </label><input type="number" min="1" max="100" value="50"></p>
+    <p><label>Range: </label><input type="range" min="0" max="100" value="50"></p>
+    <p><label>Date: </label><input type="date"></p>
+    <p><label>Time: </label><input type="time"></p>
+    <p><label>Color: </label><input type="color" value="#ff0000"></p>
+    <p><label>File: </label><input type="file"></p>
+    <p><label>URL: </label><input type="url" placeholder="https://example.com"></p>
+    <p><label>Search: </label><input type="search" placeholder="Search..."></p>
+    <p><label>Tel: </label><input type="tel" placeholder="+1-234-567-8900"></p>
+    <p><input type="checkbox" id="check1"> <label for="check1">Checkbox</label></p>
+    <p><input type="radio" id="radio1" name="radio"> <label for="radio1">Radio button</label></p>
+    <p><input type="submit" value="Submit"> <input type="reset" value="Reset"></p>
+</form>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Media Elements",
+    description: "HTML5 provides built-in support for audio and video content without plugins. The audio and video elements support multiple formats and provide controls for playback.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-media-demo",
+  
+    topic: "HTML5 Media",
+    demoHtml: `<h3>YouTube Video Embed</h3>
+<iframe width="250" height="140" 
+        src="https://www.youtube.com/embed/LIlIzKFkhXw" 
+        title="HTML Media Video"
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen
+        style="max-width: 100%; height: auto;">
+</iframe>
+
+<h3>HTML5 Audio</h3>
+<audio controls style="width: 100%; max-width: 250px;">
+    <source src="https://www.w3schools.com/html/horse.ogg" type="audio/ogg">
+    <source src="https://www.w3schools.com/html/horse.mp3" type="audio/mpeg">
+    Your browser does not support the audio element.
+</audio>
+
+<p><strong>Note:</strong> Modern browsers require user interaction before playing audio/video.</p>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Iframes",
+    description: "An iframe (inline frame) is used to embed another HTML document within the current document. It's commonly used for embedding maps, videos, or other web content.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-iframes-demo",
+    topic: "HTML Embedding",
+    demoHtml: `<h3>Basic Iframe</h3>
+<iframe src="https://www.example.com" width="300" height="200" title="Example Website">
+    <p>Your browser does not support iframes.</p>
+</iframe>
+
+<h3>YouTube Video Embed</h3>
+<iframe width="300" height="200" 
+        src="https://www.youtube.com/embed/LIlIzKFkhXw" 
+        title="YouTube video player" 
+        frameborder="0" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen>
+</iframe>
+
+<h3>Google Maps Embed - Phoenix, AZ</h3>
+<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d427168.71635690214!2d-112.32135019999999!3d33.4483771!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x872b12ed50a179cb%3A0x8c69c7f8354a1bac!2sPhoenix%2C%20AZ!5e0!3m2!1sen!2sus!4v1704123456789!5m2!1sen!2sus" 
+        width="300" 
+        height="200" 
+        style="border:0;" 
+        allowfullscreen="" 
+        loading="lazy">
+</iframe>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML Canvas",
+    description: "The HTML5 canvas element is used to draw graphics via JavaScript. It provides a drawing area where you can create dynamic graphics, animations, games, and data visualizations.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-canvas-demo",
+ 
+    topic: "HTML5 Graphics",
+    demoHtml: `<h3>Canvas Element</h3>
+<canvas id="myCanvas" width="250" height="150" style="border:1px solid #000; max-width: 100%;">
+    Your browser does not support the canvas element.
+</canvas>
+
+<script>
+var canvas = document.getElementById('myCanvas');
+var ctx = canvas.getContext('2d');
+
+// Draw a rectangle
+ctx.fillStyle = '#FF0000';
+ctx.fillRect(10, 10, 80, 60);
+
+// Draw a circle
+ctx.beginPath();
+ctx.arc(150, 40, 25, 0, 2 * Math.PI);
+ctx.fillStyle = '#00FF00';
+ctx.fill();
+
+// Draw text - fixed to not split
+ctx.fillStyle = '#0000FF';
+ctx.font = '14px Arial';
+ctx.fillText('HTML Canvas', 10, 130);
+</script>
+
+<p><strong>Interactive:</strong> Canvas elements can be made interactive with JavaScript event handlers for drawing, animations, and games.</p>`
+},
+
+{
+    section: ["Learning", "HTML"],
+    program: {
+        name: "HTML",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
+    },
+    title: "HTML SVG Graphics",
+    description: "SVG (Scalable Vector Graphics) allows you to create vector graphics in HTML. Unlike canvas, SVG graphics are part of the DOM and can be styled with CSS and manipulated with JavaScript.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
+    link: "Learn.html#html-svg-demo",
+  
+    topic: "HTML5 Graphics",
+    demoHtml: `<h3>Basic SVG Shapes</h3>
+<svg width="250" height="150" style="border: 1px solid black; max-width: 100%;">
+    <!-- Rectangle -->
+    <rect x="10" y="10" width="80" height="60" fill="red" />
+    
+    <!-- Circle -->
+    <circle cx="150" cy="40" r="25" fill="green" />
+    
+    <!-- Polygon (Triangle) -->
+    <polygon points="120,80 100,120 140,120" fill="purple" />
+</svg>
+
+<h3>Advanced SVG with Gradient</h3>
+<svg width="200" height="100" style="max-width: 100%;">
+    <defs>
+        <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:rgb(255,255,0);stop-opacity:1" />
+            <stop offset="100%" style="stop-color:rgb(255,0,0);stop-opacity:1" />
+        </linearGradient>
+    </defs>
+    <ellipse cx="100" cy="50" rx="80" ry="35" fill="url(#grad1)" />
+</svg>`
+},
+
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Holographic Hover Effect",
+    description: "Learn how to create a stunning holographic hover effect using pure CSS. This modern effect uses gradients, transforms, and transitions to create an eye-catching holographic shine animation on hover. Perfect for cards, buttons, or any interactive elements. Includes complete HTML and CSS code examples that you can copy and use in your projects.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-holographic-demo",
+   
+    topic: "CSS Hover Effects",
+    demoHtml: `<div class="holographic-container" style="height:220px;">
+  <div class="holographic-card">
+    <h2>Hover Here</h2>
+  </div>
+</div>`,
+    demoCss: `/* CSS Holographic Hover Effect */
+.holographic-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 220px;
+  background: #000;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.holographic-card {
+  width: 300px;
+  height: 200px;
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 15px;
+  transition: all 0.5s ease;
+  cursor: pointer;
+}
+
+.holographic-card h2 {
+  color: #0ff;
+  font-size: 2rem;
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  text-shadow: 0 0 10px rgba(0,255,255,0.5);
+}
+
+.holographic-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    0deg, 
+    transparent, 
+    transparent 30%, 
+    rgba(0,255,255,0.3)
+  );
+  transform: rotate(-45deg);
+  transition: all 0.5s ease;
+  opacity: 0;
+}
+
+.holographic-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(0,255,255,0.5);
+}
+
+.holographic-card:hover::before {
+  opacity: 1;
+  transform: rotate(-45deg) translateY(100%);
+}`
+},
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS Social Media Icons with Hover Effects",
+    description: "Learn how to create stunning social media buttons with smooth hover animations, gradient backgrounds, and expandable text effects. This comprehensive example shows modern CSS techniques including backdrop-filter, transforms, and advanced hover states. Perfect for navigation bars, footers, or any social media integration.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/774fe8316c171aa235ad056ec3e0d7f9981ad5fa/Thumbnails/Screenshot%202025-08-19%20185150.png",
+    link: "Learn.html#css-social-media-icons-demo",
+    topic: "CSS Social Media Effects",
+    demoHtml: `<div class="social-container">
+  <h2 class="title">Connect With Me</h2>
+  
+  <a href="https://www.facebook.com" target="_blank" class="social-btn facebook">
+    <i class="fab fa-facebook-f"></i><span>Facebook</span>
+  </a>
+  
+  <a href="https://www.twitter.com" target="_blank" class="social-btn twitter">
+    <i class="fab fa-twitter"></i><span>Twitter</span>
+  </a>
+  
+  <a href="https://www.linkedin.com" target="_blank" class="social-btn linkedin">
+    <i class="fab fa-linkedin-in"></i><span>LinkedIn</span>
+  </a>
+  
+  <a href="https://www.youtube.com" target="_blank" class="social-btn youtube">
+    <i class="fab fa-youtube"></i><span>YouTube</span>
+  </a>
+  
+  <a href="https://www.instagram.com" target="_blank" class="social-btn instagram">
+    <i class="fab fa-instagram"></i><span>Instagram</span>
+  </a>
+  
+  <a href="https://www.github.com" target="_blank" class="social-btn github">
+    <i class="fab fa-github"></i><span>GitHub</span>
+  </a>
+</div>
+
+<!-- Font Awesome for icons -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">`,
+    demoCss: `/* Social Media Icons with Hover Effects */
+.social-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  position: relative;
+  z-index: 10;
+  padding: 30px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  max-width: 300px;
+  margin: 20px auto;
+}
+
+.title {
+  text-align: center;
+  color: #333;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 30px;
+  color: white;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.social-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.social-btn:hover::before {
+  opacity: 1;
+}
+
+.social-btn i {
+  font-size: 22px;
+  color: white;
+  z-index: 2;
+  position: relative;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.social-btn span {
+  opacity: 0;
+  font-size: 16px;
+  font-weight: 600;
+  margin-left: 15px;
+  transition: all 0.3s ease;
+  position: absolute;
+  left: 45px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.social-btn:hover {
+  width: 200px;
+  justify-content: flex-start;
+  padding-left: 18px;
+  transform: translateX(3px) scale(1.01);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
+}
+
+.social-btn:hover i {
+  transform: scale(1.05);
+}
+
+.social-btn:hover span {
+  opacity: 1;
+}
+
+.social-btn:active {
+  transform: translateX(3px) scale(0.99);
+}
+
+/* Platform-specific styles */
+.facebook {
+  background: linear-gradient(135deg, #1877f2 0%, #42a5f5 100%);
+}
+
+.facebook:hover {
+  background: linear-gradient(135deg, #166fe5 0%, #1877f2 100%);
+}
+
+.twitter {
+  background: linear-gradient(135deg, #1da1f2 0%, #64b5f6 100%);
+}
+
+.twitter:hover {
+  background: linear-gradient(135deg, #1a91da 0%, #1da1f2 100%);
+}
+
+.linkedin {
+  background: linear-gradient(135deg, #0077b5 0%, #2196f3 100%);
+}
+
+.linkedin:hover {
+  background: linear-gradient(135deg, #005885 0%, #0077b5 100%);
+}
+
+.youtube {
+  background: linear-gradient(135deg, #ff0000 0%, #ff5722 100%);
+}
+
+.youtube:hover {
+  background: linear-gradient(135deg, #cc0000 0%, #ff0000 100%);
+}
+
+.instagram {
+  background: linear-gradient(135deg, #833ab4 0%, #fd1d1d 50%, #fcb045 100%);
+}
+
+.instagram:hover {
+  background: linear-gradient(135deg, #732d9e 0%, #e01a1a 50%, #e8a03a 100%);
+}
+
+.github {
+  background: linear-gradient(135deg, #333 0%, #666 100%);
+}
+
+.github:hover {
+  background: linear-gradient(135deg, #222 0%, #333 100%);
+}
+
+/* Entry animation */
+.social-btn {
+  animation: slideInLeft 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  opacity: 0;
+  transform: translateX(-50px);
+}
+
+.social-btn:nth-child(2) { animation-delay: 0.1s; }
+.social-btn:nth-child(3) { animation-delay: 0.2s; }
+.social-btn:nth-child(4) { animation-delay: 0.3s; }
+.social-btn:nth-child(5) { animation-delay: 0.4s; }
+.social-btn:nth-child(6) { animation-delay: 0.5s; }
+.social-btn:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes slideInLeft {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .social-container {
+    margin: 20px;
+    padding: 20px;
+  }
+  
+  .social-btn:hover {
+    width: 170px;
+  }
+  
+  .title {
+    font-size: 1.2rem;
+  }
+}`
+},
+
+{
+    section: ["Learning", "CSS"],
+    program: {
+        name: "CSS",
+        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/cssicon.png"
+    },
+    title: "CSS 3D Tilt Hover Effect with JavaScript",
+    description: "Create an interactive 3D tilt effect that follows your mouse movement. This advanced hover effect combines CSS transforms, perspective, and JavaScript mouse tracking to create a dynamic card that tilts based on cursor position with realistic shadows and lighting effects.",
+    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1aadef01d41a2681c875e9c64eb28bf11c80d26f/Thumbnails/cssthumbnail.png",
+    link: "Learn.html#css-3d-tilt-demo",
+    topic: "CSS 3D Interactive Effects",
+    demoHtml: `<div class="card-container-3d">
+  <div class="card-3d">
+    <h2>Hover Here</h2>
+  </div>
+</div>`,
+    demoCss: `/* CSS 3D Tilt Hover Effect */
+.card-container-3d {
+  perspective: 1000px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  border-radius: 10px;
+  margin: 20px 0;
+  overflow: hidden;
+}
+
+.card-3d {
+  width: 320px;
+  height: 200px;
+  background: #1e1e1e;
+  border-radius: 15px;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transform-style: preserve-3d;
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.card-3d h2 {
+  z-index: 2;
+  font-size: 24px;
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  margin: 0;
+  position: relative;
+}
+
+.card-3d::before {
+  content: "";
+  position: absolute;
+  top: 0; 
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.2), transparent 60%);
+  pointer-events: none;
+  transition: background 0.2s;
+}`,
+    demoJs: `// JavaScript for 3D Tilt Effect
+const cards = document.querySelectorAll('.card-3d');
+const containers = document.querySelectorAll('.card-container-3d');
+
+containers.forEach((container, index) => {
+  const card = cards[index];
+  if (card && container) {
+    container.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateX = (centerY - y) / 10;
+      const rotateY = (x - centerX) / 10;
+
+      card.style.transform = 'rotateX(' + rotateX + 'deg) rotateY(' + rotateY + 'deg)';
+      card.style.boxShadow = (-rotateY) + 'px ' + rotateX + 'px 20px rgba(0, 255, 255, 0.5)';
+    });
+
+    container.addEventListener('mouseleave', () => {
+      card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+      card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.5)';
+    });
+  }
+});`
+},
+
+
+
+
+    {
+        section:"Templates",
+        program:{
+            name:"General",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/38c9ee90243b3cfb0980c5e76beae6639dc815c5/icons/word.png"
+        },
+        title:"Classic Resume Template",
+        description:"Fillable classic resume template with sections including skills, education, and more.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d97222d8f6cc3918f38eae975d176c6776eb4e5b/Thumbnails/classicres.png",
+        link:"https://docs.google.com/document/d/10qH5epMz5GTIDCll2VBeHhtUhKlRCx4I/export?format=docx",
+          related:{
+            text:"Classic resume template",
+            url:"https://docs.google.com/document/d/10qH5epMz5GTIDCll2VBeHhtUhKlRCx4I/export?format=docx"
+        },
+        topic:"Resumes"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
+https:"https://youtu.be/r4iBjEWwZ74",
+ title:"Highlight Every Other Row",
+        description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightL.png",
+       link:"https://youtu.be/r4iBjEWwZ74",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/r4iBjEWwZ74"
+        },
+        topic:"Highlight Every Other Row"
+    },
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
+https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
+ title:"Shorts - Highlight Every Other Row",
+        description:"In this quick video we cover how to highlight every other even or odd numbered row in Excel without needing to make a table.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9f730021fd7377dacb53672b2f8d7c68063fcec8/Thumbnails/highlightS.png",
+       link:"https://www.youtube.com/shorts/fzTXUBWDCA4",
+       related:{
+           text:"Check it out on YouTube",
+           url:"https://www.youtube.com/shorts/fzTXUBWDCA4"
+       },
+       topic:"Highlight Every Other Row"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+{
+       section:"Practice Documents",
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png"
+        },
+        title:"Practice Workbook - Dependent Dropdown Lists",
+        description:"Step-by-step guide to creating dependent dropdown lists in Excel using data validation for up to 3 levels and multi-word scenarios.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png",
+        link:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/329d27ef16a905996d29baccf591e144de649067/Thumbnails/dependentdropdowns.png",
+  related:[
+    {
+            text:"Dependent Dropdown Lists",
+            url:"https://docs.google.com/spreadsheets/d/1V6aiXCT9yt8mpSfaMsUY4gMSu3B7xASq/export?format=xlsx"
+        },
+        {text:"Video explaining function",
+            url: "https://youtu.be/pl6pn_UBp-c"
+        }
+    ],
+        topic:"Dependent Dropdown Lists"
+    },
+
+
+
+
+
+{  
+        section:"Templates",
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
+        link:"https://youtube.com/shorts/TCMYpQUytOM",
+        title:"Professional Bio Template",
+        description:"This is a professional bio template you can download and fill out for your needs.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d4a5c2c46650f1e958e1a38996ea4216181edddf/Thumbnails/biotemplatethumb.png",
+       link:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx",
+         related:{
+           text:"Professional Bio Template",
+           url:"https://docs.google.com/presentation/d/1N4Y0_lHoGTOLTuVEqnRUeGGwD190aB2P/export/pptx"
+       },
+       topic:"Professional Bio Template",
+    },
+
+       
+
+
+
+
+
+  
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
+        },
+https:"//raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
+https:"//youtube.com/shorts/TCMYpQUytOM",
+ title:"Hiding All Columns and Rows",
+        description:"This quick video will show you how to hide or remove all unused columns or rows in Excel to create a clean view for your users. We will also cover how to unhide or restore the hidden columns and rows.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
+       link:"https://youtube.com/shorts/TCMYpQUytOM",
+   related:{
+            text:"Check it out on YouTube",
+            url:"https://youtube.com/shorts/TCMYpQUytOM"
+        },
+        topic:"Hiding All Columns and Rows",
+    },
 
 
     {
@@ -53,7 +6562,7 @@ window.contentItems = [
         },
         title:"Practice Workbook - Dynamic Text Filter",
         description:"A downloadable spreadsheet to practice the dynamic text filter capability.",
-        thumbnail:"https://img.icons8.com/color/96/000000/microsoft-excel-2019--v1.png",
+        thumbnail:"https://i.ytimg.com/vi/sdall4s4_RY/hqdefault.jpg",
         link:"https://docs.google.com/spreadsheets/d/1taPzeomXBu-O1G-FmmVhlBmBYNeqMTu5/export?format=xlsx",
         related:{
             text:"Video explaining function",
@@ -84,7 +6593,7 @@ window.contentItems = [
         section:"Templates",
         program:{
             name:"General",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
         },
         title:"Modern Resume Template",
         description:"Fillable modern resume template with sections including skills, education, and more.",
@@ -100,7 +6609,7 @@ window.contentItems = [
         section:"Templates",
         program:{
             name:"General",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/43b55f504d147fe575506b0ad439d4b363b3613c/PowerPoint%20Image.png"
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
         },
         title:"Modern Resume Template with Photo",
         description:"A PowerPoint resume layout that includes a space for your photo and personalized details.",
@@ -730,9 +7239,9 @@ window.contentItems = [
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Career Tips - Professional Modern Resume Template and Tips",
-        description:"Hey team,\n\nIn this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin\n\nLink to buy template: https://www.ebay.com/itm/335704148896",
-        thumbnail:"https://i.ytimg.com/vi/0YgpqxPWmoc/hqdefault.jpg",
-        link:"https://youtu.be/0YgpqxPWmoc",
+        description:"Hey team,\n\nIn this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8f7a31e22e2ef623ad6b605b1f8d06a0c71b24a3/Thumbnail%20Modern%20Resume%20Video.png",
+        link:"https://youtu.be/b-UlEXG_msU",
         related:{
             text:"Check it out on YouTube",
             url:"https://youtu.be/b-UlEXG_msU"
@@ -1205,7 +7714,7 @@ window.contentItems = [
             image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
         },
         title:"Excel Tips - Text Search Box | Dynamic Filtering | One or Multiple Columns",
-        description:"Hey team,\n\nThis video will show you how to create a text search box in Excel that can dynamically filter one or multiple columns.\n\nChapters:\n0:00 Introduction\n0:17 Filter Basics | One Column\n1:30 Filter Advanced | Multiple Columns\n\nPractice workbook link: https://docs.google.com/spreadsheets/d/1taPzeomXBu-O1G-FmmVhlBmBYNeqMTu5/export?format=xlsx\n\nVideo to filter using conditional formatting: https://youtu.be/nuYWqOWO59Y",
+        description:"This video will show you how to create a text search box in Excel that can dynamically filter one or multiple columns.",
         thumbnail:"https://i.ytimg.com/vi/sdall4s4_RY/hqdefault.jpg",
         link:"https://youtu.be/sdall4s4_RY",
         related:{
@@ -3704,25 +10213,7 @@ window.contentItems = [
         },
         topic:"Create Dynamic Dropdowns"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Freeze Columns and Rows / Freeze Panes",
-        description:"This video explains how to freeze panes (columns and rows) in Excel.",
-        thumbnail:"https://i.ytimg.com/vi/GNb5Nocqj7k/hqdefault.jpg",
-        link:"https://youtu.be/GNb5Nocqj7k",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/GNb5Nocqj7k"
-        },
-        topic:"Freeze Rows and Columns"
-    },
+  
     {
         section:[
             "Learning",
@@ -3855,7 +10346,1215 @@ window.contentItems = [
             url:"https://youtu.be/rMtH08s7zcQ"
         },
         topic:"Tab Management"
+    },
+    {
+        section: ["Learning", "Website Design"],
+        program: {
+            name: "Website Design",
+            image: window.PROGRAM_ICONS["Website Design"]
+        },
+        title: "Interactive Flexbox Playground",
+        description: "Master CSS Flexbox with this interactive learning tool. Experiment with flex-direction, flex-wrap, justify-content, align-items, and gap properties in real-time. Features live preview, code generation, mobile-responsive design, and dynamic container expansion based on gap settings. Perfect for learning and understanding Flexbox layout behavior.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/669286bb3f67549cc5ce7fb6edb61de7e86c4587/Thumbnails/cssflex.png",
+        link: "flexbox.html",
+        topic: "CSS Flex Properties",
+        related: {
+            text: "Try the Interactive Tool",
+            url: "flexbox.html"
+        },
+        demoHtml: `<div class="flexbox-demo-container">
+  <iframe src="flexbox.html" 
+          class="flexbox-iframe" 
+          title="Interactive Flexbox Playground"
+          frameborder="0">
+    Your browser does not support iframes. Please use a modern browser to view this interactive tool.
+  </iframe>
+  <div class="flexbox-links">
+    <a href="flexbox.html" target="_blank" class="launch-btn">🚀 Launch Full Tool</a>
+    <a href="#" onclick="document.querySelector('.flexbox-iframe').src = document.querySelector('.flexbox-iframe').src" class="refresh-btn">🔄 Refresh Preview</a>
+  </div>
+</div>`,
+        demoCss: `.flexbox-demo-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 15px auto;
+  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 6px 18px rgba(11, 79, 108, 0.15);
+  border: 2px solid rgba(0, 255, 166, 0.3);
+}
+
+.flexbox-iframe {
+  width: 100%;
+  height: 550px;
+  border: 2px solid #0b4f6c;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.flexbox-iframe:hover {
+  border-color: #00ffa6;
+  box-shadow: 0 6px 20px rgba(0, 255, 166, 0.3);
+}
+
+.flexbox-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.launch-btn, .refresh-btn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+  font-size: 0.9rem;
+}
+
+.launch-btn {
+  background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.launch-btn:hover {
+  background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 255, 166, 0.4);
+}
+
+.refresh-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0b4f6c;
+  border: 2px solid #0b4f6c;
+  cursor: pointer;
+}
+
+.refresh-btn:hover {
+  background: #0b4f6c;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.3);
+}
+
+@media (max-width: 768px) {
+  .flexbox-demo-container {
+    padding: 12px;
+    margin: 10px auto;
+    max-width: 95%;
+  }
+  
+  .flexbox-iframe {
+    height: 400px;
+  }
+  
+  .launch-btn, .refresh-btn {
+    padding: 8px 16px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .flexbox-demo-container {
+    padding: 10px;
+    margin: 8px auto;
+  }
+  
+  .flexbox-iframe {
+    height: 350px;
+  }
+  
+  .flexbox-links {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .launch-btn, .refresh-btn {
+    padding: 10px;
+    font-size: 0.7rem;
+    text-align: center;
+  }
+}`,
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Flexbox Playground - Career Solutions</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0b4f6c, #1a5f7a);
+      color: white;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .header {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 10px 0;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      color: #00ffa6;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      color: rgba(255, 255, 255, 0.9);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 15px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      min-height: 600px;
+    }
+
+    .sidebar {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      height: fit-content;
+      width: 100%;
+      max-width: none;
+    }
+
+    .sidebar-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+      padding: 2px 6px;
+      border-radius: 12px;
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .control-group {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      padding: 6px;
+      margin-bottom: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .control-group h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      color: #00ffa6;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+
+    .opt-btn {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      padding: 2px 3px;
+      font-size: 0.5rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.8);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+      text-align: center;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .opt-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #0b4f6c;
+      color: white;
+      transform: translateY(-1px);
+    }
+
+    .opt-btn.active {
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      border-color: #00ffa6;
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 255, 166, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .copy-btn {
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      color: white;
+      border: none;
+      padding: 4px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      width: 100%;
+      font-size: 0.55rem;
+    }
+
+    .copy-btn:hover {
+      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 255, 166, 0.4);
+    }
+
+    .copy-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 10px rgba(0, 255, 166, 0.2);
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+    }
+
+    .button-group.single {
+      grid-template-columns: 1fr;
+    }
+
+    .button-group.triple {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .button-group.quad {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Control panel layout adjustments for wider display */
+    .sidebar .control-groups-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 15px;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .preview-wrap {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      min-height: 400px;
+    }
+
+    .preview-header {
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+
+    .preview-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .preview-header small {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+
+    .size-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+    }
+
+    .size-controls label {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .size-slider {
+      width: 80px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.3);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .size-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #00ffa6;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .size-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #00ffa6;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .size-controls span {
+      font-weight: 600;
+      min-width: 50px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    .preview-content {
+      padding: 20px;
+      min-height: 500px;
+      height: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Hide all scrollbars completely */
+    * {
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* Internet Explorer 10+ */
+    }
+
+    *::-webkit-scrollbar {
+      display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+    }
+
+    html, body {
+      overflow-x: hidden;
+    }
+
+    .flex-demo {
+      display: flex;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(0, 255, 166, 0.3);
+      border-radius: 16px;
+      padding: 20px;
+      min-width: 200px;
+      min-height: 100px;
+      width: 600px;
+      height: 400px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: auto;
+    }
+
+    .flex-demo:hover {
+      border-color: rgba(0, 255, 166, 0.6);
+    }
+
+    /* Resize handles */
+    .resize-handle {
+      position: absolute;
+      background: rgba(0, 255, 166, 0.8);
+      border: 2px solid rgba(0, 255, 166, 1);
+      border-radius: 4px;
+      opacity: 0.8;
+      transition: all 0.3s ease;
+      z-index: 10;
+      user-select: none;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 255, 166, 0.5);
+    }
+
+    .flex-demo:hover .resize-handle {
+      opacity: 1;
+      box-shadow: 0 4px 12px rgba(0, 255, 166, 0.7);
+    }
+
+    .resize-handle:hover {
+      opacity: 1 !important;
+      background: rgba(0, 255, 128, 1);
+      border-color: #00ff80;
+      transform: scale(1.2);
+      box-shadow: 0 6px 16px rgba(0, 255, 166, 0.8);
+    }
+
+    .flex-demo.resizing .resize-handle {
+      opacity: 1;
+      pointer-events: none;
+    }
+
+    .flex-demo.resizing .resize-handle.active {
+      pointer-events: auto;
+      background: #00ff80;
+      transform: scale(1.2);
+    }
+
+    /* Corner handles */
+    .resize-handle.nw,
+    .resize-handle.ne,
+    .resize-handle.sw,
+    .resize-handle.se {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .resize-handle.nw {
+      top: -8px;
+      left: -8px;
+      cursor: nw-resize;
+    }
+
+    .resize-handle.ne {
+      top: -8px;
+      right: -8px;
+      cursor: ne-resize;
+    }
+
+    .resize-handle.sw {
+      bottom: -8px;
+      left: -8px;
+      cursor: sw-resize;
+    }
+
+    .resize-handle.se {
+      bottom: -8px;
+      right: -8px;
+      cursor: se-resize;
+    }
+
+    /* Edge handles */
+    .resize-handle.n,
+    .resize-handle.s {
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 6px;
+      border-radius: 3px;
+      cursor: n-resize;
+    }
+
+    .resize-handle.e,
+    .resize-handle.w {
+      top: 50%;
+      transform: translateY(-50%);
+      width: 6px;
+      height: 40px;
+      border-radius: 3px;
+      cursor: e-resize;
+    }
+
+    .resize-handle.n {
+      top: -3px;
+    }
+
+    .resize-handle.s {
+      bottom: -3px;
+      cursor: s-resize;
+    }
+
+    .resize-handle.e {
+      right: -3px;
+    }
+
+    .resize-handle.w {
+      left: -3px;
+      cursor: w-resize;
+    }
+
+    .flex-item {
+      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+      border-radius: 8px;
+      min-width: 50px;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 0.9rem;
+      box-shadow: 0 2px 8px rgba(0, 255, 166, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .flex-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 255, 166, 0.6);
+    }
+
+    .code-panel {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: 'Courier New', Monaco, monospace;
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.8);
+      min-height: 120px;
+      white-space: pre;
+      line-height: 1.4;
+      position: relative;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    .code-panel::before {
+      content: "CSS Code";
+      position: absolute;
+      top: -1px;
+      right: 15px;
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 0 0 8px 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .code-panel .highlight {
+      color: #00ffa6;
+      font-weight: 600;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 960px) {
+      .header h1 {
+        font-size: 2rem;
+      }
+
+      .container {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        padding: 0 15px;
+      }
+
+      .sidebar {
+        position: static;
+        padding: 20px;
+        width: 100%;
+        max-width: 500px;
+      }
+
+      .control-groups-container {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+      }
+
+      .sidebar-title {
+        font-size: 1.1rem;
+        margin-bottom: 20px;
+      }
+
+      .control-group {
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+
+      .opt-btn {
+        padding: 10px 14px;
+        font-size: 0.75rem;
+      }
+
+      .preview-content {
+        padding: 20px;
+      }
+
+      .flex-demo {
+        min-width: 250px;
+        padding: 15px;
+      }
+
+      .size-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.7rem;
+      }
+
+      .size-slider {
+        width: 60px;
+      }
+
+      .flex-item {
+        min-width: 45px;
+        min-height: 35px;
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .header {
+        padding: 20px 0;
+      }
+
+      .header h1 {
+        font-size: 1.8rem;
+      }
+
+      .container {
+        padding: 0 10px;
+        gap: 15px;
+      }
+
+      .sidebar {
+        padding: 15px;
+      }
+
+      .control-group {
+        padding: 10px;
+        margin-bottom: 12px;
+      }
+
+      .opt-btn {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+      }
+
+      .preview-content {
+        padding: 12px;
+        min-height: 400px;
+        height: 400px;
+      }
+
+      .code-panel {
+        padding: 12px 15px;
+        font-size: 0.8rem;
+      }
+
+      /* Mobile resize handles - larger for touch */
+      .resize-handle.nw,
+      .resize-handle.ne,
+      .resize-handle.sw,
+      .resize-handle.se {
+        width: 20px;
+        height: 20px;
+      }
+
+      .resize-handle.nw {
+        top: -10px;
+        left: -10px;
+      }
+
+      .resize-handle.ne {
+        top: -10px;
+        right: -10px;
+      }
+
+      .resize-handle.sw {
+        bottom: -10px;
+        left: -10px;
+      }
+
+      .resize-handle.se {
+        bottom: -10px;
+        right: -10px;
+      }
+
+      .resize-handle.n,
+      .resize-handle.s {
+        width: 60px;
+        height: 8px;
+      }
+
+      .resize-handle.e,
+      .resize-handle.w {
+        width: 8px;
+        height: 60px;
+      }
+
+      .resize-handle.n {
+        top: -4px;
+      }
+
+      .resize-handle.s {
+        bottom: -4px;
+      }
+
+      .resize-handle.e {
+        right: -4px;
+      }
+
+      .resize-handle.w {
+        left: -4px;
+      }
+
+      /* Always show resize handles on mobile */
+      .resize-handle {
+        opacity: 0.9;
+      }
+
+      .flex-demo:hover .resize-handle {
+        opacity: 1;
+      }
+
+      .control-groups-container {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h2>Flexbox Playground</h2>
+   
+  </header>
+
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-title">
+        Control Panel
+        <span class="badge">Interactive</span>
+      </div>
+
+      <div class="control-groups-container">
+      <!-- Direction & Wrap -->
+      <div class="control-group">
+        <h3>Flex Direction</h3>
+        <div class="button-group quad">
+         <button class="opt-btn active" data-property="flex-direction" data-value="row">row</button>
+          <button class="opt-btn" data-property="flex-direction" data-value="row-reverse">row-reverse</button>
+          <button class="opt-btn" data-property="flex-direction" data-value="column">column</button>
+          <button class="opt-btn" data-property="flex-direction" data-value="column-reverse">column-reverse</button>
+        </div>
+        <h3 style="margin-top: 8px;">Flex Wrap</h3>
+        <div class="button-group triple">
+          <button class="opt-btn active" data-property="flex-wrap" data-value="nowrap">none</button>
+          <button class="opt-btn" data-property="flex-wrap" data-value="wrap">wrap</button>
+          <button class="opt-btn" data-property="flex-wrap" data-value="wrap-reverse">reverse</button>
+        </div>
+      </div>
+
+      <!-- Justify Content -->
+      <div class="control-group">
+        <h3>Justify Content</h3>
+        <div class="options-grid">
+          <button class="opt-btn active" data-property="justify-content" data-value="flex-start">start</button>
+          <button class="opt-btn" data-property="justify-content" data-value="center">center</button>
+          <button class="opt-btn" data-property="justify-content" data-value="flex-end">end</button>
+          <button class="opt-btn" data-property="justify-content" data-value="space-between">between</button>
+          <button class="opt-btn" data-property="justify-content" data-value="space-around">around</button>
+          <button class="opt-btn" data-property="justify-content" data-value="space-evenly">evenly</button>
+        </div>
+      </div>
+
+      <!-- Align Items -->
+      <div class="control-group">
+        <h3>Align Items</h3>
+        <div class="options-grid">
+          <button class="opt-btn active" data-property="align-items" data-value="stretch">stretch</button>
+          <button class="opt-btn" data-property="align-items" data-value="flex-start">start</button>
+          <button class="opt-btn" data-property="align-items" data-value="center">center</button>
+          <button class="opt-btn" data-property="align-items" data-value="flex-end">end</button>
+          <button class="opt-btn" data-property="align-items" data-value="baseline">base</button>
+        </div>
+      </div>
+
+      <!-- Gap & Actions -->
+      <div class="control-group">
+        <h3>Gap</h3>
+        <div class="button-group quad">
+          <button class="opt-btn active" data-property="gap" data-value="0px">0</button>
+          <button class="opt-btn" data-property="gap" data-value="10px">10</button>
+          <button class="opt-btn" data-property="gap" data-value="20px">20</button>
+          <button class="opt-btn" data-property="gap" data-value="30px">30</button>
+        </div>
+        <div class="button-group single" style="margin-top: 8px;">
+          <button class="copy-btn" id="copyCSS">📋 Copy CSS</button>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="preview-wrap">
+        <div class="preview-header">
+          <h2>🎯 Live Preview</h2>
+          <div class="size-controls">
+            <label for="containerWidth">Width:</label>
+            <input type="range" id="containerWidth" min="300" max="800" value="500" class="size-slider">
+            <span id="widthValue">500px</span>
+            <label for="containerHeight">Height:</label>
+            <input type="range" id="containerHeight" min="200" max="600" value="350" class="size-slider">
+            <span id="heightValue">350px</span>
+          </div>
+        </div>
+        <div class="preview-content">
+          <div class="flex-demo" id="flexDemo">
+            <!-- Resize handles -->
+            <div class="resize-handle nw"></div>
+            <div class="resize-handle n"></div>
+            <div class="resize-handle ne"></div>
+            <div class="resize-handle e"></div>
+            <div class="resize-handle se"></div>
+            <div class="resize-handle s"></div>
+            <div class="resize-handle sw"></div>
+            <div class="resize-handle w"></div>
+            
+            <!-- Flex items -->
+            <div class="flex-item">1</div>
+            <div class="flex-item">2</div>
+            <div class="flex-item">3</div>
+            <div class="flex-item">4</div>
+            <div class="flex-item">5</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="code-panel" id="codePanel"></div>
+    </div>
+  </div>
+
+  <script>
+    // State object to track current flex properties
+    const flexState = {
+      'flex-direction': 'row',
+      'flex-wrap': 'nowrap',
+      'justify-content': 'flex-start',
+      'align-items': 'stretch',
+      'gap': '0px'
+    };
+
+    const flexDemo = document.getElementById('flexDemo');
+    const codePanel = document.getElementById('codePanel');
+    const previewContent = document.querySelector('.preview-content');
+    const widthSlider = document.getElementById('containerWidth');
+    const heightSlider = document.getElementById('containerHeight');
+    const widthValue = document.getElementById('widthValue');
+    const heightValue = document.getElementById('heightValue');
+
+    // Function to update the flex demo and code panel
+    function updateFlexDemo() {
+      // Use requestAnimationFrame for smooth updates
+      requestAnimationFrame(() => {
+        // Apply styles to the demo
+        Object.keys(flexState).forEach(property => {
+          const camelCaseProperty = property.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
+          flexDemo.style[camelCaseProperty] = flexState[property];
+        });
+
+        // Adjust container padding based on gap (don't change size during resize)
+        if (!isResizing) {
+          const gapValue = parseInt(flexState.gap);
+          if (gapValue > 20) {
+            flexDemo.style.padding = '30px';
+          } else if (gapValue > 0) {
+            flexDemo.style.padding = '25px';
+          } else {
+            flexDemo.style.padding = '20px';
+          }
+        }
+
+        // Update code panel
+        updateCodePanel();
+      });
+    }
+
+    function updateCodePanel() {
+      const code = \`<div class="flex-demo">
+  <div class="flex-item">1</div>
+  <div class="flex-item">2</div>
+  <div class="flex-item">3</div>
+  <div class="flex-item">4</div>
+  <div class="flex-item">5</div>
+</div>
+
+/* CSS */
+.flex-demo {
+  display: flex;
+  flex-direction: \${flexState['flex-direction']};
+  flex-wrap: \${flexState['flex-wrap']};
+  justify-content: \${flexState['justify-content']};
+  align-items: \${flexState['align-items']};
+  gap: \${flexState.gap};
+}\`;
+
+      codePanel.textContent = code;
+    }
+
+    // Event listener for all option buttons
+    document.addEventListener('click', function(e) {
+      // Ignore clicks during resize
+      if (isResizing) return;
+      
+      if (e.target.classList.contains('opt-btn')) {
+        const property = e.target.getAttribute('data-property');
+        const value = e.target.getAttribute('data-value');
+        
+        // Remove active class from siblings
+        const siblings = e.target.parentNode.querySelectorAll('.opt-btn');
+        siblings.forEach(btn => btn.classList.remove('active'));
+        
+        // Add active class to clicked button
+        e.target.classList.add('active');
+        
+        // Update state
+        flexState[property] = value;
+        
+        // Update demo
+        updateFlexDemo();
+      }
+    });
+
+    // Resize functionality
+    function updatePreviewSize() {
+      const width = widthSlider.value;
+      const height = heightSlider.value;
+      
+      previewContent.style.minHeight = height + 'px';
+      flexDemo.style.maxWidth = width + 'px';
+      
+      widthValue.textContent = width + 'px';
+      heightValue.textContent = height + 'px';
+    }
+
+    // Add event listeners for sliders
+    widthSlider.addEventListener('input', updatePreviewSize);
+    heightSlider.addEventListener('input', updatePreviewSize);
+
+    // Resize functionality
+    let isResizing = false;
+    let resizeHandle = null;
+    let startX, startY, startWidth, startHeight;
+    let animationFrame = null;
+
+    function initResize(e) {
+      if (!e.target.classList.contains('resize-handle')) return;
+      
+      isResizing = true;
+      resizeHandle = e.target;
+      resizeHandle.classList.add('active');
+      
+      // Handle both mouse and touch events
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      startX = clientX;
+      startY = clientY;
+      startWidth = flexDemo.offsetWidth;
+      startHeight = flexDemo.offsetHeight;
+      
+      flexDemo.classList.add('resizing');
+      document.body.style.cursor = getComputedStyle(resizeHandle).cursor;
+      document.body.style.userSelect = 'none';
+      
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function doResize(e) {
+      if (!isResizing) return;
+      
+      // Cancel previous animation frame
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+      
+      // Use requestAnimationFrame for smooth performance
+      animationFrame = requestAnimationFrame(() => {
+        // Handle both mouse and touch events
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+        
+        const handleClass = resizeHandle.classList[1];
+        let newWidth = startWidth;
+        let newHeight = startHeight;
+        
+        // Handle different resize directions
+        switch(handleClass) {
+          case 'se':
+            newWidth = startWidth + deltaX;
+            newHeight = startHeight + deltaY;
+            break;
+          case 'sw':
+            newWidth = startWidth - deltaX;
+            newHeight = startHeight + deltaY;
+            break;
+          case 'ne':
+            newWidth = startWidth + deltaX;
+            newHeight = startHeight - deltaY;
+            break;
+          case 'nw':
+            newWidth = startWidth - deltaX;
+            newHeight = startHeight - deltaY;
+            break;
+          case 'e':
+            newWidth = startWidth + deltaX;
+            break;
+          case 'w':
+            newWidth = startWidth - deltaX;
+            break;
+          case 's':
+            newHeight = startHeight + deltaY;
+            break;
+          case 'n':
+            newHeight = startHeight - deltaY;
+            break;
+        }
+        
+        // Apply constraints with smaller minimum sizes
+        newWidth = Math.max(150, Math.min(1000, newWidth));
+        newHeight = Math.max(100, Math.min(800, newHeight));
+        
+        // Apply new dimensions
+        flexDemo.style.width = newWidth + 'px';
+        flexDemo.style.height = newHeight + 'px';
+        
+        // Update sliders efficiently
+        if (widthSlider && heightSlider) {
+          widthSlider.value = newWidth;
+          heightSlider.value = newHeight;
+          widthValue.textContent = newWidth + 'px';
+          heightValue.textContent = newHeight + 'px';
+        }
+      });
+      
+      e.preventDefault();
+    }
+
+    function stopResize() {
+      if (!isResizing) return;
+      
+      // Cancel any pending animation frame
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+      
+      isResizing = false;
+      
+      if (resizeHandle) {
+        resizeHandle.classList.remove('active');
+        resizeHandle = null;
+      }
+      
+      flexDemo.classList.remove('resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    // Add resize event listeners (mouse and touch)
+    document.addEventListener('mousedown', initResize);
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+    
+    // Touch events for mobile
+    document.addEventListener('touchstart', initResize, { passive: false });
+    document.addEventListener('touchmove', doResize, { passive: false });
+    document.addEventListener('touchend', stopResize);
+
+    // Copy CSS functionality
+    document.getElementById('copyCSS').addEventListener('click', function() {
+      const demo = document.querySelector('.flex-demo');
+      const styles = window.getComputedStyle(demo);
+      
+      const cssCode = \`.flex-container {
+  display: flex;
+  flex-direction: \${styles.flexDirection};
+  justify-content: \${styles.justifyContent};
+  align-items: \${styles.alignItems};
+  flex-wrap: \${styles.flexWrap};
+  gap: \${styles.gap};
+  width: \${styles.width};
+  height: \${styles.height};
+}\`;
+
+      navigator.clipboard.writeText(cssCode).then(() => {
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        btn.style.background = 'linear-gradient(135deg, #00ffa6, #0b4f6c)';
+        
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = 'linear-gradient(135deg, #0b4f6c, #00ffa6)';
+        }, 2000);
+      }).catch(() => {
+        alert('Failed to copy CSS. Please try again.');
+      });
+    });
+
+    // Initialize
+    updateFlexDemo();
+    updatePreviewSize();
+    
+    // Add console logging for debugging
+    console.log('Flexbox Playground loaded successfully');
+    console.log('Initial state:', flexState);
+  </script>
+</body>
+</html>`
+    }
+
+
 
   ];  // <-- close the array here
 
