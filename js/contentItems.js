@@ -128,6 +128,43 @@ if (window.contentItems) {
 
 // 1) First declare your static items:
 window.contentItems = [
+
+
+
+  {
+        section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Helpful Websites",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Helpful Websites - Free UI and UX Elements",
+        description:"In this video we cover a helpful website with free UI elements for buttons, loading screens and more. It is called Universe.io.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5c103158f42bc2a1e24c06a592e6f48532f0264b/Thumbnails/uielementsthumb.png",
+        link:"https://youtu.be/UQOoWx177sA",
+     related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/UQOoWx177sA"
+      },
+      {
+            text:"Visit Universe.io",
+            url:"https://uiverse.io/"
+      }
+  ],
+        topic:"UI / UX Elements"
+    },
+
+
+
+
+
+
+
+  
 {
  section:[
             "Learning",
