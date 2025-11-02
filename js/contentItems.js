@@ -130,6 +130,273 @@ if (window.contentItems) {
 window.contentItems = [
 
 
+{
+  section: ["Learning", "Website Design"],
+  program: {
+    name: "Website Design",
+    image: window.PROGRAM_ICONS["Website Design"]
+  },
+  title: "Animated Loading Effect with Color Controls",
+  description: "Create a beautiful animated loading spinner with customizable colors. Features smooth letter animations, rotating shadow effects, and an interactive color picker to customize the appearance in real-time.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6160df1d0e426346410789ed99f4ccf70416d9b5/Thumbnails/orbthumb.png",
+  link: "Loading.html",
+  topic: "Loading Animations",
+  
+  demoHtml: `
+<div class="loading-demo-container">
+  <div class="loader-wrapper">
+    <span class="loader-letter">L</span>
+    <span class="loader-letter">o</span>
+    <span class="loader-letter">a</span>
+    <span class="loader-letter">d</span>
+    <span class="loader-letter">i</span>
+    <span class="loader-letter">n</span>
+    <span class="loader-letter">g</span>
+    <div class="loader"></div>
+  </div>
+
+  <div class="loading-controls">
+    <div class="control-group">
+      <label class="control-label">
+        <span>Primary Color</span>
+        <span class="color-value" id="loadingPrimaryValue">#ad5fff</span>
+      </label>
+      <input type="color" class="color-input" id="loadingPrimaryColor" value="#ad5fff">
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">
+        <span>Secondary Color</span>
+        <span class="color-value" id="loadingSecondaryValue">#471eec</span>
+      </label>
+      <input type="color" class="color-input" id="loadingSecondaryColor" value="#471eec">
+    </div>
+
+    <div class="control-group">
+      <label class="control-label">
+        <span>Accent Color</span>
+        <span class="color-value" id="loadingAccentValue">#d60a47</span>
+      </label>
+      <input type="color" class="color-input" id="loadingAccentColor" value="#d60a47">
+    </div>
+  </div>
+</div>`,
+
+  demoCss: `
+/* Animated Loading Effect (scoped to .loading-demo-container) */
+.loading-demo-container {
+  --loading-primary: #ad5fff;
+  --loading-secondary: #471eec;
+  --loading-accent: #d60a47;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  padding: 40px 20px;
+  min-height: 400px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: 14px;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.loading-demo-container .loader-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 180px;
+  height: 180px;
+  font-size: 1.2em;
+  font-weight: 300;
+  color: white;
+  border-radius: 50%;
+  background-color: transparent;
+  user-select: none;
+}
+
+.loading-demo-container .loader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background-color: transparent;
+  animation: loader-rotate 2s linear infinite;
+  z-index: 0;
+}
+
+@keyframes loader-rotate {
+  0% {
+    transform: rotate(90deg);
+    box-shadow:
+      0 10px 20px 0 #fff inset,
+      0 20px 30px 0 var(--loading-primary) inset,
+      0 60px 60px 0 var(--loading-secondary) inset;
+  }
+  50% {
+    transform: rotate(270deg);
+    box-shadow:
+      0 10px 20px 0 #fff inset,
+      0 20px 10px 0 var(--loading-accent) inset,
+      0 40px 60px 0 #311e80 inset;
+  }
+  100% {
+    transform: rotate(450deg);
+    box-shadow:
+      0 10px 20px 0 #fff inset,
+      0 20px 30px 0 var(--loading-primary) inset,
+      0 60px 60px 0 var(--loading-secondary) inset;
+  }
+}
+
+.loading-demo-container .loader-letter {
+  display: inline-block;
+  opacity: 0.4;
+  transform: translateY(0);
+  animation: loader-letter-anim 2s infinite;
+  z-index: 1;
+  border-radius: 50ch;
+  border: none;
+}
+
+.loading-demo-container .loader-letter:nth-child(1) { animation-delay: 0s; }
+.loading-demo-container .loader-letter:nth-child(2) { animation-delay: 0.1s; }
+.loading-demo-container .loader-letter:nth-child(3) { animation-delay: 0.2s; }
+.loading-demo-container .loader-letter:nth-child(4) { animation-delay: 0.3s; }
+.loading-demo-container .loader-letter:nth-child(5) { animation-delay: 0.4s; }
+.loading-demo-container .loader-letter:nth-child(6) { animation-delay: 0.5s; }
+.loading-demo-container .loader-letter:nth-child(7) { animation-delay: 0.6s; }
+
+@keyframes loader-letter-anim {
+  0%, 100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  40% {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+}
+
+.loading-demo-container .loading-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.loading-demo-container .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loading-demo-container .control-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.loading-demo-container .color-value {
+  font-family: 'Courier New', monospace;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.loading-demo-container .color-input {
+  width: 100%;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.loading-demo-container .color-input:hover {
+  transform: scale(1.02);
+}
+
+@media (max-width: 768px) {
+  .loading-demo-container .loader-wrapper {
+    width: 150px;
+    height: 150px;
+    font-size: 1rem;
+  }
+}`,
+
+  demoJs: `
+(function() {
+  function initLoadingDemo() {
+    const container = document.querySelector('.loading-demo-container');
+    if (!container) {
+      return false;
+    }
+    
+    // Check if already initialized
+    if (container.dataset.loadingInitialized === 'true') {
+      return true;
+    }
+    
+    console.log('🔄 Initializing loading animation demo...');
+    
+    const primaryColor = document.getElementById('loadingPrimaryColor');
+    const secondaryColor = document.getElementById('loadingSecondaryColor');
+    const accentColor = document.getElementById('loadingAccentColor');
+    const primaryValue = document.getElementById('loadingPrimaryValue');
+    const secondaryValue = document.getElementById('loadingSecondaryValue');
+    const accentValue = document.getElementById('loadingAccentValue');
+    
+    if (!primaryColor || !secondaryColor || !accentColor) {
+      return false;
+    }
+    
+    function updateColors() {
+      container.style.setProperty('--loading-primary', primaryColor.value);
+      container.style.setProperty('--loading-secondary', secondaryColor.value);
+      container.style.setProperty('--loading-accent', accentColor.value);
+      
+      if (primaryValue) primaryValue.textContent = primaryColor.value;
+      if (secondaryValue) secondaryValue.textContent = secondaryColor.value;
+      if (accentValue) accentValue.textContent = accentColor.value;
+    }
+    
+    primaryColor.addEventListener('input', updateColors);
+    secondaryColor.addEventListener('input', updateColors);
+    accentColor.addEventListener('input', updateColors);
+    
+    // Initialize colors
+    updateColors();
+    
+    container.dataset.loadingInitialized = 'true';
+    console.log('✅ Loading animation demo initialized successfully!');
+    return true;
+  }
+  
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('loadingAnimation', initLoadingDemo);
+  }
+  
+  // Fallback initialization
+  const attempts = [0, 100, 300, 500, 1000];
+  attempts.forEach(function(delay) {
+    setTimeout(initLoadingDemo, delay);
+  });
+})();`
+},
+
+
 
   {
         section:[
