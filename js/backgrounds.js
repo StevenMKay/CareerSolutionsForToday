@@ -1,5 +1,3 @@
-
-
 // Map page names to background images
 const backgrounds = {
   "index.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0786e5f3335fd538557bd2f731a5447697137168/photos/videosection2.png')",
@@ -12,6 +10,8 @@ const backgrounds = {
    "simulations.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5753c97d022cbbcdbe5d0c72cd9fcb39e00f4bd5/photos/SimulationsBackground.jpg')",
    "products.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1304064b7c56606abcb762998b6f993b97639343/photos/StoreFrontforProducts.jpg')",
    "excel-formula-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec2ffee7887702cb5719b520d546c2c6bd83e04e/photos/ConsultationBackground.jpg')",
+   "web-app-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/41cede1bbab736bc9a21d6d6f09ee24c2aa5b992/photos/Webapplicationbackground.jpg')",
+   "training-simulation-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/f4af61c96107eb2549bd4de33b785e7529d9c414/photos/trainingsimbackground.jpg')",
     // Add more as needed
 };
 
