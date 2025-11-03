@@ -135,202 +135,9 @@ window.contentItems = [
     name: "Website Design",
     image: window.PROGRAM_ICONS["Website Design"]
   },
-  title: "Drag & Drop Image Boxes",
-  description: "Drag a photo between two boxes using native HTML5 Drag & Drop. Lightweight, accessible, and framework-free.",
-  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6254ebc7a7c21f77140f18141464f20337715db4/Thumbnails/drag%20and%20dropthumb.png",
-  link: "Learn.html#website-design-drag-drop-image-boxes",   // ← direct external link
-  topic: "Interactive Effects",
-
-  // =============== DEMO HTML (scoped) ===============
-  demoHtml: `
-<div id="ddPreview" class="dd-wrap" aria-label="Drag and Drop Demo">
-  <div class="dd-box" data-box="1">
-    <img
-      id="ddSurfImg"
-      class="dd-img"
-      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d783824ed432add28169e72a003fa3539c689c03/photos/Surfing.png"
-      alt="Surfing"
-      draggable="true"
-    />
-  </div>
-  <div class="dd-box" data-box="2">
-    <span class="dd-placeholder">Drop here</span>
-  </div>
-</div>`,
-
-  // =============== DEMO CSS (scoped) ===============
-  demoCss: `
-/* Drag & Drop Demo (scoped to #ddPreview) */
-#ddPreview.dd-wrap{
-  --size: 220px;
-  display:flex; gap:20px; flex-wrap:wrap; align-items:center; justify-content:center;
-  padding:20px; min-height:320px; border-radius:14px;
-  /* Blue -> grey gradient background inside the preview box */
-  background: linear-gradient(135deg, #1e3a8a 0%, #9aa3af 100%);
-  box-shadow: 0 10px 30px rgba(0,0,0,.15);
-  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
-}
-
-#ddPreview .dd-box{
-  position:relative; width:var(--size); height:var(--size);
-  border:2px solid #333; border-radius:14px; overflow:hidden;
-  background: rgba(255,255,255,.9);
-  display:grid; place-items:center;
-}
-
-#ddPreview .dd-placeholder{
-  color:#6b7280; font-weight:600; user-select:none;
-}
-
-#ddPreview .dd-img{
-  width:100%; height:100%; object-fit:cover; border-radius:12px; cursor:grab;
-}
-
-#ddPreview .dd-box.dd-hover {
-  outline: 3px dashed #2563eb;
-  outline-offset: 4px;
-}
-`,
-
-  // =============== DEMO JS (using global demo manager) ===============
-  demoJs: `(function() {
-  
-  function initDragDrop() {
-    const container = document.getElementById('ddPreview');
-    if (!container) {
-      return false;
-    }
-    
-    const boxes = container.querySelectorAll('.dd-box');
-    const img = container.querySelector('#ddSurfImg');
-    
-    if (!img || boxes.length < 2) {
-      return false;
-    }
-    
-    // Check if already initialized for this specific container
-    if (container.dataset.dragDropInitialized === 'true') {
-      return true;
-    }
-    
-    console.log('🎯 Initializing drag and drop...');
-    
-    // Mark this container as initialized
-    container.dataset.dragDropInitialized = 'true';
-    
-    // Ensure image is draggable
-    img.draggable = true;
-    
-    // Store dragged element reference
-    let draggedElement = null;
-    
-    // Drag start
-    img.addEventListener('dragstart', function(e) {
-      e.dataTransfer.setData('text/plain', this.id);
-      e.dataTransfer.effectAllowed = 'move';
-      this.style.opacity = '0.5';
-      draggedElement = this;
-    });
-    
-    // Drag end
-    img.addEventListener('dragend', function(e) {
-      this.style.opacity = '1';
-      // Remove hover classes from all boxes in this container
-      container.querySelectorAll('.dd-box').forEach(box => box.classList.remove('dd-hover'));
-      draggedElement = null;
-    });
-    
-    // Set up drop zones
-    boxes.forEach(function(box, index) {
-      box.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        this.classList.add('dd-hover');
-      });
-      
-      box.addEventListener('dragenter', function(e) {
-        e.preventDefault();
-        this.classList.add('dd-hover');
-      });
-      
-      box.addEventListener('dragleave', function(e) {
-        // Check if we're really leaving the box
-        const rect = this.getBoundingClientRect();
-        const x = e.clientX;
-        const y = e.clientY;
-        
-        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-          this.classList.remove('dd-hover');
-        }
-      });
-      
-      box.addEventListener('drop', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        this.classList.remove('dd-hover');
-        
-        if (!draggedElement) {
-          return;
-        }
-        
-        // Don't do anything if dropping on the same box
-        if (this === draggedElement.parentNode) {
-          return;
-        }
-        
-        // Get the old parent before moving
-        const oldParent = draggedElement.parentNode;
-        
-        // Remove placeholder from target box if it exists
-        const targetPlaceholder = this.querySelector('.dd-placeholder');
-        if (targetPlaceholder) {
-          targetPlaceholder.remove();
-        }
-        
-        // Move the image to the new box
-        this.appendChild(draggedElement);
-        
-        // Add placeholder to the old box if it's now empty
-        if (oldParent && oldParent.classList.contains('dd-box')) {
-          const remainingImg = oldParent.querySelector('.dd-img');
-          if (!remainingImg) {
-            const placeholder = document.createElement('span');
-            placeholder.className = 'dd-placeholder';
-            placeholder.textContent = 'Drop here';
-            oldParent.appendChild(placeholder);
-          }
-        }
-      });
-    });
-    
-    console.log('✅ Drag and drop initialized successfully!');
-    return true;
-  }
-  
-  // Register with global demo manager if available
-  if (window.DemoManager && window.DemoManager.register) {
-    window.DemoManager.register('dragDrop', initDragDrop);
-  }
-  
-  // Fallback initialization for immediate execution
-  const attempts = [0, 100, 300, 500, 1000];
-  attempts.forEach(function(delay) {
-    setTimeout(initDragDrop, delay);
-  });
-  
-})();`
-},
-
-{
-  section: ["Learning", "Website Design"],
-  program: {
-    name: "Website Design",
-    image: window.PROGRAM_ICONS["Website Design"]
-  },
   title: "Animated Loading Effect with Color Controls",
   description: "Create a beautiful animated loading spinner with customizable colors. Features smooth letter animations, rotating shadow effects, and an interactive color picker to customize the appearance in real-time.",
-  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/df46cb0ce98eeb582f057e39706df4310d0b9c2d/Thumbnails/electricthumb.png",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6160df1d0e426346410789ed99f4ccf70416d9b5/Thumbnails/orbthumb.png",
   link: "Loading.html",
   topic: "Loading Animations",
   
@@ -585,6 +392,1611 @@ window.contentItems = [
   attempts.forEach(function(delay) {
     setTimeout(initLoadingDemo, delay);
   });
+})();`
+},
+
+
+
+  {
+        section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Helpful Websites",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Helpful Websites - Free UI and UX Elements",
+        description:"In this video we cover a helpful website with free UI elements for buttons, loading screens and more. It is called Universe.io.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5c103158f42bc2a1e24c06a592e6f48532f0264b/Thumbnails/uielementsthumb.png",
+        link:"https://youtu.be/UQOoWx177sA",
+     related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/UQOoWx177sA"
+      },
+      {
+            text:"Visit Universe.io",
+            url:"https://uiverse.io/"
+      }
+  ],
+        topic:"UI / UX Elements"
+    },
+
+
+
+
+
+
+
+  
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec46096af2df955a0228999d97431745d4dc15cb/Thumbnails/promptthumb.png",
+https:"https://youtu.be/hSjmoc64DA4",
+ title:"Helpful AI Site to Generate LLLM Prompts",
+        description:"In this video we cover an AI prompt generator tool that is free to use.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec46096af2df955a0228999d97431745d4dc15cb/Thumbnails/promptthumb.png",
+       link:"https://youtu.be/4KT-94j4QpY",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/4KT-94j4QpY"
+      },
+      {
+            text:"Visit Prompt Cowboy",
+            url:"https://www.promptcowboy.ai/"
+      }
+  ],
+        topic:"LLM Prompts"
+    },
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/61672e2cd29118b2e06f897862fc43f4dfd9c5c0/Thumbnails/circthumb.png",
+https:"https://youtu.be/HWiS8Cxs-Fw",
+ title:"Professional Circular PowerPoint Template",
+        description:"In this video we cover how to create this awesome circular PowerPoint template slide.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/61672e2cd29118b2e06f897862fc43f4dfd9c5c0/Thumbnails/circthumb.png",
+       link:"https://youtu.be/HWiS8Cxs-Fw",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/HWiS8Cxs-Fw"
+      },
+      {
+            text:"Download Template",
+            url:"https://docs.google.com/presentation/d/1jEpHrXmaGz_sYMaLKYMPkzHK00sAzzJH/export/pptx"
+      }
+  ],
+        topic:"Professional Templates"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+ {
+        section: ["Learning", "Website Design"],
+        program: {
+            name: "Website Design",
+            image: window.PROGRAM_ICONS["Website Design"]
+        },
+        title: "Interactive Flexbox Playground",
+        description: "Master CSS Flexbox with this interactive learning tool. Experiment with flex-direction, flex-wrap, justify-content, align-items, and gap properties in real-time. Features live preview, code generation, mobile-responsive design, and dynamic container expansion based on gap settings. Perfect for learning and understanding Flexbox layout behavior.",
+        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/669286bb3f67549cc5ce7fb6edb61de7e86c4587/Thumbnails/cssflex.png",
+        link: "flexbox.html",
+        topic: "CSS Flex Properties",
+        related: {
+            text: "Try the Interactive Tool",
+            url: "flexbox.html"
+        },
+        demoHtml: `<div class="flexbox-demo-container">
+  <iframe src="flexbox.html" 
+          class="flexbox-iframe" 
+          title="Interactive Flexbox Playground"
+          frameborder="0">
+    Your browser does not support iframes. Please use a modern browser to view this interactive tool.
+  </iframe>
+  <div class="flexbox-links">
+    <a href="flexbox.html" target="_blank" class="launch-btn">🚀 Launch Full Tool</a>
+    <a href="#" onclick="document.querySelector('.flexbox-iframe').src = document.querySelector('.flexbox-iframe').src" class="refresh-btn">🔄 Refresh Preview</a>
+  </div>
+</div>`,
+        demoCss: `.flexbox-demo-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 15px auto;
+  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 6px 18px rgba(11, 79, 108, 0.15);
+  border: 2px solid rgba(0, 255, 166, 0.3);
+}
+
+.flexbox-iframe {
+  width: 100%;
+  height: 550px;
+  border: 2px solid #0b4f6c;
+  border-radius: 6px;
+  background: white;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.flexbox-iframe:hover {
+  border-color: #00ffa6;
+  box-shadow: 0 6px 20px rgba(0, 255, 166, 0.3);
+}
+
+.flexbox-links {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.launch-btn, .refresh-btn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-block;
+  font-size: 0.9rem;
+}
+
+.launch-btn {
+  background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.launch-btn:hover {
+  background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 255, 166, 0.4);
+}
+
+.refresh-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0b4f6c;
+  border: 2px solid #0b4f6c;
+  cursor: pointer;
+}
+
+.refresh-btn:hover {
+  background: #0b4f6c;
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.3);
+}
+
+@media (max-width: 768px) {
+  .flexbox-demo-container {
+    padding: 12px;
+    margin: 10px auto;
+    max-width: 95%;
+  }
+  
+  .flexbox-iframe {
+    height: 400px;
+  }
+  
+  .launch-btn, .refresh-btn {
+    padding: 8px 16px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .flexbox-demo-container {
+    padding: 10px;
+    margin: 8px auto;
+  }
+  
+  .flexbox-iframe {
+    height: 350px;
+  }
+  
+  .flexbox-links {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .launch-btn, .refresh-btn {
+    padding: 10px;
+    font-size: 0.7rem;
+    text-align: center;
+  }
+}`,
+        content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Flexbox Playground - Career Solutions</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0b4f6c, #1a5f7a);
+      color: white;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .header {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(15px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 10px 0;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      color: #00ffa6;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      color: rgba(255, 255, 255, 0.9);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 15px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      min-height: 600px;
+    }
+
+    .sidebar {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      height: fit-content;
+      width: 100%;
+      max-width: none;
+    }
+
+    .sidebar-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+      padding: 2px 6px;
+      border-radius: 12px;
+      font-size: 0.6rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .control-group {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      padding: 6px;
+      margin-bottom: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .control-group h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      color: #00ffa6;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+
+    .opt-btn {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      padding: 2px 3px;
+      font-size: 0.5rem;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.8);
+      cursor: pointer;
+      transition: all 0.3s ease;
+      white-space: nowrap;
+      text-align: center;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .opt-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: #0b4f6c;
+      color: white;
+      transform: translateY(-1px);
+    }
+
+    .opt-btn.active {
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      border-color: #00ffa6;
+      color: white;
+      box-shadow: 0 4px 15px rgba(0, 255, 166, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .copy-btn {
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      color: white;
+      border: none;
+      padding: 4px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      width: 100%;
+      font-size: 0.55rem;
+    }
+
+    .copy-btn:hover {
+      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 255, 166, 0.4);
+    }
+
+    .copy-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 4px 10px rgba(0, 255, 166, 0.2);
+    }
+
+    .button-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+    }
+
+    .button-group.single {
+      grid-template-columns: 1fr;
+    }
+
+    .button-group.triple {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .button-group.quad {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Control panel layout adjustments for wider display */
+    .sidebar .control-groups-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 15px;
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .preview-wrap {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      min-height: 400px;
+    }
+
+    .preview-header {
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+    }
+
+    .preview-header h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .preview-header small {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+
+    .size-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+    }
+
+    .size-controls label {
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .size-slider {
+      width: 80px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.3);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .size-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #00ffa6;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .size-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #00ffa6;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .size-controls span {
+      font-weight: 600;
+      min-width: 50px;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+
+    .preview-content {
+      padding: 20px;
+      min-height: 500px;
+      height: 500px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Hide all scrollbars completely */
+    * {
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* Internet Explorer 10+ */
+    }
+
+    *::-webkit-scrollbar {
+      display: none; /* WebKit browsers (Chrome, Safari, Edge) */
+    }
+
+    html, body {
+      overflow-x: hidden;
+    }
+
+    .flex-demo {
+      display: flex;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(0, 255, 166, 0.3);
+      border-radius: 16px;
+      padding: 20px;
+      min-width: 200px;
+      min-height: 100px;
+      width: 600px;
+      height: 400px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: auto;
+    }
+
+    .flex-demo:hover {
+      border-color: rgba(0, 255, 166, 0.6);
+    }
+
+    /* Resize handles */
+    .resize-handle {
+      position: absolute;
+      background: rgba(0, 255, 166, 0.8);
+      border: 2px solid rgba(0, 255, 166, 1);
+      border-radius: 4px;
+      opacity: 0.8;
+      transition: all 0.3s ease;
+      z-index: 10;
+      user-select: none;
+      pointer-events: auto;
+      box-shadow: 0 2px 8px rgba(0, 255, 166, 0.5);
+    }
+
+    .flex-demo:hover .resize-handle {
+      opacity: 1;
+      box-shadow: 0 4px 12px rgba(0, 255, 166, 0.7);
+    }
+
+    .resize-handle:hover {
+      opacity: 1 !important;
+      background: rgba(0, 255, 128, 1);
+      border-color: #00ff80;
+      transform: scale(1.2);
+      box-shadow: 0 6px 16px rgba(0, 255, 166, 0.8);
+    }
+
+    .flex-demo.resizing .resize-handle {
+      opacity: 1;
+      pointer-events: none;
+    }
+
+    .flex-demo.resizing .resize-handle.active {
+      pointer-events: auto;
+      background: #00ff80;
+      transform: scale(1.2);
+    }
+
+    /* Corner handles */
+    .resize-handle.nw,
+    .resize-handle.ne,
+    .resize-handle.sw,
+    .resize-handle.se {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .resize-handle.nw {
+      top: -8px;
+      left: -8px;
+      cursor: nw-resize;
+    }
+
+    .resize-handle.ne {
+      top: -8px;
+      right: -8px;
+      cursor: ne-resize;
+    }
+
+    .resize-handle.sw {
+      bottom: -8px;
+      left: -8px;
+      cursor: sw-resize;
+    }
+
+    .resize-handle.se {
+      bottom: -8px;
+      right: -8px;
+      cursor: se-resize;
+    }
+
+    /* Edge handles */
+    .resize-handle.n,
+    .resize-handle.s {
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 6px;
+      border-radius: 3px;
+      cursor: n-resize;
+    }
+
+    .resize-handle.e,
+    .resize-handle.w {
+      top: 50%;
+      transform: translateY(-50%);
+      width: 6px;
+      height: 40px;
+      border-radius: 3px;
+      cursor: e-resize;
+    }
+
+    .resize-handle.n {
+      top: -3px;
+    }
+
+    .resize-handle.s {
+      bottom: -3px;
+      cursor: s-resize;
+    }
+
+    .resize-handle.e {
+      right: -3px;
+    }
+
+    .resize-handle.w {
+      left: -3px;
+      cursor: w-resize;
+    }
+
+    .flex-item {
+      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
+      border-radius: 8px;
+      min-width: 50px;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 0.9rem;
+      box-shadow: 0 2px 8px rgba(0, 255, 166, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .flex-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 255, 166, 0.6);
+    }
+
+    .code-panel {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: 'Courier New', Monaco, monospace;
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.8);
+      min-height: 120px;
+      white-space: pre;
+      line-height: 1.4;
+      position: relative;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    .code-panel::before {
+      content: "CSS Code";
+      position: absolute;
+      top: -1px;
+      right: 15px;
+      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 0 0 8px 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .code-panel .highlight {
+      color: #00ffa6;
+      font-weight: 600;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 960px) {
+      .header h1 {
+        font-size: 2rem;
+      }
+
+      .container {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        padding: 0 15px;
+      }
+
+      .sidebar {
+        position: static;
+        padding: 20px;
+        width: 100%;
+        max-width: 500px;
+      }
+
+      .control-groups-container {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+      }
+
+      .sidebar-title {
+        font-size: 1.1rem;
+        margin-bottom: 20px;
+      }
+
+      .control-group {
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+
+      .opt-btn {
+        padding: 10px 14px;
+        font-size: 0.75rem;
+      }
+
+      .preview-content {
+        padding: 20px;
+      }
+
+      .flex-demo {
+        min-width: 250px;
+        padding: 15px;
+      }
+
+      .size-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 0.7rem;
+      }
+
+      .size-slider {
+        width: 60px;
+      }
+
+      .flex-item {
+        min-width: 45px;
+        min-height: 35px;
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .header {
+        padding: 20px 0;
+      }
+
+      .header h1 {
+        font-size: 1.8rem;
+      }
+
+      .container {
+        padding: 0 10px;
+        gap: 15px;
+      }
+
+      .sidebar {
+        padding: 15px;
+      }
+
+      .control-group {
+        padding: 10px;
+        margin-bottom: 12px;
+      }
+
+      .opt-btn {
+        padding: 5px 8px;
+        font-size: 0.7rem;
+      }
+
+      .preview-content {
+        padding: 12px;
+        min-height: 400px;
+        height: 400px;
+      }
+
+      .code-panel {
+        padding: 12px 15px;
+        font-size: 0.8rem;
+      }
+
+      /* Mobile resize handles - larger for touch */
+      .resize-handle.nw,
+      .resize-handle.ne,
+      .resize-handle.sw,
+      .resize-handle.se {
+        width: 20px;
+        height: 20px;
+      }
+
+      .resize-handle.nw {
+        top: -10px;
+        left: -10px;
+      }
+
+      .resize-handle.ne {
+        top: -10px;
+        right: -10px;
+      }
+
+      .resize-handle.sw {
+        bottom: -10px;
+        left: -10px;
+      }
+
+      .resize-handle.se {
+        bottom: -10px;
+        right: -10px;
+      }
+
+      .resize-handle.n,
+      .resize-handle.s {
+        width: 60px;
+        height: 8px;
+      }
+
+      .resize-handle.e,
+      .resize-handle.w {
+        width: 8px;
+        height: 60px;
+      }
+
+      .resize-handle.n {
+        top: -4px;
+      }
+
+      .resize-handle.s {
+        bottom: -4px;
+      }
+
+      .resize-handle.e {
+        right: -4px;
+      }
+
+      .resize-handle.w {
+        left: -4px;
+      }
+
+      /* Always show resize handles on mobile */
+      .resize-handle {
+        opacity: 0.9;
+      }
+
+      .flex-demo:hover .resize-handle {
+        opacity: 1;
+      }
+
+      .control-groups-container {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h2>Flexbox Playground</h2>
+   
+  </header>
+
+  <div class="container">
+    <div class="sidebar">
+      <div class="sidebar-title">
+        Control Panel
+        <span class="badge">Interactive</span>
+      </div>
+
+      <div class="control-groups-container">
+      <!-- Direction & Wrap -->
+      <div class="control-group">
+        <h3>Flex Direction</h3>
+        <div class="button-group quad">
+         <button class="opt-btn active" data-property="flex-direction" data-value="row">row</button>
+          <button class="opt-btn" data-property="flex-direction" data-value="row-reverse">row-reverse</button>
+          <button class="opt-btn" data-property="flex-direction" data-value="column">column</button>
+          <button class="opt-btn" data-property="flex-direction" data-value="column-reverse">column-reverse</button>
+        </div>
+        <h3 style="margin-top: 8px;">Flex Wrap</h3>
+        <div class="button-group triple">
+          <button class="opt-btn active" data-property="flex-wrap" data-value="nowrap">none</button>
+          <button class="opt-btn" data-property="flex-wrap" data-value="wrap">wrap</button>
+          <button class="opt-btn" data-property="flex-wrap" data-value="wrap-reverse">reverse</button>
+        </div>
+      </div>
+
+      <!-- Justify Content -->
+      <div class="control-group">
+        <h3>Justify Content</h3>
+        <div class="options-grid">
+          <button class="opt-btn active" data-property="justify-content" data-value="flex-start">start</button>
+          <button class="opt-btn" data-property="justify-content" data-value="center">center</button>
+          <button class="opt-btn" data-property="justify-content" data-value="flex-end">end</button>
+          <button class="opt-btn" data-property="justify-content" data-value="space-between">between</button>
+          <button class="opt-btn" data-property="justify-content" data-value="space-around">around</button>
+          <button class="opt-btn" data-property="justify-content" data-value="space-evenly">evenly</button>
+        </div>
+      </div>
+
+      <!-- Align Items -->
+      <div class="control-group">
+        <h3>Align Items</h3>
+        <div class="options-grid">
+          <button class="opt-btn active" data-property="align-items" data-value="stretch">stretch</button>
+          <button class="opt-btn" data-property="align-items" data-value="flex-start">start</button>
+          <button class="opt-btn" data-property="align-items" data-value="center">center</button>
+          <button class="opt-btn" data-property="align-items" data-value="flex-end">end</button>
+          <button class="opt-btn" data-property="align-items" data-value="baseline">base</button>
+        </div>
+      </div>
+
+      <!-- Gap & Actions -->
+      <div class="control-group">
+        <h3>Gap</h3>
+        <div class="button-group quad">
+          <button class="opt-btn active" data-property="gap" data-value="0px">0</button>
+          <button class="opt-btn" data-property="gap" data-value="10px">10</button>
+          <button class="opt-btn" data-property="gap" data-value="20px">20</button>
+          <button class="opt-btn" data-property="gap" data-value="30px">30</button>
+        </div>
+        <div class="button-group single" style="margin-top: 8px;">
+          <button class="copy-btn" id="copyCSS">📋 Copy CSS</button>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="preview-wrap">
+        <div class="preview-header">
+          <h2>🎯 Live Preview</h2>
+          <div class="size-controls">
+            <label for="containerWidth">Width:</label>
+            <input type="range" id="containerWidth" min="300" max="800" value="500" class="size-slider">
+            <span id="widthValue">500px</span>
+            <label for="containerHeight">Height:</label>
+            <input type="range" id="containerHeight" min="200" max="600" value="350" class="size-slider">
+            <span id="heightValue">350px</span>
+          </div>
+        </div>
+        <div class="preview-content">
+          <div class="flex-demo" id="flexDemo">
+            <!-- Resize handles -->
+            <div class="resize-handle nw"></div>
+            <div class="resize-handle n"></div>
+            <div class="resize-handle ne"></div>
+            <div class="resize-handle e"></div>
+            <div class="resize-handle se"></div>
+            <div class="resize-handle s"></div>
+            <div class="resize-handle sw"></div>
+            <div class="resize-handle w"></div>
+            
+            <!-- Flex items -->
+            <div class="flex-item">1</div>
+            <div class="flex-item">2</div>
+            <div class="flex-item">3</div>
+            <div class="flex-item">4</div>
+            <div class="flex-item">5</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="code-panel" id="codePanel"></div>
+    </div>
+  </div>
+
+  <script>
+    // State object to track current flex properties
+    const flexState = {
+      'flex-direction': 'row',
+      'flex-wrap': 'nowrap',
+      'justify-content': 'flex-start',
+      'align-items': 'stretch',
+      'gap': '0px'
+    };
+
+    const flexDemo = document.getElementById('flexDemo');
+    const codePanel = document.getElementById('codePanel');
+    const previewContent = document.querySelector('.preview-content');
+    const widthSlider = document.getElementById('containerWidth');
+    const heightSlider = document.getElementById('containerHeight');
+    const widthValue = document.getElementById('widthValue');
+    const heightValue = document.getElementById('heightValue');
+
+    // Function to update the flex demo and code panel
+    function updateFlexDemo() {
+      // Use requestAnimationFrame for smooth updates
+      requestAnimationFrame(() => {
+        // Apply styles to the demo
+        Object.keys(flexState).forEach(property => {
+          const camelCaseProperty = property.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
+          flexDemo.style[camelCaseProperty] = flexState[property];
+        });
+
+        // Adjust container padding based on gap (don't change size during resize)
+        if (!isResizing) {
+          const gapValue = parseInt(flexState.gap);
+          if (gapValue > 20) {
+            flexDemo.style.padding = '30px';
+          } else if (gapValue > 0) {
+            flexDemo.style.padding = '25px';
+          } else {
+            flexDemo.style.padding = '20px';
+          }
+        }
+
+        // Update code panel
+        updateCodePanel();
+      });
+    }
+
+    function updateCodePanel() {
+      const code = \`<div class="flex-demo">
+  <div class="flex-item">1</div>
+  <div class="flex-item">2</div>
+  <div class="flex-item">3</div>
+  <div class="flex-item">4</div>
+  <div class="flex-item">5</div>
+</div>
+
+/* CSS */
+.flex-demo {
+  display: flex;
+  flex-direction: \${flexState['flex-direction']};
+  flex-wrap: \${flexState['flex-wrap']};
+  justify-content: \${flexState['justify-content']};
+  align-items: \${flexState['align-items']};
+  gap: \${flexState.gap};
+}\`;
+
+      codePanel.textContent = code;
+    }
+
+    // Event listener for all option buttons
+    document.addEventListener('click', function(e) {
+      // Ignore clicks during resize
+      if (isResizing) return;
+      
+      if (e.target.classList.contains('opt-btn')) {
+        const property = e.target.getAttribute('data-property');
+        const value = e.target.getAttribute('data-value');
+        
+        // Remove active class from siblings
+        const siblings = e.target.parentNode.querySelectorAll('.opt-btn');
+        siblings.forEach(btn => btn.classList.remove('active'));
+        
+        // Add active class to clicked button
+        e.target.classList.add('active');
+        
+        // Update state
+        flexState[property] = value;
+        
+        // Update demo
+        updateFlexDemo();
+      }
+    });
+
+    // Resize functionality
+    function updatePreviewSize() {
+      const width = widthSlider.value;
+      const height = heightSlider.value;
+      
+      previewContent.style.minHeight = height + 'px';
+      flexDemo.style.maxWidth = width + 'px';
+      
+      widthValue.textContent = width + 'px';
+      heightValue.textContent = height + 'px';
+    }
+
+    // Add event listeners for sliders
+    widthSlider.addEventListener('input', updatePreviewSize);
+    heightSlider.addEventListener('input', updatePreviewSize);
+
+    // Resize functionality
+    let isResizing = false;
+    let resizeHandle = null;
+    let startX, startY, startWidth, startHeight;
+    let animationFrame = null;
+
+    function initResize(e) {
+      if (!e.target.classList.contains('resize-handle')) return;
+      
+      isResizing = true;
+      resizeHandle = e.target;
+      resizeHandle.classList.add('active');
+      
+      // Handle both mouse and touch events
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      startX = clientX;
+      startY = clientY;
+      startWidth = flexDemo.offsetWidth;
+      startHeight = flexDemo.offsetHeight;
+      
+      flexDemo.classList.add('resizing');
+      document.body.style.cursor = getComputedStyle(resizeHandle).cursor;
+      document.body.style.userSelect = 'none';
+      
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function doResize(e) {
+      if (!isResizing) return;
+      
+      // Cancel previous animation frame
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+      
+      // Use requestAnimationFrame for smooth performance
+      animationFrame = requestAnimationFrame(() => {
+        // Handle both mouse and touch events
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+        
+        const handleClass = resizeHandle.classList[1];
+        let newWidth = startWidth;
+        let newHeight = startHeight;
+        
+        // Handle different resize directions
+        switch(handleClass) {
+          case 'se':
+            newWidth = startWidth + deltaX;
+            newHeight = startHeight + deltaY;
+            break;
+          case 'sw':
+            newWidth = startWidth - deltaX;
+            newHeight = startHeight + deltaY;
+            break;
+          case 'ne':
+            newWidth = startWidth + deltaX;
+            newHeight = startHeight - deltaY;
+            break;
+          case 'nw':
+            newWidth = startWidth - deltaX;
+            newHeight = startHeight - deltaY;
+            break;
+          case 'e':
+            newWidth = startWidth + deltaX;
+            break;
+          case 'w':
+            newWidth = startWidth - deltaX;
+            break;
+          case 's':
+            newHeight = startHeight + deltaY;
+            break;
+          case 'n':
+            newHeight = startHeight - deltaY;
+            break;
+        }
+        
+        // Apply constraints with smaller minimum sizes
+        newWidth = Math.max(150, Math.min(1000, newWidth));
+        newHeight = Math.max(100, Math.min(800, newHeight));
+        
+        // Apply new dimensions
+        flexDemo.style.width = newWidth + 'px';
+        flexDemo.style.height = newHeight + 'px';
+        
+        // Update sliders efficiently
+        if (widthSlider && heightSlider) {
+          widthSlider.value = newWidth;
+          heightSlider.value = newHeight;
+          widthValue.textContent = newWidth + 'px';
+          heightValue.textContent = newHeight + 'px';
+        }
+      });
+      
+      e.preventDefault();
+    }
+
+    function stopResize() {
+      if (!isResizing) return;
+      
+      // Cancel any pending animation frame
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+      
+      isResizing = false;
+      
+      if (resizeHandle) {
+        resizeHandle.classList.remove('active');
+        resizeHandle = null;
+      }
+      
+      flexDemo.classList.remove('resizing');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    // Add resize event listeners (mouse and touch)
+    document.addEventListener('mousedown', initResize);
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+    
+    // Touch events for mobile
+    document.addEventListener('touchstart', initResize, { passive: false });
+    document.addEventListener('touchmove', doResize, { passive: false });
+    document.addEventListener('touchend', stopResize);
+
+    // Copy CSS functionality
+    document.getElementById('copyCSS').addEventListener('click', function() {
+      const demo = document.querySelector('.flex-demo');
+      const styles = window.getComputedStyle(demo);
+      
+      const cssCode = \`.flex-container {
+  display: flex;
+  flex-direction: \${styles.flexDirection};
+  justify-content: \${styles.justifyContent};
+  align-items: \${styles.alignItems};
+  flex-wrap: \${styles.flexWrap};
+  gap: \${styles.gap};
+  width: \${styles.width};
+  height: \${styles.height};
+}\`;
+
+      navigator.clipboard.writeText(cssCode).then(() => {
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        btn.style.background = 'linear-gradient(135deg, #00ffa6, #0b4f6c)';
+        
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = 'linear-gradient(135deg, #0b4f6c, #00ffa6)';
+        }, 2000);
+      }).catch(() => {
+        alert('Failed to copy CSS. Please try again.');
+      });
+    });
+
+    // Initialize
+    updateFlexDemo();
+    updatePreviewSize();
+    
+    // Add console logging for debugging
+    console.log('Flexbox Playground loaded successfully');
+    console.log('Initial state:', flexState);
+  </script>
+</body>
+</html>`
+ },
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"AI",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/Easy.png",
+https:"https://youtu.be/hSjmoc64DA4",
+ title:"Automate Presentation Building with WorkPPT",
+        description:"In this video we look at how to easily create web applications using VS Code and the GitHub Copilot Chat.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/Easy.png",
+       link:"https://youtu.be/hSjmoc64DA4",
+
+
+  related:
+  [
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/hSjmoc64DA4"
+      },
+      {
+            text:"Download VS Code",
+            url:"https://code.visualstudio.com/download"
+      }
+  ],
+        topic:"Coding"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  {
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/rankwidethumb.png",
+https:"https://youtu.be/gjJTba6Shm8",
+ title:"How to Freeze Rows and Columns",
+        description:"In this video we cover how you can automatically rank data in Excel using the RANK.EQ function.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/rankwidethumb.png",
+       link:"https://youtu.be/gjJTba6Shm8",
+
+
+  related:{
+            text:"Check it out on YouTube",
+            url:"https://youtu.be/gjJTba6Shm8"
+        },
+        topic:"Rank Data"
+    },
+
+
+
+
+
+
+
+
+
+
+  
+{
+  section: ["Learning", "Website Design"],
+  program: {
+    name: "Website Design",
+    image: window.PROGRAM_ICONS["Website Design"]
+  },
+  title: "Drag & Drop Image Boxes",
+  description: "Drag a photo between two boxes using native HTML5 Drag & Drop. Lightweight, accessible, and framework-free.",
+  thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/6254ebc7a7c21f77140f18141464f20337715db4/Thumbnails/drag%20and%20dropthumb.png",
+  link: "Learn.html#website-design-drag-drop-image-boxes",   // ← direct external link
+  topic: "Interactive Effects",
+
+  // =============== DEMO HTML (scoped) ===============
+  demoHtml: `
+<div id="ddPreview" class="dd-wrap" aria-label="Drag and Drop Demo">
+  <div class="dd-box" data-box="1">
+    <img
+      id="ddSurfImg"
+      class="dd-img"
+      src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d783824ed432add28169e72a003fa3539c689c03/photos/Surfing.png"
+      alt="Surfing"
+      draggable="true"
+    />
+  </div>
+  <div class="dd-box" data-box="2">
+    <span class="dd-placeholder">Drop here</span>
+  </div>
+</div>`,
+
+  // =============== DEMO CSS (scoped) ===============
+  demoCss: `
+/* Drag & Drop Demo (scoped to #ddPreview) */
+#ddPreview.dd-wrap{
+  --size: 220px;
+  display:flex; gap:20px; flex-wrap:wrap; align-items:center; justify-content:center;
+  padding:20px; min-height:320px; border-radius:14px;
+  /* Blue -> grey gradient background inside the preview box */
+  background: linear-gradient(135deg, #1e3a8a 0%, #9aa3af 100%);
+  box-shadow: 0 10px 30px rgba(0,0,0,.15);
+  font-family: system-ui, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+#ddPreview .dd-box{
+  position:relative; width:var(--size); height:var(--size);
+  border:2px solid #333; border-radius:14px; overflow:hidden;
+  background: rgba(255,255,255,.9);
+  display:grid; place-items:center;
+}
+
+#ddPreview .dd-placeholder{
+  color:#6b7280; font-weight:600; user-select:none;
+}
+
+#ddPreview .dd-img{
+  width:100%; height:100%; object-fit:cover; border-radius:12px; cursor:grab;
+}
+
+#ddPreview .dd-box.dd-hover {
+  outline: 3px dashed #2563eb;
+  outline-offset: 4px;
+}
+`,
+
+  // =============== DEMO JS (using global demo manager) ===============
+  demoJs: `(function() {
+  
+  function initDragDrop() {
+    const container = document.getElementById('ddPreview');
+    if (!container) {
+      return false;
+    }
+    
+    const boxes = container.querySelectorAll('.dd-box');
+    const img = container.querySelector('#ddSurfImg');
+    
+    if (!img || boxes.length < 2) {
+      return false;
+    }
+    
+    // Check if already initialized for this specific container
+    if (container.dataset.dragDropInitialized === 'true') {
+      return true;
+    }
+    
+    console.log('🎯 Initializing drag and drop...');
+    
+    // Mark this container as initialized
+    container.dataset.dragDropInitialized = 'true';
+    
+    // Ensure image is draggable
+    img.draggable = true;
+    
+    // Store dragged element reference
+    let draggedElement = null;
+    
+    // Drag start
+    img.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', this.id);
+      e.dataTransfer.effectAllowed = 'move';
+      this.style.opacity = '0.5';
+      draggedElement = this;
+    });
+    
+    // Drag end
+    img.addEventListener('dragend', function(e) {
+      this.style.opacity = '1';
+      // Remove hover classes from all boxes in this container
+      container.querySelectorAll('.dd-box').forEach(box => box.classList.remove('dd-hover'));
+      draggedElement = null;
+    });
+    
+    // Set up drop zones
+    boxes.forEach(function(box, index) {
+      box.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        this.classList.add('dd-hover');
+      });
+      
+      box.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        this.classList.add('dd-hover');
+      });
+      
+      box.addEventListener('dragleave', function(e) {
+        // Check if we're really leaving the box
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX;
+        const y = e.clientY;
+        
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+          this.classList.remove('dd-hover');
+        }
+      });
+      
+      box.addEventListener('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        this.classList.remove('dd-hover');
+        
+        if (!draggedElement) {
+          return;
+        }
+        
+        // Don't do anything if dropping on the same box
+        if (this === draggedElement.parentNode) {
+          return;
+        }
+        
+        // Get the old parent before moving
+        const oldParent = draggedElement.parentNode;
+        
+        // Remove placeholder from target box if it exists
+        const targetPlaceholder = this.querySelector('.dd-placeholder');
+        if (targetPlaceholder) {
+          targetPlaceholder.remove();
+        }
+        
+        // Move the image to the new box
+        this.appendChild(draggedElement);
+        
+        // Add placeholder to the old box if it's now empty
+        if (oldParent && oldParent.classList.contains('dd-box')) {
+          const remainingImg = oldParent.querySelector('.dd-img');
+          if (!remainingImg) {
+            const placeholder = document.createElement('span');
+            placeholder.className = 'dd-placeholder';
+            placeholder.textContent = 'Drop here';
+            oldParent.appendChild(placeholder);
+          }
+        }
+      });
+    });
+    
+    console.log('✅ Drag and drop initialized successfully!');
+    return true;
+  }
+  
+  // Register with global demo manager if available
+  if (window.DemoManager && window.DemoManager.register) {
+    window.DemoManager.register('dragDrop', initDragDrop);
+  }
+  
+  // Fallback initialization for immediate execution
+  const attempts = [0, 100, 300, 500, 1000];
+  attempts.forEach(function(delay) {
+    setTimeout(initDragDrop, delay);
+  });
+  
 })();`
 },
 
@@ -10347,1212 +11759,6 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Tab Management"
     },
-    {
-        section: ["Learning", "Website Design"],
-        program: {
-            name: "Website Design",
-            image: window.PROGRAM_ICONS["Website Design"]
-        },
-        title: "Interactive Flexbox Playground",
-        description: "Master CSS Flexbox with this interactive learning tool. Experiment with flex-direction, flex-wrap, justify-content, align-items, and gap properties in real-time. Features live preview, code generation, mobile-responsive design, and dynamic container expansion based on gap settings. Perfect for learning and understanding Flexbox layout behavior.",
-        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/669286bb3f67549cc5ce7fb6edb61de7e86c4587/Thumbnails/cssflex.png",
-        link: "flexbox.html",
-        topic: "CSS Flex Properties",
-        related: {
-            text: "Try the Interactive Tool",
-            url: "flexbox.html"
-        },
-        demoHtml: `<div class="flexbox-demo-container">
-  <iframe src="flexbox.html" 
-          class="flexbox-iframe" 
-          title="Interactive Flexbox Playground"
-          frameborder="0">
-    Your browser does not support iframes. Please use a modern browser to view this interactive tool.
-  </iframe>
-  <div class="flexbox-links">
-    <a href="flexbox.html" target="_blank" class="launch-btn">🚀 Launch Full Tool</a>
-    <a href="#" onclick="document.querySelector('.flexbox-iframe').src = document.querySelector('.flexbox-iframe').src" class="refresh-btn">🔄 Refresh Preview</a>
-  </div>
-</div>`,
-        demoCss: `.flexbox-demo-container {
-  width: 100%;
-  max-width: 900px;
-  margin: 15px auto;
-  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
-  border-radius: 8px;
-  padding: 15px;
-  box-shadow: 0 6px 18px rgba(11, 79, 108, 0.15);
-  border: 2px solid rgba(0, 255, 166, 0.3);
-}
-
-.flexbox-iframe {
-  width: 100%;
-  height: 550px;
-  border: 2px solid #0b4f6c;
-  border-radius: 6px;
-  background: white;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-}
-
-.flexbox-iframe:hover {
-  border-color: #00ffa6;
-  box-shadow: 0 6px 20px rgba(0, 255, 166, 0.3);
-}
-
-.flexbox-links {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-
-.launch-btn, .refresh-btn {
-  padding: 12px 24px;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  display: inline-block;
-  font-size: 0.9rem;
-}
-
-.launch-btn {
-  background: linear-gradient(135deg, #0b4f6c, #00ffa6);
-  color: white;
-  border: none;
-  cursor: pointer;
-}
-
-.launch-btn:hover {
-  background: linear-gradient(135deg, #00ffa6, #0b4f6c);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 255, 166, 0.4);
-}
-
-.refresh-btn {
-  background: rgba(255, 255, 255, 0.9);
-  color: #0b4f6c;
-  border: 2px solid #0b4f6c;
-  cursor: pointer;
-}
-
-.refresh-btn:hover {
-  background: #0b4f6c;
-  color: white;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.3);
-}
-
-@media (max-width: 768px) {
-  .flexbox-demo-container {
-    padding: 12px;
-    margin: 10px auto;
-    max-width: 95%;
-  }
-  
-  .flexbox-iframe {
-    height: 400px;
-  }
-  
-  .launch-btn, .refresh-btn {
-    padding: 8px 16px;
-    font-size: 0.75rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .flexbox-demo-container {
-    padding: 10px;
-    margin: 8px auto;
-  }
-  
-  .flexbox-iframe {
-    height: 350px;
-  }
-  
-  .flexbox-links {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .launch-btn, .refresh-btn {
-    padding: 10px;
-    font-size: 0.7rem;
-    text-align: center;
-  }
-}`,
-        content: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Interactive Flexbox Playground - Career Solutions</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #0b4f6c, #1a5f7a);
-      color: white;
-      min-height: 100vh;
-      line-height: 1.6;
-    }
-
-    .header {
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(15px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 10px 0;
-      text-align: center;
-      margin-bottom: 10px;
-    }
-
-    .header h1 {
-      font-size: 2.5rem;
-      margin-bottom: 10px;
-      color: #00ffa6;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    }
-
-    .header p {
-      font-size: 1.1rem;
-      color: rgba(255, 255, 255, 0.9);
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 15px;
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-      min-height: 600px;
-    }
-
-    .sidebar {
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(15px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 12px;
-      padding: 15px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      height: fit-content;
-      width: 100%;
-      max-width: none;
-    }
-
-    .sidebar-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 15px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .badge {
-      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
-      padding: 2px 6px;
-      border-radius: 12px;
-      font-size: 0.6rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .control-group {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      padding: 6px;
-      margin-bottom: 6px;
-      min-width: 0;
-      overflow: hidden;
-    }
-
-    .control-group h3 {
-      font-size: 0.8rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 6px;
-      color: #00ffa6;
-    }
-
-    .options-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3px;
-    }
-
-    .opt-btn {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-      padding: 2px 3px;
-      font-size: 0.5rem;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.8);
-      cursor: pointer;
-      transition: all 0.3s ease;
-      white-space: nowrap;
-      text-align: center;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .opt-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: #0b4f6c;
-      color: white;
-      transform: translateY(-1px);
-    }
-
-    .opt-btn.active {
-      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
-      border-color: #00ffa6;
-      color: white;
-      box-shadow: 0 4px 15px rgba(0, 255, 166, 0.3);
-      transform: translateY(-2px);
-    }
-
-    .copy-btn {
-      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
-      color: white;
-      border: none;
-      padding: 4px 6px;
-      border-radius: 3px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.3s ease;
-      width: 100%;
-      font-size: 0.55rem;
-    }
-
-    .copy-btn:hover {
-      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 255, 166, 0.4);
-    }
-
-    .copy-btn:active {
-      transform: translateY(0);
-      box-shadow: 0 4px 10px rgba(0, 255, 166, 0.2);
-    }
-
-    .button-group {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 4px;
-    }
-
-    .button-group.single {
-      grid-template-columns: 1fr;
-    }
-
-    .button-group.triple {
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    .button-group.quad {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .options-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3px;
-    }
-
-    .main {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    /* Control panel layout adjustments for wider display */
-    .sidebar .control-groups-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
-      margin-top: 15px;
-      width: 100%;
-      max-width: 100%;
-      overflow: hidden;
-    }
-
-    .preview-wrap {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      min-height: 400px;
-    }
-
-    .preview-header {
-      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
-      padding: 12px 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: 600;
-    }
-
-    .preview-header h2 {
-      margin: 0;
-      font-size: 1.1rem;
-    }
-
-    .preview-header small {
-      background: rgba(255, 255, 255, 0.2);
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-    }
-
-    .size-controls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.8rem;
-    }
-
-    .size-controls label {
-      font-weight: 600;
-      white-space: nowrap;
-    }
-
-    .size-slider {
-      width: 80px;
-      height: 4px;
-      border-radius: 2px;
-      background: rgba(255, 255, 255, 0.3);
-      outline: none;
-      cursor: pointer;
-    }
-
-    .size-slider::-webkit-slider-thumb {
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #00ffa6;
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    }
-
-    .size-slider::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: #00ffa6;
-      cursor: pointer;
-      border: none;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    }
-
-    .size-controls span {
-      font-weight: 600;
-      min-width: 50px;
-      background: rgba(255, 255, 255, 0.2);
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-    }
-
-    .preview-content {
-      padding: 20px;
-      min-height: 500px;
-      height: 500px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Hide all scrollbars completely */
-    * {
-      scrollbar-width: none; /* Firefox */
-      -ms-overflow-style: none; /* Internet Explorer 10+ */
-    }
-
-    *::-webkit-scrollbar {
-      display: none; /* WebKit browsers (Chrome, Safari, Edge) */
-    }
-
-    html, body {
-      overflow-x: hidden;
-    }
-
-    .flex-demo {
-      display: flex;
-      background: rgba(255, 255, 255, 0.1);
-      border: 2px solid rgba(0, 255, 166, 0.3);
-      border-radius: 16px;
-      padding: 20px;
-      min-width: 200px;
-      min-height: 100px;
-      width: 600px;
-      height: 400px;
-      transition: all 0.2s ease;
-      position: relative;
-      overflow: auto;
-    }
-
-    .flex-demo:hover {
-      border-color: rgba(0, 255, 166, 0.6);
-    }
-
-    /* Resize handles */
-    .resize-handle {
-      position: absolute;
-      background: rgba(0, 255, 166, 0.8);
-      border: 2px solid rgba(0, 255, 166, 1);
-      border-radius: 4px;
-      opacity: 0.8;
-      transition: all 0.3s ease;
-      z-index: 10;
-      user-select: none;
-      pointer-events: auto;
-      box-shadow: 0 2px 8px rgba(0, 255, 166, 0.5);
-    }
-
-    .flex-demo:hover .resize-handle {
-      opacity: 1;
-      box-shadow: 0 4px 12px rgba(0, 255, 166, 0.7);
-    }
-
-    .resize-handle:hover {
-      opacity: 1 !important;
-      background: rgba(0, 255, 128, 1);
-      border-color: #00ff80;
-      transform: scale(1.2);
-      box-shadow: 0 6px 16px rgba(0, 255, 166, 0.8);
-    }
-
-    .flex-demo.resizing .resize-handle {
-      opacity: 1;
-      pointer-events: none;
-    }
-
-    .flex-demo.resizing .resize-handle.active {
-      pointer-events: auto;
-      background: #00ff80;
-      transform: scale(1.2);
-    }
-
-    /* Corner handles */
-    .resize-handle.nw,
-    .resize-handle.ne,
-    .resize-handle.sw,
-    .resize-handle.se {
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid rgba(255, 255, 255, 0.9);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    }
-
-    .resize-handle.nw {
-      top: -8px;
-      left: -8px;
-      cursor: nw-resize;
-    }
-
-    .resize-handle.ne {
-      top: -8px;
-      right: -8px;
-      cursor: ne-resize;
-    }
-
-    .resize-handle.sw {
-      bottom: -8px;
-      left: -8px;
-      cursor: sw-resize;
-    }
-
-    .resize-handle.se {
-      bottom: -8px;
-      right: -8px;
-      cursor: se-resize;
-    }
-
-    /* Edge handles */
-    .resize-handle.n,
-    .resize-handle.s {
-      left: 50%;
-      transform: translateX(-50%);
-      width: 40px;
-      height: 6px;
-      border-radius: 3px;
-      cursor: n-resize;
-    }
-
-    .resize-handle.e,
-    .resize-handle.w {
-      top: 50%;
-      transform: translateY(-50%);
-      width: 6px;
-      height: 40px;
-      border-radius: 3px;
-      cursor: e-resize;
-    }
-
-    .resize-handle.n {
-      top: -3px;
-    }
-
-    .resize-handle.s {
-      bottom: -3px;
-      cursor: s-resize;
-    }
-
-    .resize-handle.e {
-      right: -3px;
-    }
-
-    .resize-handle.w {
-      left: -3px;
-      cursor: w-resize;
-    }
-
-    .flex-item {
-      background: linear-gradient(135deg, #00ffa6, #0b4f6c);
-      border-radius: 8px;
-      min-width: 50px;
-      min-height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 700;
-      font-size: 0.9rem;
-      box-shadow: 0 2px 8px rgba(0, 255, 166, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      transition: all 0.3s ease;
-    }
-
-    .flex-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0, 255, 166, 0.6);
-    }
-
-    .code-panel {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
-      padding: 10px 12px;
-      font-family: 'Courier New', Monaco, monospace;
-      font-size: 0.7rem;
-      color: rgba(255, 255, 255, 0.8);
-      min-height: 120px;
-      white-space: pre;
-      line-height: 1.4;
-      position: relative;
-      max-width: 100%;
-      overflow-x: auto;
-    }
-
-    .code-panel::before {
-      content: "CSS Code";
-      position: absolute;
-      top: -1px;
-      right: 15px;
-      background: linear-gradient(135deg, #0b4f6c, #00ffa6);
-      color: white;
-      font-size: 0.7rem;
-      font-weight: 700;
-      padding: 4px 12px;
-      border-radius: 0 0 8px 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .code-panel .highlight {
-      color: #00ffa6;
-      font-weight: 600;
-    }
-
-    /* Mobile Responsive */
-    @media (max-width: 960px) {
-      .header h1 {
-        font-size: 2rem;
-      }
-
-      .container {
-        grid-template-columns: 1fr;
-        gap: 20px;
-        padding: 0 15px;
-      }
-
-      .sidebar {
-        position: static;
-        padding: 20px;
-        width: 100%;
-        max-width: 500px;
-      }
-
-      .control-groups-container {
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 10px;
-      }
-
-      .sidebar-title {
-        font-size: 1.1rem;
-        margin-bottom: 20px;
-      }
-
-      .control-group {
-        padding: 15px;
-        margin-bottom: 20px;
-      }
-
-      .opt-btn {
-        padding: 10px 14px;
-        font-size: 0.75rem;
-      }
-
-      .preview-content {
-        padding: 20px;
-      }
-
-      .flex-demo {
-        min-width: 250px;
-        padding: 15px;
-      }
-
-      .size-controls {
-        flex-wrap: wrap;
-        gap: 8px;
-        font-size: 0.7rem;
-      }
-
-      .size-slider {
-        width: 60px;
-      }
-
-      .flex-item {
-        min-width: 45px;
-        min-height: 35px;
-        font-size: 0.8rem;
-      }
-    }
-
-    @media (max-width: 400px) {
-      .header {
-        padding: 20px 0;
-      }
-
-      .header h1 {
-        font-size: 1.8rem;
-      }
-
-      .container {
-        padding: 0 10px;
-        gap: 15px;
-      }
-
-      .sidebar {
-        padding: 15px;
-      }
-
-      .control-group {
-        padding: 10px;
-        margin-bottom: 12px;
-      }
-
-      .opt-btn {
-        padding: 5px 8px;
-        font-size: 0.7rem;
-      }
-
-      .preview-content {
-        padding: 12px;
-        min-height: 400px;
-        height: 400px;
-      }
-
-      .code-panel {
-        padding: 12px 15px;
-        font-size: 0.8rem;
-      }
-
-      /* Mobile resize handles - larger for touch */
-      .resize-handle.nw,
-      .resize-handle.ne,
-      .resize-handle.sw,
-      .resize-handle.se {
-        width: 20px;
-        height: 20px;
-      }
-
-      .resize-handle.nw {
-        top: -10px;
-        left: -10px;
-      }
-
-      .resize-handle.ne {
-        top: -10px;
-        right: -10px;
-      }
-
-      .resize-handle.sw {
-        bottom: -10px;
-        left: -10px;
-      }
-
-      .resize-handle.se {
-        bottom: -10px;
-        right: -10px;
-      }
-
-      .resize-handle.n,
-      .resize-handle.s {
-        width: 60px;
-        height: 8px;
-      }
-
-      .resize-handle.e,
-      .resize-handle.w {
-        width: 8px;
-        height: 60px;
-      }
-
-      .resize-handle.n {
-        top: -4px;
-      }
-
-      .resize-handle.s {
-        bottom: -4px;
-      }
-
-      .resize-handle.e {
-        right: -4px;
-      }
-
-      .resize-handle.w {
-        left: -4px;
-      }
-
-      /* Always show resize handles on mobile */
-      .resize-handle {
-        opacity: 0.9;
-      }
-
-      .flex-demo:hover .resize-handle {
-        opacity: 1;
-      }
-
-      .control-groups-container {
-        grid-template-columns: 1fr;
-        gap: 8px;
-      }
-    }
-  </style>
-</head>
-<body>
-  <header class="header">
-    <h2>Flexbox Playground</h2>
-   
-  </header>
-
-  <div class="container">
-    <div class="sidebar">
-      <div class="sidebar-title">
-        Control Panel
-        <span class="badge">Interactive</span>
-      </div>
-
-      <div class="control-groups-container">
-      <!-- Direction & Wrap -->
-      <div class="control-group">
-        <h3>Flex Direction</h3>
-        <div class="button-group quad">
-         <button class="opt-btn active" data-property="flex-direction" data-value="row">row</button>
-          <button class="opt-btn" data-property="flex-direction" data-value="row-reverse">row-reverse</button>
-          <button class="opt-btn" data-property="flex-direction" data-value="column">column</button>
-          <button class="opt-btn" data-property="flex-direction" data-value="column-reverse">column-reverse</button>
-        </div>
-        <h3 style="margin-top: 8px;">Flex Wrap</h3>
-        <div class="button-group triple">
-          <button class="opt-btn active" data-property="flex-wrap" data-value="nowrap">none</button>
-          <button class="opt-btn" data-property="flex-wrap" data-value="wrap">wrap</button>
-          <button class="opt-btn" data-property="flex-wrap" data-value="wrap-reverse">reverse</button>
-        </div>
-      </div>
-
-      <!-- Justify Content -->
-      <div class="control-group">
-        <h3>Justify Content</h3>
-        <div class="options-grid">
-          <button class="opt-btn active" data-property="justify-content" data-value="flex-start">start</button>
-          <button class="opt-btn" data-property="justify-content" data-value="center">center</button>
-          <button class="opt-btn" data-property="justify-content" data-value="flex-end">end</button>
-          <button class="opt-btn" data-property="justify-content" data-value="space-between">between</button>
-          <button class="opt-btn" data-property="justify-content" data-value="space-around">around</button>
-          <button class="opt-btn" data-property="justify-content" data-value="space-evenly">evenly</button>
-        </div>
-      </div>
-
-      <!-- Align Items -->
-      <div class="control-group">
-        <h3>Align Items</h3>
-        <div class="options-grid">
-          <button class="opt-btn active" data-property="align-items" data-value="stretch">stretch</button>
-          <button class="opt-btn" data-property="align-items" data-value="flex-start">start</button>
-          <button class="opt-btn" data-property="align-items" data-value="center">center</button>
-          <button class="opt-btn" data-property="align-items" data-value="flex-end">end</button>
-          <button class="opt-btn" data-property="align-items" data-value="baseline">base</button>
-        </div>
-      </div>
-
-      <!-- Gap & Actions -->
-      <div class="control-group">
-        <h3>Gap</h3>
-        <div class="button-group quad">
-          <button class="opt-btn active" data-property="gap" data-value="0px">0</button>
-          <button class="opt-btn" data-property="gap" data-value="10px">10</button>
-          <button class="opt-btn" data-property="gap" data-value="20px">20</button>
-          <button class="opt-btn" data-property="gap" data-value="30px">30</button>
-        </div>
-        <div class="button-group single" style="margin-top: 8px;">
-          <button class="copy-btn" id="copyCSS">📋 Copy CSS</button>
-        </div>
-      </div>
-      </div>
-    </div>
-
-    <div class="main">
-      <div class="preview-wrap">
-        <div class="preview-header">
-          <h2>🎯 Live Preview</h2>
-          <div class="size-controls">
-            <label for="containerWidth">Width:</label>
-            <input type="range" id="containerWidth" min="300" max="800" value="500" class="size-slider">
-            <span id="widthValue">500px</span>
-            <label for="containerHeight">Height:</label>
-            <input type="range" id="containerHeight" min="200" max="600" value="350" class="size-slider">
-            <span id="heightValue">350px</span>
-          </div>
-        </div>
-        <div class="preview-content">
-          <div class="flex-demo" id="flexDemo">
-            <!-- Resize handles -->
-            <div class="resize-handle nw"></div>
-            <div class="resize-handle n"></div>
-            <div class="resize-handle ne"></div>
-            <div class="resize-handle e"></div>
-            <div class="resize-handle se"></div>
-            <div class="resize-handle s"></div>
-            <div class="resize-handle sw"></div>
-            <div class="resize-handle w"></div>
-            
-            <!-- Flex items -->
-            <div class="flex-item">1</div>
-            <div class="flex-item">2</div>
-            <div class="flex-item">3</div>
-            <div class="flex-item">4</div>
-            <div class="flex-item">5</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="code-panel" id="codePanel"></div>
-    </div>
-  </div>
-
-  <script>
-    // State object to track current flex properties
-    const flexState = {
-      'flex-direction': 'row',
-      'flex-wrap': 'nowrap',
-      'justify-content': 'flex-start',
-      'align-items': 'stretch',
-      'gap': '0px'
-    };
-
-    const flexDemo = document.getElementById('flexDemo');
-    const codePanel = document.getElementById('codePanel');
-    const previewContent = document.querySelector('.preview-content');
-    const widthSlider = document.getElementById('containerWidth');
-    const heightSlider = document.getElementById('containerHeight');
-    const widthValue = document.getElementById('widthValue');
-    const heightValue = document.getElementById('heightValue');
-
-    // Function to update the flex demo and code panel
-    function updateFlexDemo() {
-      // Use requestAnimationFrame for smooth updates
-      requestAnimationFrame(() => {
-        // Apply styles to the demo
-        Object.keys(flexState).forEach(property => {
-          const camelCaseProperty = property.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
-          flexDemo.style[camelCaseProperty] = flexState[property];
-        });
-
-        // Adjust container padding based on gap (don't change size during resize)
-        if (!isResizing) {
-          const gapValue = parseInt(flexState.gap);
-          if (gapValue > 20) {
-            flexDemo.style.padding = '30px';
-          } else if (gapValue > 0) {
-            flexDemo.style.padding = '25px';
-          } else {
-            flexDemo.style.padding = '20px';
-          }
-        }
-
-        // Update code panel
-        updateCodePanel();
-      });
-    }
-
-    function updateCodePanel() {
-      const code = \`<div class="flex-demo">
-  <div class="flex-item">1</div>
-  <div class="flex-item">2</div>
-  <div class="flex-item">3</div>
-  <div class="flex-item">4</div>
-  <div class="flex-item">5</div>
-</div>
-
-/* CSS */
-.flex-demo {
-  display: flex;
-  flex-direction: \${flexState['flex-direction']};
-  flex-wrap: \${flexState['flex-wrap']};
-  justify-content: \${flexState['justify-content']};
-  align-items: \${flexState['align-items']};
-  gap: \${flexState.gap};
-}\`;
-
-      codePanel.textContent = code;
-    }
-
-    // Event listener for all option buttons
-    document.addEventListener('click', function(e) {
-      // Ignore clicks during resize
-      if (isResizing) return;
-      
-      if (e.target.classList.contains('opt-btn')) {
-        const property = e.target.getAttribute('data-property');
-        const value = e.target.getAttribute('data-value');
-        
-        // Remove active class from siblings
-        const siblings = e.target.parentNode.querySelectorAll('.opt-btn');
-        siblings.forEach(btn => btn.classList.remove('active'));
-        
-        // Add active class to clicked button
-        e.target.classList.add('active');
-        
-        // Update state
-        flexState[property] = value;
-        
-        // Update demo
-        updateFlexDemo();
-      }
-    });
-
-    // Resize functionality
-    function updatePreviewSize() {
-      const width = widthSlider.value;
-      const height = heightSlider.value;
-      
-      previewContent.style.minHeight = height + 'px';
-      flexDemo.style.maxWidth = width + 'px';
-      
-      widthValue.textContent = width + 'px';
-      heightValue.textContent = height + 'px';
-    }
-
-    // Add event listeners for sliders
-    widthSlider.addEventListener('input', updatePreviewSize);
-    heightSlider.addEventListener('input', updatePreviewSize);
-
-    // Resize functionality
-    let isResizing = false;
-    let resizeHandle = null;
-    let startX, startY, startWidth, startHeight;
-    let animationFrame = null;
-
-    function initResize(e) {
-      if (!e.target.classList.contains('resize-handle')) return;
-      
-      isResizing = true;
-      resizeHandle = e.target;
-      resizeHandle.classList.add('active');
-      
-      // Handle both mouse and touch events
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      
-      startX = clientX;
-      startY = clientY;
-      startWidth = flexDemo.offsetWidth;
-      startHeight = flexDemo.offsetHeight;
-      
-      flexDemo.classList.add('resizing');
-      document.body.style.cursor = getComputedStyle(resizeHandle).cursor;
-      document.body.style.userSelect = 'none';
-      
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    function doResize(e) {
-      if (!isResizing) return;
-      
-      // Cancel previous animation frame
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-      }
-      
-      // Use requestAnimationFrame for smooth performance
-      animationFrame = requestAnimationFrame(() => {
-        // Handle both mouse and touch events
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        
-        const deltaX = clientX - startX;
-        const deltaY = clientY - startY;
-        
-        const handleClass = resizeHandle.classList[1];
-        let newWidth = startWidth;
-        let newHeight = startHeight;
-        
-        // Handle different resize directions
-        switch(handleClass) {
-          case 'se':
-            newWidth = startWidth + deltaX;
-            newHeight = startHeight + deltaY;
-            break;
-          case 'sw':
-            newWidth = startWidth - deltaX;
-            newHeight = startHeight + deltaY;
-            break;
-          case 'ne':
-            newWidth = startWidth + deltaX;
-            newHeight = startHeight - deltaY;
-            break;
-          case 'nw':
-            newWidth = startWidth - deltaX;
-            newHeight = startHeight - deltaY;
-            break;
-          case 'e':
-            newWidth = startWidth + deltaX;
-            break;
-          case 'w':
-            newWidth = startWidth - deltaX;
-            break;
-          case 's':
-            newHeight = startHeight + deltaY;
-            break;
-          case 'n':
-            newHeight = startHeight - deltaY;
-            break;
-        }
-        
-        // Apply constraints with smaller minimum sizes
-        newWidth = Math.max(150, Math.min(1000, newWidth));
-        newHeight = Math.max(100, Math.min(800, newHeight));
-        
-        // Apply new dimensions
-        flexDemo.style.width = newWidth + 'px';
-        flexDemo.style.height = newHeight + 'px';
-        
-        // Update sliders efficiently
-        if (widthSlider && heightSlider) {
-          widthSlider.value = newWidth;
-          heightSlider.value = newHeight;
-          widthValue.textContent = newWidth + 'px';
-          heightValue.textContent = newHeight + 'px';
-        }
-      });
-      
-      e.preventDefault();
-    }
-
-    function stopResize() {
-      if (!isResizing) return;
-      
-      // Cancel any pending animation frame
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-        animationFrame = null;
-      }
-      
-      isResizing = false;
-      
-      if (resizeHandle) {
-        resizeHandle.classList.remove('active');
-        resizeHandle = null;
-      }
-      
-      flexDemo.classList.remove('resizing');
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-
-    // Add resize event listeners (mouse and touch)
-    document.addEventListener('mousedown', initResize);
-    document.addEventListener('mousemove', doResize);
-    document.addEventListener('mouseup', stopResize);
-    
-    // Touch events for mobile
-    document.addEventListener('touchstart', initResize, { passive: false });
-    document.addEventListener('touchmove', doResize, { passive: false });
-    document.addEventListener('touchend', stopResize);
-
-    // Copy CSS functionality
-    document.getElementById('copyCSS').addEventListener('click', function() {
-      const demo = document.querySelector('.flex-demo');
-      const styles = window.getComputedStyle(demo);
-      
-      const cssCode = \`.flex-container {
-  display: flex;
-  flex-direction: \${styles.flexDirection};
-  justify-content: \${styles.justifyContent};
-  align-items: \${styles.alignItems};
-  flex-wrap: \${styles.flexWrap};
-  gap: \${styles.gap};
-  width: \${styles.width};
-  height: \${styles.height};
-}\`;
-
-      navigator.clipboard.writeText(cssCode).then(() => {
-        const btn = this;
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '✅ Copied!';
-        btn.style.background = 'linear-gradient(135deg, #00ffa6, #0b4f6c)';
-        
-        setTimeout(() => {
-          btn.innerHTML = originalText;
-          btn.style.background = 'linear-gradient(135deg, #0b4f6c, #00ffa6)';
-        }, 2000);
-      }).catch(() => {
-        alert('Failed to copy CSS. Please try again.');
-      });
-    });
-
-    // Initialize
-    updateFlexDemo();
-    updatePreviewSize();
-    
-    // Add console logging for debugging
-    console.log('Flexbox Playground loaded successfully');
-    console.log('Initial state:', flexState);
-  </script>
-</body>
-</html>`
-    }
 
 
 
