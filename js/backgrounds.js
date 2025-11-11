@@ -12,6 +12,8 @@ const backgrounds = {
    "excel-formula-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec2ffee7887702cb5719b520d546c2c6bd83e04e/photos/ConsultationBackground.jpg')",
    "web-app-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/41cede1bbab736bc9a21d6d6f09ee24c2aa5b992/photos/Webapplicationbackground.jpg')",
    "training-simulation-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/f4af61c96107eb2549bd4de33b785e7529d9c414/photos/trainingsimbackground.jpg')",
+  "programs-section": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/56255a4cdaacd8b70af72e02d858a47eebc1ae4c/photos/Programs%20Background.jpg')",
+  "contact-form.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5e9eb7a16dc2cc764da8abd3803ad65b2d3df509/photos/Contact%20Me%20Background.jpg')",
     // Add more as needed
 };
 
