@@ -99,7 +99,8 @@ if (!empty($errors)) {
 }
 
 // Prepare email
-$to = 'your-email@careersolutionsfortoday.com'; // Replace with your email
+// TIP: Set CONTACT_TO in your server env to avoid hardcoding; falls back to placeholder.
+$to = getenv('CONTACT_TO') ?: 'stevenk@careersolutionsfortoday.com'; // TODO: replace with your real inbox
 $subject = 'New Contact Form Submission - ' . $data['serviceType'];
 
 $email_body = "New contact form submission:\n\n";
