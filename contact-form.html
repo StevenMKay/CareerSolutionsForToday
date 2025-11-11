@@ -381,13 +381,30 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             })
-            .then(r => r.json())
-            .then(data => {
-                if (data && data.success) {
+            .then(async (r) => {
+                const ct = r.headers.get('content-type') || '';
+                const text = await r.text();
+                let data = null;
+                try { if (ct.includes('application/json')) data = JSON.parse(text); } catch(_) {}
+                return { ok: r.ok, status: r.status, data, text };
+            })
+            .then(({ ok, status, data, text }) => {
+                if (ok && data && data.success) {
                     document.getElementById('successMessage').style.display = 'block';
                     document.getElementById('contactForm').style.display = 'none';
                 } else {
-                    const msg = (data && (data.error || (data.errors && data.errors.join(', ')))) || 'There was an error sending your message. Please try again.';
+                    // Helpful diagnostics for static servers (PHP not executing) or method errors
+                    let msg = 'There was an error sending your message. ';
+                    if (status === 405) {
+                        msg += '\nReason: Server returned 405 (Method Not Allowed). This usually means PHP is not executing on this host.';
+                    }
+                    if (!data) {
+                        msg += '\nThe server did not return JSON. It likely returned HTML (e.g., an error page).\nFirst 120 chars: ' + (text || '').slice(0, 120);
+                    } else if (data.errors) {
+                        msg += data.errors.join(', ');
+                    } else if (data.error) {
+                        msg += data.error;
+                    }
                     alert(msg);
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Send Message';
@@ -413,7 +430,7 @@
                 }
             });
         });
-     </script>
+     </script>22
      <script src="js/backgrounds.js"></script>
 </body>
 </html>
