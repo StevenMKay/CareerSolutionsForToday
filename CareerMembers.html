@@ -292,12 +292,104 @@
             overflow: hidden;
             background: #f1f5f9;
             border: 1px solid rgba(148, 163, 184, 0.3);
+            position: relative;
         }
 
         .resource-thumb img {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transition: transform 0.25s ease;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .resource-card:hover .resource-thumb img {
+                transform: scale(1.07);
+            }
+        }
+
+        .resource-preview {
+            position: fixed;
+            right: 28px;
+            bottom: 28px;
+            width: min(420px, 90vw);
+            max-height: 80vh;
+            background: rgba(15, 23, 42, 0.96);
+            color: #f8fafc;
+            padding: 18px;
+            border-radius: 24px;
+            box-shadow: 0 25px 60px rgba(15, 23, 42, 0.45);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(12px) scale(0.96);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            z-index: 999;
+        }
+
+        .resource-preview.is-visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0) scale(1);
+        }
+
+        .resource-preview-thumb {
+            width: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            margin-bottom: 14px;
+        }
+
+        .resource-preview-thumb img {
+            width: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        .resource-preview-title {
+            margin: 0 0 6px;
+            font-size: 1.1rem;
+        }
+
+        .resource-preview-desc {
+            margin: 0 0 12px;
+            font-size: 0.9rem;
+            color: rgba(248, 250, 252, 0.85);
+        }
+
+        .resource-preview-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+            color: #0f172a;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .resource-preview-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            border: none;
+            background: rgba(15, 23, 42, 0.6);
+            color: #f8fafc;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 720px) {
+            .resource-preview {
+                left: 16px;
+                right: 16px;
+                bottom: 16px;
+                width: auto;
+            }
         }
 
         .resource-card.theme-excel {
@@ -436,6 +528,16 @@
 
         <div class="resource-grid" id="resourceList" data-empty-message="Nothing matches yet. Ping me and I’ll add it."></div>
 
+        <div class="resource-preview" id="resourcePreview" aria-hidden="true">
+            <button type="button" class="resource-preview-close" aria-label="Close preview">×</button>
+            <div class="resource-preview-thumb">
+                <img src="" alt="Resource preview" id="resourcePreviewImage">
+            </div>
+            <h4 class="resource-preview-title" id="resourcePreviewTitle"></h4>
+            <p class="resource-preview-desc" id="resourcePreviewDesc"></p>
+            <a class="resource-preview-link" id="resourcePreviewLink" href="#" target="_blank" rel="noopener">Open Resource</a>
+        </div>
+
         <p class="members-note">Need a private link added? Reply to your onboarding email and it will land here.</p>
     </main>
 
@@ -571,6 +673,14 @@
             var searchInput = document.getElementById('resourceSearch');
             var countEl = document.getElementById('resourceCount');
             var resetButton = document.getElementById('resourceResetButton');
+            var previewEl = document.getElementById('resourcePreview');
+            var previewImg = document.getElementById('resourcePreviewImage');
+            var previewTitle = document.getElementById('resourcePreviewTitle');
+            var previewDesc = document.getElementById('resourcePreviewDesc');
+            var previewLink = document.getElementById('resourcePreviewLink');
+            var previewClose = previewEl ? previewEl.querySelector('.resource-preview-close') : null;
+            var previewHideTimer = null;
+            var touchMatcher = window.matchMedia('(hover: none)');
             if (!listEl || !searchInput || !countEl) {
                 return;
             }
@@ -618,6 +728,11 @@
 
                 var thumb = document.createElement('div');
                 thumb.className = 'resource-thumb';
+                thumb.dataset.previewSrc = resource.thumbnail || '';
+                thumb.dataset.previewTitle = resource.title || '';
+                thumb.dataset.previewDesc = resource.description || '';
+                thumb.dataset.previewLink = resource.link || '#';
+                thumb.dataset.previewLabel = resource.linkLabel || 'Open Resource';
                 var img = document.createElement('img');
                 img.src = resource.thumbnail;
                 img.alt = resource.title + ' preview';
@@ -636,6 +751,82 @@
                 card.appendChild(link);
 
                 return card;
+            }
+
+            function showPreviewFromThumb(thumb) {
+                if (!previewEl || !thumb) return;
+                clearTimeout(previewHideTimer);
+                var thumbImg = thumb.querySelector('img');
+                var src = thumb.dataset.previewSrc || (thumbImg ? thumbImg.src : '');
+                var title = thumb.dataset.previewTitle || '';
+                var desc = thumb.dataset.previewDesc || '';
+                var link = thumb.dataset.previewLink || '#';
+                var label = thumb.dataset.previewLabel || 'Open Resource';
+
+                if (previewImg) {
+                    previewImg.src = src;
+                    previewImg.alt = title + ' preview';
+                }
+                if (previewTitle) {
+                    previewTitle.textContent = title;
+                }
+                if (previewDesc) {
+                    previewDesc.textContent = desc;
+                }
+                if (previewLink) {
+                    previewLink.href = link;
+                    previewLink.textContent = label;
+                }
+
+                previewEl.classList.add('is-visible');
+                previewEl.setAttribute('aria-hidden', 'false');
+            }
+
+            function hidePreview(delay) {
+                if (!previewEl) return;
+                clearTimeout(previewHideTimer);
+                var handler = function(){
+                    previewEl.classList.remove('is-visible');
+                    previewEl.setAttribute('aria-hidden', 'true');
+                };
+                if (delay) {
+                    previewHideTimer = setTimeout(handler, delay);
+                } else {
+                    handler();
+                }
+            }
+
+            function wireThumbnailPreview() {
+                var thumbs = listEl.querySelectorAll('.resource-thumb');
+                thumbs.forEach(function(thumb){
+                    if (thumb.dataset.previewBound === 'true') return;
+                    thumb.dataset.previewBound = 'true';
+
+                    thumb.addEventListener('mouseenter', function(){
+                        if (!touchMatcher.matches) {
+                            showPreviewFromThumb(thumb);
+                        }
+                    });
+
+                    thumb.addEventListener('mouseleave', function(){
+                        if (!touchMatcher.matches) {
+                            hidePreview(200);
+                        }
+                    });
+
+                    thumb.addEventListener('click', function(evt){
+                        if (touchMatcher.matches) {
+                            evt.preventDefault();
+                            var thumbImg = thumb.querySelector('img');
+                            var targetSrc = thumb.dataset.previewSrc || (thumbImg ? thumbImg.src : '');
+                            if (previewEl.classList.contains('is-visible') && previewImg && previewImg.src === targetSrc) {
+                                hidePreview();
+                            } else {
+                                showPreviewFromThumb(thumb);
+                            }
+                        }
+                    });
+                });
             }
 
             function matches(resource, needle) {
@@ -708,7 +899,38 @@
                     groupEl.appendChild(cards);
                     listEl.appendChild(groupEl);
                 });
+
+                wireThumbnailPreview();
             }
+
+            if (previewClose) {
+                previewClose.addEventListener('click', function(){
+                    hidePreview();
+                });
+            }
+
+            if (previewEl) {
+                previewEl.addEventListener('mouseenter', function(){
+                    clearTimeout(previewHideTimer);
+                });
+                previewEl.addEventListener('mouseleave', function(){
+                    if (!touchMatcher.matches) {
+                        hidePreview(200);
+                    }
+                });
+            }
+
+            if (touchMatcher && typeof touchMatcher.addEventListener === 'function') {
+                touchMatcher.addEventListener('change', function(){
+                    hidePreview();
+                });
+            }
+
+            document.addEventListener('keyup', function(evt){
+                if (evt.key === 'Escape') {
+                    hidePreview();
+                }
+            });
 
             searchInput.addEventListener('input', function(){
                 render(searchInput.value);
