@@ -129,6 +129,54 @@ if (window.contentItems) {
 // 1) First declare your static items:
 window.contentItems = [
 
+
+
+
+
+
+
+
+
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a189a0427830eda9b4028f28772c848119586252/Thumbnails/BusinessTitleGirlthumb.jpg",
+https:"https://youtu.be/J3bHanNXPnc",
+ title:"Business Morph Title Slide",
+        description:"In this video we look at how to create an awesome PowerPoint title slide with a morph transition.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/a189a0427830eda9b4028f28772c848119586252/Thumbnails/BusinessTitleGirlthumb.jpg",
+       link:"https://youtu.be/J3bHanNXPnc",
+
+
+  related:
+  
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/J3bHanNXPnc"
+      
+      },
+        topic:"Professional Templates"
+    },
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 {
   section: ["Learning", "Website Design"],
   program: {
