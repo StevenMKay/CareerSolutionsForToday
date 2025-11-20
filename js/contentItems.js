@@ -131,6 +131,32 @@ window.contentItems = [
 
 
 
+{
+ section:[
+            "Learning",
+            "Videos"
+        ],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
+        },
+https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/fe548b036800365e6374ffb9bd8f829681f6d983/Thumbnails/paintthumb.png",
+https:"https://youtu.be/T1b5jIktZa8",
+ title:"Paint Brush Format and Animation",
+        description:"In this video, we cover how to create this awesome paint brush format and animation in PowerPoint.",
+        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/fe548b036800365e6374ffb9bd8f829681f6d983/Thumbnails/paintthumb.png",
+       link:"https://youtu.be/T1b5jIktZa8",
+
+
+  related:
+  
+      {
+          text:"Watch YouTube Video",
+          url:"https://youtu.be/T1b5jIktZa8"
+      
+      },
+        topic:"Paint Brush Templates"
+    },
 
 
 
