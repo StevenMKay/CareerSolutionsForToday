@@ -14,7 +14,7 @@ const backgrounds = {
   "excel-members-thank-you.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/ec2ffee7887702cb5719b520d546c2c6bd83e04e/photos/ConsultationBackground.jpg')",
    "web-app-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/41cede1bbab736bc9a21d6d6f09ee24c2aa5b992/photos/Webapplicationbackground.jpg')",
    "training-simulation-service.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/f4af61c96107eb2549bd4de33b785e7529d9c414/photos/trainingsimbackground.jpg')",
-  "careermembers.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png')",
+  "careermembers.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b08fb34ff668e91a57c25bdf3ed90590ae6e5499/photos/MemberBackground.png')",
   "programs-section": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/56255a4cdaacd8b70af72e02d858a47eebc1ae4c/photos/Programs%20Background.jpg')",
   "contact-form.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5e9eb7a16dc2cc764da8abd3803ad65b2d3df509/photos/Contact%20Me%20Background.jpg')",
     // Add more as needed
@@ -23,7 +23,14 @@ const backgrounds = {
 // Get current page name and set background
 const page = location.pathname.split('/').pop().toLowerCase();
 if (backgrounds[page]) {
-  document.body.style.backgroundImage = `linear-gradient(to right, rgba(0, 0, 0, 0.6) 20%, #7F7F7F 99%), ${backgrounds[page]}`;
+  if (page === 'careermembers.html') {
+    document.body.style.backgroundImage = `linear-gradient(135deg, rgba(2, 8, 24, 0.55), rgba(6, 32, 68, 0.55)), ${backgrounds[page]}`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundAttachment = 'fixed';
+    document.body.style.backgroundPosition = 'center';
+  } else {
+    document.body.style.backgroundImage = `linear-gradient(to right, rgba(0, 0, 0, 0.6) 20%, #7F7F7F 99%), ${backgrounds[page]}`;
+  }
 }
 
 
