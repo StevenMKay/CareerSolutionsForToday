@@ -4,6 +4,7 @@
   var upsellUrl = 'products.html';
   var modalRefs = null;
   var escHandlerAttached = false;
+  var modalFeatureEnabled = false;
 
   function ready(fn) {
     if (document.readyState === 'loading') {
@@ -20,7 +21,16 @@
     });
   }
 
+  function shouldEnableModal() {
+    if (!document.body) return false;
+    var flag = document.body.dataset.enableMemberModal;
+    if (flag === 'false') return false;
+    if (flag === 'true') return true;
+    return !!document.querySelector('[data-member-modal-trigger]');
+  }
+
   function ensureModal() {
+    if (!modalFeatureEnabled) return null;
     if (modalRefs || !document.body) return modalRefs;
     var overlay = document.createElement('div');
     overlay.className = 'member-modal-overlay';
@@ -114,6 +124,7 @@
   }
 
   function openModal() {
+    if (!modalFeatureEnabled) return;
     var refs = ensureModal();
     if (!refs) return;
     refs.overlay.classList.add('is-visible');
@@ -122,6 +133,7 @@
   }
 
   function closeModal() {
+    if (!modalFeatureEnabled) return;
     if (!modalRefs) return;
     modalRefs.overlay.classList.remove('is-visible');
     modalRefs.overlay.setAttribute('aria-hidden', 'true');
@@ -129,6 +141,7 @@
   }
 
   function updateModal(detail) {
+    if (!modalFeatureEnabled) return;
     var refs = ensureModal();
     if (!refs) return;
     var user = detail && detail.user;
@@ -237,6 +250,7 @@
   }
 
   function wireModalTriggers() {
+    if (!modalFeatureEnabled) return;
     var triggers = document.querySelectorAll('[data-member-modal-trigger]');
     triggers.forEach(function(node){
       if (node.dataset.memberModalBound === 'true') return;
@@ -251,8 +265,11 @@
   ready(function(){
     var lists = document.querySelectorAll('.nav-links');
     lists.forEach(attachControls);
+    modalFeatureEnabled = shouldEnableModal();
+    if (modalFeatureEnabled) {
+      ensureModal();
+      wireModalTriggers();
+    }
     setupAuthListeners();
-    ensureModal();
-    wireModalTriggers();
   });
 })();
