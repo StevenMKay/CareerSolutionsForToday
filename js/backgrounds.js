@@ -2,6 +2,9 @@
 const backgrounds = {
   "index.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0786e5f3335fd538557bd2f731a5447697137168/photos/videosection2.png')",
   "learn.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8e0bcb89c429b415b157553ec88792eabb3099c9/photos/LearnSectionPhoto.jpg')",
+  "css-code-library.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8e0bcb89c429b415b157553ec88792eabb3099c9/photos/LearnSectionPhoto.jpg')",
+  "html-code-library.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8e0bcb89c429b415b157553ec88792eabb3099c9/photos/LearnSectionPhoto.jpg')",
+  "web-design-code-library.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8e0bcb89c429b415b157553ec88792eabb3099c9/photos/LearnSectionPhoto.jpg')",
   "videos.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0786e5f3335fd538557bd2f731a5447697137168/photos/videosection2.png')",
   "templates.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/da19106f72f1e65b1251a02913a85dd58a98eff2/photos/ResumeSectionPhoto.jpg')",
   "resume.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/965f4340d871fd36de40d605531c2d3b3a82707d/photos/resumebackgroudn.jpg')",
