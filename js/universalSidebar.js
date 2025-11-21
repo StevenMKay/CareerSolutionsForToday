@@ -1,8 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
   let pageType = null;
   let sidebar, searchInput, resultsContainer, getAllItems, groupByProgramAndTopic, placeholderText;
+  let defaultProgram = null;
 
   const bodyDataset = document.body ? document.body.dataset : {};
+  const codeLibraryPages = new Set(['css', 'html', 'web-design']);
+  const bodyLearningPage = (bodyDataset?.learningPage || '').toLowerCase();
+  const isCodeLibraryPage = (document.body?.classList?.contains('code-library-page') || codeLibraryPages.has(bodyLearningPage));
 
   function parseSectionList(value) {
     if (!value) return [];
@@ -181,6 +185,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function isMobile() {
     return window.innerWidth <= 700;
+  }
+
+  function updateProgramTopicHash(program, topic) {
+    if (!isCodeLibraryPage || !program) return;
+    const params = new URLSearchParams();
+    params.set('program', program);
+    if (topic) params.set('topic', topic);
+    history.replaceState(null, '', `#${params.toString()}`);
+  }
+
+  function getTopicAnchorId(program, topic) {
+    if (!program || !topic) return null;
+    const safeProgram = program.replace(/\s+/g, '_');
+    const safeTopic = topic.replace(/\s+/g, '_');
+    return `topic-${safeProgram}-${safeTopic}`;
+  }
+
+  function scrollToElementById(id) {
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    const offset = window.innerWidth < 768 ? 80 : 120;
+    const top = el.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  function scrollToTopicAnchor(program, topic) {
+    const anchorId = getTopicAnchorId(program, topic);
+    scrollToElementById(anchorId);
+  }
+
+  function getLibraryScrollTarget() {
+    return document.querySelector('.code-library-shell')
+      || document.querySelector('.code-library-panel')
+      || document.querySelector('.main-content')
+      || document.getElementById('learnResults');
+  }
+
+  function scrollToLibraryPanelTop() {
+    if (!isCodeLibraryPage) return;
+    const target = getLibraryScrollTarget();
+    if (!target) return;
+    const offset = window.innerWidth < 768 ? 60 : 140;
+    const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  function highlightActiveTopic(program, topic) {
+    if (!isCodeLibraryPage) return;
+    document.querySelectorAll('.sidebar-topic').forEach(btn => {
+      const matchesProgram = btn.getAttribute('data-program') === program;
+      const matchesTopic = btn.getAttribute('data-topic') === topic;
+      btn.classList.toggle('active', matchesProgram && matchesTopic);
+    });
   }
   
   function getCurrentDifficulty() {
@@ -1078,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isMobile()) return;
     let html = '<h2>Programs</h2>';
     Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
-      const expanded = sidebarState[program]?.expanded || false;
+      const expanded = isCodeLibraryPage ? true : (sidebarState[program]?.expanded || false);
       html += `
         <div class="practice-language-btn${currentProgram === program && expanded ? ' active' : ''}" data-program="${program}">
          ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}">` : ''}
@@ -1087,8 +1145,9 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <ul class="sidebar-topics${expanded ? ' expanded' : ''}" data-program="${program}" style="display:${expanded ? 'block' : 'none'};">
           ${Object.keys(groups[program].topics).sort((a, b) => a.localeCompare(b)).map(topic => {
+            const isActiveTopic = currentProgram === program && currentTopic === topic;
             return `
-              <li class="sidebar-topic" data-program="${program}" data-topic="${topic}">
+              <li class="sidebar-topic${isActiveTopic ? ' active' : ''}" data-program="${program}" data-topic="${topic}">
                 <a href="#program=${encodeURIComponent(program)}&topic=${encodeURIComponent(topic)}">${topic}</a>
               </li>
             `;
@@ -1146,9 +1205,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper to show topics for a program
     function showTopicsFor(program) {
-      topicsRow.innerHTML = Object.keys(groups[program].topics).sort().map(topic => `
-        <button class="sidebar-topic${currentTopic === topic ? ' active' : ''}" data-program="${program}" data-topic="${topic}">${topic}</button>
-      `).join('');
+      topicsRow.innerHTML = Object.keys(groups[program].topics).sort().map(topic => {
+        const isActive = currentProgram === program && currentTopic === topic;
+        return `
+        <button class="sidebar-topic${isActive ? ' active' : ''}" data-program="${program}" data-topic="${topic}">${topic}</button>
+      `;
+      }).join('');
       // Topic click handlers
       topicsRow.querySelectorAll('.sidebar-topic').forEach(topicBtn => {
         topicBtn.addEventListener('click', function(e) {
@@ -1158,6 +1220,22 @@ document.addEventListener('DOMContentLoaded', () => {
           const topic = this.getAttribute('data-topic');
           const wasActive = this.classList.contains('active');
           
+          if (isCodeLibraryPage) {
+            topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
+            if (wasActive) {
+              currentTopic = null;
+              updateProgramTopicHash(program);
+              scrollToLibraryPanelTop();
+            } else {
+              this.classList.add('active');
+              currentProgram = program;
+              currentTopic = topic;
+              updateProgramTopicHash(program, topic);
+              scrollToTopicAnchor(program, topic);
+            }
+            return;
+          }
+
           if (wasActive) {
             // Clicking active topic - deselect it and show all program content
             topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
@@ -1188,6 +1266,19 @@ document.addEventListener('DOMContentLoaded', () => {
     programsRow.querySelectorAll('.sidebar-program').forEach(programBtn => {
       programBtn.addEventListener('click', function() {
         const program = this.getAttribute('data-program');
+
+        if (isCodeLibraryPage) {
+          currentProgram = program;
+          currentTopic = null;
+          searchInput.value = '';
+          renderProgramCards(program);
+          updateProgramTopicHash(program);
+          programsRow.querySelectorAll('.sidebar-program').forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+          showTopicsFor(program);
+          scrollToLibraryPanelTop();
+          return;
+        }
         
         // Special handling for practice page
         if (pageType === 'practice') {
@@ -1291,6 +1382,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const topicEl = e.target.closest('.sidebar-topic');
     if (progEl) {
       const program = progEl.getAttribute('data-program');
+
+      if (isCodeLibraryPage) {
+        e.preventDefault();
+        currentProgram = program;
+        currentTopic = null;
+        if (!defaultProgram) {
+          defaultProgram = program;
+        }
+        searchInput.value = '';
+        updateProgramTopicHash(program);
+        renderProgramCards(program);
+        highlightActiveTopic(null, null);
+        scrollToLibraryPanelTop();
+        return;
+      }
+
       sidebarState[program] = sidebarState[program] || { expanded: false, topics: {} };
       
       // DESKTOP TOGGLE LOGIC - Allow clicking same program to collapse and show all content
@@ -1319,6 +1426,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (topicEl) {
       const program = topicEl.getAttribute('data-program');
       const topic = topicEl.getAttribute('data-topic');
+
+      if (isCodeLibraryPage) {
+        e.preventDefault();
+        currentProgram = program;
+        currentTopic = topic;
+        searchInput.value = '';
+        updateProgramTopicHash(program, topic);
+        highlightActiveTopic(program, topic);
+        scrollToTopicAnchor(program, topic);
+        return;
+      }
+
       sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
       sidebarState[program].topics = sidebarState[program].topics || {};
       
@@ -1372,6 +1491,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // If search is empty, show all content and reset filters
     if (!filter) {
+      if (isCodeLibraryPage) {
+        const fallbackProgram = currentProgram || defaultProgram || expandedPrograms[0] || Object.keys(sidebarState)[0];
+        if (fallbackProgram) {
+          renderProgramCards(fallbackProgram);
+        } else {
+          renderAllCards(getAllItems());
+        }
+        highlightActiveTopic(currentProgram, currentTopic);
+        return;
+      }
       currentProgram = null;
       currentTopic = null;
       // Reset all sidebar states when search is cleared
@@ -1385,6 +1514,16 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       renderSidebar(groupByProgramAndTopic(getAllItems()));
       renderAllCards(getAllItems()); // Show all content when search is empty
+      return;
+    }
+    
+    if (isCodeLibraryPage) {
+      const fallbackProgram = currentProgram || defaultProgram || expandedPrograms[0] || Object.keys(sidebarState)[0];
+      if (fallbackProgram) {
+        renderProgramCards(fallbackProgram, filter);
+      } else {
+        filterAndHighlightCards(filter);
+      }
       return;
     }
     
@@ -1407,11 +1546,36 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebarState = {};
     currentProgram = null;
     currentTopic = null;
-    renderSidebar(groupByProgramAndTopic(getAllItems()));
+
+    const items = getAllItems();
+    const groups = groupByProgramAndTopic(items);
+    const programNames = Object.keys(groups);
+    const isSingleProgram = programNames.length === 1;
+    const isLearningLibrary = Boolean(document.body?.dataset?.learningPage);
+    defaultProgram = programNames[0] || null;
+
+    if (isCodeLibraryPage) {
+      programNames.forEach(program => {
+        sidebarState[program] = { expanded: true, topics: {} };
+      });
+      if (!currentProgram && defaultProgram) {
+        currentProgram = defaultProgram;
+      }
+    } else if (isSingleProgram && isLearningLibrary) {
+      const onlyProgram = programNames[0];
+      sidebarState[onlyProgram] = { expanded: true, topics: {} };
+      currentProgram = onlyProgram;
+    }
+
+    renderSidebar(groups);
     
     // Don't auto-render for practice page, let user select a language
     if (pageType !== 'practice') {
-      renderAllCards(getAllItems());
+      if (currentProgram) {
+        renderProgramCards(currentProgram);
+      } else {
+        renderAllCards(items);
+      }
     }
     
     sidebar.addEventListener('click', handleSidebarClick);
@@ -1426,6 +1590,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(hash.replace(/&/g, '&'));
     const program = params.get('program');
     const topic = params.get('topic');
+    
+    if (isCodeLibraryPage) {
+      if (program && topic) {
+        sidebarState[program] = { expanded: true, topics: {} };
+        currentProgram = program;
+        currentTopic = topic;
+        searchInput.value = '';
+        const items = getAllItems();
+        const groups = groupByProgramAndTopic(items);
+        renderSidebar(groups);
+        renderProgramCards(program);
+        setTimeout(() => {
+          scrollToTopicAnchor(program, topic);
+          highlightActiveTopic(program, topic);
+        }, 400);
+        return;
+      }
+
+      if (program) {
+        sidebarState[program] = { expanded: true, topics: {} };
+        currentProgram = program;
+        currentTopic = null;
+        searchInput.value = '';
+        const items = getAllItems();
+        const groups = groupByProgramAndTopic(items);
+        renderSidebar(groups);
+        renderProgramCards(program);
+        setTimeout(() => scrollToLibraryPanelTop(), 300);
+        return;
+      }
+    }
+
     if (program && topic) {
       sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
       sidebarState[program].expanded = true;
@@ -1568,20 +1764,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // Function to handle direct anchor navigation to CSS items
   function handleDirectAnchorNavigation() {
     const hash = window.location.hash;
-    if (hash) {
-      // Wait a bit for content to be rendered, then scroll to the element
-      setTimeout(() => {
-        const targetElement = document.querySelector(hash);
-        if (targetElement) {
-          targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Add a highlight effect to draw attention
-          targetElement.style.boxShadow = '0 0 20px rgba(11, 79, 108, 0.5)';
-          setTimeout(() => {
-            targetElement.style.boxShadow = '';
-          }, 3000);
-        }
-      }, 500);
-    }
+    if (!hash || hash === '#') return;
+
+    // Only run for hashes that map to valid CSS ID selectors (e.g., #css-card-1)
+    const isValidSelector = /^#[A-Za-z_][A-Za-z0-9_-]*$/.test(hash);
+    if (!isValidSelector) return;
+
+    // Wait a bit for content to be rendered, then scroll to the element
+    setTimeout(() => {
+      const targetElement = document.querySelector(hash);
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Add a highlight effect to draw attention
+        targetElement.style.boxShadow = '0 0 20px rgba(11, 79, 108, 0.5)';
+        setTimeout(() => {
+          targetElement.style.boxShadow = '';
+        }, 3000);
+      }
+    }, 500);
   }
   
   // Handle hash changes for navigation within the page
