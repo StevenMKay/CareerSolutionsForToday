@@ -2,6 +2,23 @@ document.addEventListener('DOMContentLoaded', () => {
   let pageType = null;
   let sidebar, searchInput, resultsContainer, getAllItems, groupByProgramAndTopic, placeholderText;
 
+  const bodyDataset = document.body ? document.body.dataset : {};
+
+  function parseSectionList(value) {
+    if (!value) return [];
+    return value.split(',').map(item => item.trim().toLowerCase()).filter(Boolean);
+  }
+
+  function itemMatchesSectionList(item, list) {
+    if (!list || !list.length) return false;
+    const sections = Array.isArray(item.section) ? item.section : [item.section];
+    const normalized = sections.filter(Boolean).map(section => section.trim().toLowerCase());
+    return list.some(target => normalized.includes(target));
+  }
+
+  const learnIncludeSections = parseSectionList(bodyDataset?.learningInclude);
+  const learnExcludeSections = parseSectionList(bodyDataset?.learningExclude);
+
   // Scroll detection variables
   let lastScrollTop = 0;
   let scrollDirection = 'up';
@@ -21,9 +38,21 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebar = document.getElementById('learnSidebar');
     searchInput = document.getElementById('learnSearch');
     resultsContainer = document.getElementById('learnResults');
-    getAllItems = () => (window.contentItems || []).filter(item =>
-      (Array.isArray(item.section) && item.section.includes('Learning')) || item.section === 'Learning'
-    );
+    getAllItems = () => {
+      let items = (window.contentItems || []).filter(item =>
+        (Array.isArray(item.section) && item.section.includes('Learning')) || item.section === 'Learning'
+      );
+
+      if (learnIncludeSections.length) {
+        items = items.filter(item => itemMatchesSectionList(item, learnIncludeSections));
+      }
+
+      if (learnExcludeSections.length) {
+        items = items.filter(item => !itemMatchesSectionList(item, learnExcludeSections));
+      }
+
+      return items;
+    };
     groupByProgramAndTopic = groupContentByProgramAndTopic;
     placeholderText = 'Use the sidebar to select a program/topic, or type in the filter box to find learning resources.';
     console.log('✅ Detected Learn page');
@@ -1415,6 +1444,21 @@ document.addEventListener('DOMContentLoaded', () => {
           );
         });
       }, 0);
+    } else if (program) {
+      // Program only: expand that program and show all of its content
+      sidebarState[program] = sidebarState[program] || { expanded: true, topics: {} };
+      sidebarState[program].expanded = true;
+      currentProgram = program;
+      currentTopic = null;
+      const items = getAllItems();
+      const groups = groupByProgramAndTopic(items);
+      renderSidebar(groups);
+      searchInput.value = '';
+      renderProgramCards(program);
+      // Rebuild mobile rows to reflect the expanded program
+      try {
+        renderMobileSidebar(groups);
+      } catch (e) { /* safe no-op */ }
     }
   }
 
