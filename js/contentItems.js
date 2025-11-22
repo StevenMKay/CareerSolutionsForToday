@@ -27,6 +27,23 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
       // Add more as needed
 };
 
+// Extra raw icon links (added for shortcuts page and future use)
+window.EXTRA_ICON_LINKS = {
+  chrome: 'icons/Chrome Icon 2025.png',
+  edge: 'icons/Edge Icon 2025.png',
+  firefox: 'icons/FireFox Icon 2025.png',
+  git_shell: 'icons/Git and Shell Icon 2025.png',
+  google_docs: 'icons/Google Docs Icon 2025.png',
+  google_sheets: 'icons/Google Sheets Icon 2025.png',
+  google_slides: 'icons/Google Slides Icon 2025.png',
+  macos: 'icons/Mac OS Icon 2025.png',
+  notion: 'icons/Notion Icon 2025.png',
+  slack: 'icons/Slack Icon 2025.png',
+  vscode: 'icons/VS Code Icon 2025.png',
+  zoom: 'icons/Zoom Icon 2025.png',
+  figma: 'icons/Figma Icon 2025.png'
+};
+
 // =============== DEMO UTILITY FUNCTIONS (Define early to avoid ReferenceErrors) ===============
 
 // Toggle controls panel
@@ -130,7 +147,6 @@ if (window.contentItems) {
 window.contentItems = [
 
 
-
 {
  section:[
             "Learning",
@@ -157,6 +173,8 @@ https:"https://youtu.be/T1b5jIktZa8",
       },
         topic:"Paint Brush Templates"
     },
+
+
 
 
 
@@ -202,7 +220,11 @@ https:"https://youtu.be/J3bHanNXPnc",
 
 
 
-  
+
+
+
+
+
 {
   section: ["Learning", "Website Design"],
   program: {
@@ -4006,105 +4028,84 @@ document.addEventListener('DOMContentLoaded', function() {
 .video-layer {
   will-change: opacity;
 }`,
-    demoJs: `// Photo to Video Hover Effect JavaScript - Fixed for Learning Module Confunction initPhotoVideoHoverEffect() {
-  // Wait a bit for content to be fully rendered
-  setTimeout(() => {
-    // Use more specific selectors to avoid conflicts with other demos
-    const demoContainer = document.querySelector('#website-design-photo-video-hover');
-    if (!demoContainer) return;
-    
-    const mediaWrapper = demoContainer.querySelector('.media-wrapper');
-    const video = demoContainer.querySelector('.surf-video');
-    const videoLayer = demoContainer.querySelector('.video-layer');
-    
-    if (!mediaWrapper || !video || !videoLayer) {
-      console.log('❌ Photo to Video elements not found in demo container');
-      return;
-    }
-    
-    let isVideoLoaded = false;
-    let isHovering = false;
-// Preload video on first interaction
-    function preloadVideo() {
-      if (!isVideoLoaded) {
-        videoLayer.classList.add('loading');
-        video.muted = true;
-        video.setAttribute('autoplay', '');
-        video.load();
-        video.addEventListener('canplaythrough', function() {
-          isVideoLoaded = true;
-          videoLayer.classList.remove('loading');
-          console.log('✅ Video loaded successfully for demo');
-          if (isHovering) {
-            video.currentTime = 0;
-            video.play().catch(()=>{});
-          }
-        }, { once: true });
-        
-        video.addEventListener('error', function() {
-          console.error('❌ Video failed to load in demo');
-          videoLayer.classList.remove('loading');
-        }, { once: true });
-      }
-    }
-    
-    // Mouse enter event with user interaction check
-    mediaWrapper.addEventListener('mouseenter', function() {
-      isHovering = true;
-      preloadVideo();
-      
-      // Small delay to ensure smooth transition
-      setTimeout(() => {
-        if (isHovering && isVideoLoaded) {
-          video.currentTime = 0;
-          if (isVideoLoaded) {
-          video.currentTime = 0;
-          video.play().catch(()=>{});
-        }
-}, 100);
-    });
-    
-    // Mouse leave event  
-    mediaWrapper.addEventListener('mouseleave', function() {
-      isHovering = false;
-      
-      // Pause video with slight delay for smooth transition
-      setTimeout(() => {
-        if (!isHovering) {
-          video.pause();
-        }
-      }, 200);
-    });
-    
-    // Handle video ended (restart loop)
-    video.addEventListener('ended', function() {
+    demoJs: `// Photo to Video Hover Effect JavaScript
+function initPhotoVideoHoverEffect() {
+  const demoContainer = document.querySelector('#website-design-photo-video-hover');
+  if (!demoContainer) return;
+
+  const mediaWrapper = demoContainer.querySelector('.media-wrapper');
+  const video = demoContainer.querySelector('.surf-video');
+  const videoLayer = demoContainer.querySelector('.video-layer');
+  if (!mediaWrapper || !video || !videoLayer) return;
+
+  let isVideoLoaded = false;
+  let isHovering = false;
+
+  function preloadVideo() {
+    if (isVideoLoaded) return;
+
+    videoLayer.classList.add('loading');
+    video.muted = true;
+    video.autoplay = true;
+    video.load();
+
+    video.addEventListener('canplaythrough', () => {
+      isVideoLoaded = true;
+      videoLayer.classList.remove('loading');
+      console.log('✅ Photo to video demo ready');
       if (isHovering) {
         video.currentTime = 0;
-        video.play().catch(e => {
-          console.warn('Video replay failed in demo:', e);
-        });
+        video.play().catch(() => {});
       }
-    });
-    
-    // Add click to play functionality as fallback
-    mediaWrapper.addEventListener('click', function() {
-if (isVideoLoaded) {
-        if (video.paused) {
-          video.play().catch(e => console.log('Click play failed:', e));
-        } else {
-          video.pause();
-        }
+    }, { once: true });
+
+    video.addEventListener('error', () => {
+      videoLayer.classList.remove('loading');
+      console.error('❌ Video failed to load for photo-to-video demo');
+    }, { once: true });
+  }
+
+  mediaWrapper.addEventListener('mouseenter', () => {
+    isHovering = true;
+    preloadVideo();
+    if (isVideoLoaded) {
+      video.currentTime = 0;
+      video.play().catch(() => {});
+    }
+  });
+
+  mediaWrapper.addEventListener('mouseleave', () => {
+    isHovering = false;
+    setTimeout(() => {
+      if (!isHovering) {
+        video.pause();
       }
-    });
-    
-    // Initialize
-    console.log('🚀 Photo to Video Hover Effect initialized for learning module');
-    
-  }, 500); // Wait 500ms for content to render
-}der
+    }, 150);
+  });
+
+  mediaWrapper.addEventListener('click', () => {
+    if (!isVideoLoaded) {
+      preloadVideo();
+      return;
+    }
+
+    if (video.paused) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  });
+
+  video.addEventListener('ended', () => {
+    if (isHovering) {
+      video.currentTime = 0;
+      video.play().catch(() => {});
+    }
+  });
+
+  console.log('🚀 Photo to Video Hover Effect initialized');
 }
 
-// Initialize when content loads or immediately if already loaded
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initPhotoVideoHoverEffect);
 } else {
