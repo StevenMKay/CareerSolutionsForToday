@@ -361,13 +361,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Render all cards for a program, grouped by topic, with topic anchors
-  function renderProgramCards(program, filter = '') {
+  function renderProgramCards(program, filter = '', topicFilter = null) {
     const groups = groupByProgramAndTopic(getAllItems());
     const topics = groups[program]?.topics || {};
 
     // 1. Gather all filtered items and group by section, then by topic
     const sectionGroups = {};
     Object.keys(topics).forEach(topic => {
+      if (topicFilter && topic !== topicFilter) return;
       const filteredItems = topics[topic].filter(item => {
         if (!filter) return true;
         
@@ -1090,7 +1091,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function filterAndHighlightCards(filter) {
     if (currentProgram) {
-      renderProgramCards(currentProgram, filter);
+      const topicFilter = isCodeLibraryPage ? currentTopic : null;
+      renderProgramCards(currentProgram, filter, topicFilter);
     } else {
       const filtered = getAllItems().filter(item => {
         if (!filter) return true;
@@ -1225,13 +1227,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (wasActive) {
               currentTopic = null;
               updateProgramTopicHash(program);
+              renderProgramCards(program);
+              highlightActiveTopic(null, null);
               scrollToLibraryPanelTop();
             } else {
               this.classList.add('active');
               currentProgram = program;
               currentTopic = topic;
               updateProgramTopicHash(program, topic);
-              scrollToTopicAnchor(program, topic);
+              renderProgramCards(program, '', topic);
+              highlightActiveTopic(program, topic);
+              scrollToLibraryPanelTop();
             }
             return;
           }
@@ -1433,8 +1439,9 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTopic = topic;
         searchInput.value = '';
         updateProgramTopicHash(program, topic);
+        renderProgramCards(program, '', topic);
         highlightActiveTopic(program, topic);
-        scrollToTopicAnchor(program, topic);
+        scrollToLibraryPanelTop();
         return;
       }
 
@@ -1494,7 +1501,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isCodeLibraryPage) {
         const fallbackProgram = currentProgram || defaultProgram || expandedPrograms[0] || Object.keys(sidebarState)[0];
         if (fallbackProgram) {
-          renderProgramCards(fallbackProgram);
+          currentProgram = fallbackProgram;
+          renderProgramCards(fallbackProgram, '', currentTopic);
         } else {
           renderAllCards(getAllItems());
         }
@@ -1519,7 +1527,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (isCodeLibraryPage) {
       const fallbackProgram = currentProgram || defaultProgram || expandedPrograms[0] || Object.keys(sidebarState)[0];
+      currentTopic = null;
+      highlightActiveTopic(null, null);
       if (fallbackProgram) {
+        currentProgram = fallbackProgram;
         renderProgramCards(fallbackProgram, filter);
       } else {
         filterAndHighlightCards(filter);
@@ -1600,11 +1611,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = getAllItems();
         const groups = groupByProgramAndTopic(items);
         renderSidebar(groups);
-        renderProgramCards(program);
+        renderProgramCards(program, '', topic);
         setTimeout(() => {
-          scrollToTopicAnchor(program, topic);
+          scrollToLibraryPanelTop();
           highlightActiveTopic(program, topic);
-        }, 400);
+        }, 300);
         return;
       }
 
@@ -1766,6 +1777,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const hash = window.location.hash;
     if (!hash || hash === '#') return;
 
+    // Handle code-library hash parameters (#program=CSS&topic=Buttons)
+    if (hash.startsWith('#program=')) {
+      const params = new URLSearchParams(hash.slice(1));
+      const program = params.get('program');
+      const topic = params.get('topic');
+      if (program) {
+        setTimeout(() => {
+          if (topic) {
+            scrollToTopicAnchor(decodeURIComponent(program), decodeURIComponent(topic));
+            highlightActiveTopic(decodeURIComponent(program), decodeURIComponent(topic));
+          } else {
+            scrollToLibraryPanelTop();
+          }
+        }, 400);
+      }
+      return;
+    }
+
     // Only run for hashes that map to valid CSS ID selectors (e.g., #css-card-1)
     const isValidSelector = /^#[A-Za-z_][A-Za-z0-9_-]*$/.test(hash);
     if (!isValidSelector) return;
@@ -1775,7 +1804,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const targetElement = document.querySelector(hash);
       if (targetElement) {
         targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Add a highlight effect to draw attention
         targetElement.style.boxShadow = '0 0 20px rgba(11, 79, 108, 0.5)';
         setTimeout(() => {
           targetElement.style.boxShadow = '';
