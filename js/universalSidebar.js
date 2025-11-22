@@ -285,6 +285,84 @@ document.addEventListener('DOMContentLoaded', () => {
     return text.replace(regex, '<span class="highlight-match">$1</span>');
   }
 
+  function escapeAttr(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function getPreviewLinks(item) {
+    const links = [];
+
+    function addLink(url, label, fallback) {
+      if (!url) return;
+      if (links.some(link => link.url === url)) return;
+      links.push({
+        url,
+        label: label || fallback || 'Open Resource'
+      });
+    }
+
+    if (item.link) {
+      addLink(item.link, item.linkLabel, 'Open Resource');
+    }
+
+    const relatedItems = Array.isArray(item.related)
+      ? item.related
+      : item.related
+        ? [item.related]
+        : [];
+
+    relatedItems.forEach(rel => {
+      if (!rel) return;
+      const relUrl = rel.url || '';
+      const relLabel = rel.text || rel.label || 'Related Link';
+      addLink(relUrl, relLabel, 'Related Link');
+    });
+
+    if (!links.length) {
+      addLink('#', item.linkLabel, 'Open Resource');
+    }
+
+    return links;
+  }
+
+  function getPreviewMeta(item) {
+    const links = getPreviewLinks(item);
+    const primaryLink = links[0] || { url: '#', label: 'Open Resource' };
+    const secondaryLink = links[1] || null;
+    return {
+      image: item.thumbnail || '',
+      title: item.title || '',
+      description: item.description || '',
+      primaryLink,
+      secondaryLink
+    };
+  }
+
+  function buildPreviewAttributes(item) {
+    const meta = getPreviewMeta(item);
+    const attrs = [
+      `data-preview-image="${escapeAttr(meta.image)}"`,
+      `data-preview-title="${escapeAttr(meta.title)}"`,
+      `data-preview-desc="${escapeAttr(meta.description)}"`,
+      `data-preview-link="${escapeAttr(meta.primaryLink.url || '#')}"`,
+      `data-preview-link-label="${escapeAttr(meta.primaryLink.label || 'Open Resource')}"`
+    ];
+
+    if (meta.secondaryLink) {
+      attrs.push(
+        `data-preview-link-secondary="${escapeAttr(meta.secondaryLink.url || '#')}"`,
+        `data-preview-link-secondary-label="${escapeAttr(meta.secondaryLink.label || 'Open Resource')}"`
+      );
+    }
+
+    return ` ${attrs.join(' ')}`;
+  }
+
   // NEW: Function to render related links (supports both array and single object)
   function renderRelatedLinks(related, filter = '') {
     if (!related) return '';
@@ -469,7 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const hasJavaScript = item.demoJs;
 
               sectionContent += `
-                <div class="css-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                <div class="css-interactive-card" data-search="${searchText}" data-topic="${topic ? topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}${buildPreviewAttributes(item)}>
                   <div class="css-demo-container">
                     <div class="css-demo-header">
                       <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -567,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
               // Check if we're on Learn page - if so, show redirect card instead of iframe
               if (pageType === 'learn') {
                 sectionContent += `
-                  <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+                  <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}${buildPreviewAttributes(item)}>
                     <div class="css-demo-container">
                       <div class="css-demo-header">
                         <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -733,7 +811,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
               // Regular card for non-CSS items
               sectionContent += `
-                <div class="frosted-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}">
+                <div class="frosted-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${buildPreviewAttributes(item)}>
                   <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
                   <div class="info">
                     <h4>${highlightMatches(item.title, filter)}</h4>
@@ -825,7 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
           // Check if we're on Learn page - if so, show redirect card instead of iframe
           if (pageType === 'learn') {
             sectionContent += `
-              <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}>
+              <div class="css-interactive-card" data-search="${searchText}" data-topic="${item.topic ? item.topic : ''}"${anchorId ? ` id="${anchorId}"` : ''}${buildPreviewAttributes(item)}>
                 <div class="css-demo-container">
                   <div class="css-demo-header">
                     <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -920,7 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const hasJavaScript = item.demoJs;
           
           sectionContent += `
-            <div class="css-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}>
+                <div class="css-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}${buildPreviewAttributes(item)}>
               <div class="css-demo-container">
                 <div class="css-demo-header">
                   <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -1022,7 +1100,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
           sectionContent += `
-            <div class="html-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}>
+            <div class="html-interactive-card" data-search="${searchText}"${anchorId ? ` id="${anchorId}"` : ''}${buildPreviewAttributes(item)}>
               <div class="html-demo-container">
                 <div class="html-demo-header">
                   <img src="${item.thumbnail}" alt="${item.title}" class="thumbnail" loading="lazy">
@@ -1058,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           // Regular card for non-CSS items
           sectionContent += `
-            <div class="frosted-card" data-search="${searchText}">
+            <div class="frosted-card" data-search="${searchText}"${buildPreviewAttributes(item)}>
               <img src="${item.thumbnail}" alt="${item.title}" loading="lazy">
               <div class="info">
                 <h4>${highlightMatches(item.title, filter)}</h4>
