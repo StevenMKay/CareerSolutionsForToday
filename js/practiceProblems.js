@@ -3159,6 +3159,16 @@ window.practicePrograms = {
     name: 'Go',
     image: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg',
     problems: window.practiceProblems.filter(p => p.language === 'Go')
+  },
+  'C': {
+    name: 'C',
+    image: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg',
+    problems: window.practiceProblems.filter(p => p.language === 'C')
+  },
+  'C++': {
+    name: 'C++',
+    image: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg',
+    problems: window.practiceProblems.filter(p => p.language === 'C++')
   }
 };
 
