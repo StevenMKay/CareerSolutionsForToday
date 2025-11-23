@@ -2,11 +2,17 @@ document.addEventListener('DOMContentLoaded', () => {
   let pageType = null;
   let sidebar, searchInput, resultsContainer, getAllItems, groupByProgramAndTopic, placeholderText;
   let defaultProgram = null;
+  let mobileStateOverride = null;
 
   const bodyDataset = document.body ? document.body.dataset : {};
   const codeLibraryPages = new Set(['css', 'html', 'web-design']);
   const bodyLearningPage = (bodyDataset?.learningPage || '').toLowerCase();
   const isCodeLibraryPage = (document.body?.classList?.contains('code-library-page') || codeLibraryPages.has(bodyLearningPage));
+  const mobileFilterStateNode = document.querySelector('[data-role="mobile-filter-state"]');
+  const mobileFilterButton = document.querySelector('[data-action="scroll-filters"]');
+  const mobileTopButton = document.querySelector('[data-action="scroll-top"]');
+  const mobileLabelSource = bodyDataset?.learningInclude || bodyDataset?.learningPage || 'Library';
+  const baseMobileLabel = formatLibraryLabel(mobileLabelSource);
 
   function parseSectionList(value) {
     if (!value) return [];
@@ -187,6 +193,49 @@ document.addEventListener('DOMContentLoaded', () => {
     return window.innerWidth <= 700;
   }
 
+  function formatLibraryLabel(label) {
+    if (!label) return 'Library';
+    return label
+      .toString()
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  function updateMobileFilterState(program = null, topic = null, overrideText = null) {
+    if (!mobileFilterStateNode) return;
+    if (mobileStateOverride && (!searchInput || !searchInput.value.trim())) {
+      mobileStateOverride = null;
+    }
+    const textOverride = typeof overrideText === 'string' ? overrideText : mobileStateOverride;
+    if (textOverride) {
+      mobileFilterStateNode.textContent = textOverride;
+      return;
+    }
+    if (program && topic) {
+      mobileFilterStateNode.textContent = `${topic} - ${program}`;
+      return;
+    }
+    if (program) {
+      mobileFilterStateNode.textContent = `${program} Library`;
+      return;
+    }
+    mobileFilterStateNode.textContent = `All ${baseMobileLabel} demos`;
+  }
+
+  function setMobileSearchState(filterText) {
+    if (!mobileFilterStateNode || !isCodeLibraryPage) return;
+    if (filterText) {
+      const trimmed = filterText.length > 40 ? `${filterText.slice(0, 37)}...` : filterText;
+      mobileStateOverride = `Results for "${trimmed}"`;
+    } else {
+      mobileStateOverride = null;
+    }
+    updateMobileFilterState(currentProgram, currentTopic);
+  }
+
+
   function updateProgramTopicHash(program, topic) {
     if (!isCodeLibraryPage || !program) return;
     const params = new URLSearchParams();
@@ -230,6 +279,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const offset = window.innerWidth < 768 ? 60 : 140;
     const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
     window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  function scrollToMobileFilters() {
+    const filters = document.querySelector('.library-mobile-rows');
+    if (!filters) {
+      scrollToLibraryPanelTop();
+      return;
+    }
+    const offset = window.innerWidth < 768 ? 70 : 120;
+    const top = filters.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+
+  updateMobileFilterState();
+
+  if (mobileFilterButton) {
+    mobileFilterButton.addEventListener('click', () => {
+      scrollToMobileFilters();
+    });
+  }
+
+  if (mobileTopButton) {
+    mobileTopButton.addEventListener('click', () => {
+      scrollToLibraryPanelTop();
+    });
   }
 
   function highlightActiveTopic(program, topic) {
@@ -442,6 +516,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderProgramCards(program, filter = '', topicFilter = null) {
     const groups = groupByProgramAndTopic(getAllItems());
     const topics = groups[program]?.topics || {};
+
+    if (isCodeLibraryPage) {
+      updateMobileFilterState(program, topicFilter || currentTopic);
+    }
 
     // 1. Gather all filtered items and group by section, then by topic
     const sectionGroups = {};
@@ -853,6 +931,10 @@ document.addEventListener('DOMContentLoaded', () => {
       // For practice, we directly render problems instead of using sections
       renderPracticeProblems(currentProgram || items[0]?.language, getCurrentDifficulty());
       return;
+    }
+
+    if (isCodeLibraryPage) {
+      updateMobileFilterState();
     }
     
     let html = '';
@@ -1573,6 +1655,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleFilterInput() {
     const filter = searchInput.value.trim();
     const expandedPrograms = Object.keys(sidebarState).filter(p => sidebarState[p].expanded);
+
+    if (isCodeLibraryPage) {
+      setMobileSearchState(filter);
+    }
     
     // If search is empty, show all content and reset filters
     if (!filter) {
