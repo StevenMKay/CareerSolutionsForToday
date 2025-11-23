@@ -435,6 +435,9 @@
       border-radius: 16px;
       background: rgba(255,255,255,0.1);
       border: 1px solid rgba(255,255,255,0.15);
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
     }
 
     .company-insights h3, .extra-insights h3 {
@@ -462,6 +465,20 @@
 
     .insight-action strong {
       color: #bbdefb;
+    }
+
+    .insight-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.9em;
+      margin-top: 8px;
+      color: #8ec5ff;
+      text-decoration: none;
+    }
+
+    .insight-link:hover {
+      text-decoration: underline;
     }
 
     .extra-insight-card {
@@ -712,6 +729,7 @@
   <script src="js/universalSidebar.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   
   <script>
     let resumeData = null;
@@ -726,6 +744,10 @@
       BACKEND_URL: 'https://resume-analyzer-backend-stevens-projects-4a20c66c.vercel.app/api/analyze',
       FALLBACK_TO_MOCK_ON_FAILURE: false
     };
+
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
 
     // 💰 Usage tracking (hidden but still functional)
     const MONTHLY_BUDGET_LIMIT = 20.00;
@@ -998,15 +1020,24 @@
     }
 
     async function extractTextFromPDF(file) {
+      if (!window.pdfjsLib) {
+        throw new Error('PDF parser not available. Please refresh and try again.');
+      }
+
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
-      const pages = pdf.getPages();
-      
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let text = '';
-      // Note: PDFLib doesn't extract text directly, this is a simplified version
-      // In a real app, you'd use pdf-parse or similar library
-      text = "PDF text extraction requires server-side processing. Please copy and paste your resume text instead, or upload a Word document.";
-      return text;
+
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map(item => ('str' in item ? item.str : item.text) || '')
+          .join(' ');
+        text += pageText + '\n';
+      }
+
+      return text.trim();
     }
 
     async function extractTextFromWord(file) {
@@ -1300,9 +1331,10 @@
         .map(item => ({
           source: item?.source || 'resume',
           insight: (item?.insight || '').trim(),
-          action: (item?.action || '').trim()
+          action: (item?.action || '').trim(),
+          link: (item?.link || item?.url || item?.sourceLink || '').trim()
         }))
-        .filter(item => item.insight.length > 0 || item.action.length > 0);
+        .filter(item => item.insight.length > 0 || item.action.length > 0 || item.link.length > 0);
 
       if (cleanedInsights.length === 0) {
         return '';
@@ -1313,6 +1345,7 @@
           <span class="insight-pill">${formatInsightSource(insight.source)}</span>
           <p>${insight.insight || 'Company insight unavailable.'}</p>
           ${insight.action ? `<p class="insight-action"><strong>Action:</strong> ${insight.action}</p>` : ''}
+          ${insight.link ? `<a class="insight-link" href="${insight.link}" target="_blank" rel="noopener">🔗 Source reference</a>` : ''}
         </div>
       `).join('');
 
