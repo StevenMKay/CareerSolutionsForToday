@@ -1988,6 +1988,768 @@ class Observer {
 }`,
     explanation: 'Recursively compare object properties and values.',
     hint: 'Check types, then recursively compare all properties.'
+  },
+
+  // Additional SQL mastery prompts
+  {
+    id: 'sql-030',
+    language: 'SQL',
+    title: 'Rolling 3-Month Average Revenue',
+    difficulty: 'Hard',
+    description: 'Calculate the rolling 3-month average revenue for every product in the invoices table.',
+    examples: [
+      { input: 'invoices(product_id, invoice_month, amount)', output: 'product_id | invoice_month | rolling_avg' }
+    ],
+    starterCode: '-- Write your SQL query here\n',
+    expectedOutput: 'AVG(amount) OVER',
+    validSolutions: ['AVG(amount) OVER', 'ROWS BETWEEN 2 PRECEDING', 'PARTITION BY product_id', 'ORDER BY invoice_month'],
+    solution: `SELECT product_id,
+       invoice_month,
+       AVG(amount) OVER (
+         PARTITION BY product_id
+         ORDER BY invoice_month
+         ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+       ) AS rolling_avg
+FROM invoices;`,
+    explanation: 'Use a window function with ROWS BETWEEN to average the current and previous two months.',
+    hint: 'Use AVG(amount) OVER (PARTITION BY product_id ORDER BY invoice_month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW).'
+  },
+  {
+    id: 'sql-031',
+    language: 'SQL',
+    title: 'Detect Daily Revenue Spikes',
+    difficulty: 'Medium',
+    description: 'Return each revenue record plus a flag when the current value is 50% higher than the previous day.',
+    examples: [
+      { input: 'daily_revenue(invoice_date, amount)', output: 'invoice_date | amount | previous_amount | spike_flag' }
+    ],
+    starterCode: '-- Write your SQL query here\n',
+    expectedOutput: 'LAG(amount)',
+    validSolutions: ['LAG(amount)', 'OVER (ORDER BY invoice_date)', 'CASE WHEN', 'previous_amount'],
+    solution: `SELECT invoice_date,
+       amount,
+       LAG(amount, 1) OVER (ORDER BY invoice_date) AS previous_amount,
+       CASE
+         WHEN amount >= COALESCE(LAG(amount, 1) OVER (ORDER BY invoice_date), 0) * 1.5 THEN 'spike'
+         ELSE 'normal'
+       END AS spike_flag
+FROM daily_revenue;`,
+    explanation: 'LAG compares each row to the prior day and CASE marks spikes.',
+    hint: 'Use LAG(amount, 1) OVER (ORDER BY invoice_date) and compare against 1.5x the previous amount.'
+  },
+  {
+    id: 'sql-032',
+    language: 'SQL',
+    title: 'Filter Orders by JSON Attributes',
+    difficulty: 'Medium',
+    description: 'Return orders where the JSON payload contains a premium flag and quantity over 5.',
+    examples: [
+      { input: 'orders(id, payload JSON)', output: 'orders with payload.premium = true and payload.qty > 5' }
+    ],
+    starterCode: '-- Write your SQL query here\n',
+    expectedOutput: 'JSON_',
+    validSolutions: ['JSON_VALUE', 'JSON_EXTRACT', 'payload ->>', 'payload->'],
+    solution: `SELECT *
+FROM orders
+WHERE JSON_EXTRACT(payload, '$.premium') = 'true'
+  AND CAST(JSON_EXTRACT(payload, '$.qty') AS UNSIGNED) > 5;`,
+    explanation: 'Use JSON_EXTRACT/JSON_VALUE to read attributes directly from the payload.',
+    hint: 'Use JSON_EXTRACT(payload, "$.premium") and cast the qty field before comparing.'
+  },
+
+  // Advanced Python scenarios
+  {
+    id: 'python-030',
+    language: 'Python',
+    title: 'Implement an LRU Cache Decorator',
+    difficulty: 'Hard',
+    description: 'Build a decorator that caches the last N call results using an OrderedDict.',
+    examples: [
+      { input: '@lru_cache(max_size=2) fn(1), fn(2), fn(1)', output: 'Second fn(1) should reuse cached value' }
+    ],
+    starterCode: 'from functools import wraps\nfrom collections import OrderedDict\n\ndef lru_cache(max_size=128):\n    # Write your code here\n    pass',
+    expectedOutput: 'return',
+    validSolutions: ['OrderedDict()', 'cache.move_to_end', 'cache.popitem', '@wraps', 'if args in cache'],
+    solution: `from functools import wraps
+from collections import OrderedDict
+
+def lru_cache(max_size=128):
+    def decorator(fn):
+        cache = OrderedDict()
+
+        @wraps(fn)
+        def wrapper(*args):
+            if args in cache:
+                cache.move_to_end(args)
+                return cache[args]
+            result = fn(*args)
+            cache[args] = result
+            if len(cache) > max_size:
+                cache.popitem(last=False)
+            return result
+
+        return wrapper
+    return decorator`,
+    explanation: 'OrderedDict keeps insertion order so popitem(last=False) ejects the least recently used entry.',
+    hint: 'Track cached values in an OrderedDict and move hits to the end before returning.'
+  },
+  {
+    id: 'python-031',
+    language: 'Python',
+    title: 'Matrix Spiral Traversal',
+    difficulty: 'Medium',
+    description: 'Return elements of an m x n matrix in clockwise spiral order.',
+    examples: [
+      { input: '[[1,2,3],[4,5,6],[7,8,9]]', output: '[1,2,3,6,9,8,7,4,5]' }
+    ],
+    starterCode: 'def spiral_order(matrix):\n    # Write your code here\n    pass',
+    expectedOutput: 'return',
+    validSolutions: ['top += 1', 'bottom -= 1', 'left += 1', 'right -= 1', 'while left <= right'],
+    solution: `def spiral_order(matrix):
+    if not matrix:
+        return []
+    top, bottom = 0, len(matrix) - 1
+    left, right = 0, len(matrix[0]) - 1
+    result = []
+    while left <= right and top <= bottom:
+        for col in range(left, right + 1):
+            result.append(matrix[top][col])
+        top += 1
+        for row in range(top, bottom + 1):
+            result.append(matrix[row][right])
+        right -= 1
+        if top <= bottom:
+            for col in range(right, left - 1, -1):
+                result.append(matrix[bottom][col])
+            bottom -= 1
+        if left <= right:
+            for row in range(bottom, top - 1, -1):
+                result.append(matrix[row][left])
+            left += 1
+    return result`,
+    explanation: 'Shrink the boundaries after each directional pass.',
+    hint: 'Maintain top, bottom, left, right pointers and peel layers in a loop.'
+  },
+  {
+    id: 'python-032',
+    language: 'Python',
+    title: 'Async Rate Limiter',
+    difficulty: 'Hard',
+    description: 'Write an async context manager that limits concurrent API calls to N per second.',
+    examples: [
+      { input: 'async with rate_limit(5): await fetch()', output: 'Only 5 coroutines run each second' }
+    ],
+    starterCode: 'import asyncio\nfrom contextlib import asynccontextmanager\n\n@asynccontextmanager\nasync def rate_limit(per_second):\n    # Write your code here\n    yield',
+    expectedOutput: 'await',
+    validSolutions: ['asyncio.Semaphore', 'asyncio.sleep', 'asyncio.create_task', 'async with sem', 'time_window'],
+    solution: `import asyncio
+from contextlib import asynccontextmanager
+from collections import deque
+import time
+
+@asynccontextmanager
+async def rate_limit(per_second):
+    calls = deque()
+    lock = asyncio.Lock()
+
+    async with lock:
+        now = time.monotonic()
+        while calls and now - calls[0] > 1:
+            calls.popleft()
+        if len(calls) >= per_second:
+            await asyncio.sleep(1 - (now - calls[0]))
+        calls.append(time.monotonic())
+    try:
+        yield
+    finally:
+        pass`,
+    explanation: 'Track timestamps in a deque and sleep when the bucket is full.',
+    hint: 'Store call timestamps and wait until the oldest call exits the 1-second window.'
+  },
+  {
+    id: 'python-033',
+    language: 'Python',
+    title: 'Dataclass Validation Hook',
+    difficulty: 'Medium',
+    description: 'Add __post_init__ validation that enforces positive inventory counts.',
+    examples: [
+      { input: 'Product(quantity=-1)', output: 'Raise ValueError' }
+    ],
+    starterCode: 'from dataclasses import dataclass\n\n@dataclass\nclass Product:\n    name: str\n    quantity: int\n    # Write your code here',
+    expectedOutput: 'raise ValueError',
+    validSolutions: ['def __post_init__', 'raise ValueError', 'if self.quantity < 0'],
+    solution: `from dataclasses import dataclass
+
+@dataclass
+class Product:
+    name: str
+    quantity: int
+
+    def __post_init__(self):
+        if self.quantity < 0:
+            raise ValueError('quantity must be non-negative')`,
+    explanation: '__post_init__ runs after dataclass field assignment, perfect for validation.',
+    hint: 'Implement __post_init__ and raise ValueError when quantity is negative.'
+  },
+
+  // Modern JavaScript drills
+  {
+    id: 'js-028',
+    language: 'JavaScript',
+    title: 'requestAnimationFrame Throttle',
+    difficulty: 'Medium',
+    description: 'Throttle scroll handlers using requestAnimationFrame to avoid layout trashing.',
+    examples: [
+      { input: 'const onScroll = rafThrottle(handler);', output: 'handler executes at most once per frame' }
+    ],
+    starterCode: 'function rafThrottle(fn) {\n    // Write your code here\n}',
+    expectedOutput: 'return',
+    validSolutions: ['let ticking = false', 'requestAnimationFrame', 'ticking = false', 'fn.apply'],
+    solution: `function rafThrottle(fn) {
+    let ticking = false;
+    return function (...args) {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+            fn.apply(this, args);
+            ticking = false;
+        });
+    };
+}`,
+    explanation: 'Gate invocations until the next animation frame executes.',
+    hint: 'Track a ticking flag and reset it inside requestAnimationFrame.'
+  },
+  {
+    id: 'js-029',
+    language: 'JavaScript',
+    title: 'Relative Time Formatter',
+    difficulty: 'Easy',
+    description: 'Format timestamps like “5 minutes ago” using Intl.RelativeTimeFormat.',
+    examples: [
+      { input: 'formatRelative(Date.now() - 60000)', output: '1 minute ago' }
+    ],
+    starterCode: 'function formatRelative(timestamp) {\n    // Write your code here\n}',
+    expectedOutput: 'return',
+    validSolutions: ['Intl.RelativeTimeFormat', 'Math.round', 'divisor', 'value / unit'],
+    solution: `function formatRelative(timestamp) {
+    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+    const seconds = Math.round((timestamp - Date.now()) / 1000);
+    const ranges = {
+        year: 3600 * 24 * 365,
+        month: 3600 * 24 * 30,
+        week: 3600 * 24 * 7,
+        day: 3600 * 24,
+        hour: 3600,
+        minute: 60,
+        second: 1
+    };
+    for (const [unit, value] of Object.entries(ranges)) {
+        if (Math.abs(seconds) >= value || unit === 'second') {
+            return rtf.format(Math.round(seconds / value), unit);
+        }
+    }
+}`,
+    explanation: 'Loop through units from largest to smallest and let Intl.RelativeTimeFormat supply the phrasing.',
+    hint: 'Compute the delta in seconds and divide by progressively smaller units.'
+  },
+  {
+    id: 'js-030',
+    language: 'JavaScript',
+    title: 'Abortable Fetch With Retry',
+    difficulty: 'Hard',
+    description: 'Wrap fetch so it retries twice unless the AbortController aborts the request.',
+    examples: [
+      { input: 'await retryingFetch(url, { signal, retries: 2 })', output: 'Fetch resolves or rejects after retries/abort' }
+    ],
+    starterCode: 'async function retryingFetch(url, { retries = 2, signal } = {}) {\n    // Write your code here\n}',
+    expectedOutput: 'return',
+    validSolutions: ['AbortController', 'signal.aborted', 'for (let attempt', 'await fetch', 'await new Promise'],
+    solution: `async function retryingFetch(url, { retries = 2, signal } = {}) {
+    let attempt = 0;
+    while (attempt <= retries) {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        try {
+            const controller = new AbortController();
+            const combined = signal ? signal : controller.signal;
+            const response = await fetch(url, { signal: combined });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response;
+        } catch (err) {
+            if (attempt === retries || signal?.aborted) throw err;
+            await new Promise(resolve => setTimeout(resolve, 2 ** attempt * 200));
+            attempt++;
+        }
+    }
+}`,
+    explanation: 'Retry with exponential backoff unless aborted. Each loop checks the external signal.',
+    hint: 'Wrap fetch in a loop that respects AbortController signals and awaits between retries.'
+  },
+
+  // TypeScript-specific practice
+  {
+    id: 'ts-001',
+    language: 'TypeScript',
+    title: 'Generic Pair Helper',
+    difficulty: 'Easy',
+    description: 'Create a function that returns a strongly typed tuple from two arguments.',
+    examples: [
+      { input: 'createPair(1, "a")', output: '[number, string]' }
+    ],
+    starterCode: 'export function createPair(/* add generics */) {\n  // Write your code here\n}',
+    expectedOutput: 'return',
+    validSolutions: ['<T, U>', ':[T, U]', 'return [first, second]', 'const pair:'],
+    solution: `export function createPair<T, U>(first: T, second: U): [T, U] {
+  return [first, second];
+}`,
+    explanation: 'Use a generic function with explicit tuple return type to preserve literals.',
+    hint: 'Add <T, U> generics and return a tuple type [T, U].'
+  },
+  {
+    id: 'ts-002',
+    language: 'TypeScript',
+    title: 'Pick Keys by Value Type',
+    difficulty: 'Medium',
+    description: 'Build a type that extracts keys whose values extend string.',
+    examples: [
+      { input: 'OnlyStringKeys<{ id: number; name: string; slug: string }>', output: '"name" | "slug"' }
+    ],
+    starterCode: 'type OnlyStringKeys<T> = /* your code */',
+    expectedOutput: 'keyof',
+    validSolutions: ['keyof T', '[K in keyof T]', 'T[K] extends string', 'never'],
+    solution: `type OnlyStringKeys<T> = {
+  [K in keyof T]: T[K] extends string ? K : never
+}[keyof T];`,
+    explanation: 'Map over keys, keep the key if its value type extends string, then index back into the mapped type.',
+    hint: 'Use a mapped type with conditional logic and index by keyof T at the end.'
+  },
+  {
+    id: 'ts-003',
+    language: 'TypeScript',
+    title: 'User Type Guard',
+    difficulty: 'Easy',
+    description: 'Write a type guard that narrows unknown data into a User interface.',
+    examples: [
+      { input: 'if (isUser(payload)) payload.name', output: 'payload is User' }
+    ],
+    starterCode: 'interface User { id: string; name: string; active: boolean; }\n\nexport function isUser(value: unknown): /* your type */ {\n  // Write your code here\n}',
+    expectedOutput: 'value is User',
+    validSolutions: ['return typeof value === "object"', 'value !== null', '"id" in value', 'typeof (value as User).name === "string"'],
+    solution: `interface User {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export function isUser(value: unknown): value is User {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'name' in value &&
+    'active' in value
+  );
+}`,
+    explanation: 'The predicate must return value is User and ensure required properties exist.',
+    hint: 'Check typeof value === "object" and make sure each key is present before returning true.'
+  },
+  {
+    id: 'ts-004',
+    language: 'TypeScript',
+    title: 'Deep Readonly Utility',
+    difficulty: 'Hard',
+    description: 'Create DeepReadonly<T> that recurses over objects and arrays.',
+    examples: [
+      { input: 'DeepReadonly<{ user: { id: string } }>', output: '{ readonly user: { readonly id: string } }' }
+    ],
+    starterCode: 'type DeepReadonly<T> = /* your code */',
+    expectedOutput: 'readonly',
+    validSolutions: ['T extends (infer U)[]', 'readonly [', 'readonly {', 'DeepReadonly<T[K]>'],
+    solution: `type DeepReadonly<T> =
+  T extends (...args: any[]) => any
+    ? T
+    : T extends Array<infer U>
+      ? ReadonlyArray<DeepReadonly<U>>
+      : T extends object
+        ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+        : T;`,
+    explanation: 'Handle functions, arrays, and plain objects separately, recursing through children.',
+    hint: 'Use conditional types with infer to detect arrays and wrap with ReadonlyArray.'
+  },
+  {
+    id: 'ts-005',
+    language: 'TypeScript',
+    title: 'Typed Event Emitter',
+    difficulty: 'Medium',
+    description: 'Implement a lightweight event emitter that enforces payload types per event key.',
+    examples: [
+      { input: 'emitter.on("ready", (user) => user.id)', output: 'listener receives strongly typed arg' }
+    ],
+    starterCode: `type EventMap = {
+  ready: { id: string };
+  error: Error;
+};
+
+class TypedEmitter<E extends Record<string, any>> {
+  // Write your code here
+}`,
+    expectedOutput: 'extends Record',
+    validSolutions: ['private listeners', 'keyof E', 'Array<(...args', 'listener(...payload', 'emit(event'],
+    solution: `class TypedEmitter<E extends Record<string, any>> {
+  private listeners: { [K in keyof E]?: Array<(payload: E[K]) => void> } = {};
+
+  on<K extends keyof E>(event: K, listener: (payload: E[K]) => void) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event]!.push(listener);
+  }
+
+  emit<K extends keyof E>(event: K, payload: E[K]) {
+    this.listeners[event]?.forEach(listener => listener(payload));
+  }
+}`,
+    explanation: 'Index the listener map by keyof E and preserve payload types via generics.',
+    hint: 'Store listeners in a dictionary keyed by event name and make on/emit generic over keyof E.'
+  },
+  {
+    id: 'ts-006',
+    language: 'TypeScript',
+    title: 'Infer Promise Value Type',
+    difficulty: 'Easy',
+    description: 'Create a type ExtractPromiseValue<T> that unwraps nested Promises.',
+    examples: [
+      { input: 'ExtractPromiseValue<Promise<Promise<string>>>', output: 'string' }
+    ],
+    starterCode: 'type ExtractPromiseValue<T> = /* your code */',
+    expectedOutput: 'infer',
+    validSolutions: ['T extends Promise<infer U>', 'ExtractPromiseValue<U>', 'return U'],
+    solution: `type ExtractPromiseValue<T> =
+  T extends Promise<infer U>
+    ? ExtractPromiseValue<U>
+    : T;`,
+    explanation: 'Use recursive conditional types with infer to peel nested Promises.',
+    hint: 'Check if T extends Promise<infer U> and recurse until it no longer matches.'
+  },
+
+  // Java language drills
+  {
+    id: 'java-001',
+    language: 'Java',
+    title: 'Reverse a Linked List',
+    difficulty: 'Medium',
+    description: 'Iteratively reverse a singly linked list and return the new head.',
+    examples: [
+      { input: '1 -> 2 -> 3', output: '3 -> 2 -> 1' }
+    ],
+    starterCode: 'public ListNode reverse(ListNode head) {\n    // Write your code here\n}',
+    expectedOutput: 'return',
+    validSolutions: ['ListNode prev = null', 'while (current != null)', 'ListNode next = current.next', 'prev = current'],
+    solution: `public ListNode reverse(ListNode head) {
+    ListNode prev = null;
+    ListNode current = head;
+    while (current != null) {
+        ListNode next = current.next;
+        current.next = prev;
+        prev = current;
+        current = next;
+    }
+    return prev;
+}`,
+    explanation: 'Track previous and current pointers, rewiring next references in-place.',
+    hint: 'Use three pointers: prev, current, next to reverse links iteratively.'
+  },
+  {
+    id: 'java-002',
+    language: 'Java',
+    title: 'Thread-Safe Singleton',
+    difficulty: 'Medium',
+    description: 'Implement a lazy-loaded singleton using double-checked locking.',
+    examples: [
+      { input: 'Singleton.getInstance()', output: 'Same reference every time' }
+    ],
+    starterCode: 'public final class Singleton {\n    // Write your code here\n}',
+    expectedOutput: 'synchronized',
+    validSolutions: ['private static volatile', 'if (instance == null)', 'synchronized (Singleton.class)', 'instance = new Singleton()'],
+    solution: `public final class Singleton {
+    private static volatile Singleton instance;
+
+    private Singleton() {}
+
+    public static Singleton getInstance() {
+        if (instance == null) {
+            synchronized (Singleton.class) {
+                if (instance == null) {
+                    instance = new Singleton();
+                }
+            }
+        }
+        return instance;
+    }
+}`,
+    explanation: 'volatile prevents instruction reordering while double-checked locking minimizes synchronization.',
+    hint: 'Declare the field volatile and synchronize only when the instance is null.'
+  },
+  {
+    id: 'java-003',
+    language: 'Java',
+    title: 'Group Orders with Streams',
+    difficulty: 'Medium',
+    description: 'Use Stream API to group orders by status and count them.',
+    examples: [
+      { input: 'groupCounts(orders)', output: '{SHIPPED=10, PENDING=4}' }
+    ],
+    starterCode: 'public Map<OrderStatus, Long> groupCounts(List<Order> orders) {\n    // Write your code here\n}',
+    expectedOutput: 'Collectors.groupingBy',
+    validSolutions: ['return orders.stream()', 'Collectors.groupingBy', 'Collectors.counting'],
+    solution: `public Map<OrderStatus, Long> groupCounts(List<Order> orders) {
+    return orders.stream()
+            .collect(Collectors.groupingBy(Order::status, Collectors.counting()));
+}`,
+    explanation: 'groupingBy + counting gives per-status totals in a single pass.',
+    hint: 'Call Collectors.groupingBy with a classifier method reference and Collectors.counting().' 
+  },
+  {
+    id: 'java-004',
+    language: 'Java',
+    title: 'CompletableFuture Pipeline',
+    difficulty: 'Hard',
+    description: 'Compose two async calls and handle exceptions centrally.',
+    examples: [
+      { input: 'fetchUser().thenCompose(fetchPermissions)', output: 'Combined future with exceptionally handler' }
+    ],
+    starterCode: 'public CompletableFuture<Result> fetch() {\n    // Write your code here\n}',
+    expectedOutput: 'CompletableFuture',
+    validSolutions: ['thenCompose', 'thenApply', 'exceptionally', 'supplyAsync'],
+    solution: `public CompletableFuture<Result> fetch() {
+    return CompletableFuture.supplyAsync(this::fetchUser)
+        .thenCompose(user -> CompletableFuture.supplyAsync(() -> fetchPermissions(user)))
+        .thenApply(Result::new)
+        .exceptionally(ex -> Result.failure(ex));
+}`,
+    explanation: 'Chain async operations with thenCompose and centralize failure logic in exceptionally.',
+    hint: 'Start with supplyAsync, thenCompose the dependent call, and finish with exceptionally.'
+  },
+  {
+    id: 'java-005',
+    language: 'Java',
+    title: 'Binary Tree Level Order',
+    difficulty: 'Easy',
+    description: 'Return a list of levels using BFS.',
+    examples: [
+      { input: 'root = [3,9,20,null,null,15,7]', output: '[[3],[9,20],[15,7]]' }
+    ],
+    starterCode: 'public List<List<Integer>> levelOrder(TreeNode root) {\n    // Write your code here\n}',
+    expectedOutput: 'Queue',
+    validSolutions: ['Queue<TreeNode>', 'while (!queue.isEmpty())', 'int size = queue.size()', 'level.add(node.val)'],
+    solution: `public List<List<Integer>> levelOrder(TreeNode root) {
+    List<List<Integer>> result = new ArrayList<>();
+    if (root == null) return result;
+    Queue<TreeNode> queue = new ArrayDeque<>();
+    queue.add(root);
+    while (!queue.isEmpty()) {
+        int size = queue.size();
+        List<Integer> level = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            TreeNode node = queue.poll();
+            level.add(node.val);
+            if (node.left != null) queue.add(node.left);
+            if (node.right != null) queue.add(node.right);
+        }
+        result.add(level);
+    }
+    return result;
+}`,
+    explanation: 'Process nodes level-by-level using a queue and record each level before moving on.',
+    hint: 'Track current queue size to know how many nodes belong to the current level.'
+  },
+  {
+    id: 'java-006',
+    language: 'Java',
+    title: 'Record-Based DTO Mapper',
+    difficulty: 'Easy',
+    description: 'Map a domain object into a record DTO using the builder pattern.',
+    examples: [
+      { input: 'toDto(user)', output: 'new UserDto(user.id(), user.email())' }
+    ],
+    starterCode: 'public record UserDto(String id, String email) {}\n\npublic UserDto toDto(User user) {\n    // Write your code here\n}',
+    expectedOutput: 'return new UserDto',
+    validSolutions: ['Objects.requireNonNull', 'return new UserDto', 'user.getId()', 'user.getEmail()'],
+    solution: `public UserDto toDto(User user) {
+    Objects.requireNonNull(user);
+    return new UserDto(user.getId(), user.getEmail());
+}`,
+    explanation: 'Records are immutable value carriers, so construct them directly from entity fields.',
+    hint: 'Return new UserDto(...) after validating the input.'
+  },
+
+  // Go language workouts
+  {
+    id: 'go-001',
+    language: 'Go',
+    title: 'Worker Pool with Channels',
+    difficulty: 'Medium',
+    description: 'Launch N workers that pull jobs from a channel and send results to another.',
+    examples: [
+      { input: 'pool := NewPool(3)', output: 'Jobs processed concurrently' }
+    ],
+    starterCode: 'func startPool(workerCount int, jobs <-chan int) <-chan int {\n    // Write your code here\n}',
+    expectedOutput: 'go func',
+    validSolutions: ['results := make(chan int)', 'for i := 0; i < workerCount', 'go func()', 'defer close(results)', 'wg.Wait()'],
+    solution: `func startPool(workerCount int, jobs <-chan int) <-chan int {
+    results := make(chan int)
+    var wg sync.WaitGroup
+    wg.Add(workerCount)
+    for i := 0; i < workerCount; i++ {
+        go func() {
+            defer wg.Done()
+            for job := range jobs {
+                results <- job * 2
+            }
+        }()
+    }
+    go func() {
+        wg.Wait()
+        close(results)
+    }()
+    return results
+}`,
+    explanation: 'Spawn workers consuming from jobs, push outputs to a shared channel, and close when done.',
+    hint: 'Use a WaitGroup to know when every worker finished before closing results.'
+  },
+  {
+    id: 'go-002',
+    language: 'Go',
+    title: 'HTTP JSON Handler',
+    difficulty: 'Easy',
+    description: 'Write an HTTP handler that decodes JSON input and returns a JSON response.',
+    examples: [
+      { input: 'POST /echo {"message":"hi"}', output: '{"echo":"hi"}' }
+    ],
+    starterCode: 'func EchoHandler(w http.ResponseWriter, r *http.Request) {\n    // Write your code here\n}',
+    expectedOutput: 'json.NewDecoder',
+    validSolutions: ['json.NewDecoder', 'Decode(&payload)', 'w.Header().Set("Content-Type", "application/json")', 'json.NewEncoder(w).Encode'],
+    solution: `func EchoHandler(w http.ResponseWriter, r *http.Request) {
+    type payload struct {
+      Message string \`json:"message"\`
+    }
+    var body payload
+    if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"echo": body.Message})
+}`,
+    explanation: 'Use json.Decoder/Encoder to translate between structs and JSON.',
+    hint: 'Decode into a struct, set the response header, then encode the response map.'
+  },
+  {
+    id: 'go-003',
+    language: 'Go',
+    title: 'Context-Aware Request',
+    difficulty: 'Medium',
+    description: 'Cancel work when the context deadline expires.',
+    examples: [
+      { input: 'ctx, cancel := context.WithTimeout(...); <-DoWork(ctx)', output: 'Work stops once ctx.Done fires' }
+    ],
+    starterCode: 'func DoWork(ctx context.Context, jobs <-chan int) error {\n    // Write your code here\n}',
+    expectedOutput: 'select',
+    validSolutions: ['select { case <-ctx.Done()', 'case job := <-jobs', 'return ctx.Err()'],
+    solution: `func DoWork(ctx context.Context, jobs <-chan int) error {
+    for {
+        select {
+        case <-ctx.Done():
+            return ctx.Err()
+        case job, ok := <-jobs:
+            if !ok {
+                return nil
+            }
+            _ = job
+        }
+    }
+}`,
+    explanation: 'select lets you react to ctx.Done while still processing jobs.',
+    hint: 'Inside the loop select on ctx.Done() and the jobs channel.'
+  },
+  {
+    id: 'go-004',
+    language: 'Go',
+    title: 'Fan-In Channel Pattern',
+    difficulty: 'Medium',
+    description: 'Merge multiple input channels into one output channel.',
+    examples: [
+      { input: 'fanIn(ch1, ch2)', output: 'single stream of values' }
+    ],
+    starterCode: 'func fanIn[T any](inputs ...<-chan T) <-chan T {\n    // Write your code here\n}',
+    expectedOutput: 'go func',
+    validSolutions: ['out := make(chan T)', 'var wg sync.WaitGroup', 'wg.Add(len(inputs))', 'for _, ch := range inputs', 'close(out)'],
+    solution: `func fanIn[T any](inputs ...<-chan T) <-chan T {
+    out := make(chan T)
+    var wg sync.WaitGroup
+    wg.Add(len(inputs))
+    for _, ch := range inputs {
+        go func(c <-chan T) {
+            defer wg.Done()
+            for v := range c {
+                out <- v
+            }
+        }(ch)
+    }
+    go func() {
+        wg.Wait()
+        close(out)
+    }()
+    return out
+}`,
+    explanation: 'Copy values from each input channel onto a shared output until everyone closes.',
+    hint: 'Use a WaitGroup to know when to close the output channel.'
+  },
+  {
+    id: 'go-005',
+    language: 'Go',
+    title: 'Custom Error Wrapper',
+    difficulty: 'Easy',
+    description: 'Create an error type that annotates the underlying error with operation metadata.',
+    examples: [
+      { input: 'return OpError{Op: "read", Err: err}', output: 'implements error interface' }
+    ],
+    starterCode: 'type OpError struct {\n    Op  string\n    Err error\n}\n\n// Write the Error() method',
+    expectedOutput: 'func (e OpError) Error()',
+    validSolutions: ['func (e OpError) Error()', 'return fmt.Sprintf', 'if e.Err != nil'],
+    solution: `type OpError struct {
+    Op  string
+    Err error
+}
+
+func (e OpError) Error() string {
+    if e.Err == nil {
+        return e.Op
+    }
+    return fmt.Sprintf("%s: %v", e.Op, e.Err)
+}`,
+    explanation: 'Implement the error interface so OpError can wrap underlying failures.',
+    hint: 'Define an Error() string method and include the nested Err message.'
+  },
+  {
+    id: 'go-006',
+    language: 'Go',
+    title: 'Generic Min Function',
+    difficulty: 'Easy',
+    description: 'Write a generic helper that returns the smaller of two ordered values.',
+    examples: [
+      { input: 'Min(3, 7)', output: '3' }
+    ],
+    starterCode: 'func Min[T constraints.Ordered](a, b T) T {\n    // Write your code here\n}',
+    expectedOutput: 'if a < b',
+    validSolutions: ['constraints.Ordered', 'if a < b', 'return a', 'return b'],
+    solution: `func Min[T constraints.Ordered](a, b T) T {
+    if a < b {
+        return a
+    }
+    return b
+}`,
+    explanation: 'constraints.Ordered limits T so the < operator is available.',
+    hint: 'Use a simple comparison and leverage constraints.Ordered.'
   }
 ];
 
@@ -2007,6 +2769,21 @@ window.practicePrograms = {
     name: 'JavaScript',
     image: 'https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/javaicon.png',
     problems: window.practiceProblems.filter(p => p.language === 'JavaScript')
+  },
+  'TypeScript': {
+    name: 'TypeScript',
+    image: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg',
+    problems: window.practiceProblems.filter(p => p.language === 'TypeScript')
+  },
+  'Java': {
+    name: 'Java',
+    image: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg',
+    problems: window.practiceProblems.filter(p => p.language === 'Java')
+  },
+  'Go': {
+    name: 'Go',
+    image: 'https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg',
+    problems: window.practiceProblems.filter(p => p.language === 'Go')
   }
 };
 
