@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const mobileTopButton = document.querySelector('[data-action="scroll-top"]');
   const mobileLabelSource = bodyDataset?.learningInclude || bodyDataset?.learningPage || 'Library';
   const baseMobileLabel = formatLibraryLabel(mobileLabelSource);
+  const coarsePointerQuery = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
 
   function parseSectionList(value) {
     if (!value) return [];
@@ -190,7 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function isMobile() {
-    return window.innerWidth <= 700;
+    const widthMatch = window.innerWidth <= 1024;
+    const pointerMatch = coarsePointerQuery ? coarsePointerQuery.matches : false;
+    return widthMatch || pointerMatch;
   }
 
   function formatLibraryLabel(label) {
@@ -1846,6 +1849,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const groups = groupByProgramAndTopic(items);
         renderMobileSidebar(groups);
       });
+      if (coarsePointerQuery && typeof coarsePointerQuery.addEventListener === 'function') {
+        coarsePointerQuery.addEventListener('change', () => {
+          const items = getAllItems();
+          const groups = groupByProgramAndTopic(items);
+          renderMobileSidebar(groups);
+        });
+      }
       loadSectionFromHash();
       
       // For Tools page - automatically show all tools content by default  
