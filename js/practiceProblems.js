@@ -2750,7 +2750,382 @@ func (e OpError) Error() string {
 }`,
     explanation: 'constraints.Ordered limits T so the < operator is available.',
     hint: 'Use a simple comparison and leverage constraints.Ordered.'
+    },
+
+    // C language drills
+    {
+    id: 'c-001',
+    language: 'C',
+    title: 'Reverse a Singly Linked List',
+    difficulty: 'Medium',
+    description: 'Implement a function that reverses a linked list in place using pointer manipulation.',
+    examples: [
+      { input: '1 -> 2 -> 3', output: '3 -> 2 -> 1' }
+    ],
+    starterCode: 'struct Node {\n    int value;\n    struct Node *next;\n};\n\nstruct Node *reverse(struct Node *head) {\n    // Write your code here\n}',
+    expectedOutput: 'return prev',
+    validSolutions: ['struct Node *prev = NULL', 'while (current != NULL)', 'struct Node *next = current->next', 'current->next = prev'],
+    solution: `struct Node *reverse(struct Node *head) {
+    struct Node *prev = NULL;
+    struct Node *current = head;
+    while (current != NULL) {
+      struct Node *next = current->next;
+      current->next = prev;
+      prev = current;
+      current = next;
+    }
+    return prev;
+  }`,
+    explanation: 'Keep track of previous/current pointers and rewrite next pointers iteratively.',
+    hint: 'Use three pointers (prev, current, next) to rewire the list.'
+    },
+    {
+    id: 'c-002',
+    language: 'C',
+    title: 'Implement strdup',
+    difficulty: 'Easy',
+    description: 'Write a custom version of strdup that allocates memory and copies the source string.',
+    examples: [
+      { input: 'my_strdup("hi")', output: 'returns new heap string "hi"' }
+    ],
+    starterCode: 'char *my_strdup(const char *src) {\n    // Write your code here\n}',
+    expectedOutput: 'malloc',
+    validSolutions: ['size_t len = strlen(src)', 'char *copy = malloc', 'strcpy(copy, src)', 'return copy'],
+    solution: `char *my_strdup(const char *src) {
+    size_t len = strlen(src) + 1;
+    char *copy = malloc(len);
+    if (!copy) return NULL;
+    memcpy(copy, src, len);
+    return copy;
+  }`,
+    explanation: 'Allocate len+1 bytes, copy the bytes including the null terminator, and return the pointer.',
+    hint: 'Measure the string, allocate memory, and copy with memcpy/strcpy.'
+    },
+    {
+    id: 'c-003',
+    language: 'C',
+    title: 'Count Set Bits',
+    difficulty: 'Easy',
+    description: 'Return the number of 1 bits in a 32-bit unsigned integer using bitwise operations.',
+    examples: [
+      { input: 'count_bits(5)', output: '2' }
+    ],
+    starterCode: 'unsigned int count_bits(unsigned int value) {\n    // Write your code here\n}',
+    expectedOutput: 'value & 1',
+    validSolutions: ['while (value)', 'count += value & 1', 'value >>= 1'],
+    solution: `unsigned int count_bits(unsigned int value) {
+    unsigned int count = 0;
+    while (value) {
+      count += value & 1;
+      value >>= 1;
+    }
+    return count;
+  }`,
+    explanation: 'Shift the value right while summing the least-significant bit.',
+    hint: 'Use value & 1 to read the lowest bit before shifting right.'
+    },
+    {
+    id: 'c-004',
+    language: 'C',
+    title: 'Read File into Buffer',
+    difficulty: 'Medium',
+    description: 'Load an entire file into a dynamically allocated buffer and return both pointer and length.',
+    examples: [
+      { input: 'read_file("notes.txt", &buffer)', output: 'buffer now holds file bytes' }
+    ],
+    starterCode: 'long read_file(const char *path, char **out) {\n    // Write your code here\n}',
+    expectedOutput: 'fopen',
+    validSolutions: ['FILE *fp = fopen', 'fseek(fp, 0, SEEK_END)', 'ftell(fp)', 'fread', 'fclose'],
+    solution: `long read_file(const char *path, char **out) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return -1;
+    if (fseek(fp, 0, SEEK_END) != 0) {
+      fclose(fp);
+      return -1;
+    }
+    long size = ftell(fp);
+    rewind(fp);
+    char *buffer = malloc(size + 1);
+    if (!buffer) {
+      fclose(fp);
+      return -1;
+    }
+    fread(buffer, 1, size, fp);
+    buffer[size] = '\0';
+    fclose(fp);
+    *out = buffer;
+    return size;
+  }`,
+    explanation: 'Use fseek/ftell to measure file size, allocate buffer, read all bytes, and return length.',
+    hint: 'Seek to end, use ftell to get length, rewind, then fread into malloc buffer.'
+    },
+    {
+    id: 'c-005',
+    language: 'C',
+    title: 'Circular Buffer Push/Pop',
+    difficulty: 'Hard',
+    description: 'Implement push and pop operations for a circular buffer struct that tracks head/tail.',
+    examples: [
+      { input: 'push(1), push(2), pop()', output: 'returns 1 while buffer remains intact' }
+    ],
+    starterCode: 'typedef struct {\n    int *data;\n    size_t capacity;\n    size_t head;\n    size_t tail;\n    size_t size;\n} RingBuffer;\n\nint rb_push(RingBuffer *rb, int value) {\n    // Write your code here\n}\n\nint rb_pop(RingBuffer *rb, int *out) {\n    // Write your code here\n}',
+    expectedOutput: 'rb->head',
+    validSolutions: ['if (rb->size == rb->capacity) return -1', 'rb->data[rb->tail] = value', 'rb->tail = (rb->tail + 1) % rb->capacity', 'rb->size--'],
+    solution: `int rb_push(RingBuffer *rb, int value) {
+    if (rb->size == rb->capacity) return -1;
+    rb->data[rb->tail] = value;
+    rb->tail = (rb->tail + 1) % rb->capacity;
+    rb->size++;
+    return 0;
   }
+
+  int rb_pop(RingBuffer *rb, int *out) {
+    if (rb->size == 0) return -1;
+    *out = rb->data[rb->head];
+    rb->head = (rb->head + 1) % rb->capacity;
+    rb->size--;
+    return 0;
+  }`,
+    explanation: 'Head/tail wrap via modulo arithmetic; size tracks fullness to detect push/pop failures.',
+    hint: 'Increment indices modulo capacity and adjust size for push/pop.'
+    },
+
+    // C++ practice
+    {
+    id: 'cpp-001',
+    language: 'C++',
+    title: 'LRU Cache with std::list',
+    difficulty: 'Hard',
+    description: 'Build an LRU cache using std::list for order and unordered_map for lookups.',
+    examples: [
+      { input: 'put(1,1), put(2,2), get(1), put(3,3)', output: 'evicts key 2' }
+    ],
+    starterCode: 'class LRUCache {\npublic:\n    LRUCache(int capacity);\n    int get(int key);\n    void put(int key, int value);\nprivate:\n    // add members\n};',
+    expectedOutput: 'std::list',
+    validSolutions: ['std::list<std::pair<int,int>> order;', 'std::unordered_map<int, std::list<std::pair<int,int>>::iterator> map;', 'order.splice', 'order.pop_back'],
+    solution: `class LRUCache {
+  public:
+    explicit LRUCache(int capacity) : capacity_(capacity) {}
+
+    int get(int key) {
+      auto it = cache_.find(key);
+      if (it == cache_.end()) return -1;
+      order_.splice(order_.begin(), order_, it->second);
+      return it->second->second;
+    }
+
+    void put(int key, int value) {
+      auto it = cache_.find(key);
+      if (it != cache_.end()) {
+        it->second->second = value;
+        order_.splice(order_.begin(), order_, it->second);
+        return;
+      }
+      if (order_.size() == capacity_) {
+        auto lru = order_.back();
+        cache_.erase(lru.first);
+        order_.pop_back();
+      }
+      order_.emplace_front(key, value);
+      cache_[key] = order_.begin();
+    }
+
+  private:
+    size_t capacity_;
+    std::list<std::pair<int, int>> order_;
+    std::unordered_map<int, std::list<std::pair<int, int>>::iterator> cache_;
+  };`,
+    explanation: 'std::list preserves order while unordered_map gives O(1) access; splice moves nodes to front without copying.',
+    hint: 'Keep iterators in the map so you can splice nodes to the front on access.'
+    },
+    {
+    id: 'cpp-002',
+    language: 'C++',
+    title: 'Thread Pool with std::future',
+    difficulty: 'Hard',
+    description: 'Implement a simple thread pool with a task queue returning futures.',
+    examples: [
+      { input: 'auto fut = pool.submit([]{ return 42; });', output: 'fut.get() == 42' }
+    ],
+    starterCode: 'class ThreadPool {\npublic:\n    explicit ThreadPool(size_t threads);\n    template<class F, class... Args> auto submit(F&& f, Args&&... args) -> std::future<typename std::invoke_result<F, Args...>::type>;\n    ~ThreadPool();\nprivate:\n    // members\n};',
+    expectedOutput: 'std::condition_variable',
+    validSolutions: ['std::vector<std::thread> workers', 'std::queue<std::function<void()>> tasks', 'std::mutex mutex_', 'std::condition_variable cv_', 'stop_ flag'],
+    solution: `class ThreadPool {
+  public:
+    explicit ThreadPool(size_t threads) : stop_(false) {
+      for (size_t i = 0; i < threads; ++i) {
+        workers_.emplace_back([this] {
+          for (;;) {
+            std::function<void()> task;
+            {
+              std::unique_lock<std::mutex> lock(mutex_);
+              cv_.wait(lock, [this]{ return stop_ || !tasks_.empty(); });
+              if (stop_ && tasks_.empty()) return;
+              task = std::move(tasks_.front());
+              tasks_.pop();
+            }
+            task();
+          }
+        });
+      }
+    }
+
+    template<class F, class... Args>
+    auto submit(F&& f, Args&&... args)
+      -> std::future<typename std::invoke_result<F, Args...>::type> {
+      using ReturnT = typename std::invoke_result<F, Args...>::type;
+      auto task = std::make_shared<std::packaged_task<ReturnT()>>(
+        std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+      );
+      std::future<ReturnT> res = task->get_future();
+      {
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (stop_) throw std::runtime_error("stopped");
+        tasks_.emplace([task]{ (*task)(); });
+      }
+      cv_.notify_one();
+      return res;
+    }
+
+    ~ThreadPool() {
+      {
+        std::unique_lock<std::mutex> lock(mutex_);
+        stop_ = true;
+      }
+      cv_.notify_all();
+      for (auto& worker : workers_) {
+        worker.join();
+      }
+    }
+
+  private:
+    std::vector<std::thread> workers_;
+    std::queue<std::function<void()>> tasks_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    bool stop_;
+  };`,
+    explanation: 'Workers wait on a condition variable for tasks; submit packages work into futures for callers.',
+    hint: 'Use packaged_task + futures to return results and a condition variable to wake workers.'
+    },
+    {
+    id: 'cpp-003',
+    language: 'C++',
+    title: 'Implement shared_ptr',
+    difficulty: 'Medium',
+    description: 'Create a simplified shared_ptr that manages reference counting and deletion.',
+    examples: [
+      { input: 'SharedPtr<int> p(new int(5));', output: 'automatically deletes when count reaches zero' }
+    ],
+    starterCode: 'template<typename T>\nclass SharedPtr {\npublic:\n    explicit SharedPtr(T* ptr = nullptr);\n    SharedPtr(const SharedPtr& other);\n    SharedPtr& operator=(const SharedPtr& other);\n    ~SharedPtr();\n    T* get() const;\n    T& operator*() const;\n    T* operator->() const;\nprivate:\n    // members\n};',
+    expectedOutput: 'ref_count_',
+    validSolutions: ['increment reference count', 'decrement and delete when zero', 'handle self-assignment', 'copy constructor'],
+    solution: `template<typename T>
+  class SharedPtr {
+  public:
+    explicit SharedPtr(T* ptr = nullptr) : ptr_(ptr), ref_count_(new size_t(ptr ? 1 : 0)) {}
+
+    SharedPtr(const SharedPtr& other) : ptr_(other.ptr_), ref_count_(other.ref_count_) {
+      if (ptr_) ++(*ref_count_);
+    }
+
+    SharedPtr& operator=(const SharedPtr& other) {
+      if (this == &other) return *this;
+      release();
+      ptr_ = other.ptr_;
+      ref_count_ = other.ref_count_;
+      if (ptr_) ++(*ref_count_);
+      return *this;
+    }
+
+    ~SharedPtr() {
+      release();
+    }
+
+    T* get() const { return ptr_; }
+    T& operator*() const { return *ptr_; }
+    T* operator->() const { return ptr_; }
+
+  private:
+    void release() {
+      if (ptr_ && --(*ref_count_) == 0) {
+        delete ptr_;
+        delete ref_count_;
+      }
+    }
+
+    T* ptr_;
+    size_t* ref_count_;
+  };`,
+    explanation: 'Reference count memory is shared across copies; release handles destruction when the count hits zero.',
+    hint: 'Track both the pointer and a shared ref_count pointer that is incremented/decremented.'
+    },
+    {
+    id: 'cpp-004',
+    language: 'C++',
+    title: 'Range-based Median Maintainer',
+    difficulty: 'Medium',
+    description: 'Continuously insert integers and return the median using two heaps.',
+    examples: [
+      { input: 'addNum(1), addNum(2), findMedian()', output: '1.5' }
+    ],
+    starterCode: 'class MedianFinder {\npublic:\n    MedianFinder();\n    void addNum(int num);\n    double findMedian() const;\nprivate:\n    // members\n};',
+    expectedOutput: 'std::priority_queue',
+    validSolutions: ['std::priority_queue<int> low', 'std::priority_queue<int, std::vector<int>, std::greater<int>> high', 'rebalance heaps', 'swap when needed'],
+    solution: `class MedianFinder {
+  public:
+    MedianFinder() = default;
+
+    void addNum(int num) {
+      if (low_.empty() || num <= low_.top()) {
+        low_.push(num);
+      } else {
+        high_.push(num);
+      }
+      if (low_.size() > high_.size() + 1) {
+        high_.push(low_.top());
+        low_.pop();
+      } else if (high_.size() > low_.size()) {
+        low_.push(high_.top());
+        high_.pop();
+      }
+    }
+
+    double findMedian() const {
+      if (low_.size() == high_.size()) {
+        return (low_.top() + high_.top()) / 2.0;
+      }
+      return low_.top();
+    }
+
+  private:
+    std::priority_queue<int> low_;
+    std::priority_queue<int, std::vector<int>, std::greater<int>> high_;
+  };`,
+    explanation: 'Maintain a max-heap for the lower half and a min-heap for the upper half; rebalance sizes after each insert.',
+    hint: 'Push into appropriate heap and ensure size difference never exceeds one.'
+    },
+    {
+    id: 'cpp-005',
+    language: 'C++',
+    title: 'constexpr Matrix Determinant',
+    difficulty: 'Hard',
+    description: 'Compute the determinant of a 3x3 matrix at compile time using constexpr recursion.',
+    examples: [
+      { input: 'constexpr auto det = determinant({{{1,2,3},{0,4,5},{1,0,6}}});', output: 'det == 22' }
+    ],
+    starterCode: 'template<typename T>\nconstexpr T determinant(const std::array<std::array<T,3>,3>& m) {\n    // Write your code here\n}',
+    expectedOutput: 'constexpr',
+    validSolutions: ['return', 'm[0][0] * (m[1][1]*m[2][2] - m[1][2]*m[2][1])', 'm[0][1] * (m[1][0]*m[2][2] - m[1][2]*m[2][0])', 'm[0][2] * (m[1][0]*m[2][1] - m[1][1]*m[2][0])'],
+    solution: `template<typename T>
+  constexpr T determinant(const std::array<std::array<T, 3>, 3>& m) {
+    return m[0][0] * (m[1][1]*m[2][2] - m[1][2]*m[2][1])
+       - m[0][1] * (m[1][0]*m[2][2] - m[1][2]*m[2][0])
+       + m[0][2] * (m[1][0]*m[2][1] - m[1][1]*m[2][0]);
+  }`,
+    explanation: 'Use Laplace expansion along the first row; constexpr ensures compile-time evaluation for literals.',
+    hint: 'Break the determinant into cofactor minors and ensure the function stays constexpr-safe.'
+    }
 ];
 
 // Add practice problems to the main content items for the sidebar
