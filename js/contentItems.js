@@ -3840,9 +3840,10 @@ document.addEventListener('DOMContentLoaded', function() {
   align-items: center;
   gap: 20px;
   padding: 40px 20px;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
   min-height: 100vh;
   font-family: 'Inter', sans-serif;
+  color: white;
 }
 
 .media-wrapper {
@@ -4235,99 +4236,101 @@ https:"https://youtu.be/BwEq5QTCwEI",
     link: "Learn.html#website-design-professional-login-form",
     topic: "Form Design",
     demoHtml: `<!-- Professional Login Form -->
-<div class="login-container">
-  <!-- Header -->
-  <div class="login-header">
-    <div class="logo">
-      <i class="fas fa-user-shield"></i>
-    </div>
-    <h1 class="login-title">Welcome Back</h1>
-    <p class="login-subtitle">Please sign in to your account to continue</p>
-  </div>
-
-  <!-- Login Form -->
-  <form class="login-form" id="loginForm">
-    <!-- Email Input -->
-    <div class="input-group">
-      <label for="email" class="input-label">
-        Email Address <span class="required">*</span>
-      </label>
-      <div class="input-wrapper">
-        <i class="fas fa-envelope input-icon"></i>
-        <input 
-          type="email" 
-          id="email" 
-          name="email" 
-          class="input-field" 
-          placeholder="Enter your email address" 
-          required
-        >
+<div class="login-demo">
+  <div class="login-container">
+    <!-- Header -->
+    <div class="login-header">
+      <div class="logo">
+        <i class="fas fa-user-shield"></i>
       </div>
-      <div id="email-error" class="error-message"></div>
+      <h1 class="login-title">Welcome Back</h1>
+      <p class="login-subtitle">Please sign in to your account to continue</p>
     </div>
 
-    <!-- Password Input -->
-    <div class="input-group">
-      <label for="password" class="input-label">
-        Password <span class="required">*</span>
-      </label>
-      <div class="input-wrapper">
-        <i class="fas fa-lock input-icon"></i>
-        <input 
-          type="password" 
-          id="password" 
-          name="password" 
-          class="input-field" 
-          placeholder="Enter your password" 
-          required
-        >
-        <button 
-          type="button" 
-          class="password-toggle" 
-          onclick="togglePassword()"
-        >
-          <i class="fas fa-eye" id="password-icon"></i>
-        </button>
+    <!-- Login Form -->
+    <form class="login-form" id="loginForm">
+      <!-- Email Input -->
+      <div class="input-group">
+        <label for="email" class="input-label">
+          Email Address <span class="required">*</span>
+        </label>
+        <div class="input-wrapper">
+          <i class="fas fa-envelope input-icon"></i>
+          <input 
+            type="email" 
+            id="email" 
+            name="email" 
+            class="input-field" 
+            placeholder="Enter your email address" 
+            required
+          >
+        </div>
+        <div id="email-error" class="error-message"></div>
       </div>
-      <div id="password-error" class="error-message"></div>
-    </div>
 
-    <!-- Remember Me & Forgot Password -->
-    <div class="remember-forgot">
-      <div class="remember-me">
-        <input type="checkbox" id="remember" name="remember" class="checkbox">
-        <label for="remember">Remember me</label>
+      <!-- Password Input -->
+      <div class="input-group">
+        <label for="password" class="input-label">
+          Password <span class="required">*</span>
+        </label>
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            class="input-field" 
+            placeholder="Enter your password" 
+            required
+          >
+          <button 
+            type="button" 
+            class="password-toggle" 
+            onclick="togglePassword()"
+          >
+            <i class="fas fa-eye" id="password-icon"></i>
+          </button>
+        </div>
+        <div id="password-error" class="error-message"></div>
       </div>
-      <a href="#" class="forgot-link">Forgot Password?</a>
+
+      <!-- Remember Me & Forgot Password -->
+      <div class="remember-forgot">
+        <div class="remember-me">
+          <input type="checkbox" id="remember" name="remember" class="checkbox">
+          <label for="remember">Remember me</label>
+        </div>
+        <a href="#" class="forgot-link">Forgot Password?</a>
+      </div>
+
+      <!-- Submit Button -->
+      <button type="submit" class="login-button" id="loginBtn">
+        <i class="fas fa-sign-in-alt"></i>
+        <span>Sign In</span>
+      </button>
+    </form>
+
+    <!-- Divider -->
+    <div class="divider">
+      <span class="divider-text">Or continue with</span>
     </div>
 
-    <!-- Submit Button -->
-    <button type="submit" class="login-button" id="loginBtn">
-      <i class="fas fa-sign-in-alt"></i>
-      <span>Sign In</span>
-    </button>
-  </form>
+    <!-- Social Login -->
+    <div class="social-login">
+      <a href="#" class="social-button">
+        <i class="fab fa-google"></i>
+        <span>Google</span>
+      </a>
+      <a href="#" class="social-button">
+        <i class="fab fa-microsoft"></i>
+        <span>Microsoft</span>
+      </a>
+    </div>
 
-  <!-- Divider -->
-  <div class="divider">
-    <span class="divider-text">Or continue with</span>
-  </div>
-
-  <!-- Social Login -->
-  <div class="social-login">
-    <a href="#" class="social-button">
-      <i class="fab fa-google"></i>
-      <span>Google</span>
-    </a>
-    <a href="#" class="social-button">
-      <i class="fab fa-microsoft"></i>
-      <span>Microsoft</span>
-    </a>
-  </div>
-
-  <!-- Sign-up Link -->
-  <div class="signup-link">
-    Don't have an account? <a href="#">Sign up here</a>
+    <!-- Sign-up Link -->
+    <div class="signup-link">
+      Don't have an account? <a href="#">Sign up here</a>
+    </div>
   </div>
 </div>
 
@@ -4336,15 +4339,7 @@ https:"https://youtu.be/BwEq5QTCwEI",
 <!-- Google Fonts -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">`,
     demoCss: `/* Professional Login Form Styles */
-/* CSS Reset */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-/* CSS Variables for consistent theming */
-:root {
+.login-demo {
   --primary-color: #2563eb;
   --primary-dark: #1d4ed8;
   --secondary-color: #64748b;
@@ -4357,21 +4352,24 @@ https:"https://youtu.be/BwEq5QTCwEI",
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
-}
-
-/* Body - creates full-height centered layout */
-body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-  min-height: 100vh;
+  min-height: 100%;
+  width: 100%;
+  padding: 1.5rem;
+  border-radius: 1.25rem;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 1rem;
 }
 
-/* Main login container */
-.login-container {
+.login-demo *,
+.login-demo *::before,
+.login-demo *::after {
+  box-sizing: border-box;
+}
+
+.login-demo .login-container {
   background: var(--surface-color);
   padding: 2.5rem;
   border-radius: var(--radius-lg);
@@ -4381,14 +4379,12 @@ body {
   position: relative;
 }
 
-/* Header section */
-.login-header {
+.login-demo .login-header {
   text-align: center;
   margin-bottom: 2rem;
 }
 
-/* Logo styling */
-.logo {
+.login-demo .logo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4401,33 +4397,28 @@ body {
   margin-bottom: 1rem;
 }
 
-/* Title styling */
-.login-title {
+.login-demo .login-title {
   font-size: 1.875rem;
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
 
-/* Subtitle */
-.login-subtitle {
+.login-demo .login-subtitle {
   color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
-/* Form styling */
-.login-form {
+.login-demo .login-form {
   position: relative;
 }
 
-/* Input group container */
-.input-group {
+.login-demo .input-group {
   margin-bottom: 1.5rem;
   position: relative;
 }
 
-/* Input labels */
-.input-label {
+.login-demo .input-label {
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
@@ -4435,20 +4426,17 @@ body {
   margin-bottom: 0.5rem;
 }
 
-/* Required field indicator */
-.required {
+.login-demo .required {
   color: var(--error-color);
 }
 
-/* Input wrapper */
-.input-wrapper {
+.login-demo .input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-/* Input icons */
-.input-icon {
+.login-demo .input-icon {
   position: absolute;
   left: 0.75rem;
   color: var(--text-secondary);
@@ -4457,8 +4445,7 @@ body {
   z-index: 1;
 }
 
-/* Input fields */
-.input-field {
+.login-demo .input-field {
   width: 100%;
   padding: 0.75rem 2.75rem 0.75rem 2.5rem;
   border: 2px solid var(--border-color);
@@ -4470,14 +4457,12 @@ body {
   outline: none;
 }
 
-/* Input focus state */
-.input-field:focus {
+.login-demo .input-field:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-/* Password toggle button */
-.password-toggle {
+.login-demo .password-toggle {
   position: absolute;
   right: 0.75rem;
   background: none;
@@ -4488,12 +4473,11 @@ body {
   transition: color 0.2s ease;
 }
 
-.password-toggle:hover {
+.login-demo .password-toggle:hover {
   color: var(--text-primary);
 }
 
-/* Remember me section */
-.remember-forgot {
+.login-demo .remember-forgot {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -4501,13 +4485,13 @@ body {
   font-size: 0.875rem;
 }
 
-.remember-me {
+.login-demo .remember-me {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.checkbox {
+.login-demo .checkbox {
   width: 1rem;
   height: 1rem;
   border: 2px solid var(--border-color);
@@ -4515,25 +4499,24 @@ body {
   cursor: pointer;
 }
 
-.checkbox:checked {
+.login-demo .checkbox:checked {
   background: var(--primary-color);
   border-color: var(--primary-color);
 }
 
-.forgot-link {
+.login-demo .forgot-link {
   color: var(--primary-color);
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s ease;
 }
 
-.forgot-link:hover {
+.login-demo .forgot-link:hover {
   color: var(--primary-dark);
   text-decoration: underline;
 }
 
-/* Login button */
-.login-button {
+.login-demo .login-button {
   width: 100%;
   padding: 0.875rem 1rem;
   background: var(--primary-color);
@@ -4550,39 +4533,37 @@ body {
   gap: 0.5rem;
 }
 
-.login-button:hover {
+.login-demo .login-button:hover {
   background: var(--primary-dark);
   transform: translateY(-1px);
 }
 
-/* Loading state */
-.login-button.loading {
+.login-demo .login-button.loading {
   background: var(--secondary-color);
   cursor: not-allowed;
 }
 
-.spinner {
+.login-demo .spinner {
   width: 1rem;
   height: 1rem;
   border: 2px solid transparent;
   border-top: 2px solid white;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: login-spin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes login-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-/* Divider */
-.divider {
+.login-demo .divider {
   margin: 1.5rem 0;
   position: relative;
   text-align: center;
 }
 
-.divider::before {
+.login-demo .divider::before {
   content: '';
   position: absolute;
   top: 50%;
@@ -4592,21 +4573,20 @@ body {
   background: var(--border-color);
 }
 
-.divider-text {
+.login-demo .divider-text {
   background: var(--surface-color);
   padding: 0 1rem;
   color: var(--text-secondary);
   font-size: 0.875rem;
 }
 
-/* Social login */
-.social-login {
+.login-demo .social-login {
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
 }
 
-.social-button {
+.login-demo .social-button {
   flex: 1;
   padding: 0.75rem;
   border: 2px solid var(--border-color);
@@ -4622,48 +4602,44 @@ body {
   gap: 0.5rem;
 }
 
-.social-button:hover {
+.login-demo .social-button:hover {
   border-color: var(--primary-color);
   color: var(--primary-color);
 }
 
-/* Sign-up link */
-.signup-link {
+.login-demo .signup-link {
   text-align: center;
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
 
-.signup-link a {
+.login-demo .signup-link a {
   color: var(--primary-color);
   text-decoration: none;
   font-weight: 600;
 }
 
-.signup-link a:hover {
+.login-demo .signup-link a:hover {
   text-decoration: underline;
 }
 
-/* Error messages */
-.error-message {
+.login-demo .error-message {
   color: var(--error-color);
   font-size: 0.75rem;
   margin-top: 0.25rem;
   min-height: 1rem;
 }
 
-/* Mobile responsive */
 @media (max-width: 640px) {
-  .login-container {
+  .login-demo .login-container {
     padding: 2rem 1.5rem;
-    margin: 1rem;
   }
-  
-  .login-title {
+
+  .login-demo .login-title {
     font-size: 1.5rem;
   }
-  
-  .social-login {
+
+  .login-demo .social-login {
     flex-direction: column;
   }
 }`,
@@ -7573,15 +7549,26 @@ ctx.fillText('HTML Canvas', 10, 130);
   flex-direction: column;
   gap: 20px;
   position: relative;
-  z-index: 10;
+  z-index: 1;
   padding: 30px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  background: linear-gradient(135deg, #0f172a 0%, #3b2d6b 45%, #ff6f61 100%);
   border-radius: 25px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  max-width: 300px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  max-width: 320px;
   margin: 20px auto;
+  overflow: hidden;
+}
+
+.social-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgba(255,255,255,0.25), transparent 55%),
+              radial-gradient(circle at bottom right, rgba(255,255,255,0.2), transparent 60%);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  pointer-events: none;
 }
 
 .title {
@@ -7648,6 +7635,7 @@ ctx.fillText('HTML Canvas', 10, 130);
   left: 45px;
   z-index: 2;
   white-space: nowrap;
+  color: #fff;
 }
 
 .social-btn:hover {
