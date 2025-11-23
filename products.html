@@ -29,12 +29,12 @@
     <style>
         .products-hero {
             color: white !important;
-         
             text-align: center !important;
             position: relative !important;
             min-height: 500px !important;
             display: block !important;
             width: 100% !important;
+            padding: 170px 20px 60px;
         }
         
         .products-hero h1 {
@@ -65,10 +65,43 @@
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
             font-weight: 500;
         }
+
+        .hero-actions {
+            margin-top: 35px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .hero-actions .product-button {
+            min-width: 220px;
+        }
+
+        .product-button.secondary {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid rgba(102, 126, 234, 0.6);
+        }
+
+        .product-button.secondary:hover {
+            color: #764ba2;
+            border-color: rgba(118, 75, 162, 0.9);
+            background: rgba(118, 75, 162, 0.08);
+        }
+
+        .product-button.subtle {
+            background: rgba(102, 126, 234, 0.15);
+            color: #1a1a2e;
+        }
+
+        .product-button.subtle:hover {
+            background: rgba(118, 75, 162, 0.2);
+        }
         
         .products-container {
             max-width: 1400px;
-            margin: -40px auto 80px;
+            margin: 20px auto 80px;
             padding: 0 20px;
             position: relative;
             z-index: 2;
@@ -324,6 +357,7 @@
         <ul class="nav-links" id="navLinks">
             <li><a href="index.html">Home</a></li>
             <li><a href="Learn.html">Learning Resources</a></li>
+            <!--
             <li class="dropdown" id="toolsDropdown">
                 <span class="dropdown-toggle" id="toolsToggle">Tools</span>
                 <ul class="dropdown-menu" id="toolsDropdownMenu">
@@ -331,9 +365,10 @@
                     <li><a href="amortization.html" target="_blank">Amortization Calculator</a></li>
                     <li><a href="Signature Builder.html" target="_blank">Email Signature Builder</a></li>
                     <li><a href="Excel.html" target="_blank">Excel Simulations</a></li>
-                                    <li><a href="shortcuts.html" target="_blank">Shortcuts</a></li>
+                    <li><a href="shortcuts.html" target="_blank">Shortcuts</a></li>
                 </ul>
             </li>
+            -->
             <li><a href="practice.html">Practice</a></li>
             <li><a href="codeplayground.html">Code Playground</a></li>
             <li><a href="products.html" class="active">Products</a></li>
@@ -349,13 +384,23 @@
         </div>
     </nav>
 
-    <section class="products-hero visible" style="display: block !important; min-height: 500px !important;">
-        <h1 style="color: white !important; font-size: 3.5rem !important; text-shadow: 3px 3px 8px rgba(0,0,0,0.9) !important; display: inline-block !important; visibility: visible !important;">Digital Products</h1>
-        <p style="color: white !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.7) !important; visibility: visible !important;">
+    <section class="products-hero visible">
+        <h1>Digital Products</h1>
+        <p>
             Professional digital solutions designed to boost your productivity and skills. 
             Instant access, affordable pricing, and high-quality results.
         </p>
+        <div class="hero-actions">
+            <button type="button" class="product-button" data-member-modal-trigger>
+                Member Login
+            </button>
+            <a class="product-button secondary" href="excel-members-service.html">
+                Member Portal
+            </a>
+        </div>
     </section>
+
+    <div data-supabase-config data-supabase-url="" data-supabase-anon-key="" data-supabase-redirect="/products.html" hidden></div>
 
     <div class="products-container">
         <h2 class="section-title">Available Now</h2>
@@ -490,9 +535,15 @@
                             <span class="price-amount">See Checkout</span>
                             <span class="price-label">Stripe payment</span>
                         </div>
-                        <a class="product-button" href="https://buy.stripe.com/5kQfZi1Cfcyte1obxS43S03" target="_blank" rel="noopener">
+                        <button
+                            type="button"
+                            class="product-button"
+                            id="excelPurchaseButton"
+                            data-price-id="price_EXCEL_UPLOAD"
+                            data-entitlement="excel_upload"
+                            data-direct-url="https://buy.stripe.com/5kQfZi1Cfcyte1obxS43S03">
                             Purchase Access →
-                        </a>
+                        </button>
                     </div>
                     <a href="return-policy.html" class="return-policy-link">📋 View Return Policy</a>
                 </div>
@@ -687,7 +738,143 @@
         </div>
     </div>
 
-    <script src="js/backgrounds.js"></script>
-    <script src="js/dropdown.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script>
+        <script src="js/auth.js" defer></script>
+        <script src="js/navAuth.js" defer></script>
+        <script src="js/backgrounds.js"></script>
+        <script src="js/dropdown.js"></script>
+        <script>
+            (function(){
+                var memberStatus = document.getElementById('memberAccessStatus');
+                var memberNote = document.getElementById('memberAccessNote');
+                var signInBtn = document.getElementById('googleSignInButton');
+                var signOutBtn = document.getElementById('signOutButton');
+                var manageBtn = document.getElementById('manageMembershipButton');
+                var purchaseBtn = document.getElementById('excelPurchaseButton');
+                var defaultPortalHref = 'excel-members-service.html';
+
+                function setButtonLoading(isLoading){
+                    if (!purchaseBtn) return;
+                    purchaseBtn.disabled = Boolean(isLoading);
+                    purchaseBtn.dataset.loading = isLoading ? 'true' : 'false';
+                    if (isLoading){
+                        purchaseBtn.textContent = 'Redirecting…';
+                    } else {
+                        purchaseBtn.textContent = purchaseBtn.dataset.action === 'portal' ? 'Open Upload Portal →' : 'Purchase Access →';
+                    }
+                }
+
+                async function startCheckout(priceId){
+                    if (!purchaseBtn || !priceId){
+                        return window.open(purchaseBtn?.dataset.directUrl || '#', '_blank');
+                    }
+                    const auth = window.csftAuth;
+                    const token = auth?.getAccessToken?.();
+                    if (!token){
+                        return window.open(purchaseBtn.dataset.directUrl, '_blank');
+                    }
+                    if (!window.fetch){
+                        return window.open(purchaseBtn.dataset.directUrl, '_blank');
+                    }
+                    try {
+                        setButtonLoading(true);
+                        const response = await fetch('/api/create-checkout-session', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`,
+                            },
+                            body: JSON.stringify({ priceId, successPath: '/excel-members-service.html' }),
+                        });
+                        const payload = await response.json().catch(() => ({}));
+                        if (response.ok && payload.url){
+                            window.location.href = payload.url;
+                        } else {
+                            window.open(purchaseBtn.dataset.directUrl, '_blank');
+                        }
+                    } catch (err){
+                        console.error('Checkout session error', err);
+                        window.open(purchaseBtn.dataset.directUrl, '_blank');
+                    } finally {
+                        setButtonLoading(false);
+                    }
+                }
+
+                if (purchaseBtn){
+                    purchaseBtn.addEventListener('click', function(){
+                        if (purchaseBtn.dataset.action === 'portal'){
+                            window.location.href = defaultPortalHref;
+                            return;
+                        }
+                        startCheckout(purchaseBtn.dataset.priceId);
+                    });
+                }
+
+                if (signInBtn){
+                    signInBtn.addEventListener('click', function(){
+                        if (window.csftAuth?.signInWithGoogle){
+                            window.csftAuth.signInWithGoogle();
+                        } else {
+                            console.warn('Auth client not ready');
+                        }
+                    });
+                }
+
+                if (signOutBtn){
+                    signOutBtn.addEventListener('click', function(){
+                        if (window.csftAuth?.signOut){
+                            window.csftAuth.signOut();
+                        }
+                    });
+                }
+
+                function hasActiveEntitlement(memberships, code){
+                    if (!Array.isArray(memberships)) return false;
+                    return memberships.some(function(entry){
+                        return entry && entry.entitlement === code && entry.status === 'active';
+                    });
+                }
+
+                function updateUi(detail){
+                    const user = detail?.user;
+                    const memberships = detail?.memberships || [];
+                    const hasExcel = hasActiveEntitlement(memberships, 'excel_upload');
+                    if (memberStatus){
+                        memberStatus.textContent = user ? `Signed in as ${user.email}` : 'Sign in with Google to unlock member-only tools.';
+                    }
+                    if (memberNote){
+                        memberNote.textContent = hasExcel
+                            ? 'Membership verified. Head to the upload portal when you are ready.'
+                            : 'After signing in, purchase the upload service to unlock the form.';
+                    }
+                    if (signInBtn){
+                        signInBtn.hidden = Boolean(user);
+                    }
+                    if (signOutBtn){
+                        signOutBtn.hidden = !user;
+                    }
+                    if (manageBtn){
+                        manageBtn.textContent = hasExcel ? 'Open Upload Portal →' : 'Visit Upload Portal →';
+                    }
+                    if (purchaseBtn){
+                        purchaseBtn.dataset.action = hasExcel ? 'portal' : 'checkout';
+                        purchaseBtn.disabled = purchaseBtn.dataset.loading === 'true';
+                        purchaseBtn.textContent = hasExcel ? 'Open Upload Portal →' : 'Purchase Access →';
+                    }
+                }
+
+                window.addEventListener('csft-auth-change', function(evt){
+                    updateUi(evt.detail || {});
+                });
+
+                if (window.csftAuth && typeof window.csftAuth.onChange === 'function'){
+                    window.csftAuth.onChange(updateUi);
+                }
+
+                if (window.csftAuth && typeof window.csftAuth.getState === 'function'){
+                    updateUi(window.csftAuth.getState());
+                }
+            })();
+        </script>
 </body>
 </html>
