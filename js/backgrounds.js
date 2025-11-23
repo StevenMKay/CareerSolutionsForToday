@@ -8,6 +8,7 @@ const backgrounds = {
   "videos.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0786e5f3335fd538557bd2f731a5447697137168/photos/videosection2.png')",
   "templates.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/da19106f72f1e65b1251a02913a85dd58a98eff2/photos/ResumeSectionPhoto.jpg')",
   "resume.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/965f4340d871fd36de40d605531c2d3b3a82707d/photos/resumebackgroudn.jpg')",
+  "resumeactual.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/965f4340d871fd36de40d605531c2d3b3a82707d/photos/resumebackgroudn.jpg')",
   "practice.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5d98685a09d577a114908c9770a48196edce63eb/photos/codingbackground.jpg')",
    "businesscase.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/bace7364d2f524356dbc1042b8d74f323848b5a9/photos/BusinessCaseBackground.jpg')",
    "simulations.html": "url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/5753c97d022cbbcdbe5d0c72cd9fcb39e00f4bd5/photos/SimulationsBackground.jpg')",
