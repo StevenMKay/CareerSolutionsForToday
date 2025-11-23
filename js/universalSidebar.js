@@ -309,6 +309,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function clearAllTopics(program) {
+    const groups = groupByProgramAndTopic(getAllItems());
+    const fallbackProgram = program || currentProgram || defaultProgram || getFirstProgramName(groups);
+    if (!fallbackProgram) return;
+    currentProgram = fallbackProgram;
+    currentTopic = null;
+    updateProgramTopicHash(fallbackProgram);
+    renderProgramCards(fallbackProgram);
+    renderSidebar(groups);
+    renderMobileSidebar(groups);
+    highlightActiveTopic(null, null);
+    scrollToLibraryPanelTop();
+  }
+
   function highlightActiveTopic(program, topic) {
     if (!isCodeLibraryPage) return;
     document.querySelectorAll('.sidebar-topic').forEach(btn => {
@@ -1297,11 +1311,53 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getFirstProgramName(groups) {
+    const programs = Object.keys(groups || {});
+    if (!programs.length) return null;
+    return programs.sort((a, b) => a.localeCompare(b))[0];
+  }
+
   function renderSidebar(groups) {
     if (isMobile()) return;
+    const container = document.getElementById('desktopSidebar');
+    if (!container) return;
+
+    if (isCodeLibraryPage) {
+      const programNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+      const activeProgram = currentProgram || programNames[0] || null;
+      let html = `
+        <div class="sidebar-topic-header">
+          <h2>Topics</h2>
+          <button type="button" class="sidebar-clear-topics" data-program="${activeProgram || ''}">Show all</button>
+        </div>
+      `;
+
+      programNames.forEach(program => {
+        const topics = Object.keys(groups[program]?.topics || {}).sort((a, b) => a.localeCompare(b));
+        const topicList = topics.map(topic => {
+          const isActiveTopic = currentProgram === program && currentTopic === topic;
+          return `
+            <li class="sidebar-topic${isActiveTopic ? ' active' : ''}" data-program="${program}" data-topic="${topic}">
+              <a href="#program=${encodeURIComponent(program)}&topic=${encodeURIComponent(topic)}">${topic}</a>
+            </li>
+          `;
+        }).join('');
+        if (topicList) {
+          html += `
+            <ul class="sidebar-topics expanded" data-program="${program}">
+              ${topicList}
+            </ul>
+          `;
+        }
+      });
+
+      container.innerHTML = html;
+      return;
+    }
+
     let html = '<h2>Programs</h2>';
     Object.keys(groups).sort((a, b) => a.localeCompare(b)).forEach(program => {
-      const expanded = isCodeLibraryPage ? true : (sidebarState[program]?.expanded || false);
+      const expanded = sidebarState[program]?.expanded || false;
       html += `
         <div class="practice-language-btn${currentProgram === program && expanded ? ' active' : ''}" data-program="${program}">
          ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}">` : ''}
@@ -1320,7 +1376,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </ul>
       `;
     });
-    document.getElementById('desktopSidebar').innerHTML = html;
+    container.innerHTML = html;
   }
 
   function setupScrollTopicHighlight(program) {
@@ -1357,11 +1413,22 @@ document.addEventListener('DOMContentLoaded', () => {
       topicsRow.style.display = 'none';
       return;
     }
+    const sortedPrograms = Object.keys(groups).sort();
+    const activeProgram = currentProgram || sortedPrograms[0];
+
+    if (isCodeLibraryPage) {
+      programsRow.style.display = 'none';
+      programsRow.innerHTML = '';
+      topicsRow.style.display = '';
+      showTopicsFor(activeProgram, { includeClearButton: true });
+      return;
+    }
+
     programsRow.style.display = '';
     topicsRow.style.display = '';
 
     // Render program buttons
-    programsRow.innerHTML = Object.keys(groups).sort().map((program) => `
+    programsRow.innerHTML = sortedPrograms.map((program) => `
       <button class="sidebar-program${currentProgram === program ? ' active' : ''}" data-program="${program}">
         ${window.PROGRAM_ICONS && window.PROGRAM_ICONS[program] ? `<img src="${window.PROGRAM_ICONS[program]}" alt="${program}" style="height:20px;vertical-align:middle;margin-right:6px;">` : ''}
         ${program}
@@ -1369,13 +1436,22 @@ document.addEventListener('DOMContentLoaded', () => {
     `).join('');
 
     // Helper to show topics for a program
-    function showTopicsFor(program) {
-      topicsRow.innerHTML = Object.keys(groups[program].topics).sort().map(topic => {
+    function showTopicsFor(program, options = {}) {
+      if (!program || !groups[program]) {
+        topicsRow.innerHTML = '';
+        return;
+      }
+      const topics = Object.keys(groups[program]?.topics || {}).sort();
+      const clearBtnMarkup = options.includeClearButton ? `
+        <button class="sidebar-topic-clear" data-action="clear-topics" data-program="${program}">Show all</button>
+      ` : '';
+      const topicMarkup = topics.map(topic => {
         const isActive = currentProgram === program && currentTopic === topic;
         return `
         <button class="sidebar-topic${isActive ? ' active' : ''}" data-program="${program}" data-topic="${topic}">${topic}</button>
       `;
       }).join('');
+      topicsRow.innerHTML = `${clearBtnMarkup}${topicMarkup}`;
       // Topic click handlers
       topicsRow.querySelectorAll('.sidebar-topic').forEach(topicBtn => {
         topicBtn.addEventListener('click', function(e) {
@@ -1429,6 +1505,15 @@ document.addEventListener('DOMContentLoaded', () => {
           }, 50);
         });
       });
+
+      const clearBtn = topicsRow.querySelector('[data-action="clear-topics"]');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          clearAllTopics(program);
+          topicsRow.querySelectorAll('.sidebar-topic').forEach(btn => btn.classList.remove('active'));
+        });
+      }
     }
 
     // Program click handlers
@@ -1530,7 +1615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Show topics for the selected or first program by default
-    const firstProgram = currentProgram || Object.keys(groups)[0];
+    const firstProgram = activeProgram || Object.keys(groups)[0];
     showTopicsFor(firstProgram);
   }
 
@@ -1549,6 +1634,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function handleSidebarClick(e) {
     const progEl = e.target.closest('.practice-language-btn');
     const topicEl = e.target.closest('.sidebar-topic');
+    const clearTopicsEl = e.target.closest('.sidebar-clear-topics');
+
+    if (clearTopicsEl) {
+      e.preventDefault();
+      const program = clearTopicsEl.getAttribute('data-program');
+      clearAllTopics(program);
+      return;
+    }
+
     if (progEl) {
       const program = progEl.getAttribute('data-program');
 
