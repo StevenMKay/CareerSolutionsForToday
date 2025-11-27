@@ -364,6 +364,40 @@
       color: #64b5f6;
     }
 
+    .job-link-input {
+      width: 100%;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-size: 0.95em;
+    }
+
+    .job-link-input::placeholder {
+      color: rgba(255,255,255,0.7);
+    }
+
+    .job-link-status {
+      margin-top: 8px;
+      font-size: 0.9em;
+      min-height: 18px;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .job-link-status.success {
+      color: #81c784;
+    }
+
+    .job-link-status.info {
+      color: #64b5f6;
+    }
+
+    .job-link-status.error {
+      color: #ff8a80;
+    }
+
     /* Dev reminder: never default new panels to opacity: 0 unless they have matching show logic */
     .feedback-section {
       background: rgba(5,12,24,0.92);
@@ -910,6 +944,14 @@
             id="jobDescriptionText" 
             placeholder="Paste the job description here (optional)...&#10;&#10;Include: Job title, requirements, responsibilities, preferred skills, etc.&#10;or paste a full LinkedIn job link (https://www.linkedin.com/jobs/...) and we'll pull the posting automatically."
           ></textarea>
+          <input 
+            type="url" 
+            class="job-link-input" 
+            id="jobDescriptionLink" 
+            placeholder="Paste LinkedIn job URL (optional)..." 
+            inputmode="url"
+          />
+          <div class="job-link-status" id="jobLinkStatus" aria-live="polite"></div>
           <p class="job-link-tip">Tip: You can paste a <strong>LinkedIn job posting URL</strong> and the analyzer will fetch the description for you.</p>
         </div>
       </div>
@@ -983,6 +1025,18 @@
       'responsibilities','responsibility','responsible for','requirements','required','qualifications','qualification',
       'what you will do','what you\'ll do','about the role','about you','who you are','day to day','day-to-day',
       'duties','expectations','must have','nice to have','preferred qualifications','skills','experience'
+    ];
+
+    const JOB_CONTEXT_LANGUAGE_PATTERNS = [
+      /job description/gi,
+      /job posting/gi,
+      /this role/gi,
+      /the role/gi,
+      /role requirements?/gi,
+      /position requirements?/gi,
+      /hiring manager/gi,
+      /align with the role/gi,
+      /\bJD\b/gi
     ];
 
     const CLIENT_CRITICAL_KEYWORD_LIBRARY = [
@@ -1365,18 +1419,39 @@
         return;
       }
 
-      // Get job description (optional)
-      const jobDescription = document.getElementById('jobDescriptionText').value.trim();
+      // Get job description inputs (optional)
+      const jobDescriptionTextArea = document.getElementById('jobDescriptionText');
+      const jobDescriptionLinkInput = document.getElementById('jobDescriptionLink');
+      const jobDescriptionText = jobDescriptionTextArea ? jobDescriptionTextArea.value.trim() : '';
+      const jobDescriptionLink = jobDescriptionLinkInput ? jobDescriptionLinkInput.value.trim() : '';
+      const jobDescriptionPayload = jobDescriptionText || jobDescriptionLink;
+      const jobInputSource = jobDescriptionText ? 'text' : (jobDescriptionLink ? 'link' : 'none');
+      if (jobInputSource === 'link') {
+        setJobLinkStatus('Fetching job posting details...', 'info');
+      } else {
+        setJobLinkStatus();
+      }
 
       // Show analyzing state
       const analyzeBtn = document.getElementById('analyzeBtn');
-      analyzeBtn.textContent = jobDescription ? 
+      analyzeBtn.textContent = jobDescriptionPayload ? 
         '🔄 Analyzing Resume vs Job Description...' : 
         '🔄 Analyzing Resume...';
       analyzeBtn.disabled = true;
 
       try {
-        const analysis = await performAIResumeAnalysis(resumeData.content, jobDescription);
+        const analysisPayload = await performAIResumeAnalysis(resumeData.content, jobDescriptionPayload);
+        const {
+          analysis,
+          jobMatched,
+          jobDescriptionResolved,
+          jobDescriptionError,
+          jobDescriptionSource
+        } = analysisPayload;
+        const resolvedJobDescriptionText = jobDescriptionResolved && jobDescriptionResolved.trim().length
+          ? jobDescriptionResolved
+          : jobDescriptionText;
+        const jobContextSource = resolvedJobDescriptionText || jobDescriptionText || '';
         
         // Update usage tracking (hidden)
         updateUsageData();
@@ -1402,9 +1477,9 @@
         }
 
         if (!Array.isArray(analysis.criticalKeywords) || !analysis.criticalKeywords.length) {
-          analysis.criticalKeywords = generateClientCriticalKeywords(jobDescription, resumeTextSnapshot);
+          analysis.criticalKeywords = generateClientCriticalKeywords(jobContextSource, resumeTextSnapshot);
         } else if (analysis.criticalKeywords.length < 15) {
-          const supplements = generateClientCriticalKeywords(jobDescription, resumeTextSnapshot);
+          const supplements = generateClientCriticalKeywords(jobContextSource, resumeTextSnapshot);
           supplements.forEach(keyword => {
             if (analysis.criticalKeywords.length < 15 && !analysis.criticalKeywords.includes(keyword)) {
               analysis.criticalKeywords.push(keyword);
@@ -1412,7 +1487,18 @@
           });
         }
         
-        displayAnalysisResults(analysis, !!jobDescription, jobDescription);
+        if (!jobMatched) {
+          scrubJobSpecificAdvice(analysis);
+        }
+
+        handleJobLinkStatusFeedback({
+          jobInputSource,
+          jobDescriptionError,
+          jobDescriptionSource,
+          jobMatched
+        });
+
+        displayAnalysisResults(analysis, Boolean(jobMatched), resolvedJobDescriptionText || '');
         
         // Scroll to results
         document.getElementById('feedbackSection').scrollIntoView({ behavior: 'smooth' });
@@ -1511,11 +1597,24 @@
 
         if (!data.analysis) {
           console.log('No analysis data in response:', data);
-          return useDemoFallback('API returned no analysis payload.');
+          return buildAnalysisPayload({
+            analysis: useDemoFallback('API returned no analysis payload.'),
+            fallbackUsed: true,
+            fallbackReason: 'missing_analysis_payload'
+          });
         }
 
         console.log('Analysis successful:', data.analysis);
-        return data.analysis;
+        return buildAnalysisPayload({
+          analysis: data.analysis,
+          jobMatched: data.jobMatched,
+          jobDescriptionResolved: data.jobDescriptionResolved,
+          jobDescriptionSource: data.jobDescriptionSource,
+          jobDescriptionError: data.jobDescriptionError,
+          jobDescriptionUrl: data.jobDescriptionUrl,
+          fallbackUsed: data.fallbackUsed,
+          fallbackReason: data.fallbackReason
+        });
         
       } catch (error) {
         console.error('=== ANALYSIS ERROR ===');
@@ -1526,7 +1625,11 @@
         // If it's a network error, provide mock response
         if (error.message.includes('Failed to fetch') || error.message.includes('network') || error.name === 'TypeError') {
           console.log('Network error detected, evaluating fallback...');
-          return useDemoFallback('Network connection to BACKEND_URL failed.');
+          return buildAnalysisPayload({
+            analysis: useDemoFallback('Network connection to BACKEND_URL failed.'),
+            fallbackUsed: true,
+            fallbackReason: 'network_failure'
+          });
         }
         
         throw error;
@@ -1605,6 +1708,70 @@
       alert('Demo response loaded. For full functionality, integrate an LLM.\n\nDetails: ' + reason);
       return getMockAnalysisResponse();
     }
+
+    function buildAnalysisPayload({
+      analysis,
+      jobMatched = false,
+      jobDescriptionResolved = '',
+      jobDescriptionSource = 'none',
+      jobDescriptionError = null,
+      jobDescriptionUrl = '',
+      fallbackUsed = false,
+      fallbackReason = null
+    } = {}) {
+      return {
+        analysis: analysis || getMockAnalysisResponse(),
+        jobMatched: Boolean(jobMatched),
+        jobDescriptionResolved: jobDescriptionResolved || '',
+        jobDescriptionSource,
+        jobDescriptionError,
+        jobDescriptionUrl,
+        fallbackUsed: Boolean(fallbackUsed),
+        fallbackReason
+      };
+    }
+
+      function setJobLinkStatus(message = '', type = '') {
+        const statusEl = document.getElementById('jobLinkStatus');
+        if (!statusEl) {
+          return;
+        }
+        statusEl.textContent = message || '';
+        statusEl.classList.remove('success', 'error', 'info');
+        if (type) {
+          statusEl.classList.add(type);
+        }
+      }
+
+      function handleJobLinkStatusFeedback({
+        jobInputSource = 'none',
+        jobDescriptionError = null,
+        jobDescriptionSource = 'none',
+        jobMatched = false
+      }) {
+        if (jobInputSource !== 'link') {
+          if (jobDescriptionError) {
+            setJobLinkStatus(jobDescriptionError, 'error');
+          } else {
+            setJobLinkStatus();
+          }
+          return;
+        }
+
+        if (jobDescriptionError) {
+          setJobLinkStatus(`Could not fetch LinkedIn job posting (${jobDescriptionError}). Please paste the description text instead.`, 'error');
+          return;
+        }
+
+        if (jobMatched) {
+          const successLabel = jobDescriptionSource === 'linkedin'
+            ? 'LinkedIn job description pulled successfully.'
+            : 'Job posting fetched successfully.';
+          setJobLinkStatus(successLabel, 'success');
+        } else {
+          setJobLinkStatus('LinkedIn link received, but the posting text was unavailable. Please paste the description manually.', 'error');
+        }
+      }
 
     function escapeHTML(value = '') {
       return String(value).replace(/[&<>"']/g, char => ({
@@ -1909,6 +2076,66 @@
       return keywords.slice(0, 15);
     }
 
+    function scrubJobSpecificAdvice(analysis) {
+      if (!analysis || typeof analysis !== 'object') {
+        return;
+      }
+
+      const renamePattern = /(job|match|align)/i;
+      const scrubText = value => {
+        if (typeof value !== 'string') {
+          return '';
+        }
+        let cleaned = value;
+        JOB_CONTEXT_LANGUAGE_PATTERNS.forEach(pattern => {
+          cleaned = cleaned.replace(pattern, 'target opportunities');
+        });
+        return cleaned.trim();
+      };
+
+      if (Array.isArray(analysis.categories)) {
+        analysis.categories = analysis.categories.map(category => {
+          if (!category || typeof category !== 'object') {
+            return category;
+          }
+
+          const safeName = renamePattern.test(category.name || '') ? 'Keyword Optimization' : category.name;
+          const cleanedSuggestions = Array.isArray(category.suggestions)
+            ? category.suggestions.map(scrubText).filter(Boolean)
+            : [];
+          const suggestionFallback = 'Highlight measurable wins and ATS-friendly keywords relevant to your target opportunities.';
+
+          return {
+            ...category,
+            name: safeName,
+            feedback: scrubText(category.feedback) || category.feedback,
+            scoreExplanation: scrubText(category.scoreExplanation) || category.scoreExplanation,
+            suggestions: cleanedSuggestions.length ? cleanedSuggestions : [suggestionFallback]
+          };
+        });
+      }
+
+      if (Array.isArray(analysis.extraInsights)) {
+        analysis.extraInsights = analysis.extraInsights.map(insight => {
+          if (!insight || typeof insight !== 'object') {
+            return insight;
+          }
+
+          const cleanedTips = Array.isArray(insight.tips)
+            ? insight.tips.map(scrubText).filter(Boolean)
+            : [];
+          const cleanedDetails = scrubText(insight.details) || insight.details || 'Focus on quantifiable wins and ATS-friendly phrasing.';
+          const tipsFallback = 'Keep emphasizing impact-focused bullets so target opportunities feel like a clear fit.';
+
+          return {
+            ...insight,
+            details: cleanedDetails,
+            tips: cleanedTips.length ? cleanedTips : [tipsFallback]
+          };
+        });
+      }
+    }
+
     function displayAnalysisResults(analysis, hasJobDescription = false, jobDescriptionText = '') {
       analysisResults = analysis;
       
@@ -1967,6 +2194,12 @@
         .filter(Boolean)
         .filter((value, index, arr) => arr.findIndex(other => other.toLowerCase() === value.toLowerCase()) === index);
 
+      let suggestionList = normalizedSuggestions.slice();
+      const metricsCount = Number(analysisResults?.atsSignals?.metricsCount) || 0;
+      if (metricsCount >= 10) {
+        suggestionList = suggestionList.filter(item => !/\bmetric|quantif/i.test(item));
+      }
+
       const cleanedFeedback = typeof category.feedback === 'string' ? category.feedback.trim() : '';
       const showScoreExplanation = Boolean(scoreExplanation) && scoreExplanation.trim() && scoreExplanation.trim().toLowerCase() !== cleanedFeedback.toLowerCase();
 
@@ -1988,11 +2221,11 @@
               </ul>
             </div>
           ` : ''}
-          ${normalizedSuggestions.length ? `
+          ${suggestionList.length ? `
             <div>
               <strong>Suggestions for improvement:</strong>
               <ul class="suggestions-list">
-                ${normalizedSuggestions.map(suggestion => `<li>${suggestion}</li>`).join('')}
+                ${suggestionList.map(suggestion => `<li>${suggestion}</li>`).join('')}
               </ul>
             </div>
           ` : ''}
