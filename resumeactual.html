@@ -1075,6 +1075,12 @@
       'Population health / at-risk populations'
     ];
 
+    const JOB_LINK_PREFETCH_DELAY = 650;
+    let jobLinkPrefetchTimeout = null;
+    let jobLinkPrefetchController = null;
+    let lastPrefetchedJobUrl = '';
+    let lastPrefetchedJobDescription = '';
+
     if (window.pdfjsLib) {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     }
@@ -1167,6 +1173,18 @@
     // Text input handling
     document.getElementById('resumeText').addEventListener('input', handleTextInput);
     document.getElementById('resumeText').addEventListener('paste', handleTextPaste);
+
+    const jobDescriptionTextArea = document.getElementById('jobDescriptionText');
+    if (jobDescriptionTextArea) {
+      jobDescriptionTextArea.addEventListener('input', handleJobDescriptionTextareaInput);
+    }
+
+    const jobDescriptionLinkInput = document.getElementById('jobDescriptionLink');
+    if (jobDescriptionLinkInput) {
+      jobDescriptionLinkInput.addEventListener('input', handleJobLinkInput);
+      jobDescriptionLinkInput.addEventListener('blur', handleJobLinkBlur);
+      jobDescriptionLinkInput.addEventListener('paste', handleJobLinkPaste);
+    }
 
     // Analyze button
     document.getElementById('analyzeBtn').addEventListener('click', analyzeResume);
@@ -1425,8 +1443,11 @@
       const jobDescriptionText = jobDescriptionTextArea ? jobDescriptionTextArea.value.trim() : '';
       const jobDescriptionLink = jobDescriptionLinkInput ? jobDescriptionLinkInput.value.trim() : '';
       const jobDescriptionPayload = jobDescriptionText || jobDescriptionLink;
-      const jobInputSource = jobDescriptionText ? 'text' : (jobDescriptionLink ? 'link' : 'none');
-      if (jobInputSource === 'link') {
+      const autoSource = jobDescriptionTextArea?.dataset?.autofillSource || '';
+      const jobInputSource = jobDescriptionText
+        ? (autoSource === 'link' ? 'link' : 'text')
+        : (jobDescriptionLink ? 'link' : 'none');
+      if (jobInputSource === 'link' && !jobDescriptionText) {
         setJobLinkStatus('Fetching job posting details...', 'info');
       } else {
         setJobLinkStatus();
@@ -1737,9 +1758,167 @@
           return;
         }
         statusEl.textContent = message || '';
-        statusEl.classList.remove('success', 'error', 'info');
+        statusEl.classList.remove('success', 'error', 'info', 'pending');
         if (type) {
           statusEl.classList.add(type);
+        }
+      }
+
+      function handleJobDescriptionTextareaInput(event) {
+        const textarea = event.target;
+        if (!textarea) {
+          return;
+        }
+        if (!textarea.value.trim()) {
+          delete textarea.dataset.autofillSource;
+          delete textarea.dataset.autofillUrl;
+          lastPrefetchedJobUrl = '';
+          lastPrefetchedJobDescription = '';
+          return;
+        }
+        if (textarea.dataset.autofillSource === 'link') {
+          textarea.dataset.autofillSource = 'text';
+          delete textarea.dataset.autofillUrl;
+        }
+      }
+
+      function handleJobLinkInput(event) {
+        const value = event.target.value.trim();
+        if (!value) {
+          setJobLinkStatus();
+          clearJobDescriptionAutofillMetadata();
+          return;
+        }
+
+        if (!isLikelyLinkedInJobUrl(value)) {
+          setJobLinkStatus('Paste a LinkedIn job posting URL (https://www.linkedin.com/jobs/...) to auto-load the JD.', 'error');
+          return;
+        }
+
+        setJobLinkStatus('LinkedIn link detected. Pulling the posting...', 'pending');
+        scheduleJobLinkPrefetch(value);
+      }
+
+      function handleJobLinkBlur(event) {
+        const value = event.target.value.trim();
+        if (value && isLikelyLinkedInJobUrl(value)) {
+          prefetchJobDescriptionFromLink(value, { force: true });
+        }
+      }
+
+      function handleJobLinkPaste(event) {
+        setTimeout(() => {
+          const value = event.target.value.trim();
+          if (value && isLikelyLinkedInJobUrl(value)) {
+            prefetchJobDescriptionFromLink(value, { force: true });
+          }
+        }, 50);
+      }
+
+      function isLikelyLinkedInJobUrl(value = '') {
+        return /linkedin\.com\/jobs/i.test(value || '');
+      }
+
+      function scheduleJobLinkPrefetch(url) {
+        if (!url) {
+          return;
+        }
+        clearTimeout(jobLinkPrefetchTimeout);
+        jobLinkPrefetchTimeout = setTimeout(() => {
+          prefetchJobDescriptionFromLink(url);
+        }, JOB_LINK_PREFETCH_DELAY);
+      }
+
+      function clearJobDescriptionAutofillMetadata() {
+        const textarea = document.getElementById('jobDescriptionText');
+        if (textarea) {
+          delete textarea.dataset.autofillSource;
+          delete textarea.dataset.autofillUrl;
+        }
+        lastPrefetchedJobUrl = '';
+        lastPrefetchedJobDescription = '';
+      }
+
+      function applyPrefetchedJobDescription(text, sourceUrl) {
+        const textarea = document.getElementById('jobDescriptionText');
+        if (!textarea || !text) {
+          return;
+        }
+        textarea.value = text;
+        textarea.dataset.autofillSource = 'link';
+        textarea.dataset.autofillUrl = sourceUrl || '';
+        textarea.scrollTop = 0;
+        lastPrefetchedJobUrl = sourceUrl || '';
+        lastPrefetchedJobDescription = text;
+      }
+
+      async function prefetchJobDescriptionFromLink(url, options = {}) {
+        const trimmed = (url || '').trim();
+        if (!trimmed || !isLikelyLinkedInJobUrl(trimmed)) {
+          return;
+        }
+
+        clearTimeout(jobLinkPrefetchTimeout);
+        jobLinkPrefetchTimeout = null;
+
+        if (!options.force && trimmed === lastPrefetchedJobUrl && lastPrefetchedJobDescription) {
+          setJobLinkStatus('LinkedIn job description already loaded.', 'success');
+          return;
+        }
+
+        if (jobLinkPrefetchController) {
+          jobLinkPrefetchController.abort();
+        }
+        jobLinkPrefetchController = new AbortController();
+
+        setJobLinkStatus('Loading LinkedIn job posting…', 'pending');
+
+        try {
+          const response = await fetch(CONFIG.BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              resumeText: '',
+              jobDescription: trimmed,
+              hydrateOnly: true
+            }),
+            signal: jobLinkPrefetchController.signal
+          });
+
+          const responseText = await response.text();
+          let data = {};
+          if (responseText) {
+            try {
+              data = JSON.parse(responseText);
+            } catch (parseError) {
+              console.warn('Job link prefetch parse error:', parseError);
+            }
+          }
+
+          if (!response.ok) {
+            const message = data?.jobDescriptionError || data?.message || response.statusText;
+            throw new Error(message || 'Job description fetch failed');
+          }
+
+          if (data.jobDescriptionResolved && data.jobDescriptionResolved.trim().length) {
+            const resolvedText = data.jobDescriptionResolved.trim();
+            applyPrefetchedJobDescription(resolvedText, data.jobDescriptionUrl || trimmed);
+            const words = resolvedText.split(/\s+/).filter(Boolean).length;
+            setJobLinkStatus(`LinkedIn job description loaded (${words} words).`, 'success');
+          } else {
+            const reason = data.jobDescriptionError || 'No description found on that page.';
+            clearJobDescriptionAutofillMetadata();
+            setJobLinkStatus(`Could not load that posting (${reason}). Paste the text manually.`, 'error');
+          }
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            return;
+          }
+          console.error('LinkedIn prefetch error:', error);
+          clearJobDescriptionAutofillMetadata();
+          setJobLinkStatus('LinkedIn job fetch failed. Please paste the description text instead.', 'error');
+        } finally {
+          jobLinkPrefetchController = null;
         }
       }
 
