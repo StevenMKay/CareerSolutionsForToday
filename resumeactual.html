@@ -2804,7 +2804,7 @@
       const backendStars = normalizeStoryArray(storyBuilder?.starStories, desiredStarCount);
       let starStories = backendStars.slice(0, desiredStarCount);
       if (starStories.length < desiredStarCount) {
-        const fallbackStars = buildStarStories(analysis) || [];
+        const fallbackStars = buildStarStories(analysis, resumeText) || [];
         fallbackStars.forEach(story => {
           if (starStories.length >= desiredStarCount) {
             return;
@@ -3004,12 +3004,193 @@
       return weakness || mitigation || '';
     }
 
-    function buildStarStories(analysis) {
+    function buildStarStories(analysis, resumeText = '') {
+      const resumeDriven = buildStarStoriesFromResume(resumeText);
+      if (resumeDriven.length) {
+        return resumeDriven;
+      }
+      return buildStarStoriesFromCategories(analysis);
+    }
+
+    function buildStarStoriesFromResume(resumeText = '') {
+      const achievements = extractResumeAchievements(resumeText).slice(0, 6);
+      return achievements
+        .map(createStarStoryFromAchievement)
+        .filter(Boolean)
+        .slice(0, 4);
+    }
+
+    function extractResumeAchievements(resumeText = '') {
+      if (!resumeText) {
+        return [];
+      }
+      const achievements = [];
+      const lines = resumeText.split(/\r?\n/);
+      let currentRole = '';
+      const bulletPattern = new RegExp(`^(?:[-*•●◦▪▫‣·‧○◉◎▸▹►✦✧➤➔➣➥➧➨➩➪➫➬➭➮➯➱➲➳➵➸➼➽➾]|\d+\.)\s*(.+)`);
+
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return;
+        }
+        if (!bulletPattern.test(trimmed) && looksLikeRoleHeading(trimmed)) {
+          currentRole = trimmed;
+          return;
+        }
+
+        const match = trimmed.match(bulletPattern);
+        if (match) {
+          const text = match[1].replace(/\s+/g, ' ').trim();
+          if (text.length >= 40 && text.length <= 260) {
+            achievements.push({ role: currentRole, text });
+          }
+        }
+      });
+
+      return achievements;
+    }
+
+    function looksLikeRoleHeading(line = '') {
+      if (!line || /^[-*•●]/.test(line)) {
+        return false;
+      }
+      if (line.length > 140) {
+        return false;
+      }
+      if (/[|]/.test(line) && /\d{4}/.test(line)) {
+        return true;
+      }
+      return /(vice president|director|manager|lead|leader|consultant|analyst|faculty|head|principal)/i.test(line);
+    }
+
+    function createStarStoryFromAchievement(achievement) {
+      if (!achievement || !achievement.text) {
+        return '';
+      }
+
+      const normalized = achievement.text.replace(/\s+/g, ' ').trim();
+      if (!normalized) {
+        return '';
+      }
+
+      const { action, result } = splitActionAndResult(normalized);
+      const taskClause = extractTaskClause(normalized);
+      const situation = buildSituationSentence(achievement.role, taskClause || action);
+      const task = taskClause ? `You needed to ${taskClause}.` : 'You were responsible for leading this initiative end-to-end.';
+      const actionSentence = action ? `You ${ensureLowercaseStart(action)}.` : 'You executed the plan across stakeholders.';
+      const resultSentence = result
+        ? toSentenceCase(stripResultTrigger(result))
+        : inferResultFromLine(normalized);
+      const question = buildQuestionFromAction(action || normalized);
+      const sampleAnswer = buildSampleAnswer({ situation, task, action: actionSentence, result: resultSentence });
+
+      return `Question: ${question} || Situation: ${situation} || Task: ${task} || Action: ${actionSentence} || Result: ${resultSentence} || Sample Answer: ${sampleAnswer}`;
+    }
+
+    function splitActionAndResult(line = '') {
+      const triggerPattern = /(resulted in|resulting in|leading to|led to|which led to|driving|drove|generated|creating|producing|delivering|delivered|achieving|achieved|boosting|increasing|reducing)\s+/i;
+      const match = triggerPattern.exec(line);
+      if (!match) {
+        return { action: line, result: '' };
+      }
+      const action = line.slice(0, match.index).replace(/[;,]\s*$/, '').trim();
+      const result = line.slice(match.index).trim();
+      return { action, result };
+    }
+
+    function stripResultTrigger(text = '') {
+      if (!text) {
+        return '';
+      }
+      return text.replace(/^(resulted in|resulting in|leading to|led to|which led to|driving|drove|generated|creating|producing|delivering|delivered|achieving|achieved|boosting|increasing|reducing)\s+/i, '').trim();
+    }
+
+    function extractTaskClause(line = '') {
+      const match = line.match(/\bto\s+([a-z0-9 ,.%$-]+?)(?:[;,\.]|$)/i);
+      if (!match) {
+        return '';
+      }
+      return match[1].trim().replace(/^(the|a|an)\s+/i, '').replace(/(?:by|via).*$/i, '').trim();
+    }
+
+    function buildSituationSentence(role = '', context = '') {
+      const base = role ? `While serving as ${role},` : 'In this role,';
+      const contextHint = context ? ensureLowercaseStart(context) : 'an opportunity to drive impact';
+      return `${base} you recognized ${contextHint || 'an opportunity to drive impact'}.`;
+    }
+
+    function ensureLowercaseStart(text = '') {
+      if (!text) {
+        return '';
+      }
+      const trimmed = text.replace(/[.]+$/, '').trim();
+      if (!trimmed) {
+        return '';
+      }
+      return trimmed.charAt(0).toLowerCase() === trimmed.charAt(0)
+        ? trimmed
+        : trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
+    }
+
+    function inferResultFromLine(line = '') {
+      const metricMatch = line.match(/(\$?\d[\d,]*(?:\.\d+)?\s*(?:%|mm|million|bn|billion|k)?)/i);
+      if (metricMatch) {
+        return `Delivered ${metricMatch[0]} impact and measurable performance gains.`;
+      }
+      return 'Delivered measurable improvements tied to KPIs.';
+    }
+
+    function buildQuestionFromAction(actionText = '') {
+      if (!actionText) {
+        return 'Tell me about a time you drove measurable change.';
+      }
+      const cleaned = actionText.replace(/^you\s+/i, '').replace(/\.$/, '').trim();
+      const verbMatch = cleaned.match(/^[a-z]+/i);
+      if (!verbMatch) {
+        return 'Tell me about a time you led a critical initiative.';
+      }
+      const verb = verbMatch[0].toLowerCase();
+      const remainder = cleaned.slice(verbMatch[0].length).trim();
+      const subject = remainder || 'a critical initiative';
+      const question = `Tell me about a time you ${verb} ${subject}`.replace(/\s+/g, ' ').trim();
+      return question.endsWith('?') ? question : `${question}?`;
+    }
+
+    function buildSampleAnswer(parts = {}) {
+      const segments = [];
+      if (parts.situation) {
+        segments.push(parts.situation.replace(/^in this role,/i, 'In this role,'));
+      }
+      if (parts.task) {
+        segments.push(parts.task);
+      }
+      if (parts.action) {
+        const cleanedAction = parts.action.replace(/^You\s+/i, 'I ');
+        segments.push(cleanedAction);
+      }
+      if (parts.result) {
+        segments.push(parts.result.startsWith('Delivered') ? parts.result : `As a result, ${parts.result}`);
+      }
+      return segments.join(' ');
+    }
+
+    function toSentenceCase(text = '') {
+      if (!text) {
+        return '';
+      }
+      const trimmed = text.replace(/^[,;\s]+/, '').trim();
+      if (!trimmed) {
+        return '';
+      }
+      return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+    }
+
+    function buildStarStoriesFromCategories(analysis) {
       const categories = Array.isArray(analysis?.categories) ? analysis.categories.slice(0, 3) : [];
       if (!categories.length) {
         return [];
       }
-
       return categories.map(category => {
         const safeName = category.name || 'Impact Area';
         const situation = category.feedback || 'Describe the context, scale, and stakeholders involved.';
