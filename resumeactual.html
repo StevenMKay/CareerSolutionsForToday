@@ -889,7 +889,7 @@
       background: rgba(255,255,255,0.03);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 12px;
-      padding: 12px 14px;
+      padding: 16px 18px;
     }
 
     .star-question-intro {
@@ -907,6 +907,31 @@
     .star-answer {
       color: rgba(255,255,255,0.86);
       line-height: 1.5;
+      margin-top: 10px;
+    }
+
+    .star-answer strong {
+      color: #9ecbff;
+    }
+
+    .star-steps {
+      list-style: none;
+      padding-left: 0;
+      margin: 6px 0 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .star-steps li {
+      font-size: 0.92em;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.45;
+    }
+
+    .star-steps strong {
+      color: #b9d6ff;
+      font-weight: 600;
     }
 
     .story-pill {
@@ -2794,12 +2819,7 @@
         .filter(Boolean);
 
       starStoryList.innerHTML = formattedStarStories.length
-        ? formattedStarStories.map(({ question, answer }) => `
-            <li>
-              <div class="star-question">${escapeHTML(question)}</div>
-              <div class="star-answer">${escapeHTML(answer)}</div>
-            </li>
-          `).join('')
+        ? formattedStarStories.map(renderStarStoryCard).join('')
         : '<li><div class="star-answer">Add another quantified bullet so we can auto-build STAR prompts.</div></li>';
 
       const tellMeFromBackend = typeof storyBuilder?.tellMeIntro === 'string' ? storyBuilder.tellMeIntro.trim() : '';
@@ -2867,17 +2887,109 @@
         return null;
       }
 
-      const questionMatch = raw.match(/question:\s*(.+?)(?:\|\||$)/i);
-      const answerMatch = raw.match(/answer:\s*(.+)$/i);
-
-      const defaultQuestion = 'You led an innovative project—what happened?';
-      const question = questionMatch ? questionMatch[1].trim().replace(/^[-–—\s]+/, '') : defaultQuestion;
-      const answer = answerMatch ? answerMatch[1].trim() : raw;
+      const normalized = raw.replace(/\r\n|\r/g, '\n');
+      const sections = extractStarSections(normalized);
+      const defaultQuestion = 'Tell me about a time you led an impactful project.';
+      const question = sanitizeStarQuestion(sections.question || normalized.split(/situation\s*[:-]/i)[0] || defaultQuestion);
+      const answer = sections['sample answer'] || sections.answer || sections.response || buildSampleAnswerFromSections(sections);
 
       return {
         question: question || defaultQuestion,
-        answer: answer || raw
+        situation: sections.situation || '',
+        task: sections.task || '',
+        action: sections.action || '',
+        result: sections.result || '',
+        answer: answer || ''
       };
+    }
+
+    function extractStarSections(text = '') {
+      const labels = ['question','situation','task','action','result','sample answer','answer','response'];
+      const regex = /(question|situation|task|action|result|sample answer|answer|response)\s*[:\-]\s*/gi;
+      const sections = {};
+      let match;
+      let lastLabel = null;
+      let lastIndex = 0;
+
+      while ((match = regex.exec(text)) !== null) {
+        if (lastLabel) {
+          sections[lastLabel] = text.slice(lastIndex, match.index).trim();
+        } else if (text.slice(0, match.index).trim() && !sections.preface) {
+          sections.preface = text.slice(0, match.index).trim();
+        }
+        lastLabel = match[1].toLowerCase();
+        lastIndex = regex.lastIndex;
+      }
+
+      if (lastLabel) {
+        sections[lastLabel] = text.slice(lastIndex).trim();
+      }
+
+      if (!sections.question && sections.preface) {
+        sections.question = sections.preface;
+      }
+
+      return sections;
+    }
+
+    function sanitizeStarQuestion(text = '') {
+      const cleaned = text
+        .replace(/^[-•*⭐\d.\s"']+/, '')
+        .replace(/["']+$/g, '')
+        .trim();
+      if (!cleaned) {
+        return '';
+      }
+      if (!/\?$/.test(cleaned)) {
+        return cleaned.endsWith('.') ? cleaned : `${cleaned}?`;
+      }
+      return cleaned;
+    }
+
+    function buildSampleAnswerFromSections(sections = {}) {
+      const parts = [];
+      if (sections.situation) {
+        parts.push(`In that situation, ${sections.situation}`);
+      }
+      if (sections.task) {
+        parts.push(`My responsibility was ${sections.task}`);
+      }
+      if (sections.action) {
+        parts.push(`I took action by ${sections.action}`);
+      }
+      if (sections.result) {
+        parts.push(`The result was ${sections.result}`);
+      }
+      return parts.join(' ');
+    }
+
+    function renderStarStoryCard(entry) {
+      const steps = [
+        ['Situation', entry.situation],
+        ['Task', entry.task],
+        ['Action', entry.action],
+        ['Result', entry.result]
+      ].filter(([, value]) => Boolean(value && value.trim()));
+
+      const stepsMarkup = steps.length
+        ? `
+            <ul class="star-steps">
+              ${steps.map(([label, value]) => `<li><strong>${label}:</strong> ${escapeHTML(value)}</li>`).join('')}
+            </ul>
+          `
+        : '';
+
+      const answerMarkup = entry.answer
+        ? `<div class="star-answer"><strong>Sample Answer:</strong> ${escapeHTML(entry.answer)}</div>`
+        : '';
+
+      return `
+        <li>
+          <div class="star-question">${escapeHTML(entry.question)}</div>
+          ${stepsMarkup}
+          ${answerMarkup}
+        </li>
+      `;
     }
 
     function formatWeaknessMitigation(weaknessObj) {
@@ -2899,11 +3011,14 @@
       }
 
       return categories.map(category => {
-        const safeName = category.name || 'Impact Story';
-        const scenario = category.feedback || 'Set up the situation and scale.';
-        const action = (category.suggestions && category.suggestions[0]) || 'Highlight the action you led.';
-        const result = (category.suggestions && category.suggestions[1]) || 'Close with data or business impact.';
-        return `${safeName}: S/T — ${scenario} | A — ${action} | R — ${result}`;
+        const safeName = category.name || 'Impact Area';
+        const situation = category.feedback || 'Describe the context, scale, and stakeholders involved.';
+        const task = `You were accountable for elevating ${safeName.toLowerCase()} performance.`;
+        const action = (category.suggestions && category.suggestions[0]) || 'Explain the actions you drove end-to-end.';
+        const result = (category.suggestions && category.suggestions[1]) || 'Finish with a measurable outcome, ideally quantified.';
+        const question = `Tell me about a time you strengthened ${safeName.toLowerCase()}.`;
+        const answer = `In that scenario, ${situation} I owned ${safeName.toLowerCase()} delivery, focused on ${action.toLowerCase()}, and the outcome was ${result.toLowerCase()}.`;
+        return `Question: ${question} || Situation: ${situation} || Task: ${task} || Action: ${action} || Result: ${result} || Sample Answer: ${answer}`;
       });
     }
 
