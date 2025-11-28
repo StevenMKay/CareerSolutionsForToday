@@ -920,7 +920,7 @@
       margin: 6px 0 0;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 8px;
     }
 
     .star-steps li {
@@ -929,9 +929,28 @@
       line-height: 1.45;
     }
 
+    .star-steps li p {
+      margin: 4px 0 0 0;
+      padding-left: 8px;
+      border-left: 2px solid rgba(79, 146, 255, 0.3);
+    }
+
     .star-steps strong {
       color: #b9d6ff;
       font-weight: 600;
+    }
+
+    .star-bullet-list {
+      list-style: disc;
+      padding-left: 24px;
+      margin: 4px 0 0;
+    }
+
+    .star-bullet-list li {
+      font-size: 0.9em;
+      color: rgba(255,255,255,0.8);
+      line-height: 1.5;
+      margin-bottom: 4px;
     }
 
     .story-pill {
@@ -3002,20 +3021,26 @@
     }
 
     function renderStarStoryCard(entry) {
-      const steps = [
-        ['Situation', entry.situation],
-        ['Task', entry.task],
-        ['Action', entry.action],
-        ['Result', entry.result]
-      ].filter(([, value]) => Boolean(value && value.trim()));
+      // Helper to render bullet lists for actions and results
+      const renderBulletList = (text) => {
+        if (!text) return '';
+        const items = text.split(' • ').filter(Boolean);
+        if (items.length <= 1) return escapeHTML(text);
+        return `<ul class="star-bullet-list">${items.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>`;
+      };
 
-      const stepsMarkup = steps.length
-        ? `
-            <ul class="star-steps">
-              ${steps.map(([label, value]) => `<li><strong>${label}:</strong> ${escapeHTML(value)}</li>`).join('')}
-            </ul>
-          `
-        : '';
+      // Check if action/result have bullet separators
+      const hasActionBullets = entry.action && entry.action.includes(' • ');
+      const hasResultBullets = entry.result && entry.result.includes(' • ');
+
+      const stepsMarkup = `
+        <ul class="star-steps">
+          ${entry.situation ? `<li><strong>Situation</strong><p>${escapeHTML(entry.situation)}</p></li>` : ''}
+          ${entry.task ? `<li><strong>Task</strong><p>${escapeHTML(entry.task)}</p></li>` : ''}
+          ${entry.action ? `<li><strong>Action</strong>${hasActionBullets ? renderBulletList(entry.action) : `<p>${escapeHTML(entry.action)}</p>`}</li>` : ''}
+          ${entry.result ? `<li><strong>Result</strong>${hasResultBullets ? renderBulletList(entry.result) : `<p>${escapeHTML(entry.result)}</p>`}</li>` : ''}
+        </ul>
+      `;
 
       const answerMarkup = entry.answer
         ? `<div class="star-answer"><strong>Sample Answer:</strong> ${escapeHTML(entry.answer)}</div>`
@@ -3112,18 +3137,270 @@
         return '';
       }
 
+      // Extract rich context from the achievement
       const { action, result } = splitActionAndResult(normalized);
-      const taskClause = extractTaskClause(normalized);
-      const situation = buildSituationSentence(achievement.role, taskClause || action);
-      const task = taskClause ? `You needed to ${taskClause}.` : 'You were responsible for leading this initiative end-to-end.';
-      const actionSentence = action ? `You ${ensureLowercaseStart(action)}.` : 'You executed the plan across stakeholders.';
-      const resultSentence = result
-        ? toSentenceCase(stripResultTrigger(result))
-        : inferResultFromLine(normalized);
-      const question = buildQuestionFromAction(action || normalized);
-      const sampleAnswer = buildSampleAnswer({ situation, task, action: actionSentence, result: resultSentence });
+      const metrics = extractAllMetrics(normalized);
+      const keyVerbs = extractKeyVerbs(normalized);
+      const scope = extractScope(normalized);
+      const domain = inferDomain(normalized);
+      
+      // Build a compelling interview question
+      const question = buildRichQuestion(normalized, keyVerbs, domain);
+      
+      // Build detailed situation with business context
+      const situation = buildRichSituation(achievement.role, normalized, domain);
+      
+      // Build task with clear accountability
+      const task = buildRichTask(normalized, scope);
+      
+      // Build multiple action items
+      const actionItems = buildRichActions(normalized, keyVerbs);
+      
+      // Build quantified results
+      const resultItems = buildRichResults(normalized, metrics, result);
+      
+      // Build a polished sample answer
+      const sampleAnswer = buildRichSampleAnswer({ situation, task, actionItems, resultItems, role: achievement.role });
 
-      return `Question: ${question} || Situation: ${situation} || Task: ${task} || Action: ${actionSentence} || Result: ${resultSentence} || Sample Answer: ${sampleAnswer}`;
+      return `Question: ${question} || Situation: ${situation} || Task: ${task} || Action: ${actionItems} || Result: ${resultItems} || Sample Answer: ${sampleAnswer}`;
+    }
+
+    function extractAllMetrics(text = '') {
+      const metrics = [];
+      const patterns = [
+        /\$[\d,]+(?:\.\d+)?(?:\s*(?:mm|million|billion|k|M|B))?/gi,
+        /\d+(?:,\d+)*(?:\.\d+)?%/g,
+        /\d+(?:,\d+)*\+?\s*(?:employees?|team members?|people|stakeholders?|users?|clients?|customers?)/gi,
+        /\d+(?:,\d+)*\+?\s*(?:projects?|initiatives?|programs?|systems?)/gi,
+        /(?:over|more than|approximately|nearly|about)\s*\d+(?:,\d+)*/gi
+      ];
+      patterns.forEach(pattern => {
+        const matches = text.match(pattern) || [];
+        metrics.push(...matches);
+      });
+      return [...new Set(metrics)];
+    }
+
+    function extractKeyVerbs(text = '') {
+      const verbPatterns = [
+        /\b(led|managed|directed|oversaw|spearheaded|drove|delivered|implemented|launched|created|built|designed|developed|established|transformed|streamlined|automated|optimized|improved|enhanced|increased|reduced|generated|partnered|coordinated|trained|mentored|coached)\b/gi
+      ];
+      const verbs = [];
+      verbPatterns.forEach(pattern => {
+        const matches = text.match(pattern) || [];
+        verbs.push(...matches.map(v => v.toLowerCase()));
+      });
+      return [...new Set(verbs)];
+    }
+
+    function extractScope(text = '') {
+      const scopeMatch = text.match(/(?:across|throughout|enterprise-wide|organization-wide|company-wide|global|regional|cross-functional|multi-team)/i);
+      const teamMatch = text.match(/(\d+(?:,\d+)*\+?)\s*(?:employees?|team members?|people|stakeholders?)/i);
+      if (teamMatch) {
+        return { size: teamMatch[1], type: 'people' };
+      }
+      if (scopeMatch) {
+        return { size: scopeMatch[0], type: 'scope' };
+      }
+      return null;
+    }
+
+    function inferDomain(text = '') {
+      const domains = {
+        training: /\b(train|training|learning|development|curriculum|onboard|upskill)\b/i,
+        technology: /\b(system|software|platform|technology|digital|automation|sharepoint|dashboard|api|integration)\b/i,
+        process: /\b(process|workflow|streamline|optimize|efficiency|operational)\b/i,
+        revenue: /\b(revenue|sales|growth|ROI|profit|cost savings?|budget)\b/i,
+        leadership: /\b(led|managed|team|stakeholder|cross-functional|partner|collaborate)\b/i,
+        innovation: /\b(innovat|created|built|designed|developed|launched|new|pilot)\b/i,
+        analytics: /\b(data|analytics|metrics|insights|reporting|dashboard|KPI)\b/i
+      };
+      for (const [domain, pattern] of Object.entries(domains)) {
+        if (pattern.test(text)) {
+          return domain;
+        }
+      }
+      return 'impact';
+    }
+
+    function buildRichQuestion(text, verbs, domain) {
+      const questionTemplates = {
+        training: 'Tell me about a time you delivered a large training or rollout.',
+        technology: 'Tell me about a time you implemented a new system or technology solution.',
+        process: 'Tell me about a time you improved or streamlined a business process.',
+        revenue: 'Tell me about a time you created revenue impact or drove cost savings.',
+        leadership: 'Tell me about a time you led a cross-functional team or initiative.',
+        innovation: 'Tell me about a time you created something innovative.',
+        analytics: 'Tell me about a time you used data to drive business decisions.',
+        impact: 'Tell me about a time you drove measurable business impact.'
+      };
+      
+      // Try to match based on domain
+      if (questionTemplates[domain]) {
+        return questionTemplates[domain];
+      }
+      
+      // Fallback to verb-based question
+      if (verbs.includes('trained') || verbs.includes('coached') || verbs.includes('mentored')) {
+        return 'Tell me about a time you trained or developed others.';
+      }
+      if (verbs.includes('led') || verbs.includes('managed') || verbs.includes('directed')) {
+        return 'Tell me about a time you led a critical initiative.';
+      }
+      if (verbs.includes('created') || verbs.includes('built') || verbs.includes('designed')) {
+        return 'Tell me about a time you built something from the ground up.';
+      }
+      
+      return 'Tell me about a time you drove measurable change.';
+    }
+
+    function buildRichSituation(role, text, domain) {
+      const roleContext = role ? `In your role${role.includes('|') ? '' : ' as ' + role.split(/[|,]/)[0].trim()},` : 'In this role,';
+      
+      const situationTemplates = {
+        training: 'a new system release or initiative required consistent training across a large workforce.',
+        technology: 'there was a need for improved technology solutions to enhance operational efficiency.',
+        process: 'existing processes were creating inefficiencies or bottlenecks that needed addressing.',
+        revenue: 'there was an opportunity to drive revenue growth or realize cost savings.',
+        leadership: 'a complex initiative required coordination across multiple teams or stakeholders.',
+        innovation: 'you noticed a gap or opportunity that could be addressed with a creative solution.',
+        analytics: 'business decisions needed to be informed by better data and insights.',
+        impact: 'an opportunity arose to drive significant business impact.'
+      };
+      
+      const template = situationTemplates[domain] || situationTemplates.impact;
+      return `${roleContext} ${template}`;
+    }
+
+    function buildRichTask(text, scope) {
+      let accountabilityClause = 'You were responsible for';
+      
+      if (scope) {
+        if (scope.type === 'people') {
+          accountabilityClause = `You were accountable for leading this initiative, impacting ${scope.size} ${scope.size === '1' ? 'person' : 'people'}`;
+        } else {
+          accountabilityClause = `You were accountable for driving this ${scope.size} initiative`;
+        }
+      }
+      
+      // Extract key deliverable
+      const deliverableMatch = text.match(/(?:to|for)\s+([a-z][a-z\s,]+?)(?:\.|,|;|resulting|leading|which|that|and\s+(?:drove|delivered|achieved))/i);
+      if (deliverableMatch) {
+        return `${accountabilityClause} ${deliverableMatch[1].trim()}, ensuring accuracy, quality, and successful adoption.`;
+      }
+      
+      return `${accountabilityClause} delivering this initiative end-to-end while ensuring stakeholder alignment and measurable outcomes.`;
+    }
+
+    function buildRichActions(text, verbs) {
+      const actions = [];
+      
+      // Map verbs to action descriptions
+      const verbToAction = {
+        'designed': 'Designed the solution architecture and approach',
+        'built': 'Built and developed the core deliverables',
+        'created': 'Created comprehensive materials and documentation',
+        'developed': 'Developed the strategy and execution plan',
+        'implemented': 'Implemented the solution across the organization',
+        'launched': 'Launched the initiative with stakeholder buy-in',
+        'led': 'Led the team and coordinated resources',
+        'managed': 'Managed timelines, resources, and stakeholder expectations',
+        'trained': 'Conducted training sessions and knowledge transfer',
+        'coordinated': 'Coordinated with leaders and cross-functional partners',
+        'partnered': 'Partnered with key stakeholders to ensure alignment',
+        'streamlined': 'Streamlined processes to improve efficiency',
+        'automated': 'Automated manual processes to reduce effort',
+        'optimized': 'Optimized workflows for better performance',
+        'established': 'Established frameworks and best practices',
+        'transformed': 'Transformed existing approaches with new methods'
+      };
+      
+      // Add actions based on verbs found
+      verbs.forEach(verb => {
+        if (verbToAction[verb] && actions.length < 5) {
+          actions.push(verbToAction[verb]);
+        }
+      });
+      
+      // Add generic actions if we need more
+      if (actions.length < 3) {
+        const genericActions = [
+          'Developed the execution strategy',
+          'Coordinated with stakeholders for alignment',
+          'Measured and tracked progress against goals',
+          'Implemented feedback loops for continuous improvement'
+        ];
+        genericActions.forEach(action => {
+          if (actions.length < 4 && !actions.includes(action)) {
+            actions.push(action);
+          }
+        });
+      }
+      
+      return actions.join(' • ');
+    }
+
+    function buildRichResults(text, metrics, resultClause) {
+      const results = [];
+      
+      // Add quantified metrics
+      metrics.forEach(metric => {
+        if (metric.includes('$')) {
+          results.push(`Generated ${metric} in business value`);
+        } else if (metric.includes('%')) {
+          results.push(`Achieved ${metric} improvement`);
+        } else {
+          results.push(`Impacted ${metric}`);
+        }
+      });
+      
+      // Add qualitative results
+      if (results.length < 2) {
+        const qualitativeResults = [
+          'Improved operational efficiency and consistency',
+          'Enhanced stakeholder satisfaction and adoption',
+          'Delivered measurable business impact'
+        ];
+        qualitativeResults.forEach(result => {
+          if (results.length < 3) {
+            results.push(result);
+          }
+        });
+      }
+      
+      return results.join(' • ');
+    }
+
+    function buildRichSampleAnswer(parts) {
+      const segments = [];
+      
+      // Opening with situation
+      const situationOpener = parts.situation
+        .replace(/^In your role.*?,/i, 'In my role,')
+        .replace(/^In this role,/i, 'In this role,');
+      segments.push(situationOpener);
+      
+      // Add accountability
+      const taskStatement = parts.task
+        .replace(/^You were/i, 'I was')
+        .replace(/^You/i, 'I');
+      segments.push(taskStatement);
+      
+      // Add key actions (condensed)
+      const actionList = parts.actionItems.split(' • ').slice(0, 3);
+      if (actionList.length) {
+        const actionIntro = 'I ' + actionList[0].charAt(0).toLowerCase() + actionList[0].slice(1);
+        segments.push(actionIntro + '.');
+      }
+      
+      // Add results
+      const resultList = parts.resultItems.split(' • ');
+      if (resultList.length) {
+        const resultStatement = resultList[0].replace(/^(Generated|Achieved|Impacted)/i, 'The outcome was');
+        segments.push(resultStatement + ', and the initiative was considered a success.');
+      }
+      
+      return segments.join(' ');
     }
 
     function splitActionAndResult(line = '') {
