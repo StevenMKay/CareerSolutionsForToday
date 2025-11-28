@@ -855,6 +855,35 @@
         grid-column: 1 / -1;
       }
     }
+    .story-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .story-card {
+      background: #1b2233;
+      border: 1px solid #2d3547;
+      border-radius: 10px;
+      padding: 16px;
+      min-height: 160px;
+    }
+
+    .story-card ul {
+      padding-left: 18px;
+      margin: 8px 0 0;
+      line-height: 1.45;
+    }
+
+    .story-pill {
+      display: inline-block;
+      background: rgba(79, 146, 255, 0.25);
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin: 4px;
+      font-size: 13px;
+    }
   </style>
 </head>
 
@@ -968,6 +997,39 @@
     <div class="feedback-section" id="feedbackSection">
       <h2 class="section-title">Resume Analysis Results</h2>
       <div id="feedbackContent"></div>
+    </div>
+
+    <div class="feedback-section" id="storyBuilderSection" style="display:none;">
+      <h2 class="section-title">Interview Story Builder</h2>
+      <p class="section-subtext" style="margin-bottom:20px;">
+        Powered by the same AI analysis—use these pre-baked talking points to prep STAR stories, intros, and more.
+      </p>
+      <div class="story-grid">
+        <div class="story-card" style="grid-column: span 2;">
+          <h3>STAR Stories</h3>
+          <ul id="starStoryList"></ul>
+        </div>
+        <div class="story-card">
+          <h3>"Tell me about yourself" intro</h3>
+          <p id="tellMeStory" style="margin-top:8px; line-height:1.5;"></p>
+        </div>
+        <div class="story-card">
+          <h3>10 Tailored Strengths</h3>
+          <div id="strengthPills" style="margin-top:8px;"></div>
+        </div>
+        <div class="story-card">
+          <h3>Leadership Stories</h3>
+          <ul id="leadershipList"></ul>
+        </div>
+        <div class="story-card">
+          <h3>Weakness + Mitigation</h3>
+          <p id="weaknessPlan" style="margin-top:8px; line-height:1.5;"></p>
+        </div>
+        <div class="story-card" style="grid-column: span 2;">
+          <h3>90-second Elevator Pitch</h3>
+          <p id="elevatorPitch" style="margin-top:8px; line-height:1.6;"></p>
+        </div>
+      </div>
     </div>
 
     <div class="download-section" id="downloadSection">
@@ -2356,6 +2418,7 @@
       initAnalysisCollapsibles(feedbackContent);
       document.getElementById('feedbackSection').classList.add('show');
       document.getElementById('downloadSection').classList.add('show');
+      renderInterviewStoryBuilder(analysis, resumeTextSnapshot, jobDescriptionText);
     }
 
     function renderFeedbackCategory(category) {
@@ -2647,6 +2710,163 @@
           </div>
         </section>
       `;
+    }
+
+    function renderInterviewStoryBuilder(analysis, resumeText = '', jobDescriptionText = '') {
+      const section = document.getElementById('storyBuilderSection');
+      if (!section) {
+        return;
+      }
+
+      const starStoryList = document.getElementById('starStoryList');
+      const tellMeStory = document.getElementById('tellMeStory');
+      const strengthPills = document.getElementById('strengthPills');
+      const leadershipList = document.getElementById('leadershipList');
+      const weaknessPlan = document.getElementById('weaknessPlan');
+      const elevatorPitch = document.getElementById('elevatorPitch');
+
+      const storyBuilder = analysis?.storyBuilder || null;
+
+      const backendStars = normalizeStoryArray(storyBuilder?.starStories, 4);
+      const starStories = backendStars.length ? backendStars : buildStarStories(analysis);
+      starStoryList.innerHTML = starStories.length
+        ? starStories.map(story => `<li>${escapeHTML(story)}</li>`).join('')
+        : '<li>Add another quantified bullet so we can auto-build STAR prompts.</li>';
+
+      const tellMeFromBackend = typeof storyBuilder?.tellMeIntro === 'string' ? storyBuilder.tellMeIntro.trim() : '';
+      tellMeStory.textContent = tellMeFromBackend || buildTellMeStoryIntro(analysis, resumeText, jobDescriptionText);
+
+      const backendStrengths = normalizeStoryArray(storyBuilder?.tailoredStrengths, 10);
+      const strengths = backendStrengths.length ? backendStrengths : buildStrengthList(analysis);
+      strengthPills.innerHTML = '';
+      if (strengths.length) {
+        strengths.forEach(item => {
+          const pill = document.createElement('span');
+          pill.className = 'story-pill';
+          pill.textContent = item;
+          strengthPills.appendChild(pill);
+        });
+      } else {
+        strengthPills.innerHTML = '<p style="opacity:0.85;">Add more keywords so we can personalize this list.</p>';
+      }
+
+      const backendLeadership = normalizeStoryArray(storyBuilder?.leadershipStories, 3);
+      const leadershipStories = backendLeadership.length ? backendLeadership : buildLeadershipStories(resumeText, analysis);
+      leadershipList.innerHTML = leadershipStories.length
+        ? leadershipStories.map(line => `<li>${escapeHTML(line)}</li>`).join('')
+        : '<li>Call out at least one leadership win in your resume to populate this.</li>';
+
+      const backendWeakness = formatWeaknessMitigation(storyBuilder?.weaknessMitigation);
+      weaknessPlan.textContent = backendWeakness || buildWeaknessMitigation(analysis);
+
+      const backendPitch = typeof storyBuilder?.elevatorPitch === 'string' ? storyBuilder.elevatorPitch.trim() : '';
+      elevatorPitch.textContent = backendPitch || buildElevatorPitch(analysis, strengths, jobDescriptionText);
+
+      section.style.display = 'block';
+      section.classList.add('show');
+    }
+
+    function normalizeStoryArray(entries, limit) {
+      if (!Array.isArray(entries) || entries.length === 0) {
+        return [];
+      }
+      return entries
+        .map(entry => {
+          if (typeof entry === 'string') {
+            return entry.trim();
+          }
+          if (entry && typeof entry === 'object') {
+            const parts = [entry.title, entry.story, entry.summary, entry.scenario, entry.situation, entry.action, entry.result]
+              .map(part => (typeof part === 'string' ? part.trim() : ''))
+              .filter(Boolean);
+            return parts.join(' — ').trim();
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .slice(0, limit);
+    }
+
+    function formatWeaknessMitigation(weaknessObj) {
+      if (!weaknessObj || typeof weaknessObj !== 'object') {
+        return '';
+      }
+      const weakness = typeof weaknessObj.weakness === 'string' ? weaknessObj.weakness.trim() : '';
+      const mitigation = typeof weaknessObj.mitigation === 'string' ? weaknessObj.mitigation.trim() : '';
+      if (weakness && mitigation) {
+        return `${weakness} Mitigation: ${mitigation}`;
+      }
+      return weakness || mitigation || '';
+    }
+
+    function buildStarStories(analysis) {
+      const categories = Array.isArray(analysis?.categories) ? analysis.categories.slice(0, 3) : [];
+      if (!categories.length) {
+        return [];
+      }
+
+      return categories.map(category => {
+        const safeName = category.name || 'Impact Story';
+        const scenario = category.feedback || 'Set up the situation and scale.';
+        const action = (category.suggestions && category.suggestions[0]) || 'Highlight the action you led.';
+        const result = (category.suggestions && category.suggestions[1]) || 'Close with data or business impact.';
+        return `${safeName}: S/T — ${scenario} | A — ${action} | R — ${result}`;
+      });
+    }
+
+    function buildTellMeStoryIntro(analysis, resumeText = '', jobDescriptionText = '') {
+      const keywords = Array.isArray(analysis?.criticalKeywords) ? analysis.criticalKeywords.slice(0, 2) : [];
+      const highlight = analysis?.extraInsights?.find(insight => insight.status === 'good')?.details || '';
+      const roleHint = (jobDescriptionText.match(/(?:manager|director|lead|analyst|specialist)/i) || [])[0] || 'leader';
+      const metricCount = Number(analysis?.atsSignals?.metricsCount) || 0;
+      const summaryLine = highlight || `Known for driving measurable improvements across ${keywords.join(' & ') || 'complex programs'}.`;
+
+      return `I'm a ${roleHint.toLowerCase()} who specializes in ${keywords.join(' + ') || 'program execution'} and consistently weaves ${metricCount || 'multiple'} measurable wins into every role. ${summaryLine}`;
+    }
+
+    function buildStrengthList(analysis) {
+      const pool = new Set();
+      (analysis?.criticalKeywords || []).slice(0, 10).forEach(keyword => pool.add(keyword));
+      (analysis?.highlightKeywords || []).slice(0, 10).forEach(keyword => pool.add(keyword));
+      (analysis?.extraInsights || []).forEach(insight => {
+        if (insight?.title) {
+          pool.add(insight.title);
+        }
+      });
+      return Array.from(pool).slice(0, 10);
+    }
+
+    function buildLeadershipStories(resumeText = '', analysis) {
+      const leadershipRegex = /(led|managed|mentored|directed|oversaw|spearheaded|coach|mentored|partnered)/i;
+      const lines = (resumeText || '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => leadershipRegex.test(line) && line.length < 220);
+      if (lines.length) {
+        return lines.slice(0, 3);
+      }
+
+      const categories = Array.isArray(analysis?.categories) ? analysis.categories : [];
+      return categories
+        .filter(category => /leadership|stakeholder|team/i.test(category.name || '') && category.feedback)
+        .slice(0, 2)
+        .map(category => category.feedback);
+    }
+
+    function buildWeaknessMitigation(analysis) {
+      const warning = (analysis?.atsWarnings || [])[0] || 'Interviewers may test how you plan to scale your impact.';
+      const mitigation = analysis?.extraInsights?.find(insight => insight.status === 'critical')?.tips?.[0]
+        || 'Explain the playbook you are using to close the gap and the metric you are targeting next.';
+      return `${warning} Mitigation: ${mitigation}`;
+    }
+
+    function buildElevatorPitch(analysis, strengths = [], jobDescriptionText = '') {
+      const focusArea = strengths.slice(0, 3).join(', ') || 'program leadership, analytics, and stakeholder alignment';
+      const keywordFromJD = (jobDescriptionText.match(/\b[A-Z][a-z]+(?: [A-Z][a-z]+)?\b/) || [])[0] || 'your team';
+      const extraInsights = Array.isArray(analysis?.extraInsights) ? analysis.extraInsights : [];
+      const highlights = (extraInsights[0]?.details) || 'deliver measurable improvements and crisp reporting.';
+      const score = Number(analysis?.overallScore) || 75;
+      return `In 90 seconds: I blend ${focusArea} to keep initiatives on track, and recent analyses peg the resume at ${score}/100 readiness. I'm targeting ${keywordFromJD} so I can ${highlights}`;
     }
 
     function renderScoreContext(completeness = null) {
