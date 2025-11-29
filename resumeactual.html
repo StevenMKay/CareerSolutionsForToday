@@ -17,28 +17,27 @@
 }
 
 .star-story-card {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 18px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    line-height: 1.5;
-  color: #0b1f3a;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  line-height: 1.5;
+  color: #f5f7ff;
 }
 
 .star-story-card .star-question {
   font-weight: 600;
-  color: #0b1b33;
+  color: #f1f5ff;
   margin-bottom: 8px;
 }
 
 .star-story-card .star-answer {
-  color: #1f2937;
+  color: rgba(255,255,255,0.9);
 }
 
 .star-story-card .star-segment strong,
 .star-story-card .star-answer strong {
-  color: #0b3c86;
+  color: #9ecbff;
 }
 
     
@@ -1157,10 +1156,6 @@
             <div class="story-card">
               <h3>10 Tailored Strengths</h3>
               <div id="strengthPills" style="margin-top:8px;"></div>
-            </div>
-            <div class="story-card">
-              <h3>Leadership Stories</h3>
-              <ul id="leadershipList"></ul>
             </div>
             <div class="story-card">
               <h3>Weakness + Mitigation</h3>
@@ -2651,23 +2646,26 @@
         return '';
       }
 
-      const insightCards = cleanedInsights.map(insight => `
-        <div class="company-insight-card">
-          <span class="insight-pill">${formatInsightSource(insight.source)}</span>
-          <p>${insight.insight || 'Company insight unavailable.'}</p>
-          ${insight.action ? `<p class="insight-action"><strong>Action:</strong> ${insight.action}</p>` : ''}
-          ${insight.link ? `<a class="insight-link" href="${insight.link}" target="_blank" rel="noopener">🔗 Source reference</a>` : ''}
-        </div>
-      `).join('');
+      const insightCards = cleanedInsights.map(insight => {
+        const linkLabel = insight.link ? formatInsightLinkLabel(insight.link, insight.source) : '';
+        return `
+          <div class="company-insight-card">
+            <span class="insight-pill">${formatInsightSource(insight.source, insight.link)}</span>
+            <p>${insight.insight || 'Company insight unavailable.'}</p>
+            ${insight.action ? `<p class="insight-action"><strong>Action:</strong> ${insight.action}</p>` : ''}
+            ${insight.link ? `<a class="insight-link" href="${insight.link}" target="_blank" rel="noopener">Source: ${linkLabel}</a>` : ''}
+          </div>
+        `;
+      }).join('');
 
       const bodyId = 'companyInsightsBody';
       return `
-        <section class="company-insights collapsible-panel open" data-collapsible-section>
-          <button class="collapsible-panel-toggle" type="button" aria-expanded="true" aria-controls="${bodyId}">
+        <section class="company-insights collapsible-panel" data-collapsible-section>
+          <button class="collapsible-panel-toggle" type="button" aria-expanded="false" aria-controls="${bodyId}">
             <span class="collapsible-panel-title">Company & Industry Intel</span>
             <span class="collapsible-panel-icon" aria-hidden="true">▾</span>
           </button>
-          <div class="collapsible-panel-body" id="${bodyId}">
+          <div class="collapsible-panel-body" id="${bodyId}" hidden>
             ${insightCards}
           </div>
         </section>
@@ -2860,20 +2858,16 @@
       const storyPanel = section.querySelector('.story-builder-panel');
       const panelBody = storyPanel?.querySelector('.collapsible-panel-body');
       const panelToggle = storyPanel?.querySelector('.collapsible-panel-toggle');
-      if (storyPanel) {
-        storyPanel.classList.add('open');
-      }
       if (panelBody) {
-        panelBody.hidden = false;
+        panelBody.hidden = true;
       }
       if (panelToggle) {
-        panelToggle.setAttribute('aria-expanded', 'true');
+        panelToggle.setAttribute('aria-expanded', 'false');
       }
 
       const starStoryContainer = document.getElementById('star-stories-container');
       const tellMeStory = document.getElementById('tellMeStory');
       const strengthPills = document.getElementById('strengthPills');
-      const leadershipList = document.getElementById('leadershipList');
       const weaknessPlan = document.getElementById('weaknessPlan');
       const elevatorPitch = document.getElementById('elevatorPitch');
 
@@ -2931,12 +2925,6 @@
       } else {
         strengthPills.innerHTML = '<p style="opacity:0.85;">Add more keywords so we can personalize this list.</p>';
       }
-
-      const backendLeadership = normalizeStoryArray(storyBuilder?.leadershipStories, 3);
-      const leadershipStories = backendLeadership.length ? backendLeadership : buildLeadershipStories(resumeText, analysis);
-      leadershipList.innerHTML = leadershipStories.length
-        ? leadershipStories.map(line => `<li>${escapeHTML(line)}</li>`).join('')
-        : '<li>Call out at least one leadership win in your resume to populate this.</li>';
 
       const backendWeakness = formatWeaknessMitigation(storyBuilder?.weaknessMitigation);
       weaknessPlan.textContent = backendWeakness || buildWeaknessMitigation(analysis);
@@ -3749,11 +3737,33 @@
       `;
     }
 
-    function formatInsightSource(source = 'resume') {
-      if (source === 'jobDescription') {
-        return 'From job description';
+    function formatInsightSource(source = 'resume', link = '') {
+      const normalized = typeof source === 'string' ? source.toLowerCase().trim() : 'resume';
+      const labelMap = {
+        resume: 'Resume signal',
+        jobdescription: 'Job description intel',
+        'job description': 'Job description intel',
+        public: 'Public intel',
+        'public knowledge': 'Public intel'
+      };
+      const base = labelMap[normalized] || (source ? source : 'Insight source');
+      if (link) {
+        const host = formatInsightLinkLabel(link, base);
+        return `${base} • ${host}`;
       }
-      return 'From resume';
+      return base;
+    }
+
+    function formatInsightLinkLabel(link = '', fallback = 'source') {
+      if (!link) {
+        return fallback;
+      }
+      try {
+        const host = new URL(link).hostname.replace(/^www\./i, '');
+        return host || fallback;
+      } catch (err) {
+        return fallback;
+      }
     }
 
     function animateScoreBars(root) {
