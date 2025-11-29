@@ -929,6 +929,15 @@
       margin-right: 4px;
     }
 
+    .star-raw-answer {
+      display: inline;
+    }
+
+    .star-empty {
+      color: rgba(255,255,255,0.65);
+      font-style: italic;
+    }
+
     .star-steps {
       list-style: none;
       padding-left: 0;
@@ -2933,18 +2942,22 @@
         return null;
       }
 
-      const normalized = raw.replace(/\r\n|\r/g, '\n');
+      const normalized = raw
+        .replace(/\|\|/g, '\n')
+        .replace(/\r\n|\r/g, '\n');
       const sections = extractStarSections(normalized);
       const defaultQuestion = 'Tell me about a time you led an impactful project.';
       const question = sanitizeStarQuestion(sections.question || normalized.split(/situation\s*[:-]/i)[0] || defaultQuestion);
-      const answer = sections['sample answer'] || sections.answer || sections.response || buildSampleAnswerFromSections(sections);
+      const answerRaw = sections['sample answer'] || sections.answer || sections.response || buildSampleAnswerFromSections(sections);
+      const answer = answerRaw ? answerRaw.replace(/\|\|/g, ' ').trim() : '';
+      const clean = value => (value || '').replace(/\|\|/g, ' ').trim();
 
       return {
         question: question || defaultQuestion,
-        situation: sections.situation || '',
-        task: sections.task || '',
-        action: sections.action || '',
-        result: sections.result || '',
+        situation: clean(sections.situation),
+        task: clean(sections.task),
+        action: clean(sections.action),
+        result: clean(sections.result),
         answer: answer || ''
       };
     }
@@ -3007,6 +3020,7 @@
     function sanitizeStarQuestion(text = '') {
       const cleaned = text
         .replace(/^[-•*⭐\d.\s"']+/, '')
+        .replace(/\|\|/g, ' ')
         .replace(/["']+$/g, '')
         .trim();
       if (!cleaned) {
@@ -3019,27 +3033,31 @@
     }
 
     function buildSampleAnswerFromSections(sections = {}) {
+      const sanitize = (value = '') => value.replace(/\|\|/g, ' ').trim();
       const parts = [];
       if (sections.situation) {
-        parts.push(`Situation: ${sections.situation}`);
+        parts.push(`Situation: ${sanitize(sections.situation)}`);
       }
       if (sections.task) {
-        parts.push(`Task: ${sections.task}`);
+        parts.push(`Task: ${sanitize(sections.task)}`);
       }
       if (sections.action) {
-        parts.push(`Action: ${sections.action}`);
+        parts.push(`Action: ${sanitize(sections.action)}`);
       }
       if (sections.result) {
-        parts.push(`Result: ${sections.result}`);
+        parts.push(`Result: ${sanitize(sections.result)}`);
       }
       return parts.join(' ');
     }
 
     function renderStarStoryCard(entry) {
-      const labeledSegments = [];
+      const segments = [];
       const pushSegment = (label, text) => {
-        if (!text) return;
-        labeledSegments.push(`<span class="star-segment"><strong>${label}</strong> ${escapeHTML(text)}</span>`);
+        const trimmed = typeof text === 'string' ? text.replace(/\|\|/g, ' ').trim() : '';
+        if (!trimmed) {
+          return;
+        }
+        segments.push(`<span class="star-segment"><strong>${label}</strong> ${escapeHTML(trimmed)}</span>`);
       };
 
       pushSegment('Situation:', entry.situation);
@@ -3047,19 +3065,16 @@
       pushSegment('Action:', entry.action);
       pushSegment('Result:', entry.result);
 
-      const structuredHtml = labeledSegments.join(' ');
-      const rawAnswer = typeof entry.answer === 'string' ? entry.answer.trim() : '';
-      const hasEmbeddedLabels = /Situation:/i.test(rawAnswer) && /Result:/i.test(rawAnswer);
-      const safeAnswer = rawAnswer ? escapeHTML(rawAnswer) : '';
-      const combinedAnswer = hasEmbeddedLabels
-        ? safeAnswer
-        : [structuredHtml, safeAnswer].filter(Boolean).join(' ').trim();
-      const fallbackAnswer = combinedAnswer || structuredHtml || 'Add another quantified bullet so we can auto-build STAR prompts.';
+      const structuredHtml = segments.join(' ');
+      const backendAnswer = typeof entry.answer === 'string' ? entry.answer.replace(/\|\|/g, ' ').trim() : '';
+      const narrative = structuredHtml
+        || (backendAnswer ? `<span class="star-raw-answer">${escapeHTML(backendAnswer)}</span>` : '')
+        || '<span class="star-empty">Add another quantified bullet so we can auto-build STAR prompts.</span>';
 
       return `
         <li>
-          <div class="star-question">${escapeHTML(entry.question)}</div>
-          <div class="star-answer"><strong>Sample Answer:</strong> <span class="star-narrative">${combinedAnswer || fallbackAnswer}</span></div>
+          <div class="star-question">${escapeHTML((entry.question || '').replace(/\|\|/g, ' ').trim())}</div>
+          <div class="star-answer"><strong>Sample Answer:</strong> <span class="star-narrative">${narrative}</span></div>
         </li>
       `;
     }
