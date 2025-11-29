@@ -3050,26 +3050,37 @@
       if (!text || !text.includes('(')) {
         return {};
       }
-      const sections = {};
-      const tokens = text.split(/\((Situation|Task|Action|Result)\)/i);
-      if (tokens.length < 3) {
-        return sections;
-      }
 
-      for (let i = 1; i < tokens.length; i += 2) {
-        const label = (tokens[i] || '').toLowerCase();
-        if (!label || sections[label]) {
+      const sections = {};
+      const cleanup = value => value
+        .replace(/^[\s,;:—–-]+/, '')
+        .replace(/[\s,;]+$/g, '')
+        .trim();
+
+      // Pattern where the narrative precedes the label: "... (Situation)"
+      const precedingRegex = /([^()]+?)\((Situation|Task|Action|Result)\)/gi;
+      let match;
+      while ((match = precedingRegex.exec(text)) !== null) {
+        const label = match[2].toLowerCase();
+        if (sections[label]) {
           continue;
         }
-        let segment = tokens[i + 1] || '';
-        // Stop at the next label marker if the split kept it in the same chunk
-        segment = segment.split(/\((?:Situation|Task|Action|Result)\)/i)[0] || segment;
-        const cleaned = segment
-          .replace(/^[\s,;:\-]+/, '')
-          .replace(/[\s,;]+$/g, '')
-          .trim();
-        if (cleaned) {
-          sections[label] = cleaned;
+        const snippet = cleanup(match[1] || '');
+        if (snippet) {
+          sections[label] = snippet;
+        }
+      }
+
+      // Pattern where the narrative follows the label: "(Situation) ..."
+      const followingRegex = /\((Situation|Task|Action|Result)\)\s*([^()]+)/gi;
+      while ((match = followingRegex.exec(text)) !== null) {
+        const label = match[1].toLowerCase();
+        if (sections[label]) {
+          continue;
+        }
+        const snippet = cleanup(match[2] || '');
+        if (snippet) {
+          sections[label] = snippet;
         }
       }
 
