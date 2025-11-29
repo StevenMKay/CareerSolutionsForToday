@@ -517,56 +517,6 @@
     .status-icon.warning { background: #ff9800; }
     .status-icon.critical { background: #f44336; }
 
-    .overall-score-card {
-      text-align: center;
-      margin-bottom: 30px;
-      padding: 24px;
-      border-radius: 18px;
-      background: rgba(7,17,34,0.9);
-      border: 1px solid rgba(134,192,255,0.3);
-      box-shadow: 0 18px 38px rgba(0,0,0,0.45);
-    }
-
-    .overall-score-title {
-      color: white;
-      font-size: 2em;
-      margin-bottom: 10px;
-    }
-
-    .job-match-indicator {
-      color: #7cf29d;
-      margin-bottom: 10px;
-    }
-
-    .score-adjustment-card {
-      border-left-width: 6px;
-      border-left-color: #ff9800;
-    }
-    .score-adjustment-card.critical {
-      border-left-color: #f44336;
-    }
-    .score-adjustment-card .suggestions-list {
-      margin-top: 6px;
-    }
-
-    .score-bar {
-      width: 100%;
-      background: rgba(255,255,255,0.12);
-      border-radius: 10px;
-      height: 20px;
-      margin: 0 auto;
-      max-width: 400px;
-      overflow: hidden;
-    }
-
-    .score-bar-fill {
-      height: 100%;
-      border-radius: 10px;
-      background: linear-gradient(90deg, #7cf29d, #42a5f5);
-      width: 0;
-      transition: width 0.5s ease;
-    }
-
     #feedbackContent > * + * {
       border-top: 1px solid rgba(255,255,255,0.22);
       margin-top: 30px;
@@ -1855,22 +1805,17 @@
 
         const resumeTextSnapshot = resumeData?.content || '';
         const completeness = evaluateResumeCompleteness(resumeTextSnapshot);
-        analysis.completenessScore = completeness;
         analysis.extraInsights = Array.isArray(analysis.extraInsights) ? [...analysis.extraInsights] : [];
         const hasExistingCompletenessInsight = analysis.extraInsights
           .some(insight => (insight?.title || '').toLowerCase() === 'resume completeness');
 
-        if (completeness.penalty > 0) {
-          const adjustedScore = Math.max(25, Math.round((Number(analysis.overallScore) || 0) - completeness.penalty));
-          analysis.overallScore = adjustedScore;
-          if (!hasExistingCompletenessInsight) {
-            analysis.extraInsights.unshift({
-              title: 'Resume Completeness',
-              status: completeness.penalty >= 25 ? 'critical' : 'warning',
-              details: 'Detected missing fundamentals (length, contact info, standard headings, or bullets).',
-              tips: completeness.tips
-            });
-          }
+        if (completeness.penalty > 0 && !hasExistingCompletenessInsight) {
+          analysis.extraInsights.unshift({
+            title: 'Resume Completeness',
+            status: completeness.penalty >= 25 ? 'critical' : 'warning',
+            details: 'Detected missing fundamentals (length, contact info, standard headings, or bullets).',
+            tips: completeness.tips
+          });
         }
 
         if (!Array.isArray(analysis.criticalKeywords) || !analysis.criticalKeywords.length) {
@@ -2036,7 +1981,6 @@
     // Mock response for testing when backend is unavailable
     function getMockAnalysisResponse() {
       return {
-        overallScore: 78,
         categories: [
           {
             name: "Contact Information",
@@ -2689,23 +2633,9 @@
       analysisResults = analysis;
       
       const feedbackContent = document.getElementById('feedbackContent');
-      const safeScore = Math.max(0, Math.min(100, Number(analysis.overallScore) || 0));
       const categories = Array.isArray(analysis.categories) ? analysis.categories : [];
       
-      let html = `
-        <div class="overall-score-card">
-          <h3 class="overall-score-title">Overall Score: ${safeScore}/100</h3>
-          ${hasJobDescription ? '<p class="job-match-indicator">✅ Analyzed against job description</p>' : ''}
-          <div class="score-bar">
-            <div class="score-bar-fill" data-score="${safeScore}"></div>
-          </div>
-        </div>
-      `;
-
-      const scoreContext = renderScoreContext(analysis.completenessScore);
-      if (scoreContext) {
-        html += scoreContext;
-      }
+      let html = '';
 
       html += categories.map(renderFeedbackCategory).join('');
       html += renderCompanyInsights(analysis.companyInsights);
@@ -2721,7 +2651,6 @@
       }
 
       feedbackContent.innerHTML = html;
-      animateScoreBars(feedbackContent);
       pruneEmptyInsightSections(feedbackContent);
       initAnalysisCollapsibles(feedbackContent);
       document.getElementById('feedbackSection').classList.add('show');
@@ -2731,14 +2660,13 @@
 
     }
 
-    function derivePositiveHighlights(sectionName = 'This section', scoreValue = 0) {
+    function derivePositiveHighlights(sectionName = 'This section', status = 'warning') {
       const label = sectionName || 'This section';
-      const score = Number(scoreValue) || 0;
-      if (score >= 85) {
-        return [`${label} already signals recruiter-ready polish (${score}/100). Keep feeding it fresh, quantified wins.`];
+      if (status === 'good') {
+        return [`${label} signals recruiter-ready polish. Keep feeding it fresh, quantified wins.`];
       }
-      if (score >= 70) {
-        return [`${label} has a solid foundation and reads clearly—layer in sharper metrics to push it higher.`];
+      if (status === 'warning') {
+        return [`${label} has a solid foundation—layer in sharper metrics to push it higher.`];
       }
       return [`${label} is organized, so use that clarity to add quantified proof points and leadership context.`];
     }
@@ -2747,8 +2675,6 @@
       const safeStatus = ['good', 'warning', 'critical'].includes(category.status) ? category.status : 'warning';
       const suggestions = Array.isArray(category.suggestions) ? category.suggestions : [];
       const safeName = category.name || category.title || category.section || category.category || category.label || 'Category';
-      const numericScore = typeof category.score === 'number' ? category.score : 0;
-      const safeScore = typeof category.score === 'number' ? category.score : '—';
       const scoreExplanation = typeof category.scoreExplanation === 'string' ? category.scoreExplanation : '';
       const positiveExamples = Array.isArray(category.positiveExamples)
         ? category.positiveExamples.filter(example => typeof example === 'string' && example.trim().length > 0)
@@ -2771,14 +2697,14 @@
       const dedupedPositiveExamples = positiveExamples.filter((value, index, arr) => arr.findIndex(other => other.toLowerCase() === value.toLowerCase()) === index);
       let positiveHighlights = dedupedPositiveExamples.slice();
       if (!positiveHighlights.length) {
-        positiveHighlights = derivePositiveHighlights(safeName, numericScore);
+        positiveHighlights = derivePositiveHighlights(safeName, safeStatus);
       }
 
       return `
         <div class="feedback-category ${safeStatus}">
           <h3>
             <span class="status-icon ${safeStatus}"></span>
-            ${safeName} (${safeScore}/100)
+            ${safeName}
           </h3>
           <p class="category-feedback">${cleanedFeedback || 'Analysis unavailable for this section.'}</p>
           ${showScoreExplanation ? `<p class="score-explanation">${scoreExplanation}</p>` : ''}
@@ -3580,19 +3506,20 @@
     }
 
     function buildRichSituation(role, text, domain) {
-      const roleContext = role ? `In your role${role.includes('|') ? '' : ' as ' + role.split(/[|,]/)[0].trim()},` : 'In this role,';
-      
+      const roleTitle = role ? role.split(/[|,]/)[0].trim() : '';
+      const roleContext = roleTitle ? `While serving as ${roleTitle},` : 'In this role,';
+
       const situationTemplates = {
-        training: 'a new system release or initiative required consistent training across a large workforce.',
-        technology: 'there was a need for improved technology solutions to enhance operational efficiency.',
-        process: 'existing processes were creating inefficiencies or bottlenecks that needed addressing.',
-        revenue: 'there was an opportunity to drive revenue growth or realize cost savings.',
-        leadership: 'a complex initiative required coordination across multiple teams or stakeholders.',
-        innovation: 'you noticed a gap or opportunity that could be addressed with a creative solution.',
-        analytics: 'business decisions needed to be informed by better data and insights.',
-        impact: 'an opportunity arose to drive significant business impact.'
+        training: 'I was rolling out a new initiative that demanded consistent training across a large workforce.',
+        technology: 'I saw that our technology stack needed modernization to keep operations efficient.',
+        process: 'I was facing process bottlenecks that slowed delivery and confused stakeholders.',
+        revenue: 'I had a chance to drive meaningful revenue growth and cost savings.',
+        leadership: 'I was accountable for coordinating multiple teams and senior stakeholders.',
+        innovation: 'I spotted a gap that called for a creative, ground-up solution.',
+        analytics: 'I needed better data and insight loops to guide decision-making.',
+        impact: 'I had an opportunity to drive measurable business impact across the organization.'
       };
-      
+
       const template = situationTemplates[domain] || situationTemplates.impact;
       return `${roleContext} ${template}`;
     }
@@ -3903,53 +3830,7 @@
       const keywordFromJD = (jobDescriptionText.match(/\b[A-Z][a-z]+(?: [A-Z][a-z]+)?\b/) || [])[0] || 'your team';
       const extraInsights = Array.isArray(analysis?.extraInsights) ? analysis.extraInsights : [];
       const highlights = (extraInsights[0]?.details) || 'deliver measurable improvements and crisp reporting.';
-      const score = Number(analysis?.overallScore) || 75;
-      return `In 90 seconds: I blend ${focusArea} to keep initiatives on track, and recent analyses peg the resume at ${score}/100 readiness. I'm targeting ${keywordFromJD} so I can ${highlights}`;
-    }
-
-    function renderScoreContext(completeness = null) {
-      if (!completeness || typeof completeness.penalty !== 'number' || completeness.penalty <= 0) {
-        return '';
-      }
-
-      const issues = [];
-      const wordCount = Number(completeness.wordCount) || 0;
-      if (wordCount && wordCount < 150) {
-        issues.push(`Resume is only ${wordCount} words; expand each section to show depth (target 400+).`);
-      } else if (wordCount && wordCount < 250) {
-        issues.push(`Resume is ${wordCount} words; add more detail so each section demonstrates scope.`);
-      }
-
-      if (!completeness.hasEmail || !completeness.hasPhone) {
-        issues.push('Include both a phone number and email address in the contact header.');
-      }
-
-      if (!completeness.hasSections) {
-        issues.push('Add standard headings like Summary, Experience, Skills, and Education.');
-      }
-
-      const fallbackTips = Array.isArray(completeness.tips) ? completeness.tips : [];
-      const contextList = (issues.length ? issues : fallbackTips).slice(0, 3);
-
-      if (!contextList.length) {
-        return '';
-      }
-
-      const severity = completeness.penalty >= 25 ? 'critical' : 'warning';
-      const heading = completeness.penalty >= 25 ? 'Score Adjustment (Major)' : 'Score Adjustment (Minor)';
-
-      return `
-        <div class="feedback-category ${severity} score-adjustment-card ${severity}">
-          <h3>
-            <span class="status-icon ${severity}"></span>
-            ${heading} (-${completeness.penalty} pts)
-          </h3>
-          <p class="category-feedback">These fundamentals pulled down your overall score before comparing category performance.</p>
-          <ul class="suggestions-list">
-            ${contextList.map(item => `<li>${escapeHTML(item)}</li>`).join('')}
-          </ul>
-        </div>
-      `;
+      return `In 90 seconds: I blend ${focusArea} to keep initiatives on track, and recent analysis flagged the resume as recruiter-ready. I'm targeting ${keywordFromJD} so I can ${highlights}`;
     }
 
     function formatInsightSource(source = 'resume', link = '') {
@@ -3979,16 +3860,6 @@
       } catch (err) {
         return fallback;
       }
-    }
-
-    function animateScoreBars(root) {
-      const fills = root.querySelectorAll('.score-bar-fill');
-      fills.forEach(fill => {
-        const score = Number(fill.dataset.score) || 0;
-        requestAnimationFrame(() => {
-          fill.style.width = `${score}%`;
-        });
-      });
     }
 
     function pruneEmptyInsightSections(root) {
