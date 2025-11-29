@@ -914,6 +914,21 @@
       color: #9ecbff;
     }
 
+    .star-narrative {
+      display: inline;
+    }
+
+    .star-segment {
+      display: inline-block;
+      margin-right: 10px;
+      margin-top: 4px;
+    }
+
+    .star-segment strong {
+      color: #b9d6ff;
+      margin-right: 4px;
+    }
+
     .star-steps {
       list-style: none;
       padding-left: 0;
@@ -3006,51 +3021,45 @@
     function buildSampleAnswerFromSections(sections = {}) {
       const parts = [];
       if (sections.situation) {
-        parts.push(`In that situation, ${sections.situation}`);
+        parts.push(`Situation: ${sections.situation}`);
       }
       if (sections.task) {
-        parts.push(`My responsibility was ${sections.task}`);
+        parts.push(`Task: ${sections.task}`);
       }
       if (sections.action) {
-        parts.push(`I took action by ${sections.action}`);
+        parts.push(`Action: ${sections.action}`);
       }
       if (sections.result) {
-        parts.push(`The result was ${sections.result}`);
+        parts.push(`Result: ${sections.result}`);
       }
       return parts.join(' ');
     }
 
     function renderStarStoryCard(entry) {
-      // Helper to render bullet lists for actions and results
-      const renderBulletList = (text) => {
-        if (!text) return '';
-        const items = text.split(' • ').filter(Boolean);
-        if (items.length <= 1) return escapeHTML(text);
-        return `<ul class="star-bullet-list">${items.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>`;
+      const labeledSegments = [];
+      const pushSegment = (label, text) => {
+        if (!text) return;
+        labeledSegments.push(`<span class="star-segment"><strong>${label}</strong> ${escapeHTML(text)}</span>`);
       };
 
-      // Check if action/result have bullet separators
-      const hasActionBullets = entry.action && entry.action.includes(' • ');
-      const hasResultBullets = entry.result && entry.result.includes(' • ');
+      pushSegment('Situation:', entry.situation);
+      pushSegment('Task:', entry.task);
+      pushSegment('Action:', entry.action);
+      pushSegment('Result:', entry.result);
 
-      const stepsMarkup = `
-        <ul class="star-steps">
-          ${entry.situation ? `<li><strong>Situation</strong><p>${escapeHTML(entry.situation)}</p></li>` : ''}
-          ${entry.task ? `<li><strong>Task</strong><p>${escapeHTML(entry.task)}</p></li>` : ''}
-          ${entry.action ? `<li><strong>Action</strong>${hasActionBullets ? renderBulletList(entry.action) : `<p>${escapeHTML(entry.action)}</p>`}</li>` : ''}
-          ${entry.result ? `<li><strong>Result</strong>${hasResultBullets ? renderBulletList(entry.result) : `<p>${escapeHTML(entry.result)}</p>`}</li>` : ''}
-        </ul>
-      `;
-
-      const answerMarkup = entry.answer
-        ? `<div class="star-answer"><strong>Sample Answer:</strong> ${escapeHTML(entry.answer)}</div>`
-        : '';
+      const structuredHtml = labeledSegments.join(' ');
+      const rawAnswer = typeof entry.answer === 'string' ? entry.answer.trim() : '';
+      const hasEmbeddedLabels = /Situation:/i.test(rawAnswer) && /Result:/i.test(rawAnswer);
+      const safeAnswer = rawAnswer ? escapeHTML(rawAnswer) : '';
+      const combinedAnswer = hasEmbeddedLabels
+        ? safeAnswer
+        : [structuredHtml, safeAnswer].filter(Boolean).join(' ').trim();
+      const fallbackAnswer = combinedAnswer || structuredHtml || 'Add another quantified bullet so we can auto-build STAR prompts.';
 
       return `
         <li>
           <div class="star-question">${escapeHTML(entry.question)}</div>
-          ${stepsMarkup}
-          ${answerMarkup}
+          <div class="star-answer"><strong>Sample Answer:</strong> <span class="star-narrative">${combinedAnswer || fallbackAnswer}</span></div>
         </li>
       `;
     }
