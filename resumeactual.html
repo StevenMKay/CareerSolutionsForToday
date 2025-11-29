@@ -2820,9 +2820,14 @@
       const storyBuilder = analysis?.storyBuilder || null;
 
       const desiredStarCount = 4;
+      console.log('[STAR] Building STAR stories. Resume text length:', resumeText?.length || 0);
+      
       const resumeDrivenStars = buildStarStories(analysis, resumeText) || [];
       const backendStars = normalizeStoryArray(storyBuilder?.starStories, desiredStarCount);
       const starStories = [];
+      
+      console.log('[STAR] Resume-driven stories:', resumeDrivenStars.length);
+      console.log('[STAR] Backend stories:', backendStars.length);
 
       const appendStory = story => {
         if (!story || starStories.length >= desiredStarCount) {
@@ -2841,13 +2846,18 @@
 
       if (starStories.length < desiredStarCount) {
         const categoryFallbacks = buildStarStoriesFromCategories(analysis) || [];
+        console.log('[STAR] Category fallback stories:', categoryFallbacks.length);
         categoryFallbacks.forEach(appendStory);
       }
+      
+      console.log('[STAR] Total raw stories before formatting:', starStories.length);
 
       const formattedStarStories = starStories
         .map(formatStarStoryEntry)
         .filter(Boolean)
         .filter(entry => !isAdministrativeStarStory(entry));
+      
+      console.log('[STAR] Formatted stories after filtering:', formattedStarStories.length);
 
       starStoryList.innerHTML = formattedStarStories.length
         ? formattedStarStories.map(renderStarStoryCard).join('')
@@ -2920,16 +2930,20 @@
 
       const normalized = raw.replace(/\r\n|\r/g, '\n');
       const sections = extractStarSections(normalized);
+      
+      // Helper to clean section text (remove || separators and trim)
+      const cleanSection = (text) => (text || '').replace(/\s*\|\|\s*$/g, '').replace(/\s*\|\|\s*/g, ' ').trim();
+      
       const defaultQuestion = 'Tell me about a time you led an impactful project.';
-      const question = sanitizeStarQuestion(sections.question || normalized.split(/situation\s*[:-]/i)[0] || defaultQuestion);
-      const answer = sections['sample answer'] || sections.answer || sections.response || buildSampleAnswerFromSections(sections);
+      const question = sanitizeStarQuestion(cleanSection(sections.question) || normalized.split(/situation\s*[:-]/i)[0] || defaultQuestion);
+      const answer = cleanSection(sections['sample answer'] || sections.answer || sections.response) || buildSampleAnswerFromSections(sections);
 
       return {
         question: question || defaultQuestion,
-        situation: sections.situation || '',
-        task: sections.task || '',
-        action: sections.action || '',
-        result: sections.result || '',
+        situation: cleanSection(sections.situation),
+        task: cleanSection(sections.task),
+        action: cleanSection(sections.action),
+        result: cleanSection(sections.result),
         answer: answer || ''
       };
     }
@@ -3085,32 +3099,57 @@
 
     function extractResumeAchievements(resumeText = '') {
       if (!resumeText) {
+        console.log('[STAR] No resume text provided');
         return [];
       }
+      
+      console.log('[STAR] Extracting achievements from resume text of length:', resumeText.length);
+      
       const achievements = [];
       const lines = resumeText.split(/\r?\n/);
       let currentRole = '';
-      const bulletPattern = new RegExp(`^(?:[-*•●◦▪▫‣·‧○◉◎▸▹►✦✧➤➔➣➥➧➨➩➪➫➬➭➮➯➱➲➳➵➸➼➽➾]|\d+\.)\s*(.+)`);
+      
+      // Enhanced bullet pattern to catch more resume formats
+      const bulletPattern = new RegExp(`^(?:[-*•●◦▪▫‣·‧○◉◎▸▹►✦✧➤➔➣➥➧➨➩➪➫➬➭➮➯➱➲➳➵➸➼➽➾→⮕◆■□▶]|\\d+\\.|\\(\\d+\\)|[a-z]\\)|[A-Z]\\))\\s*(.+)`);
+      
+      // Also look for lines that start with action verbs (common in resumes without bullets)
+      const actionVerbStart = /^(Led|Managed|Directed|Oversaw|Spearheaded|Drove|Delivered|Implemented|Launched|Created|Built|Designed|Developed|Established|Transformed|Streamlined|Automated|Optimized|Improved|Enhanced|Increased|Reduced|Generated|Partnered|Coordinated|Trained|Mentored|Coached|Achieved|Executed|Facilitated|Collaborated|Initiated|Pioneered|Revamped|Restructured|Consolidated|Standardized|Administered|Supervised|Orchestrated|Championed)\b/i;
 
       lines.forEach(line => {
         const trimmed = line.trim();
-        if (!trimmed) {
+        if (!trimmed || trimmed.length < 20) {
           return;
         }
-        if (!bulletPattern.test(trimmed) && looksLikeRoleHeading(trimmed)) {
+        
+        // Check for role headings
+        if (!bulletPattern.test(trimmed) && !actionVerbStart.test(trimmed) && looksLikeRoleHeading(trimmed)) {
           currentRole = trimmed;
           return;
         }
 
+        // Try bullet pattern first
         const match = trimmed.match(bulletPattern);
         if (match) {
           const text = match[1].replace(/\s+/g, ' ').trim();
-          if (text.length >= 40 && text.length <= 260) {
+          // More lenient length requirement (30-400 chars)
+          if (text.length >= 30 && text.length <= 400) {
+            achievements.push({ role: currentRole, text });
+          }
+        } 
+        // Then try action verb pattern for unbulleted achievement lines
+        else if (actionVerbStart.test(trimmed)) {
+          const text = trimmed.replace(/\s+/g, ' ').trim();
+          if (text.length >= 30 && text.length <= 400) {
             achievements.push({ role: currentRole, text });
           }
         }
       });
 
+      console.log('[STAR] Found', achievements.length, 'achievements');
+      if (achievements.length > 0) {
+        console.log('[STAR] First achievement:', achievements[0].text.substring(0, 80) + '...');
+      }
+      
       return achievements;
     }
 
@@ -3505,20 +3544,48 @@
     }
 
     function buildStarStoriesFromCategories(analysis) {
-      const categories = Array.isArray(analysis?.categories) ? analysis.categories.slice(0, 3) : [];
-      if (!categories.length) {
-        return [];
-      }
-      return categories.map(category => {
-        const safeName = category.name || 'Impact Area';
-        const situation = category.feedback || 'Describe the context, scale, and stakeholders involved.';
-        const task = `You were accountable for elevating ${safeName.toLowerCase()} performance.`;
-        const action = (category.suggestions && category.suggestions[0]) || 'Explain the actions you drove end-to-end.';
-        const result = (category.suggestions && category.suggestions[1]) || 'Finish with a measurable outcome, ideally quantified.';
-        const question = `Tell me about a time you strengthened ${safeName.toLowerCase()}.`;
-        const answer = `In that scenario, ${situation} I owned ${safeName.toLowerCase()} delivery, focused on ${action.toLowerCase()}, and the outcome was ${result.toLowerCase()}.`;
-        return `Question: ${question} || Situation: ${situation} || Task: ${task} || Action: ${action} || Result: ${result} || Sample Answer: ${answer}`;
-      });
+      // Instead of using resume categories (which are meta-feedback about resume sections),
+      // generate helpful interview stories based on common behavioral interview questions
+      // that are universally applicable
+      const genericStarStories = [
+        {
+          question: 'Tell me about a time you led a project or initiative.',
+          situation: 'Your team or organization faced a challenge or opportunity that required dedicated leadership.',
+          task: 'You were responsible for planning, coordinating, and delivering results while managing stakeholders.',
+          action: 'Defined the project scope and objectives • Assembled and led the team • Created timelines and milestones • Communicated progress to stakeholders • Resolved blockers and risks',
+          result: 'Successfully delivered the project on time • Achieved measurable business impact • Built strong relationships with stakeholders',
+          answer: 'I led a key initiative where I defined the scope, assembled the team, and drove execution. Through regular stakeholder communication and proactive risk management, we delivered on time with strong results.'
+        },
+        {
+          question: 'Tell me about a time you solved a difficult problem.',
+          situation: 'A complex challenge emerged that required analytical thinking and creative problem-solving.',
+          task: 'You needed to diagnose the root cause and implement an effective solution.',
+          action: 'Analyzed the situation to identify root causes • Researched potential solutions • Collaborated with experts and stakeholders • Implemented the chosen solution • Monitored results and iterated',
+          result: 'Resolved the issue effectively • Prevented future occurrences • Improved processes or systems',
+          answer: 'When faced with a difficult challenge, I took a systematic approach: analyzed the root cause, researched solutions, and collaborated with the team to implement a fix. The result was a lasting improvement.'
+        },
+        {
+          question: 'Tell me about a time you worked with a difficult team member or stakeholder.',
+          situation: 'You encountered a challenging interpersonal dynamic that was affecting team performance or project progress.',
+          task: 'You needed to address the situation constructively while maintaining professional relationships.',
+          action: 'Sought to understand their perspective • Had a direct but respectful conversation • Found common ground and shared goals • Established clear communication norms • Followed up to ensure improvement',
+          result: 'Improved the working relationship • Enhanced team collaboration • Achieved project objectives',
+          answer: 'I addressed a challenging dynamic by having a direct conversation to understand their perspective. We found common ground and established better communication, which improved our collaboration significantly.'
+        },
+        {
+          question: 'Tell me about a time you had to adapt to a significant change.',
+          situation: 'Your organization or team underwent a major change that required flexibility and adaptation.',
+          task: 'You needed to adjust your approach while maintaining productivity and supporting others through the transition.',
+          action: 'Assessed the impact of the change • Identified new priorities and skills needed • Proactively learned and adapted • Helped teammates navigate the transition • Provided feedback to leadership',
+          result: 'Successfully adapted to the new environment • Maintained or improved performance • Became a resource for others going through the change',
+          answer: 'When faced with significant change, I quickly assessed the impact, adapted my approach, and helped teammates navigate the transition. This proactive stance helped the team maintain momentum throughout.'
+        }
+      ];
+      
+      // Return formatted stories matching the expected format
+      return genericStarStories.map(story => 
+        `Question: ${story.question} || Situation: ${story.situation} || Task: ${story.task} || Action: ${story.action} || Result: ${story.result} || Sample Answer: ${story.answer}`
+      );
     }
 
     function buildTellMeStoryIntro(analysis, resumeText = '', jobDescriptionText = '') {
