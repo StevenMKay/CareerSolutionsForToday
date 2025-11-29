@@ -2820,9 +2820,14 @@
       const storyBuilder = analysis?.storyBuilder || null;
 
       const desiredStarCount = 4;
+      console.log('[STAR] Building STAR stories. Resume text length:', resumeText?.length || 0);
+      
       const resumeDrivenStars = buildStarStories(analysis, resumeText) || [];
       const backendStars = normalizeStoryArray(storyBuilder?.starStories, desiredStarCount);
       const starStories = [];
+      
+      console.log('[STAR] Resume-driven stories:', resumeDrivenStars.length);
+      console.log('[STAR] Backend stories:', backendStars.length);
 
       const appendStory = story => {
         if (!story || starStories.length >= desiredStarCount) {
@@ -2841,13 +2846,18 @@
 
       if (starStories.length < desiredStarCount) {
         const categoryFallbacks = buildStarStoriesFromCategories(analysis) || [];
+        console.log('[STAR] Category fallback stories:', categoryFallbacks.length);
         categoryFallbacks.forEach(appendStory);
       }
+      
+      console.log('[STAR] Total raw stories before formatting:', starStories.length);
 
       const formattedStarStories = starStories
         .map(formatStarStoryEntry)
         .filter(Boolean)
         .filter(entry => !isAdministrativeStarStory(entry));
+      
+      console.log('[STAR] Formatted stories after filtering:', formattedStarStories.length);
 
       starStoryList.innerHTML = formattedStarStories.length
         ? formattedStarStories.map(renderStarStoryCard).join('')
@@ -3089,32 +3099,57 @@
 
     function extractResumeAchievements(resumeText = '') {
       if (!resumeText) {
+        console.log('[STAR] No resume text provided');
         return [];
       }
+      
+      console.log('[STAR] Extracting achievements from resume text of length:', resumeText.length);
+      
       const achievements = [];
       const lines = resumeText.split(/\r?\n/);
       let currentRole = '';
-      const bulletPattern = new RegExp(`^(?:[-*•●◦▪▫‣·‧○◉◎▸▹►✦✧➤➔➣➥➧➨➩➪➫➬➭➮➯➱➲➳➵➸➼➽➾]|\d+\.)\s*(.+)`);
+      
+      // Enhanced bullet pattern to catch more resume formats
+      const bulletPattern = new RegExp(`^(?:[-*•●◦▪▫‣·‧○◉◎▸▹►✦✧➤➔➣➥➧➨➩➪➫➬➭➮➯➱➲➳➵➸➼➽➾→⮕◆■□▶]|\\d+\\.|\\(\\d+\\)|[a-z]\\)|[A-Z]\\))\\s*(.+)`);
+      
+      // Also look for lines that start with action verbs (common in resumes without bullets)
+      const actionVerbStart = /^(Led|Managed|Directed|Oversaw|Spearheaded|Drove|Delivered|Implemented|Launched|Created|Built|Designed|Developed|Established|Transformed|Streamlined|Automated|Optimized|Improved|Enhanced|Increased|Reduced|Generated|Partnered|Coordinated|Trained|Mentored|Coached|Achieved|Executed|Facilitated|Collaborated|Initiated|Pioneered|Revamped|Restructured|Consolidated|Standardized|Administered|Supervised|Orchestrated|Championed)\b/i;
 
       lines.forEach(line => {
         const trimmed = line.trim();
-        if (!trimmed) {
+        if (!trimmed || trimmed.length < 20) {
           return;
         }
-        if (!bulletPattern.test(trimmed) && looksLikeRoleHeading(trimmed)) {
+        
+        // Check for role headings
+        if (!bulletPattern.test(trimmed) && !actionVerbStart.test(trimmed) && looksLikeRoleHeading(trimmed)) {
           currentRole = trimmed;
           return;
         }
 
+        // Try bullet pattern first
         const match = trimmed.match(bulletPattern);
         if (match) {
           const text = match[1].replace(/\s+/g, ' ').trim();
-          if (text.length >= 40 && text.length <= 260) {
+          // More lenient length requirement (30-400 chars)
+          if (text.length >= 30 && text.length <= 400) {
+            achievements.push({ role: currentRole, text });
+          }
+        } 
+        // Then try action verb pattern for unbulleted achievement lines
+        else if (actionVerbStart.test(trimmed)) {
+          const text = trimmed.replace(/\s+/g, ' ').trim();
+          if (text.length >= 30 && text.length <= 400) {
             achievements.push({ role: currentRole, text });
           }
         }
       });
 
+      console.log('[STAR] Found', achievements.length, 'achievements');
+      if (achievements.length > 0) {
+        console.log('[STAR] First achievement:', achievements[0].text.substring(0, 80) + '...');
+      }
+      
       return achievements;
     }
 
