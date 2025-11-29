@@ -1625,18 +1625,40 @@
 
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let text = '';
+      const chunks = [];
 
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
         const page = await pdf.getPage(pageNumber);
-        const content = await page.getTextContent();
-        const pageText = content.items
-          .map(item => ('str' in item ? item.str : item.text) || '')
-          .join(' ');
-        text += pageText + '\n';
+        const content = await page.getTextContent({ normalizeWhitespace: true });
+        let lineBuffer = '';
+
+        content.items.forEach((item, index) => {
+          const value = ('str' in item ? item.str : item.text) || '';
+          if (!value) {
+            return;
+          }
+          lineBuffer += value;
+
+          const nextItem = content.items[index + 1];
+          const shouldAddSpace = !item.hasEOL && value && !/\s$/.test(value);
+          if (shouldAddSpace) {
+            lineBuffer += ' ';
+          }
+
+          if (item.hasEOL) {
+            chunks.push(lineBuffer.trimEnd());
+            lineBuffer = '';
+          }
+        });
+
+        if (lineBuffer.trim()) {
+          chunks.push(lineBuffer.trim());
+          lineBuffer = '';
+        }
+        chunks.push('');
       }
 
-      return text.trim();
+      return normalizeExtractedText(chunks.join('\n'));
     }
 
     async function extractTextFromWord(file) {
@@ -1704,7 +1726,7 @@
         }
       }
 
-      return combinedText.trim();
+      return normalizeExtractedText(combinedText.trim());
     }
 
     function convertDocxHtmlToText(html = '') {
@@ -1716,23 +1738,21 @@
       tempDiv.innerHTML = html;
 
       tempDiv.querySelectorAll('li').forEach(li => {
+        li.insertAdjacentText('beforebegin', '\n');
         const prefix = document.createTextNode('• ');
         li.insertBefore(prefix, li.firstChild);
         li.insertAdjacentText('beforeend', '\n');
       });
 
       tempDiv.querySelectorAll('p').forEach(p => {
+        p.insertAdjacentText('beforebegin', '\n');
         p.insertAdjacentText('beforeend', '\n');
       });
 
       tempDiv.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
 
       const text = tempDiv.textContent || '';
-      return text
-        .replace(/\u00a0/g, ' ')
-        .replace(/\r/g, '')
-        .replace(/\n{2,}/g, '\n')
-        .trim();
+      return normalizeExtractedText(text);
     }
 
     function extractLegacyDocFallback(buffer) {
@@ -1756,14 +1776,28 @@
             text += ' ';
           }
         }
-        return text
-          .replace(/\s{2,}/g, ' ')
-          .replace(/(\n\s*){2,}/g, '\n')
-          .trim();
+        return normalizeExtractedText(text);
       } catch (error) {
         console.warn('Legacy DOC fallback failed:', error);
         return '';
       }
+    }
+
+    function normalizeExtractedText(raw = '') {
+      if (!raw) {
+        return '';
+      }
+
+      const normalized = raw
+        .replace(/\r\n?/g, '\n')
+        .replace(/\u00a0/g, ' ')
+        .replace(/[ \t]+\n/g, '\n')
+        .split('\n')
+        .map(line => line.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trimEnd())
+        .join('\n')
+        .replace(/\n{3,}/g, '\n\n');
+
+      return normalized.trim();
     }
 
     async function analyzeResume() {
@@ -3564,24 +3598,23 @@
     }
 
     function buildRichTask(text, scope) {
-      let accountabilityClause = 'You were responsible for';
-      
+      let accountabilityClause = 'I was responsible for';
+
       if (scope) {
         if (scope.type === 'people') {
           const numericSize = parseInt(scope.size.replace(/,/g, ''), 10);
-          accountabilityClause = `You were accountable for leading this initiative, impacting ${scope.size} ${numericSize === 1 ? 'person' : 'people'}`;
+          accountabilityClause = `I was accountable for leading this initiative, impacting ${scope.size} ${numericSize === 1 ? 'person' : 'people'}`;
         } else {
-          accountabilityClause = `You were accountable for driving this ${scope.size} initiative`;
+          accountabilityClause = `I was accountable for driving this ${scope.size} initiative`;
         }
       }
-      
-      // Extract key deliverable
+
       const deliverableMatch = text.match(/(?:to|for)\s+([a-z][a-z\s,]+?)(?:\.|,|;|resulting|leading|which|that|and\s+(?:drove|delivered|achieved))/i);
       if (deliverableMatch) {
         return `${accountabilityClause} ${deliverableMatch[1].trim()}, ensuring accuracy, quality, and successful adoption.`;
       }
-      
-      return `${accountabilityClause} delivering this initiative end-to-end while ensuring stakeholder alignment and measurable outcomes.`;
+
+      return `${accountabilityClause} delivering the initiative end-to-end while keeping stakeholders aligned and outcomes measurable.`;
     }
 
     function buildRichActions(text, verbs) {
@@ -3667,33 +3700,39 @@
 
     function buildRichSampleAnswer(parts) {
       const segments = [];
-      
-      // Opening with situation
+
       const situationOpener = parts.situation
         .replace(/^In your role.*?,/i, 'In my role,')
-        .replace(/^In this role,/i, 'In this role,');
+        .replace(/^While serving/i, 'While serving')
+        .replace(/ you /i, ' I ');
       segments.push(situationOpener);
-      
-      // Add accountability
+
       const taskStatement = parts.task
         .replace(/^You were/i, 'I was')
         .replace(/^You/i, 'I');
-      segments.push(taskStatement);
-      
-      // Add key actions (condensed)
+      segments.push(taskStatement.endsWith('.') ? taskStatement : `${taskStatement}.`);
+
       const actionList = parts.actionItems.split(' • ').slice(0, 3);
       if (actionList.length) {
-        const actionIntro = 'I ' + actionList[0].charAt(0).toLowerCase() + actionList[0].slice(1);
-        segments.push(actionIntro + '.');
+        const formattedActions = actionList.map(action => {
+          const cleaned = action.trim();
+          if (!cleaned) {
+            return '';
+          }
+          const lowered = cleaned.charAt(0).toLowerCase() + cleaned.slice(1);
+          return `I ${lowered}`;
+        }).filter(Boolean);
+        if (formattedActions.length) {
+          segments.push(formattedActions.join('; ') + '.');
+        }
       }
-      
-      // Add results
+
       const resultList = parts.resultItems.split(' • ');
       if (resultList.length) {
         const resultStatement = resultList[0].replace(/^(Generated|Achieved|Impacted)/i, 'The outcome was');
         segments.push(resultStatement + ', and the initiative was considered a success.');
       }
-      
+
       return segments.join(' ');
     }
 
@@ -3726,7 +3765,7 @@
     function buildSituationSentence(role = '', context = '') {
       const base = role ? `While serving as ${role},` : 'In this role,';
       const contextHint = context ? ensureLowercaseStart(context) : 'an opportunity to drive impact';
-      return `${base} you recognized ${contextHint || 'an opportunity to drive impact'}.`;
+      return `${base} I recognized ${contextHint || 'an opportunity to drive impact'}.`;
     }
 
     function ensureLowercaseStart(text = '') {
@@ -3769,10 +3808,11 @@
     function buildSampleAnswer(parts = {}) {
       const segments = [];
       if (parts.situation) {
-        segments.push(parts.situation.replace(/^in this role,/i, 'In this role,'));
+        segments.push(parts.situation.replace(/^in this role,/i, 'In this role,').replace(/ you /i, ' I '));
       }
       if (parts.task) {
-        segments.push(parts.task);
+        const taskFirstPerson = parts.task.replace(/^You were/i, 'I was').replace(/^You/i, 'I');
+        segments.push(taskFirstPerson);
       }
       if (parts.action) {
         const cleanedAction = parts.action.replace(/^You\s+/i, 'I ');
@@ -3803,7 +3843,7 @@
       return categories.map(category => {
         const safeName = category.name || 'Impact Area';
         const situation = category.feedback || 'Describe the context, scale, and stakeholders involved.';
-        const task = `You were accountable for elevating ${safeName.toLowerCase()} performance.`;
+        const task = `I was accountable for elevating ${safeName.toLowerCase()} performance.`;
         const action = (category.suggestions && category.suggestions[0]) || 'Explain the actions you drove end-to-end.';
         const result = (category.suggestions && category.suggestions[1]) || 'Finish with a measurable outcome, ideally quantified.';
         const question = `Tell me about a time you strengthened ${safeName.toLowerCase()}.`;
