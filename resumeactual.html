@@ -2987,7 +2987,8 @@
         task: clean(sections.task),
         action: clean(sections.action),
         result: clean(sections.result),
-        answer: answer || ''
+        answer: answer || '',
+        rawStory: normalized.trim()
       };
     }
 
@@ -3125,7 +3126,10 @@
       pushSegment('Action:', entry.action);
       pushSegment('Result:', entry.result);
 
-      const structuredHtml = segments.join(' ');
+      let structuredHtml = segments.join(' ');
+      if (!structuredHtml && entry.rawStory) {
+        structuredHtml = buildSegmentsFromParentheticalRaw(entry.rawStory);
+      }
       const backendAnswer = typeof entry.answer === 'string' ? entry.answer.replace(/\|\|/g, ' ').trim() : '';
       const narrative = structuredHtml
         || (backendAnswer ? `<span class="star-raw-answer">${escapeHTML(backendAnswer)}</span>` : '')
@@ -3137,6 +3141,27 @@
           <div class="star-answer"><strong>Sample Answer:</strong> <span class="star-narrative">${narrative}</span></div>
         </div>
       `;
+    }
+
+    function buildSegmentsFromParentheticalRaw(raw = '') {
+      if (!raw || !raw.includes('(')) {
+        return '';
+      }
+      const segments = [];
+      const regex = /([^()]+)\((Situation|Task|Action|Result)\)/gi;
+      let match;
+      while ((match = regex.exec(raw)) !== null) {
+        const label = match[2];
+        const snippet = (match[1] || '')
+          .replace(/^[\s,;:—–-]+/, '')
+          .replace(/[\s,;:—–-]+$/g, '')
+          .trim();
+        if (!snippet) {
+          continue;
+        }
+        segments.push(`<span class="star-segment"><strong>${label}:</strong> ${escapeHTML(snippet)}</span>`);
+      }
+      return segments.join(' ');
     }
 
     function formatWeaknessMitigation(weaknessObj) {
