@@ -1641,8 +1641,40 @@
 
     async function extractTextFromWord(file) {
       const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      let combinedText = typeof result.value === 'string' ? result.value : '';
+      let combinedText = '';
+
+      if (mammoth?.convertToHtml) {
+        try {
+          const htmlResult = await mammoth.convertToHtml(
+            { arrayBuffer },
+            {
+              includeDefaultStyleMap: true,
+              styleMap: [
+                "p[style-name='List Paragraph'] => ul > li:fresh",
+                "p[style-name='Bullet'] => ul > li:fresh",
+                'p:list => ul > li:fresh',
+                'p:numbering => ol > li:fresh'
+              ]
+            }
+          );
+          const htmlText = typeof htmlResult.value === 'string' ? htmlResult.value : '';
+          const bulletPreserved = convertDocxHtmlToText(htmlText);
+          if (bulletPreserved) {
+            combinedText = bulletPreserved;
+          }
+        } catch (htmlError) {
+          console.warn('DOCX HTML conversion failed:', htmlError);
+        }
+      }
+
+      if (!combinedText) {
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        combinedText = typeof result.value === 'string' ? result.value : '';
+      }
+
+      if (!combinedText && /\.doc$/i.test(file.name || '')) {
+        combinedText = extractLegacyDocFallback(arrayBuffer);
+      }
 
       if (window.JSZip) {
         try {
@@ -1673,6 +1705,65 @@
       }
 
       return combinedText.trim();
+    }
+
+    function convertDocxHtmlToText(html = '') {
+      if (!html || typeof html !== 'string') {
+        return '';
+      }
+
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+
+      tempDiv.querySelectorAll('li').forEach(li => {
+        const prefix = document.createTextNode('• ');
+        li.insertBefore(prefix, li.firstChild);
+        li.insertAdjacentText('beforeend', '\n');
+      });
+
+      tempDiv.querySelectorAll('p').forEach(p => {
+        p.insertAdjacentText('beforeend', '\n');
+      });
+
+      tempDiv.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+
+      const text = tempDiv.textContent || '';
+      return text
+        .replace(/\u00a0/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/\n{2,}/g, '\n')
+        .trim();
+    }
+
+    function extractLegacyDocFallback(buffer) {
+      try {
+        const bytes = new Uint8Array(buffer || new ArrayBuffer(0));
+        if (!bytes.length) {
+          return '';
+        }
+        let text = '';
+        for (let i = 0; i < bytes.length; i++) {
+          const byte = bytes[i];
+          if (byte === 0x0a) {
+            text += '\n';
+          } else if (byte === 0x0d) {
+            continue;
+          } else if (byte === 0x09) {
+            text += '\t';
+          } else if ((byte >= 32 && byte <= 126) || (byte >= 128 && byte <= 255)) {
+            text += String.fromCharCode(byte);
+          } else {
+            text += ' ';
+          }
+        }
+        return text
+          .replace(/\s{2,}/g, ' ')
+          .replace(/(\n\s*){2,}/g, '\n')
+          .trim();
+      } catch (error) {
+        console.warn('Legacy DOC fallback failed:', error);
+        return '';
+      }
     }
 
     async function analyzeResume() {
@@ -2966,10 +3057,12 @@
         categoryFallbacks.forEach(appendStory);
       }
 
-      const formattedStarStories = starStories
+      const starStoryEntries = starStories
         .map(formatStarStoryEntry)
-        .filter(Boolean)
-        .filter(entry => !isAdministrativeStarStory(entry));
+        .filter(Boolean);
+
+      const nonAdministrativeEntries = starStoryEntries.filter(entry => !isAdministrativeStarStory(entry));
+      const formattedStarStories = nonAdministrativeEntries.length ? nonAdministrativeEntries : starStoryEntries;
 
       if (starStoryContainer) {
           starStoryContainer.innerHTML = formattedStarStories.length
@@ -3292,6 +3385,11 @@
           if (text.length >= 40 && text.length <= 260) {
             achievements.push({ role: currentRole, text });
           }
+          return;
+        }
+
+        if (looksLikeAchievementParagraph(trimmed)) {
+          achievements.push({ role: currentRole, text: trimmed });
         }
       });
 
@@ -3309,6 +3407,15 @@
         return true;
       }
       return /(vice president|director|manager|lead|leader|consultant|analyst|faculty|head|principal)/i.test(line);
+    }
+
+    function looksLikeAchievementParagraph(line = '') {
+      if (!line || line.length < 60 || line.length > 320) {
+        return false;
+      }
+      const actionVerbPattern = /\b(led|managed|directed|oversaw|spearheaded|drove|delivered|implemented|launched|created|built|designed|developed|established|transformed|streamlined|automated|optimized|improved|enhanced|increased|reduced|generated|partnered|coordinated|trained|mentored|coached)\b/i;
+      const metricPattern = /\d+(?:,\d+)*(?:%|\+|\s*(?:employees?|team members?|people|stakeholders?|projects?|initiatives?|mm|million|k|users?|clients?|customers?))/i;
+      return actionVerbPattern.test(line) || metricPattern.test(line);
     }
 
     function createStarStoryFromAchievement(achievement) {
