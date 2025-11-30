@@ -91,32 +91,6 @@
       box-shadow: 0 0 10px rgba(66,165,245,0.3);
     }
 
-    .example-box {
-      margin-top: 15px;
-      padding: 15px;
-      background: rgba(33, 150, 243, 0.15);
-      border-left: 4px solid #2196f3;
-      border-radius: 8px;
-    }
-
-    .example-box h4 {
-      margin: 0 0 10px 0;
-      color: #64b5f6;
-    }
-
-    .example-formula {
-      font-family: 'Courier New', monospace;
-      background: rgba(0,0,0,0.3);
-      padding: 8px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    .example-formula:hover {
-      background: rgba(0,0,0,0.5);
-    }
-
     .explain-btn {
       background: linear-gradient(45deg, #0b4f6c, #1976d2);
       color: white;
@@ -209,18 +183,25 @@
     }
 
     .explanation-card p {
-      margin: 10px 0;
+      margin: 12px 0;
       line-height: 1.8;
     }
 
     .explanation-card ul {
-      margin: 10px 0;
+      margin: 15px 0;
       padding-left: 20px;
     }
 
     .explanation-card li {
-      margin: 8px 0;
-      line-height: 1.6;
+      margin: 10px 0;
+      line-height: 1.7;
+    }
+
+    /* Nested list styling for indented sub-bullets */
+    .explanation-card ul ul {
+      margin-left: 20px;
+      margin-top: 5px;
+      margin-bottom: 5px;
     }
 
     .step-number {
@@ -256,19 +237,6 @@
       font-family: 'Courier New', monospace;
       color: #64b5f6;
       font-size: 0.95em;
-    }
-
-    .explanation-card p {
-      margin: 12px 0;
-    }
-
-    .explanation-card ul {
-      margin: 15px 0;
-    }
-
-    .explanation-card li {
-      margin: 10px 0;
-      line-height: 1.7;
     }
 
     .error-message {
@@ -346,9 +314,6 @@
         placeholder="Example: =VLOOKUP(A2, B:C, 2, FALSE)"
       ></textarea>
 
-   
-      </div>
-
       <button class="explain-btn" id="explainBtn" onclick="explainFormula()">
         ✨ Explain Formula
       </button>
@@ -368,12 +333,8 @@
   <div class="toast" id="toast">✅ Copied to clipboard!</div>
 
   <script>
-    // IMPORTANT: Replace with your Vercel backend URL
-    const API_URL = 'https://resume-analyzer-backend-pi.vercel.app';
-    
-    function useExample(formula) {
-      document.getElementById('formulaInput').value = formula;
-    }
+    // IMPORTANT: Update with your correct Vercel backend URL
+    const API_URL = 'https://resume-analyzer-backend-stevens-projects-4a20c66c.vercel.app';
 
     async function explainFormula() {
       const formula = document.getElementById('formulaInput').value.trim();
@@ -519,45 +480,77 @@
         .replace(/\*\*(.+?)\*\*/g, '$1')
         .replace(/\*(.+?)\*/g, '$1')
         .replace(/`(.+?)`/g, '<code>$1</code>')
-        .replace(/_{3,}/g, '')
-        .trim();
+        .replace(/_{3,}/g, '');
       
       const lines = cleaned.split('\n');
       let html = '';
       let inList = false;
+      let currentIndent = 0;
       
       lines.forEach((line) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
+        // Don't trim! We need to preserve indentation
+        const trimmedRight = line.trimEnd();
+        if (!trimmedRight) {
           if (inList) {
+            // Close all open lists
+            for (let i = currentIndent; i > 0; i--) {
+              html += '</ul>';
+            }
             html += '</ul>';
             inList = false;
+            currentIndent = 0;
           }
           return;
         }
+        
+        // Count leading spaces to determine indent level
+        const leadingSpaces = line.match(/^(\s*)/)[1].length;
+        const indentLevel = Math.floor(leadingSpaces / 3); // 3 spaces = 1 indent level
+        const trimmed = line.trim();
         
         // Check if it's a numbered or bulleted list item
         const numberedMatch = trimmed.match(/^(\d+)\.\s*(.+)$/);
         const bulletMatch = trimmed.match(/^[•\-\*]\s*(.+)$/);
         
         if (numberedMatch || bulletMatch) {
-          if (!inList) {
-            html += '<ul>';
-            inList = true;
-          }
-          
           const content = numberedMatch ? numberedMatch[2] : bulletMatch[1];
           const number = numberedMatch ? numberedMatch[1] : null;
           
+          // Handle indent level changes
+          if (!inList) {
+            html += '<ul>';
+            inList = true;
+            currentIndent = 0;
+          }
+          
+          // Open nested lists if needed
+          while (currentIndent < indentLevel) {
+            html += '<ul>';
+            currentIndent++;
+          }
+          
+          // Close nested lists if needed
+          while (currentIndent > indentLevel) {
+            html += '</ul>';
+            currentIndent--;
+          }
+          
+          // Add the list item
           if (number) {
             html += `<li><span class="step-number">${number}</span>${content}</li>`;
           } else {
             html += `<li>${content}</li>`;
           }
         } else {
+          // Not a list item
           if (inList) {
+            // Close all open lists
+            for (let i = currentIndent; i > 0; i--) {
+              html += '</ul>';
+            }
             html += '</ul>';
             inList = false;
+            currentIndent = 0;
           }
           
           // Special formatting for tips/notes
@@ -571,7 +564,11 @@
         }
       });
       
+      // Close any remaining open lists
       if (inList) {
+        for (let i = currentIndent; i > 0; i--) {
+          html += '</ul>';
+        }
         html += '</ul>';
       }
       
