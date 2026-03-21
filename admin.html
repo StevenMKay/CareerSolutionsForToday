@@ -8,6 +8,7 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -490,6 +491,7 @@
 
     firebase.initializeApp(firebaseConfig);
     var fbAuth       = firebase.auth();
+    var fbDb         = firebase.firestore();
     var currentToken = null;
     var tenantsCache = [];
     var usersCache   = [];
@@ -533,21 +535,22 @@
             document.getElementById('app').style.display = 'none';
             return;
         }
-        // Get ID token for API calls
+        // Check admin role directly in Firestore (no backend needed)
         user.getIdToken().then(function(token) {
-            // Verify admin role via a quick API call
             currentToken = token;
-            return apiFetch('GET', '/api/admin/tenants');
-        }).then(function() {
+            return fbDb.collection('users').doc(user.uid).get();
+        }).then(function(doc) {
+            if (!doc.exists || doc.data().role !== 'admin') {
+                throw new Error('not-admin');
+            }
             document.getElementById('authOverlay').style.display = 'none';
             document.getElementById('app').style.display = 'block';
             document.getElementById('adminEmail').textContent = user.email;
             loadAll();
         }).catch(function(err) {
-            // 403 = not admin, 503 = backend not configured
-            var msg = (err && err.status === 503)
-                ? 'Backend not configured. See setup instructions.'
-                : 'Access denied. This account does not have admin permissions.';
+            var msg = (err && err.message === 'not-admin')
+                ? 'Access denied. This account does not have admin permissions.'
+                : 'Sign-in error: ' + (err.message || 'Unknown error');
             document.getElementById('loginError').textContent = msg;
             document.getElementById('loginBtn').disabled = false;
             document.getElementById('loginBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
