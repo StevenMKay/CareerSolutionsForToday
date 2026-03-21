@@ -530,18 +530,19 @@
         });
     }
 
+    // Admin UIDs — anyone whose Firebase Auth UID is in this list gets access.
+    // The backend API enforces real authorization; this is just a UI gate.
+    var ADMIN_UIDS = ['M49k5gv2ovcAHVrMnRf9jmWMxts1'];
+
     fbAuth.onAuthStateChanged(function(user) {
         if (!user) {
             document.getElementById('authOverlay').style.display = 'flex';
             document.getElementById('app').style.display = 'none';
             return;
         }
-        // Check admin role directly in Firestore (no backend needed)
         user.getIdToken().then(function(token) {
             currentToken = token;
-            return fbDb.collection('users').doc(user.uid).get();
-        }).then(function(doc) {
-            if (!doc.exists || doc.data().role !== 'admin') {
+            if (ADMIN_UIDS.indexOf(user.uid) === -1) {
                 throw new Error('not-admin');
             }
             document.getElementById('authOverlay').style.display = 'none';
@@ -549,11 +550,8 @@
             document.getElementById('adminEmail').textContent = user.email;
             loadAll();
         }).catch(function(err) {
-            var isFirestoreErr = err && err.code && err.code !== 'not-admin';
             var msg = (err && err.message === 'not-admin')
                 ? 'Access denied. This account does not have admin permissions.'
-                : isFirestoreErr
-                ? 'Could not connect to database. Check your internet connection and try again.'
                 : 'Sign-in error: ' + (err.message || 'Unknown error');
             document.getElementById('loginError').textContent = msg;
             document.getElementById('loginBtn').disabled = false;
