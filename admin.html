@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel &mdash; Career Solutions</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            font-size: 14px;
+        }
+
+        /* ---- AUTH OVERLAY ---- */
+        #authOverlay {
+            position: fixed; inset: 0; z-index: 999;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .auth-card {
+            background: #1e293b; border-radius: 16px; padding: 44px 40px;
+            width: 100%; max-width: 400px; text-align: center;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .auth-logo {
+            width: 60px; height: 60px;
+            background: linear-gradient(135deg, #6366f1, #4338ca);
+            border-radius: 14px; display: flex; align-items: center;
+            justify-content: center; color: white; font-size: 26px;
+            margin: 0 auto 18px;
+        }
+        .auth-title { font-size: 22px; font-weight: 800; margin-bottom: 4px; color: white; }
+        .auth-subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 26px; }
+        .auth-field { text-align: left; margin-bottom: 14px; }
+        .auth-label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 5px; }
+        .auth-input {
+            width: 100%; padding: 11px 13px; background: #0f172a;
+            border: 1.5px solid rgba(255,255,255,0.1); border-radius: 8px;
+            font-size: 14px; color: white; outline: none; transition: border-color 0.2s;
+        }
+        .auth-input:focus { border-color: #6366f1; }
+        .auth-error { font-size: 12px; color: #f87171; min-height: 16px; margin-bottom: 10px; }
+        .auth-btn {
+            width: 100%; padding: 12px;
+            background: linear-gradient(135deg, #6366f1, #4338ca);
+            color: white; border: none; border-radius: 9px;
+            font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity 0.2s;
+        }
+        .auth-btn:hover { opacity: 0.9; }
+        .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .auth-note { font-size: 11px; color: #475569; margin-top: 16px; }
+
+        /* ---- LAYOUT ---- */
+        #app { display: none; min-height: 100vh; }
+
+        .topbar {
+            background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.07);
+            padding: 12px 24px; display: flex; align-items: center;
+            justify-content: space-between; position: sticky; top: 0; z-index: 100;
+        }
+        .topbar-brand { display: flex; align-items: center; gap: 10px; }
+        .topbar-logo {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #6366f1, #4338ca);
+            border-radius: 9px; display: flex; align-items: center;
+            justify-content: center; color: white; font-size: 16px;
+        }
+        .topbar-name { font-size: 16px; font-weight: 700; color: white; }
+        .topbar-role { font-size: 11px; color: #64748b; }
+        .topbar-user { display: flex; align-items: center; gap: 10px; }
+        .topbar-email { font-size: 12px; color: #94a3b8; }
+        .btn-signout {
+            background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+            color: #94a3b8; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+            font-size: 12px; transition: all 0.2s;
+        }
+        .btn-signout:hover { background: rgba(255,255,255,0.12); color: white; }
+
+        .layout { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 61px); }
+
+        .sidebar {
+            background: #1e293b; border-right: 1px solid rgba(255,255,255,0.07);
+            padding: 20px 12px;
+        }
+        .nav-section-label {
+            font-size: 10px; font-weight: 700; color: #475569;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 0 8px; margin-bottom: 6px; margin-top: 16px;
+        }
+        .nav-section-label:first-child { margin-top: 0; }
+        .nav-item {
+            display: flex; align-items: center; gap: 9px;
+            padding: 9px 10px; border-radius: 8px; cursor: pointer;
+            color: #94a3b8; font-size: 13px; font-weight: 500;
+            transition: all 0.15s; border: none; background: none; width: 100%; text-align: left;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+        .nav-item.active { background: rgba(99,102,241,0.15); color: #818cf8; }
+        .nav-item i { width: 16px; text-align: center; font-size: 13px; }
+
+        .main { padding: 28px; overflow-y: auto; }
+
+        /* ---- STATS ROW ---- */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+        .stat-card {
+            background: #1e293b; border-radius: 12px; padding: 18px 20px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .stat-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+        .stat-value { font-size: 28px; font-weight: 800; color: white; }
+        .stat-sub { font-size: 11px; color: #475569; margin-top: 3px; }
+
+        /* ---- PANELS ---- */
+        .panel {
+            background: #1e293b; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06); margin-bottom: 24px;
+        }
+        .panel-header {
+            padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-title { font-size: 14px; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; }
+        .panel-body { padding: 20px; }
+
+        /* ---- BUTTONS ---- */
+        .btn {
+            padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            border: none; transition: all 0.2s;
+        }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-ghost { background: rgba(255,255,255,0.06); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.1); color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ---- FORMS ---- */
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+        .form-grid.cols3 { grid-template-columns: repeat(3, 1fr); }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-label { font-size: 11px; font-weight: 600; color: #94a3b8; }
+        .form-input, .form-select {
+            padding: 9px 12px; background: #0f172a;
+            border: 1.5px solid rgba(255,255,255,0.1); border-radius: 8px;
+            font-size: 13px; color: white; outline: none; transition: border-color 0.2s;
+            font-family: inherit;
+        }
+        .form-input:focus, .form-select:focus { border-color: #6366f1; }
+        .form-select option { background: #1e293b; }
+        .form-error { font-size: 11px; color: #f87171; margin-top: 8px; min-height: 14px; }
+
+        /* ---- TABLES ---- */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700;
+            color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .data-table td {
+            padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 13px; color: #cbd5e1;
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.03); }
+
+        /* ---- BADGES ---- */
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 20px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+        }
+        .badge-green { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .badge-red { background: rgba(239,68,68,0.15); color: #f87171; }
+        .badge-blue { background: rgba(99,102,241,0.15); color: #818cf8; }
+        .badge-gray { background: rgba(100,116,139,0.2); color: #94a3b8; }
+        .badge-orange { background: rgba(251,146,60,0.15); color: #fb923c; }
+
+        /* ---- TOAST ---- */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px;
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 12px 18px; border-radius: 10px;
+            display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            transform: translateY(80px); opacity: 0; transition: all 0.3s;
+            z-index: 500; font-size: 13px; font-weight: 500;
+        }
+        .toast.visible { transform: translateY(0); opacity: 1; }
+        .toast.success i { color: #4ade80; }
+        .toast.error i { color: #f87171; }
+
+        /* ---- DIVIDER ---- */
+        .divider { height: 1px; background: rgba(255,255,255,0.06); margin: 20px 0; }
+
+        /* ---- EMPTY STATE ---- */
+        .empty-state { text-align: center; padding: 40px 20px; color: #475569; }
+        .empty-state i { font-size: 36px; margin-bottom: 12px; display: block; }
+        .empty-state p { font-size: 13px; }
+
+        /* ---- PAGE TITLES ---- */
+        .page-title { font-size: 22px; font-weight: 800; color: white; margin-bottom: 6px; }
+        .page-sub { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+
+        /* ---- SPINNER ---- */
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---- SECTIONS ---- */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Auth Overlay -->
+<div id="authOverlay">
+    <div class="auth-card">
+        <div class="auth-logo"><i class="fas fa-shield-alt"></i></div>
+        <h2 class="auth-title">Admin Panel</h2>
+        <p class="auth-subtitle">Career Solutions for Today</p>
+        <div class="auth-field">
+            <label class="auth-label">Email</label>
+            <input type="email" id="loginEmail" class="auth-input" placeholder="admin@careersolutionsfortoday.com"
+                onkeypress="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+        </div>
+        <div class="auth-field">
+            <label class="auth-label">Password</label>
+            <input type="password" id="loginPassword" class="auth-input" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+                onkeypress="if(event.key==='Enter')signIn()">
+        </div>
+        <p id="loginError" class="auth-error"></p>
+        <button id="loginBtn" class="auth-btn" onclick="signIn()">
+            <i class="fas fa-sign-in-alt"></i> Sign In
+        </button>
+        <p class="auth-note">Only accounts with role: "admin" can access this panel.</p>
+    </div>
+</div>
+
+<!-- App -->
+<div id="app">
+    <div class="topbar">
+        <div class="topbar-brand">
+            <div class="topbar-logo"><i class="fas fa-shield-alt"></i></div>
+            <div>
+                <div class="topbar-name">Admin Panel</div>
+                <div class="topbar-role">Career Solutions for Today</div>
+            </div>
+        </div>
+        <div class="topbar-user">
+            <span class="topbar-email" id="adminEmail"></span>
+            <button class="btn-signout" onclick="signOut()"><i class="fas fa-sign-out-alt"></i> Sign Out</button>
+        </div>
+    </div>
+
+    <div class="layout">
+        <nav class="sidebar">
+            <div class="nav-section-label">Overview</div>
+            <button class="nav-item active" onclick="showSection('dashboard')">
+                <i class="fas fa-chart-pie"></i> Dashboard
+            </button>
+
+            <div class="nav-section-label">Licensing</div>
+            <button class="nav-item" onclick="showSection('tenants')">
+                <i class="fas fa-building"></i> Companies
+            </button>
+            <button class="nav-item" onclick="showSection('users')">
+                <i class="fas fa-users"></i> Users
+            </button>
+
+            <div class="nav-section-label">Actions</div>
+            <button class="nav-item" onclick="showSection('new-tenant')">
+                <i class="fas fa-plus-circle"></i> New License
+            </button>
+            <button class="nav-item" onclick="showSection('new-user')">
+                <i class="fas fa-user-plus"></i> Add User
+            </button>
+        </nav>
+
+        <main class="main">
+
+            <!-- DASHBOARD -->
+            <div id="section-dashboard" class="section active">
+                <div class="page-title">Dashboard</div>
+                <p class="page-sub">Overview of licensed companies and active users.</p>
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-label">Companies</div>
+                        <div class="stat-value" id="statTenants">&mdash;</div>
+                        <div class="stat-sub">Licensed tenants</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Users</div>
+                        <div class="stat-value" id="statUsers">&mdash;</div>
+                        <div class="stat-sub">Across all companies</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Active</div>
+                        <div class="stat-value" id="statActive">&mdash;</div>
+                        <div class="stat-sub">Active tenants</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Seats Used</div>
+                        <div class="stat-value" id="statSeats">&mdash;</div>
+                        <div class="stat-sub">Total / allocated</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fas fa-building"></i> Recent Companies</span>
+                        <button class="btn btn-ghost btn-sm" onclick="showSection('tenants')">View All</button>
+                    </div>
+                    <div class="panel-body" id="dashTenantTable">
+                        <div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMPANIES -->
+            <div id="section-tenants" class="section">
+                <div class="page-title">Companies</div>
+                <p class="page-sub">All licensed tenants. Click a row to edit the license.</p>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fas fa-building"></i> All Companies</span>
+                        <button class="btn btn-primary btn-sm" onclick="showSection('new-tenant')">
+                            <i class="fas fa-plus"></i> New License
+                        </button>
+                    </div>
+                    <div class="panel-body" style="padding: 0;">
+                        <div id="tenantsTable"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- USERS -->
+            <div id="section-users" class="section">
+                <div class="page-title">Users</div>
+                <p class="page-sub">All provisioned users and their company assignments.</p>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fas fa-users"></i> All Users</span>
+                        <button class="btn btn-primary btn-sm" onclick="showSection('new-user')">
+                            <i class="fas fa-user-plus"></i> Add User
+                        </button>
+                    </div>
+                    <div class="panel-body" style="padding: 0;">
+                        <div id="usersTable"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NEW TENANT FORM -->
+            <div id="section-new-tenant" class="section">
+                <div class="page-title">New Company License</div>
+                <p class="page-sub">Provision a new licensed company (tenant) on the platform.</p>
+                <div class="panel" style="max-width: 640px;">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fas fa-building"></i> Company Details</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Company Name *</label>
+                                <input type="text" id="newTenantName" class="form-input" placeholder="Acme Corporation">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Tenant ID * <span style="color:#475569;font-weight:400;">(slug: lowercase, hyphens only)</span></label>
+                                <input type="text" id="newTenantId" class="form-input" placeholder="acme-corp"
+                                    oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Plan</label>
+                                <select id="newTenantPlan" class="form-select">
+                                    <option value="standard">Standard</option>
+                                    <option value="professional">Professional</option>
+                                    <option value="enterprise">Enterprise</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Max Seats</label>
+                                <input type="number" id="newTenantSeats" class="form-input" value="10" min="1" max="1000">
+                            </div>
+                        </div>
+                        <p id="newTenantError" class="form-error"></p>
+                        <div style="display:flex;gap:10px;margin-top:16px;">
+                            <button id="createTenantBtn" class="btn btn-primary" onclick="createTenant()">
+                                <i class="fas fa-plus-circle"></i> Create License
+                            </button>
+                            <button class="btn btn-ghost" onclick="showSection('tenants')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NEW USER FORM -->
+            <div id="section-new-user" class="section">
+                <div class="page-title">Add User</div>
+                <p class="page-sub">Create a new user and assign them to a company.</p>
+                <div class="panel" style="max-width: 640px;">
+                    <div class="panel-header">
+                        <span class="panel-title"><i class="fas fa-user-plus"></i> User Details</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" id="newUserName" class="form-input" placeholder="Jane Smith">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email Address *</label>
+                                <input type="email" id="newUserEmail" class="form-input" placeholder="jane@company.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Temporary Password *</label>
+                                <input type="text" id="newUserPassword" class="form-input" placeholder="Min 6 characters">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Company *</label>
+                                <select id="newUserTenant" class="form-select">
+                                    <option value="">-- Select company --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Role</label>
+                                <select id="newUserRole" class="form-select">
+                                    <option value="member">Member</option>
+                                    <option value="admin">Admin (full access)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p id="newUserError" class="form-error"></p>
+                        <div style="display:flex;gap:10px;margin-top:16px;">
+                            <button id="createUserBtn" class="btn btn-primary" onclick="createUser()">
+                                <i class="fas fa-user-plus"></i> Create User
+                            </button>
+                            <button class="btn btn-ghost" onclick="showSection('users')">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"><i class="fas fa-check-circle"></i><span id="toastMsg"></span></div>
+
+<script>
+    // ============================================================
+    // FIREBASE CONFIG
+    // ============================================================
+    // Use the SAME config as ProjectSIte.html and ProjectTracker.html
+    var firebaseConfig = {
+        apiKey:            'YOUR_API_KEY',
+        authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
+        projectId:         'YOUR_PROJECT_ID',
+        storageBucket:     'YOUR_PROJECT_ID.appspot.com',
+        messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+        appId:             'YOUR_APP_ID'
+    };
+
+    // ============================================================
+    // BACKEND URL
+    // ============================================================
+    // Change this to your deployed backend URL in production.
+    // e.g. 'https://api.careersolutionsfortoday.com'
+    var BACKEND = window.location.hostname === 'localhost'
+        ? 'http://localhost:3001'
+        : 'https://YOUR_BACKEND_URL';
+
+    firebase.initializeApp(firebaseConfig);
+    var fbAuth       = firebase.auth();
+    var currentToken = null;
+    var tenantsCache = [];
+    var usersCache   = [];
+
+    // ============================================================
+    // AUTH
+    // ============================================================
+    function signIn() {
+        var btn   = document.getElementById('loginBtn');
+        var errEl = document.getElementById('loginError');
+        var email = document.getElementById('loginEmail').value.trim();
+        var pass  = document.getElementById('loginPassword').value;
+        if (!email || !pass) { errEl.textContent = 'Enter email and password.'; return; }
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Signing in...';
+        errEl.textContent = '';
+        fbAuth.signInWithEmailAndPassword(email, pass)
+            .catch(function(err) {
+                errEl.textContent = 'Invalid credentials or insufficient permissions.';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+            });
+    }
+
+    function signOut() {
+        fbAuth.signOut().then(function() {
+            currentToken = null;
+            document.getElementById('authOverlay').style.display = 'flex';
+            document.getElementById('app').style.display = 'none';
+            document.getElementById('loginEmail').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginError').textContent = '';
+            document.getElementById('loginBtn').disabled = false;
+            document.getElementById('loginBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+        });
+    }
+
+    fbAuth.onAuthStateChanged(function(user) {
+        if (!user) {
+            document.getElementById('authOverlay').style.display = 'flex';
+            document.getElementById('app').style.display = 'none';
+            return;
+        }
+        // Get ID token for API calls
+        user.getIdToken().then(function(token) {
+            // Verify admin role via a quick API call
+            currentToken = token;
+            return apiFetch('GET', '/api/admin/tenants');
+        }).then(function() {
+            document.getElementById('authOverlay').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            document.getElementById('adminEmail').textContent = user.email;
+            loadAll();
+        }).catch(function(err) {
+            // 403 = not admin, 503 = backend not configured
+            var msg = (err && err.status === 503)
+                ? 'Backend not configured. See setup instructions.'
+                : 'Access denied. This account does not have admin permissions.';
+            document.getElementById('loginError').textContent = msg;
+            document.getElementById('loginBtn').disabled = false;
+            document.getElementById('loginBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+            fbAuth.signOut();
+        });
+    });
+
+    // ============================================================
+    // API HELPER
+    // ============================================================
+    async function apiFetch(method, path, body) {
+        var opts = {
+            method: method,
+            headers: {
+                'Authorization': 'Bearer ' + currentToken,
+                'Content-Type':  'application/json'
+            }
+        };
+        if (body) opts.body = JSON.stringify(body);
+        var res = await fetch(BACKEND + path, opts);
+        if (!res.ok) {
+            var err = new Error('API error ' + res.status);
+            err.status = res.status;
+            try { var data = await res.json(); err.message = data.error || err.message; } catch(e){}
+            throw err;
+        }
+        return res.json();
+    }
+
+    // ============================================================
+    // DATA LOADING
+    // ============================================================
+    async function loadAll() {
+        try {
+            // Refresh the token in case it expired
+            currentToken = await fbAuth.currentUser.getIdToken(true);
+            var [tenants, users] = await Promise.all([
+                apiFetch('GET', '/api/admin/tenants'),
+                apiFetch('GET', '/api/admin/users')
+            ]);
+            tenantsCache = tenants;
+            usersCache   = users;
+            renderStats();
+            renderTenantsTable();
+            renderDashTenants();
+            renderUsersTable();
+            populateTenantDropdown();
+        } catch(err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    // ============================================================
+    // RENDER STATS
+    // ============================================================
+    function renderStats() {
+        document.getElementById('statTenants').textContent = tenantsCache.length;
+        document.getElementById('statUsers').textContent   = usersCache.length;
+        document.getElementById('statActive').textContent  = tenantsCache.filter(function(t){ return t.active; }).length;
+        var usedSeats  = tenantsCache.reduce(function(s, t){ return s + (t.userCount || 0); }, 0);
+        var totalSeats = tenantsCache.reduce(function(s, t){ return s + (t.maxSeats || 0); }, 0);
+        document.getElementById('statSeats').textContent = usedSeats + ' / ' + totalSeats;
+    }
+
+    // ============================================================
+    // RENDER TENANTS TABLE
+    // ============================================================
+    function renderTenantsTable() {
+        var el = document.getElementById('tenantsTable');
+        if (!tenantsCache.length) {
+            el.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>No companies yet. Create the first license.</p></div>';
+            return;
+        }
+        var rows = tenantsCache.map(function(t) {
+            return '<tr>' +
+                '<td><strong style="color:white">' + e(t.companyName) + '</strong><br><span style="font-size:11px;color:#475569">' + e(t.id) + '</span></td>' +
+                '<td><span class="badge badge-blue">' + e(t.plan || 'standard') + '</span></td>' +
+                '<td>' + (t.userCount || 0) + ' / ' + (t.maxSeats || 10) + '</td>' +
+                '<td><span class="badge ' + (t.active ? 'badge-green' : 'badge-red') + '">' + (t.active ? 'Active' : 'Inactive') + '</span></td>' +
+                '<td style="white-space:nowrap">' +
+                    '<button class="btn btn-ghost btn-sm" onclick="toggleTenantActive(\'' + e(t.id) + '\',' + !t.active + ')" style="margin-right:6px">' + (t.active ? 'Deactivate' : 'Activate') + '</button>' +
+                '</td>' +
+            '</tr>';
+        }).join('');
+        el.innerHTML = '<table class="data-table"><thead><tr><th>Company</th><th>Plan</th><th>Seats</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    function renderDashTenants() {
+        var el = document.getElementById('dashTenantTable');
+        if (!tenantsCache.length) {
+            el.innerHTML = '<div class="empty-state"><i class="fas fa-building"></i><p>No companies yet.</p></div>';
+            return;
+        }
+        var rows = tenantsCache.slice(0, 5).map(function(t) {
+            return '<tr>' +
+                '<td><strong style="color:white">' + e(t.companyName) + '</strong></td>' +
+                '<td><span class="badge badge-blue">' + e(t.plan || 'standard') + '</span></td>' +
+                '<td>' + (t.userCount || 0) + ' / ' + (t.maxSeats || 10) + ' seats</td>' +
+                '<td><span class="badge ' + (t.active ? 'badge-green' : 'badge-red') + '">' + (t.active ? 'Active' : 'Inactive') + '</span></td>' +
+            '</tr>';
+        }).join('');
+        el.innerHTML = '<table class="data-table"><thead><tr><th>Company</th><th>Plan</th><th>Seats</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    // ============================================================
+    // RENDER USERS TABLE
+    // ============================================================
+    function renderUsersTable() {
+        var el = document.getElementById('usersTable');
+        if (!usersCache.length) {
+            el.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p>No users yet. Add the first user.</p></div>';
+            return;
+        }
+        var rows = usersCache.map(function(u) {
+            var tenant = tenantsCache.find(function(t){ return t.id === u.tenantId; });
+            return '<tr>' +
+                '<td><strong style="color:white">' + e(u.displayName || '&mdash;') + '</strong><br><span style="font-size:11px;color:#475569">' + e(u.email || '') + '</span></td>' +
+                '<td>' + (tenant ? e(tenant.companyName) : '<span style="color:#475569">' + e(u.tenantId) + '</span>') + '</td>' +
+                '<td><span class="badge ' + (u.role === 'admin' ? 'badge-orange' : 'badge-gray') + '">' + e(u.role || 'member') + '</span></td>' +
+                '<td style="font-size:11px;color:#475569">' + (u.createdAt ? u.createdAt.slice(0,10) : '&mdash;') + '</td>' +
+                '<td style="white-space:nowrap">' +
+                    '<button class="btn btn-danger btn-sm" onclick="deleteUser(\'' + e(u.uid) + '\',\'' + e(u.displayName || u.email) + '\')">' +
+                        '<i class="fas fa-trash"></i> Remove' +
+                    '</button>' +
+                '</td>' +
+            '</tr>';
+        }).join('');
+        el.innerHTML = '<table class="data-table"><thead><tr><th>User</th><th>Company</th><th>Role</th><th>Created</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    }
+
+    function populateTenantDropdown() {
+        var sel = document.getElementById('newUserTenant');
+        sel.innerHTML = '<option value="">-- Select company --</option>';
+        tenantsCache.filter(function(t){ return t.active; }).forEach(function(t) {
+            var opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.companyName + ' (' + (t.userCount || 0) + '/' + t.maxSeats + ' seats)';
+            sel.appendChild(opt);
+        });
+    }
+
+    // ============================================================
+    // CREATE TENANT
+    // ============================================================
+    async function createTenant() {
+        var btn       = document.getElementById('createTenantBtn');
+        var errEl     = document.getElementById('newTenantError');
+        var name      = document.getElementById('newTenantName').value.trim();
+        var tenantId  = document.getElementById('newTenantId').value.trim();
+        var plan      = document.getElementById('newTenantPlan').value;
+        var maxSeats  = parseInt(document.getElementById('newTenantSeats').value) || 10;
+
+        errEl.textContent = '';
+        if (!name || !tenantId) { errEl.textContent = 'Company Name and Tenant ID are required.'; return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Creating...';
+        try {
+            currentToken = await fbAuth.currentUser.getIdToken(true);
+            await apiFetch('POST', '/api/admin/tenants', { tenantId, companyName: name, plan, maxSeats });
+            showToast('Company "' + name + '" created!', 'success');
+            document.getElementById('newTenantName').value = '';
+            document.getElementById('newTenantId').value   = '';
+            await loadAll();
+            showSection('tenants');
+        } catch(err) {
+            errEl.textContent = err.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Create License';
+        }
+    }
+
+    // ============================================================
+    // CREATE USER
+    // ============================================================
+    async function createUser() {
+        var btn      = document.getElementById('createUserBtn');
+        var errEl    = document.getElementById('newUserError');
+        var name     = document.getElementById('newUserName').value.trim();
+        var email    = document.getElementById('newUserEmail').value.trim();
+        var password = document.getElementById('newUserPassword').value;
+        var tenantId = document.getElementById('newUserTenant').value;
+        var role     = document.getElementById('newUserRole').value;
+
+        errEl.textContent = '';
+        if (!email || !password || !tenantId) { errEl.textContent = 'Email, password and company are required.'; return; }
+        if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Creating...';
+        try {
+            currentToken = await fbAuth.currentUser.getIdToken(true);
+            await apiFetch('POST', '/api/admin/users', { email, password, displayName: name, tenantId, role });
+            showToast('User ' + email + ' created!', 'success');
+            document.getElementById('newUserName').value     = '';
+            document.getElementById('newUserEmail').value    = '';
+            document.getElementById('newUserPassword').value = '';
+            document.getElementById('newUserTenant').value   = '';
+            await loadAll();
+            showSection('users');
+        } catch(err) {
+            errEl.textContent = err.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-user-plus"></i> Create User';
+        }
+    }
+
+    // ============================================================
+    // TOGGLE TENANT ACTIVE
+    // ============================================================
+    async function toggleTenantActive(tenantId, active) {
+        try {
+            currentToken = await fbAuth.currentUser.getIdToken(true);
+            await apiFetch('PATCH', '/api/admin/tenants/' + tenantId, { active });
+            showToast('Company ' + (active ? 'activated' : 'deactivated') + '.', 'success');
+            await loadAll();
+        } catch(err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    // ============================================================
+    // DELETE USER
+    // ============================================================
+    async function deleteUser(uid, label) {
+        if (!confirm('Remove user "' + label + '"? This cannot be undone.')) return;
+        try {
+            currentToken = await fbAuth.currentUser.getIdToken(true);
+            await apiFetch('DELETE', '/api/admin/users/' + uid);
+            showToast('User removed.', 'success');
+            await loadAll();
+        } catch(err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    // ============================================================
+    // NAVIGATION
+    // ============================================================
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(function(s){ s.classList.remove('active'); });
+        document.getElementById('section-' + id).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+        var match = document.querySelector('.nav-item[onclick*="\'' + id + '\'"]');
+        if (match) match.classList.add('active');
+    }
+
+    // ============================================================
+    // UTILITIES
+    // ============================================================
+    function e(str) {
+        if (str === null || str === undefined) return '';
+        var d = document.createElement('div');
+        d.textContent = String(str);
+        return d.innerHTML;
+    }
+
+    function showToast(msg, type) {
+        var t  = document.getElementById('toast');
+        var ic = t.querySelector('i');
+        document.getElementById('toastMsg').textContent = msg;
+        t.className = 'toast ' + (type || 'success');
+        ic.className = 'fas ' + (type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle');
+        t.classList.add('visible');
+        setTimeout(function(){ t.classList.remove('visible'); }, 3000);
+    }
+
+    // Auto-generate tenant ID slug from company name
+    document.addEventListener('DOMContentLoaded', function() {
+        var nameInput = document.getElementById('newTenantName');
+        var idInput   = document.getElementById('newTenantId');
+        if (nameInput && idInput) {
+            nameInput.addEventListener('input', function() {
+                idInput.value = nameInput.value.toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-')
+                    .slice(0, 40);
+            });
+        }
+    });
+</script>
+</body>
+</html>
