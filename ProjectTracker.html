@@ -2744,7 +2744,10 @@
                 var currentIndex = statusOrder.indexOf(task.status);
                 var nextIndex = (currentIndex + 1) % statusOrder.length;
                 task.status = statusOrder[nextIndex];
+                var taskIndex = tasks.indexOf(task);
                 applyFilters();
+                safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                saveToSharePoint(task, taskIndex).catch(function() {});
                 showToast('Status changed to ' + statusLabels[task.status]);
             }
         }
@@ -3416,6 +3419,8 @@
             tasks.unshift(newTask);
             document.getElementById('quickAddInput').value = '';
             applyFilters();
+            safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+            saveToSharePoint(newTask, 0).catch(function() {});
             showToast('Task added!');
         }
 
@@ -3619,6 +3624,8 @@
             renderNotesList(tasks[currentEditIndex].notes);
             document.getElementById('newNoteInput').value = '';
             toggleNoteInput();
+            safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+            saveToSharePoint(tasks[currentEditIndex], currentEditIndex).catch(function() {});
             showToast('Note added!');
         }
 
@@ -3626,6 +3633,8 @@
             if (currentEditIndex === null) return;
             tasks[currentEditIndex].notes.splice(noteIndex, 1);
             renderNotesList(tasks[currentEditIndex].notes);
+            safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+            saveToSharePoint(tasks[currentEditIndex], currentEditIndex).catch(function() {});
         }
 
         function renderNotesList(notes) {
@@ -3911,9 +3920,11 @@
             if (currentEditIndex === null || currentEditIndex === -1) return;
             if (confirm('Archive this task? It will be moved to the Archived section.')) {
                 tasks[currentEditIndex].archived = true;
+                var task = tasks[currentEditIndex];
                 closeModal();
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                saveToSharePoint(task, currentEditIndex).catch(function() {});
                 showToast('Task archived');
             }
         }
@@ -3922,8 +3933,10 @@
             var task = tasks.find(function(t) { return t.id === taskId; });
             if (task) {
                 task.archived = false;
+                var taskIndex = tasks.indexOf(task);
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                saveToSharePoint(task, taskIndex).catch(function() {});
                 showToast('Task restored');
             }
         }
@@ -3989,6 +4002,236 @@
             html += '</div>';
             body.innerHTML = html;
         }
+
+        // ============================================================
+        // TOUCH DRAG AND DROP (mobile support)
+        // ============================================================
+        (function() {
+            var touchDragId     = null;   // task id being dragged
+            var touchClone      = null;   // floating visual clone
+            var touchOffsetX    = 0;
+            var touchOffsetY    = 0;
+            var lastIndicator   = null;   // card/row showing the drop line
+            var lastIndicatorPos = null;  // 'above' | 'below'
+            var lastDropColumn  = null;   // kanban column element highlighted
+
+            // Create a floating ghost clone of the card being touched
+            function createClone(el, touch) {
+                var rect = el.getBoundingClientRect();
+                touchOffsetX = touch.clientX - rect.left;
+                touchOffsetY = touch.clientY - rect.top;
+
+                var clone = el.cloneNode(true);
+                clone.style.cssText = [
+                    'position:fixed',
+                    'top:' + rect.top + 'px',
+                    'left:' + rect.left + 'px',
+                    'width:' + rect.width + 'px',
+                    'opacity:0.85',
+                    'pointer-events:none',
+                    'z-index:9999',
+                    'box-shadow:0 10px 30px rgba(0,0,0,0.4)',
+                    'transform:rotate(2deg)',
+                    'transition:none'
+                ].join(';');
+                document.body.appendChild(clone);
+                return clone;
+            }
+
+            function moveClone(touch) {
+                if (!touchClone) return;
+                touchClone.style.top  = (touch.clientY - touchOffsetY) + 'px';
+                touchClone.style.left = (touch.clientX - touchOffsetX) + 'px';
+            }
+
+            function clearIndicator() {
+                if (lastIndicator) {
+                    lastIndicator.classList.remove('drag-above', 'drag-below');
+                    lastIndicator = null;
+                    lastIndicatorPos = null;
+                }
+                if (lastDropColumn) {
+                    lastDropColumn.classList.remove('drag-over');
+                    lastDropColumn.closest && lastDropColumn.closest('.kanban-column') &&
+                        lastDropColumn.closest('.kanban-column').classList.remove('drag-target');
+                    lastDropColumn = null;
+                }
+            }
+
+            function elFromTouch(touch) {
+                // Hide clone so elementFromPoint works through it
+                if (touchClone) touchClone.style.display = 'none';
+                var el = document.elementFromPoint(touch.clientX, touch.clientY);
+                if (touchClone) touchClone.style.display = '';
+                return el;
+            }
+
+            // ── touchstart ──────────────────────────────────────────
+            document.addEventListener('touchstart', function(e) {
+                var card = e.target.closest('.project-card[draggable]');
+                var row  = e.target.closest('.list-row[draggable]');
+                var el   = card || row;
+                if (!el) return;
+
+                touchDragId = el.dataset.id;
+                el.classList.add('dragging');
+                touchClone = createClone(el, e.touches[0]);
+            }, { passive: true });
+
+            // ── touchmove ───────────────────────────────────────────
+            document.addEventListener('touchmove', function(e) {
+                if (!touchDragId) return;
+                e.preventDefault();   // prevent page scroll while dragging
+
+                var touch = e.touches[0];
+                moveClone(touch);
+
+                clearIndicator();
+
+                var under = elFromTouch(touch);
+                if (!under) return;
+
+                // Highlight kanban column drop zone
+                var kanbanCards = under.closest('.kanban-cards');
+                if (kanbanCards) {
+                    kanbanCards.classList.add('drag-over');
+                    var col = kanbanCards.closest('.kanban-column');
+                    if (col) col.classList.add('drag-target');
+                    lastDropColumn = kanbanCards;
+                }
+
+                // Show insert indicator on card or list-row
+                var target = under.closest('.project-card') || under.closest('.list-row');
+                if (target && target.dataset.id !== touchDragId) {
+                    var rect = target.getBoundingClientRect();
+                    var pos  = touch.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
+                    target.classList.add('drag-' + pos);
+                    lastIndicator    = target;
+                    lastIndicatorPos = pos;
+                }
+
+                // Highlight archive zone
+                var archiveSection = under.closest('#archivedSection');
+                if (archiveSection) {
+                    archiveSection.classList.add('drag-target-archive');
+                    var archiveBody = document.getElementById('archivedBody');
+                    if (archiveBody && archiveBody.style.display === 'none') {
+                        archiveBody.style.display = 'block';
+                        var chevron = document.getElementById('archivedChevron');
+                        if (chevron) chevron.classList.add('open');
+                    }
+                } else {
+                    var archiveSec = document.getElementById('archivedSection');
+                    if (archiveSec) archiveSec.classList.remove('drag-target-archive');
+                }
+            }, { passive: false });
+
+            // ── touchend ────────────────────────────────────────────
+            document.addEventListener('touchend', function(e) {
+                if (!touchDragId) return;
+
+                var touch = e.changedTouches[0];
+
+                // Remove ghost and dragging style from original
+                if (touchClone) { touchClone.remove(); touchClone = null; }
+                document.querySelectorAll('.project-card.dragging, .list-row.dragging').forEach(function(el) {
+                    el.classList.remove('dragging', 'drag-ghost');
+                });
+
+                var under = elFromTouch(touch);
+
+                if (under) {
+                    // ── Drop on archive zone ──
+                    var archiveSection = under.closest('#archivedSection');
+                    if (archiveSection) {
+                        archiveSection.classList.remove('drag-target-archive');
+                        var task = tasks.find(function(t) { return t.id === touchDragId; });
+                        if (task && !task.archived) {
+                            task.archived = true;
+                            applyFilters();
+                            safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                            saveToSharePoint(task, tasks.indexOf(task)).catch(function() {});
+                            showToast('Task archived');
+                        }
+                        cleanup();
+                        return;
+                    }
+
+                    // ── Drop on kanban column ──
+                    var kanbanCards = under.closest('.kanban-cards');
+                    if (kanbanCards) {
+                        var newStatus = kanbanCards.dataset.status;
+                        var task = tasks.find(function(t) { return t.id === touchDragId; });
+                        if (task) {
+                            var oldStatus = task.status;
+                            if (newStatus) task.status = newStatus;
+
+                            // Reorder if dropped on a card
+                            var dropCard = under.closest('.project-card');
+                            if (dropCard && dropCard.dataset.id !== touchDragId) {
+                                var targetTask = tasks.find(function(t) { return t.id === dropCard.dataset.id; });
+                                if (targetTask) {
+                                    var draggedIdx = tasks.indexOf(task);
+                                    tasks.splice(draggedIdx, 1);
+                                    var targetIdx = tasks.indexOf(targetTask);
+                                    if (lastIndicatorPos === 'above') {
+                                        tasks.splice(targetIdx, 0, task);
+                                    } else {
+                                        tasks.splice(targetIdx + 1, 0, task);
+                                    }
+                                    updateSortOrders(newStatus);
+                                }
+                            }
+
+                            applyFilters();
+                            if (oldStatus !== newStatus) showToast('Moved to ' + statusLabels[newStatus]);
+                            else if (dropCard) showToast('Reordered');
+                            safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                            saveToSharePoint(task, tasks.indexOf(task)).catch(function() {});
+                        }
+                        cleanup();
+                        return;
+                    }
+
+                    // ── Drop on list row (reorder) ──
+                    var dropRow = under.closest('.list-row');
+                    if (dropRow && dropRow.dataset.id !== touchDragId) {
+                        var task = tasks.find(function(t) { return t.id === touchDragId; });
+                        var targetTask = tasks.find(function(t) { return t.id === dropRow.dataset.id; });
+                        if (task && targetTask) {
+                            var draggedIdx = tasks.indexOf(task);
+                            tasks.splice(draggedIdx, 1);
+                            var targetIdx = tasks.indexOf(targetTask);
+                            if (lastIndicatorPos === 'above') {
+                                tasks.splice(targetIdx, 0, task);
+                            } else {
+                                tasks.splice(targetIdx + 1, 0, task);
+                            }
+                            applyFilters();
+                            showToast('Reordered');
+                            safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                            saveToSharePoint(task, tasks.indexOf(task)).catch(function() {});
+                        }
+                        cleanup();
+                        return;
+                    }
+                }
+
+                cleanup();
+            }, { passive: true });
+
+            function cleanup() {
+                clearIndicator();
+                var archiveSec = document.getElementById('archivedSection');
+                if (archiveSec) archiveSec.classList.remove('drag-target-archive');
+                document.querySelectorAll('.kanban-cards').forEach(function(c) { c.classList.remove('drag-over'); });
+                document.querySelectorAll('.kanban-column').forEach(function(c) { c.classList.remove('drag-target'); });
+                document.querySelectorAll('.project-card, .list-row').forEach(function(c) {
+                    c.classList.remove('drag-above', 'drag-below', 'dragging', 'drag-ghost');
+                });
+                touchDragId = null;
+            }
+        })();
 
         // ============================================================
         // ARCHIVE DRAG AND DROP
