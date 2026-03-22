@@ -267,6 +267,21 @@
             background: white;
         }
 
+        /* Date input wrapper with placeholder label */
+        .quick-add-date-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .quick-add-date-label {
+            display: none; /* shown only on mobile via media query */
+            position: absolute;
+            left: 10px;
+            color: #aaa;
+            font-size: 12px;
+            pointer-events: none;
+            white-space: nowrap;
+        }
         .quick-add-date {
             background: #f8f9fa;
             border: 1px solid #ddd;
@@ -277,11 +292,13 @@
             font-family: inherit;
             cursor: pointer;
             transition: all 0.2s ease;
+            width: 140px;
         }
         .quick-add-date:focus {
             outline: none;
             border-color: #2980b9;
             background: white;
+            color: #2c3e50;
         }
 
         .quick-add-select {
@@ -447,6 +464,10 @@
             justify-content: space-between;
             align-items: center;
         }
+        .kanban-header:hover .kanban-collapse-icon { color: #718096 !important; }
+        .kanban-column.collapsed .kanban-cards { display: none; }
+        .kanban-column.collapsed { min-height: unset; }
+        .kanban-column.collapsed .kanban-collapse-icon { transform: rotate(-90deg); }
 
         .kanban-title {
             color: #2d3748;
@@ -1793,6 +1814,11 @@
             .quick-add-date {
                 width: 140px; flex-shrink: 0;
             }
+            /* Show the "Due Date" label overlay on mobile since date inputs have no placeholder */
+            .quick-add-date-label { display: block; }
+            .quick-add-date-wrap .quick-add-date { color: transparent; }
+            .quick-add-date-wrap .quick-add-date:focus,
+            .quick-add-date-wrap .quick-add-date.has-value { color: #2c3e50; }
             .quick-add-select { flex: 1; min-width: 0; }
             .quick-add-btn { flex: 1; justify-content: center; padding: 10px 8px; }
 
@@ -1800,9 +1826,10 @@
             .filter-bar {
                 display: none;
                 flex-direction: column;
-                gap: 8px;
+                gap: 0;
                 border-top-left-radius: 0;
                 border-top-right-radius: 0;
+                padding: 0;
             }
             .filter-bar.open { display: flex; }
             .filter-toggle {
@@ -1816,15 +1843,31 @@
                 border-bottom-right-radius: 0;
                 border-bottom-color: transparent;
             }
-            /* All filter groups + search take equal width in a 2-col grid */
-            .filter-bar .filter-group,
-            .filter-bar .search-box {
-                flex: 1 1 calc(50% - 4px);
+            /* Each filter row: label on left, input fills rest */
+            .filter-bar .filter-group {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                width: 100%;
+                padding: 8px 14px;
+                border-bottom: 1px solid rgba(255,255,255,0.07);
+                gap: 10px;
+            }
+            .filter-bar .filter-group:last-of-type { border-bottom: none; }
+            .filter-bar .filter-group .filter-label {
+                width: 72px;
+                flex-shrink: 0;
+            }
+            .filter-bar .filter-group .filter-select {
+                flex: 1;
                 min-width: 0;
             }
-            .filter-bar .filter-group { flex-direction: column; align-items: flex-start; }
-            .filter-bar .filter-group .filter-select { width: 100%; }
-            .filter-bar .search-box { width: 100%; margin-left: 0; }
+            /* Search takes its own full row */
+            .filter-bar .search-box {
+                width: calc(100% - 28px);
+                margin: 0 14px 10px;
+                box-sizing: border-box;
+            }
 
             /* ── Views ── */
             .kanban-container, .priority-container { grid-template-columns: 1fr; }
@@ -2406,7 +2449,11 @@
                 <!-- Row 1: title + due date -->
                 <div class="quick-add-row">
                     <input type="text" class="quick-add-input" id="quickAddInput" placeholder="Task title..." onkeypress="handleQuickAddKeypress(event)">
-                    <input type="date" class="quick-add-date" id="quickAddDueDate" title="Due date">
+                        <div class="quick-add-date-wrap">
+                        <span class="quick-add-date-label" id="quickAddDateLabel">Due Date</span>
+                        <input type="date" class="quick-add-date" id="quickAddDueDate" title="Due date"
+                               oninput="var l=document.getElementById('quickAddDateLabel');l.style.display=this.value?'none':'';this.classList.toggle('has-value',!!this.value)">
+                    </div>
                 </div>
                 <!-- Row 2: selects -->
                 <div class="quick-add-row">
@@ -3166,12 +3213,14 @@
                 var statusTasks = filteredTasks.filter(function(t) { return t.status === status; });
                 
                 html += '<div class="kanban-column" data-status="' + status + '">' +
-                    '<div class="kanban-header">' +
+                    '<div class="kanban-header" onclick="toggleKanbanColumn(this)" style="cursor:pointer;user-select:none;">' +
                         '<span class="kanban-title">' +
                             '<span class="status-badge ' + statusClasses[status] + '">' + statusLabels[status] + '</span>' +
                         '</span>' +
-                        '<span class="kanban-count">' + statusTasks.length + '</span>' +
-                    '</div>' +
+                        '<div style="display:flex;align-items:center;gap:8px;">' +
+                            '<span class="kanban-count">' + statusTasks.length + '</span>' +
+                            '<i class="fas fa-chevron-down kanban-collapse-icon" style="font-size:11px;color:#a0aec0;transition:transform 0.2s;"></i>' +
+                        '</div>' +
                     '<div class="kanban-cards" data-status="' + status + '" ' +
                         'ondragover="handleDragOver(event)" ' +
                         'ondragenter="handleDragEnter(event)" ' +
@@ -3629,6 +3678,14 @@
             var open    = bar.classList.toggle('open');
             chevron.classList.toggle('open', open);
             toggle.classList.toggle('open', open);
+        }
+
+        function toggleKanbanColumn(headerEl) {
+            var col = headerEl.closest('.kanban-column');
+            if (!col) return;
+            col.classList.toggle('collapsed');
+            var icon = headerEl.querySelector('.kanban-collapse-icon');
+            if (icon) icon.style.transform = col.classList.contains('collapsed') ? 'rotate(-90deg)' : '';
         }
 
         function handleQuickAddKeypress(event) {
@@ -4274,6 +4331,7 @@
             }
 
             // ── touchstart ──────────────────────────────────────────
+            var holdTimer = null;
             document.addEventListener('touchstart', function(e) {
                 var card = e.target.closest('.project-card[draggable]');
                 var row  = e.target.closest('.list-row[draggable]');
@@ -4284,23 +4342,35 @@
                 el.classList.add('dragging');
                 touchClone = createClone(el, e.touches[0]);
 
-                // Collapse quick-add and filter panels while dragging on mobile
-                var quickBar    = document.getElementById('quickAddBar');
-                var filterBar   = document.getElementById('filterBar');
-                var quickToggle = document.getElementById('quickAddToggle');
-                var filterToggle= document.getElementById('filterToggle');
-                var quickChev   = document.getElementById('quickAddChevron');
-                var filterChev  = document.getElementById('filterChevron');
-                if (quickBar && quickBar.classList.contains('open')) {
-                    quickBar.classList.remove('open');
-                    if (quickToggle) quickToggle.classList.remove('open');
-                    if (quickChev)   quickChev.classList.remove('open');
-                }
-                if (filterBar && filterBar.classList.contains('open')) {
-                    filterBar.classList.remove('open');
+                // Only collapse panels on mobile (touch-primary devices)
+                // Use a short delay so a tap doesn't cause collapse
+                holdTimer = setTimeout(function() {
+                    if (!touchDragId) return; // drag already ended
+                    var quickBar     = document.getElementById('quickAddBar');
+                    var filterBar    = document.getElementById('filterBar');
+                    var quickToggle  = document.getElementById('quickAddToggle');
+                    var filterToggle = document.getElementById('filterToggle');
+                    var quickChev    = document.getElementById('quickAddChevron');
+                    var filterChev   = document.getElementById('filterChevron');
+                    if (quickBar && quickBar.classList.contains('open')) {
+                        quickBar.classList.remove('open');
+                        if (quickToggle) quickToggle.classList.remove('open');
+                        if (quickChev)   quickChev.classList.remove('open');
+                    }
+                    if (filterBar && filterBar.classList.contains('open')) {
+                        filterBar.classList.remove('open');
                     if (filterToggle) filterToggle.classList.remove('open');
                     if (filterChev)   filterChev.classList.remove('open');
                 }
+                }, 180); // 180ms hold = intentional drag
+                }, { passive: true });
+
+            // Cancel hold timer if touch ends before drag confirmed
+            document.addEventListener('touchend', function(e) {
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+            }, { passive: true, capture: true });
+            document.addEventListener('touchcancel', function() {
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
             }, { passive: true });
 
             // ── touchmove ───────────────────────────────────────────
