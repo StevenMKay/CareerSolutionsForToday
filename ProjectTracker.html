@@ -7,6 +7,10 @@
     <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
     <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'self' *.sharepoint.com *.office.com;">
     <title>My Project Tracker</title>
+    <!-- Add favicon - dark mode (default) -->
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/24f41fc0ba84fa65c8b2fad5155b6b32c824486e/icons/CareerIcon.png" media="(prefers-color-scheme: dark)">
+    <!-- Add favicon - light mode -->
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b26be6501f1cd10eb39e1257de10c6d856ca6996/icons/Career%20Icon%20Blue.png" media="(prefers-color-scheme: light)">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
     <!-- Firebase SDK (compat v10) -->
@@ -2186,6 +2190,18 @@
         }
 
         function signOutUser() {
+            // If in creator mode, just clear the flag and reset the UI
+            if (localStorage.getItem('psc_creator_mode') === CREATOR_SECRET) {
+                localStorage.removeItem('psc_creator_mode');
+                currentUser = null; currentTenantId = null; tasks = [];
+                document.getElementById('authOverlay').style.display = 'flex';
+                document.getElementById('loginEmail').value    = '';
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginError').textContent = '';
+                document.getElementById('loginBtn').disabled = false;
+                document.getElementById('loginBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                return;
+            }
             auth.signOut().then(function() {
                 currentUser      = null;
                 currentTenantId  = null;
@@ -3446,8 +3462,32 @@
                 });
         }
 
+        // ============================================================
+        // CREATOR BYPASS — for testing & development
+        // ============================================================
+        // Visit the page with ?creator=psc-dev-2026 to unlock creator mode.
+        // Once unlocked, the flag is saved in localStorage so future
+        // visits don't need the URL parameter.
+        // To exit creator mode, click Sign Out.
+        var CREATOR_SECRET = 'psc-dev-2026';
+        // Owner UIDs — these skip tenant provisioning check automatically.
+        var OWNER_UIDS = ['M49k5gv2ovcAHVrMnRf9jmWMxts1'];
+
         // Auth-gated initialisation
         function setupAuth() {
+            // Check for creator bypass before touching Firebase Auth
+            var urlParams  = new URLSearchParams(window.location.search);
+            var urlCreator = urlParams.get('creator');
+            if (urlCreator === CREATOR_SECRET) {
+                localStorage.setItem('psc_creator_mode', CREATOR_SECRET);
+            }
+            if (localStorage.getItem('psc_creator_mode') === CREATOR_SECRET) {
+                currentTenantId = 'creator-dev';
+                currentUser     = { displayName: 'Creator', email: 'creator@dev', uid: 'creator-uid' };
+                initializeApp();
+                return;
+            }
+
             auth.onAuthStateChanged(function(user) {
                 if (!user) {
                     // Not signed in — show login overlay
@@ -3455,8 +3495,15 @@
                     return;
                 }
 
-                // Signed in — look up this user's tenant assignment
+                // Signed in — owner UIDs skip tenant lookup
                 currentUser = user;
+                if (OWNER_UIDS.indexOf(user.uid) !== -1) {
+                    currentTenantId = 'owner';
+                    initializeApp();
+                    return;
+                }
+
+                // Look up this user's tenant assignment
                 db.collection('users').doc(user.uid).get()
                     .then(function(doc) {
                         if (!doc.exists || !doc.data().tenantId) {
