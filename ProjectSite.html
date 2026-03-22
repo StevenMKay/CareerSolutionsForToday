@@ -3092,6 +3092,18 @@
         }
 
         function signOutUser() {
+            // If in creator mode, just clear the flag and reset the UI
+            if (localStorage.getItem('psc_creator_mode') === CREATOR_SECRET) {
+                localStorage.removeItem('psc_creator_mode');
+                currentUser = null; currentTenantId = null; items = [];
+                document.getElementById('authOverlay').style.display = 'flex';
+                document.getElementById('loginEmail').value    = '';
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginError').textContent = '';
+                document.getElementById('loginBtn').disabled = false;
+                document.getElementById('loginBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
+                return;
+            }
             fbAuth.signOut().then(function() {
                 currentUser = null; currentTenantId = null; items = [];
                 document.getElementById('authOverlay').style.display = 'flex';
@@ -4511,14 +4523,50 @@
         Initialization trigger - waits for DOM ready then calls init()
         Also sets up global keyboard handlers (Escape to close modals)
         */
+        // ============================================================
+        // CREATOR BYPASS — for testing & development
+        // ============================================================
+        // Visit the page with ?creator=psc-dev-2026 to unlock creator mode.
+        // Once unlocked, the flag is saved in localStorage so future
+        // visits don't need the URL parameter.
+        // To exit creator mode, click Sign Out.
+        var CREATOR_SECRET = 'psc-dev-2026';
+
         // Auth-gated startup
         function setupAuth() {
+            // Check for creator bypass before touching Firebase Auth
+            var urlParams  = new URLSearchParams(window.location.search);
+            var urlCreator = urlParams.get('creator');
+            if (urlCreator === CREATOR_SECRET) {
+                localStorage.setItem('psc_creator_mode', CREATOR_SECRET);
+            }
+            if (localStorage.getItem('psc_creator_mode') === CREATOR_SECRET) {
+                currentTenantId = 'creator-dev';
+                currentUser     = { displayName: 'Creator', email: 'creator@dev', uid: 'creator-uid' };
+                init();
+                return;
+            }
+
+            // ---- Owner UIDs: paste your Firebase Auth UID here ----
+            // Find it: Firebase Console → Authentication → Users → your email → User UID
+            var OWNER_UIDS = ['M49k5gv2ovcAHVrMnRf9jmWMxts1'];
+            // --------------------------------------------------------
+
             fbAuth.onAuthStateChanged(function(user) {
                 if (!user) {
                     document.getElementById('authOverlay').style.display = 'flex';
                     return;
                 }
                 currentUser = user;
+
+                // If the signed-in user is an owner, skip the Firestore profile
+                // lookup and grant full access automatically.
+                if (OWNER_UIDS.indexOf(user.uid) !== -1) {
+                    currentTenantId = 'owner';
+                    init();
+                    return;
+                }
+
                 db.collection('users').doc(user.uid).get()
                     .then(function(doc) {
                         if (!doc.exists || !doc.data().tenantId) {
