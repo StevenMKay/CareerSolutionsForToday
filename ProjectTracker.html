@@ -468,6 +468,17 @@
         .kanban-column.collapsed .kanban-cards { display: none; }
         .kanban-column.collapsed { min-height: unset; }
         .kanban-column.collapsed .kanban-collapse-icon { transform: rotate(-90deg); }
+        /* During touch drag, collapsed headers are drop targets — make them bigger and obvious */
+        .kanban-column.drag-auto-collapsed .kanban-header {
+            padding: 20px 16px;
+            background: #f0f4ff;
+            border-bottom: none;
+        }
+        .kanban-column.drag-target.drag-auto-collapsed .kanban-header {
+            background: #dbeafe;
+            border: 2px dashed #3b82f6;
+            border-radius: 6px;
+        }
 
         .kanban-title {
             color: #2d3748;
@@ -4333,6 +4344,7 @@
 
             // ── touchstart ──────────────────────────────────────────
             var holdTimer = null;
+            var dragCollapsedColumns = []; // columns we auto-collapsed, to restore on cleanup
             document.addEventListener('touchstart', function(e) {
                 var card = e.target.closest('.project-card[draggable]');
                 var row  = e.target.closest('.list-row[draggable]');
@@ -4343,10 +4355,11 @@
                 el.classList.add('dragging');
                 touchClone = createClone(el, e.touches[0]);
 
-                // Only collapse panels on mobile (touch-primary devices)
-                // Use a short delay so a tap doesn't cause collapse
+                // After a short hold, confirm it's a drag and collapse other kanban columns
                 holdTimer = setTimeout(function() {
-                    if (!touchDragId) return; // drag already ended
+                    if (!touchDragId) return; // drag already ended (was a tap)
+
+                    // Collapse quick-add and filter panels if open
                     var quickBar     = document.getElementById('quickAddBar');
                     var filterBar    = document.getElementById('filterBar');
                     var quickToggle  = document.getElementById('quickAddToggle');
@@ -4360,11 +4373,27 @@
                     }
                     if (filterBar && filterBar.classList.contains('open')) {
                         filterBar.classList.remove('open');
-                    if (filterToggle) filterToggle.classList.remove('open');
-                    if (filterChev)   filterChev.classList.remove('open');
-                }
+                        if (filterToggle) filterToggle.classList.remove('open');
+                        if (filterChev)   filterChev.classList.remove('open');
+                    }
+
+                    // Collapse all kanban columns so only headers are visible —
+                    // makes it easy to scroll/drop into a different status column
+                    dragCollapsedColumns = [];
+                    var sourceCol = el.closest('.kanban-column');
+                    document.querySelectorAll('.kanban-column').forEach(function(col) {
+                        if (!col.classList.contains('collapsed')) {
+                            col.classList.add('collapsed', 'drag-auto-collapsed');
+                            dragCollapsedColumns.push(col);
+                        }
+                    });
+                    // Keep source column expanded so the card's origin is clear
+                    if (sourceCol && sourceCol.classList.contains('drag-auto-collapsed')) {
+                        sourceCol.classList.remove('collapsed', 'drag-auto-collapsed');
+                        dragCollapsedColumns = dragCollapsedColumns.filter(function(c) { return c !== sourceCol; });
+                    }
                 }, 180); // 180ms hold = intentional drag
-                }, { passive: true });
+            }, { passive: true });
 
             // Cancel hold timer if touch ends before drag confirmed
             document.addEventListener('touchend', function(e) {
@@ -4388,12 +4417,20 @@
                 if (!under) return;
 
                 // Highlight kanban column drop zone
+                // Works for both expanded columns (.kanban-cards) and collapsed column headers
                 var kanbanCards = under.closest('.kanban-cards');
-                if (kanbanCards) {
-                    kanbanCards.classList.add('drag-over');
-                    var col = kanbanCards.closest('.kanban-column');
-                    if (col) col.classList.add('drag-target');
-                    lastDropColumn = kanbanCards;
+                var kanbanHeader = !kanbanCards && under.closest('.kanban-header');
+                var kanbanCol = kanbanCards
+                    ? kanbanCards.closest('.kanban-column')
+                    : (kanbanHeader ? kanbanHeader.closest('.kanban-column') : null);
+                if (kanbanCol) {
+                    // For collapsed columns, use the column's hidden .kanban-cards as the drop reference
+                    var dropCards = kanbanCards || kanbanCol.querySelector('.kanban-cards');
+                    if (dropCards) {
+                        dropCards.classList.add('drag-over');
+                        kanbanCol.classList.add('drag-target');
+                        lastDropColumn = dropCards;
+                    }
                 }
 
                 // Show insert indicator on card or list-row
@@ -4453,8 +4490,16 @@
                         return;
                     }
 
-                    // ── Drop on kanban column ──
+                    // ── Drop on kanban column (including collapsed column headers) ──
                     var kanbanCards = under.closest('.kanban-cards');
+                    // Also match drop on a collapsed column's header
+                    if (!kanbanCards) {
+                        var kanbanHeader = under.closest('.kanban-header');
+                        if (kanbanHeader) {
+                            var kanbanCol = kanbanHeader.closest('.kanban-column');
+                            if (kanbanCol) kanbanCards = kanbanCol.querySelector('.kanban-cards');
+                        }
+                    }
                     if (kanbanCards) {
                         var newStatus = kanbanCards.dataset.status;
                         var task = tasks.find(function(t) { return t.id === touchDragId; });
@@ -4518,6 +4563,11 @@
 
             function cleanup() {
                 clearIndicator();
+                // Restore any columns that were auto-collapsed during this drag
+                dragCollapsedColumns.forEach(function(col) {
+                    col.classList.remove('collapsed', 'drag-auto-collapsed');
+                });
+                dragCollapsedColumns = [];
                 var archiveSec = document.getElementById('archivedSection');
                 if (archiveSec) archiveSec.classList.remove('drag-target-archive');
                 document.querySelectorAll('.kanban-cards').forEach(function(c) { c.classList.remove('drag-over'); });
