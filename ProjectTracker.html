@@ -4097,40 +4097,37 @@
                 document.getElementById('adminMenuItem').style.display = 'flex';
             }
 
+            // ── Step 1: Load from localStorage IMMEDIATELY (instant, always works) ──
+            var localData = safeGetItem('projectTrackerTasks');
+            if (localData) {
+                try { tasks = JSON.parse(localData); } catch(e) { tasks = []; }
+            } else {
+                tasks = [];
+            }
+            filteredTasks = tasks.slice();
+            updateStats();
+            renderCurrentView();
+            updateOverdueBanner();
+            renderArchivedSection();
+
+            // ── Step 2: Try Firestore in the background (non-blocking) ──
             loadFromSharePoint()
                 .then(function(firestoreTasks) {
                     if (firestoreTasks && firestoreTasks.length > 0) {
+                        // Firestore has data — use it and sync to localStorage
                         tasks = firestoreTasks;
-                    } else {
-                        // Fall back to tenant-scoped local cache
-                        var localData = safeGetItem('projectTrackerTasks');
-                        if (localData) {
-                            try { tasks = JSON.parse(localData); }
-                            catch(e) { tasks = []; }
-                        } else {
-                            tasks = [];
-                        }
+                        safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                        filteredTasks = tasks.slice();
+                        updateStats();
+                        renderCurrentView();
+                        updateOverdueBanner();
+                        renderArchivedSection();
+                        showToast('Synced from cloud');
                     }
-                    filteredTasks = tasks.slice();
-                    updateStats();
-                    renderCurrentView();
-                    updateOverdueBanner();
-                    renderArchivedSection();
+                    // If Firestore is empty, keep localStorage data — nothing to do
                 })
                 .catch(function() {
-                    // Firestore unavailable — use local cache as offline fallback
-                    var localData = safeGetItem('projectTrackerTasks');
-                    if (localData) {
-                        try { tasks = JSON.parse(localData); } catch(e) { tasks = []; }
-                    } else {
-                        tasks = [];
-                    }
-                    filteredTasks = tasks.slice();
-                    updateStats();
-                    renderCurrentView();
-                    updateOverdueBanner();
-                    renderArchivedSection();
-                    showToast('Offline — changes saved locally');
+                    // Firestore unreachable — already loaded from localStorage above
                 });
         }
 
