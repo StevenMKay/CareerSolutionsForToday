@@ -2625,6 +2625,7 @@
         <div class="team-tab-nav">
             <button class="team-tab-btn active" id="teamTabBtnMembers" onclick="switchTeamTab('members')">Members</button>
             <button class="team-tab-btn" id="teamTabBtnOrgchart" onclick="switchTeamTab('orgchart')">Org Chart</button>
+            <button class="team-tab-btn" id="teamTabBtnPermissions" onclick="switchTeamTab('permissions')" style="display:none;">Permissions</button>
         </div>
         <div class="team-tab-body">
             <!-- MEMBERS TAB -->
@@ -2640,12 +2641,31 @@
                                 <label class="invite-label">Full Name</label>
                                 <input type="text" class="invite-input" id="inviteName" placeholder="Jane Smith">
                             </div>
-                            <div class="invite-field" style="flex:0 0 110px;">
+                            <div class="invite-field" style="flex:0 0 160px;">
                                 <label class="invite-label">Role</label>
-                                <select class="invite-select" id="inviteRole">
-                                    <option value="member">Member</option>
-                                    <option value="admin">Admin</option>
-                                </select>
+                                <div class="role-picker" id="rolePicker">
+                                    <div class="role-picker-selected" onclick="toggleRolePicker(event)">
+                                        <span id="rolePickerLabel">Member</span>
+                                        <i class="fas fa-chevron-down role-picker-chevron"></i>
+                                    </div>
+                                    <div class="role-picker-dropdown">
+                                        <div class="role-option" onclick="selectInviteRole('member')">
+                                            <div class="role-option-header">
+                                                <span class="role-option-name">Member</span>
+                                                <span class="role-option-badge member">Member</span>
+                                            </div>
+                                            <div class="role-option-desc">Create &amp; edit tasks in assigned projects. Cannot manage team or invite others.</div>
+                                        </div>
+                                        <div class="role-option" onclick="selectInviteRole('admin')">
+                                            <div class="role-option-header">
+                                                <span class="role-option-name">Admin</span>
+                                                <span class="role-option-badge admin">Admin</span>
+                                            </div>
+                                            <div class="role-option-desc">Full access: invite members, manage team &amp; org chart, edit/delete any task, manage all projects.</div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="inviteRole" value="member">
+                                </div>
                             </div>
                         </div>
                         <div class="invite-field">
@@ -2681,6 +2701,40 @@
                     </div>
                 </div>
                 <div id="orgChartDisplay"><div style="color:#94a3b8;text-align:center;padding:40px 0;font-size:13px;">Loading...</div></div>
+            </div>
+            <!-- PERMISSIONS TAB -->
+            <div id="teamTabPermissions" style="display:none;">
+                <div class="team-section-header">Role Permissions</div>
+                <p style="color:#94a3b8;font-size:12px;margin:0 0 12px;line-height:1.5;">Admins always have full access. Configure what <strong style="color:#e2e8f0;">Members</strong> can do.</p>
+                <div class="perm-section-label">Tasks</div>
+                <div class="perm-row">
+                    <div class="perm-row-info"><div class="perm-row-name">Create Tasks</div><div class="perm-row-desc">Members can add new tasks to projects</div></div>
+                    <label class="perm-toggle"><input type="checkbox" id="perm_createTasks" checked><span class="perm-slider"></span></label>
+                </div>
+                <div class="perm-row">
+                    <div class="perm-row-info"><div class="perm-row-name">Edit Any Task</div><div class="perm-row-desc">Members can edit tasks created by others (if off, own tasks only)</div></div>
+                    <label class="perm-toggle"><input type="checkbox" id="perm_editAllTasks"><span class="perm-slider"></span></label>
+                </div>
+                <div class="perm-row">
+                    <div class="perm-row-info"><div class="perm-row-name">Delete Tasks</div><div class="perm-row-desc">Members can permanently delete tasks</div></div>
+                    <label class="perm-toggle"><input type="checkbox" id="perm_deleteTasks"><span class="perm-slider"></span></label>
+                </div>
+                <div class="perm-section-label">Projects</div>
+                <div class="perm-row">
+                    <div class="perm-row-info"><div class="perm-row-name">Create Projects</div><div class="perm-row-desc">Members can create new projects</div></div>
+                    <label class="perm-toggle"><input type="checkbox" id="perm_createProjects"><span class="perm-slider"></span></label>
+                </div>
+                <div class="perm-row">
+                    <div class="perm-row-info"><div class="perm-row-name">View All Projects</div><div class="perm-row-desc">Members see all projects (if off, only ones they're assigned to)</div></div>
+                    <label class="perm-toggle"><input type="checkbox" id="perm_viewAllProjects"><span class="perm-slider"></span></label>
+                </div>
+                <div class="perm-section-label">Team</div>
+                <div class="perm-row">
+                    <div class="perm-row-info"><div class="perm-row-name">Invite Members</div><div class="perm-row-desc">Members can send invitations to new users</div></div>
+                    <label class="perm-toggle"><input type="checkbox" id="perm_inviteMembers"><span class="perm-slider"></span></label>
+                </div>
+                <button class="perm-save-btn" onclick="savePermissions()"><i class="fas fa-save"></i> Save Permissions</button>
+                <p id="permMsg" style="margin:8px 0 0;font-size:12px;"></p>
             </div>
         </div>
     </div>
@@ -5205,17 +5259,78 @@
             document.getElementById('teamPanelOverlay').classList.remove('open');
         }
         function switchTeamTab(tab) {
-            document.getElementById('teamTabMembers').style.display  = tab === 'members'  ? '' : 'none';
-            document.getElementById('teamTabOrgchart').style.display = tab === 'orgchart' ? '' : 'none';
-            document.getElementById('teamTabBtnMembers').classList.toggle('active',  tab === 'members');
-            document.getElementById('teamTabBtnOrgchart').classList.toggle('active', tab === 'orgchart');
-            if (tab === 'orgchart') renderOrgChart();
+            document.getElementById('teamTabMembers').style.display     = tab === 'members'     ? '' : 'none';
+            document.getElementById('teamTabOrgchart').style.display    = tab === 'orgchart'    ? '' : 'none';
+            document.getElementById('teamTabPermissions').style.display = tab === 'permissions' ? '' : 'none';
+            document.getElementById('teamTabBtnMembers').classList.toggle('active',     tab === 'members');
+            document.getElementById('teamTabBtnOrgchart').classList.toggle('active',    tab === 'orgchart');
+            document.getElementById('teamTabBtnPermissions').classList.toggle('active', tab === 'permissions');
+            if (tab === 'orgchart')    renderOrgChart();
+            if (tab === 'permissions') loadPermissions().then(renderPermissionsTab);
         }
 
         function loadTeamData() {
             loadTeamMembers();
             loadOrgChart();
+            loadPermissions();
         }
+
+        // ── Permissions ───────────────────────────────────────────────
+        var rolePermissions = {
+            member: { createTasks: true, editAllTasks: false, deleteTasks: false, createProjects: false, viewAllProjects: false, inviteMembers: false }
+        };
+
+        async function loadPermissions() {
+            if (!currentTenantId) return;
+            try {
+                var doc = await db.collection('tenants').doc(currentTenantId)
+                    .collection('settings').doc('permissions').get();
+                if (doc.exists && doc.data().member) {
+                    rolePermissions.member = Object.assign({}, rolePermissions.member, doc.data().member);
+                }
+            } catch (e) { console.warn('loadPermissions:', e); }
+        }
+
+        function renderPermissionsTab() {
+            var p = rolePermissions.member;
+            ['createTasks','editAllTasks','deleteTasks','createProjects','viewAllProjects','inviteMembers'].forEach(function(k) {
+                var el = document.getElementById('perm_' + k);
+                if (el) el.checked = !!p[k];
+            });
+        }
+
+        async function savePermissions() {
+            if (!currentTenantId || currentRole !== 'admin') return;
+            ['createTasks','editAllTasks','deleteTasks','createProjects','viewAllProjects','inviteMembers'].forEach(function(k) {
+                var el = document.getElementById('perm_' + k);
+                if (el) rolePermissions.member[k] = el.checked;
+            });
+            try {
+                await db.collection('tenants').doc(currentTenantId)
+                    .collection('settings').doc('permissions')
+                    .set({ member: rolePermissions.member }, { merge: true });
+                var msg = document.getElementById('permMsg');
+                if (msg) { msg.style.color='#34d399'; msg.textContent='\u2713 Permissions saved'; setTimeout(function(){ msg.textContent=''; }, 2500); }
+            } catch (e) {
+                var msg = document.getElementById('permMsg');
+                if (msg) { msg.style.color='#f87171'; msg.textContent='Error saving permissions'; }
+            }
+        }
+
+        // ── Role picker ───────────────────────────────────────────────
+        function toggleRolePicker(e) {
+            e.stopPropagation();
+            document.getElementById('rolePicker').classList.toggle('open');
+        }
+        function selectInviteRole(val) {
+            document.getElementById('inviteRole').value = val;
+            document.getElementById('rolePickerLabel').textContent = val.charAt(0).toUpperCase() + val.slice(1);
+            document.getElementById('rolePicker').classList.remove('open');
+        }
+        document.addEventListener('click', function(e) {
+            var picker = document.getElementById('rolePicker');
+            if (picker && !picker.contains(e.target)) picker.classList.remove('open');
+        });
 
         // ── Team Members ─────────────────────────────────────────────
         async function loadTeamMembers() {
@@ -5230,6 +5345,7 @@
                 renderTeamMembers();
                 if (currentRole === 'admin') {
                     document.getElementById('inviteSection').style.display = '';
+                    document.getElementById('teamTabBtnPermissions').style.display = '';
                 }
             } catch (err) {
                 listEl.innerHTML = '<div style="color:#f87171;font-size:12px;">Could not load members: ' + escapeHtml(err.message) + '</div>';
@@ -5302,37 +5418,24 @@
                 if (!res.ok) throw new Error(data.error || 'Failed');
                 // Firebase sends a "set your password" email via password reset link
                 auth.sendPasswordResetEmail(email).catch(function(){});
-                // ── Auto-add to org chart if a team exists and name provided ──
-                if (name && orgChartData.teams && orgChartData.teams.length > 0) {
+                // ── Auto-add to org chart only when an explicit manager is selected ──
+                if (name && manager && orgChartData.teams && orgChartData.teams.length > 0) {
                     var targetTeam = orgChartData.teams[currentOrgTeam] || orgChartData.teams[0];
-                    if (manager) {
-                        // Find the branch whose manager matches, add as member
-                        var found = false;
-                        (targetTeam.branches || []).forEach(function(branch) {
-                            if (!found && branch.manager && branch.manager.name === manager) {
-                                if (!branch.members) branch.members = [];
-                                branch.members.push({ name: name, title: title || role, email: email });
-                                found = true;
-                            }
-                        });
-                        if (!found) {
-                            // Manager not found as branch manager — add as top-level member in a new branch
-                            if (!targetTeam.branches) targetTeam.branches = [];
-                            targetTeam.branches.push({
-                                id: 'b-' + Date.now(),
-                                department: manager + "'s Team",
-                                manager: { name: manager, title: 'Manager', email: '' },
-                                members: [{ name: name, title: title || role, email: email }]
-                            });
+                    var found = false;
+                    (targetTeam.branches || []).forEach(function(branch) {
+                        if (!found && branch.manager && branch.manager.name === manager) {
+                            if (!branch.members) branch.members = [];
+                            branch.members.push({ name: name, title: title || role, email: email });
+                            found = true;
                         }
-                    } else {
-                        // No manager specified — add as a new branch with this person as manager
+                    });
+                    if (!found) {
                         if (!targetTeam.branches) targetTeam.branches = [];
                         targetTeam.branches.push({
                             id: 'b-' + Date.now(),
-                            department: (title || name) + "'s Dept",
-                            manager: { name: name, title: title || role, email: email },
-                            members: []
+                            department: manager + "'s Team",
+                            manager: { name: manager, title: 'Manager', email: '' },
+                            members: [{ name: name, title: title || role, email: email }]
                         });
                     }
                     saveOrgChart();
