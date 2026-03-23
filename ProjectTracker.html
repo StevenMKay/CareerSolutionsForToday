@@ -11394,43 +11394,26 @@
             // ── Step 2: Try Firestore in the background (non-blocking) ──
             loadFromSharePoint()
                 .then(function(firestoreTasks) {
-                    if (!_tasksModified && firestoreTasks) {
-                        // Build a lookup of cloud task IDs
-                        var cloudIdSet = {};
-                        firestoreTasks.forEach(function(ft) { cloudIdSet[ft.id] = true; });
-
-                        // Merge Firestore data with local data by task ID,
-                        // keeping whichever version has the newer updatedAt.
-                        // Also REMOVE local tasks that no longer exist in Firestore
-                        // (they were deleted on another device).
+                    if (!_tasksModified && firestoreTasks && firestoreTasks.length > 0) {
+                        // Merge: keep all local tasks, layer in cloud tasks
+                        // that are newer or don't exist locally
                         var localMap = {};
                         tasks.forEach(function(t) { localMap[t.id] = t; });
-                        var mergedMap = {};
 
-                        // Keep only local tasks that still exist in the cloud
-                        tasks.forEach(function(t) {
-                            if (cloudIdSet[t.id]) {
-                                mergedMap[t.id] = t;
-                            }
-                            // else: task was deleted on another device — drop it
-                        });
-
-                        // Layer in Firestore tasks — only if newer or not present locally
                         firestoreTasks.forEach(function(ft) {
                             var local = localMap[ft.id];
                             if (!local) {
                                 // Task exists in cloud but not locally — add it
-                                mergedMap[ft.id] = ft;
+                                localMap[ft.id] = ft;
                             } else {
                                 var localTime = local.updatedAt || local.createdDate || '';
                                 var cloudTime = ft.updatedAt || ft.createdDate || '';
                                 if (cloudTime > localTime) {
-                                    mergedMap[ft.id] = ft;
+                                    localMap[ft.id] = ft;
                                 }
-                                // else keep local version (it's newer)
                             }
                         });
-                        var merged = Object.keys(mergedMap).map(function(k) { return mergedMap[k]; });
+                        var merged = Object.keys(localMap).map(function(k) { return localMap[k]; });
                         merged.sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
                         tasks = merged;
                         safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
@@ -11462,29 +11445,29 @@
                             var live = [];
                             snapshot.forEach(function(doc) { live.push(doc.data()); });
                             live.sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
-                            // Only update if data actually changed
-                            if (JSON.stringify(live.map(function(t){return t.id;})) !== JSON.stringify(tasks.map(function(t){return t.id;}))) {
-                                tasks = live;
+                            // Additive merge: layer cloud updates over local, keep local-only tasks
+                            var localMap = {};
+                            tasks.forEach(function(t) { localMap[t.id] = t; });
+                            var changed = false;
+                            live.forEach(function(lt) {
+                                var existing = localMap[lt.id];
+                                if (!existing) {
+                                    localMap[lt.id] = lt;
+                                    changed = true;
+                                } else {
+                                    var eTime = existing.updatedAt || existing.createdDate || '';
+                                    var lTime = lt.updatedAt || lt.createdDate || '';
+                                    if (lTime > eTime) {
+                                        localMap[lt.id] = lt;
+                                        changed = true;
+                                    }
+                                }
+                            });
+                            if (changed) {
+                                tasks = Object.keys(localMap).map(function(k) { return localMap[k]; });
+                                tasks.sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
                                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                                 applyFilters();
-                            } else {
-                                // Check individual task updates
-                                var changed = false;
-                                var taskMap = {};
-                                tasks.forEach(function(t) { taskMap[t.id] = t; });
-                                live.forEach(function(lt) {
-                                    var existing = taskMap[lt.id];
-                                    if (existing) {
-                                        var eTime = existing.updatedAt || existing.createdDate || '';
-                                        var lTime = lt.updatedAt || lt.createdDate || '';
-                                        if (lTime > eTime) changed = true;
-                                    }
-                                });
-                                if (changed) {
-                                    tasks = live;
-                                    safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                                    applyFilters();
-                                }
                             }
                         }, function(err) {
                             console.warn('[Firestore] Real-time listener error:', err);
