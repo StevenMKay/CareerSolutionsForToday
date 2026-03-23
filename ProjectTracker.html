@@ -8597,6 +8597,7 @@
                         if (Array.isArray(d.aiContextLibrary)) aiContextLibrary = d.aiContextLibrary;
                         if (Array.isArray(d.impactAreas)) _impactAreas = d.impactAreas;
                         if (d.enabledSections) _enabledSections = Object.assign({ impact: true, steps: true, issues: true }, d.enabledSections);
+                        if (d.customSectionAreas && typeof d.customSectionAreas === 'object') _customSectionAreas = d.customSectionAreas;
                         if (d.siteTitle) applySiteTitle(d.siteTitle);
                         if (d.logoUrl) applySiteLogo(d.logoUrl);
                         // Populate admin general inputs if already open
@@ -8610,7 +8611,7 @@
         function saveExtendedSettings() {
             if (!currentTenantId) return;
             db.collection('tenants').doc(currentTenantId).collection('settings').doc('extended')
-                .set({ departments: departments, systemsList: systemsList, aiApiKey: aiApiKey, aiModel: aiModel, formSchema: formSchema, aiContextLibrary: aiContextLibrary, impactAreas: _impactAreas, enabledSections: _enabledSections, siteTitle: _siteTitle, logoUrl: _logoUrl })
+                .set({ departments: departments, systemsList: systemsList, aiApiKey: aiApiKey, aiModel: aiModel, formSchema: formSchema, aiContextLibrary: aiContextLibrary, impactAreas: _impactAreas, enabledSections: _enabledSections, customSectionAreas: _customSectionAreas, siteTitle: _siteTitle, logoUrl: _logoUrl })
                 .catch(function() {});
         }
 
@@ -10998,6 +10999,8 @@
             { key: 'results',    label: 'Results',    icon: 'fa-chart-line',     color: '#22c55e',
               questions: ['Are success metrics clearly defined?', 'How will outcomes be measured / reported?', 'Is executive or stakeholder reporting required?'] }
         ];
+        // Custom section areas: { sectionId -> [ { key, label, icon, color, questions } ] }
+        var _customSectionAreas = {};
 
         function renderImpactAssessment(data) {
             var container = document.getElementById('impactAssessmentContent');
@@ -11308,96 +11311,124 @@
             if (panel) panel.classList.remove('open');
         }
 
-        // Draft copy of impact areas for editing in Form Builder
+        // Draft copy of section areas for editing in Form Builder
+        // Map: sectionId -> [ { key, label, icon, color, questions: [] } ]
+        var _fbDraftSectionAreas = {};
+        // Backward-compat alias
         var _fbDraftImpactAreas = [];
 
-        function _fbRenderImpactEditor() {
-            var el = document.getElementById('fbImpactEditor');
+        function _fbRenderSectionEditor(sectionId) {
+            var edId = 'fbSecEditor_' + sectionId.replace(/[^a-zA-Z0-9_]/g, '_');
+            var el = document.getElementById(edId);
             if (!el) return;
-            var html = _fbDraftImpactAreas.map(function(area, ai) {
+            var areas = _fbDraftSectionAreas[sectionId] || [];
+            var sid = sectionId; // capture for closures
+            var html = areas.map(function(area, ai) {
                 var qHtml = area.questions.map(function(q, qi) {
                     return '<div class="fb-ia-q">' +
                         '<span class="fb-ia-q-num">' + (qi + 1) + '.</span>' +
-                        '<input class="fb-ia-q-input" data-ai="' + ai + '" data-qi="' + qi + '" value="' + escapeHtml(q) + '" placeholder="Question text...">' +
-                        '<button class="fb-ia-q-del" onclick="_fbDelImpactQ(' + ai + ',' + qi + ')" title="Remove question"><i class="fas fa-times"></i></button>' +
+                        '<input class="fb-ia-q-input" data-sid="' + escapeHtml(sid) + '" data-ai="' + ai + '" data-qi="' + qi + '" value="' + escapeHtml(q) + '" placeholder="Question text...">' +
+                        '<button class="fb-ia-q-del" onclick="_fbDelSecQ(\'' + sid + '\',' + ai + ',' + qi + ')" title="Remove question"><i class="fas fa-times"></i></button>' +
                     '</div>';
                 }).join('');
-                return '<div class="fb-ia-area" data-ai="' + ai + '">' +
-                    '<div class="fb-ia-area-hdr" onclick="_fbToggleImpactArea(this)">' +
+                return '<div class="fb-ia-area" data-ai="' + ai + '" data-sid="' + escapeHtml(sid) + '">' +
+                    '<div class="fb-ia-area-hdr" onclick="_fbToggleSectionArea(this)">' +
                         '<i class="fb-ia-chevron fas fa-chevron-down"></i>' +
                         '<i class="area-icon fas ' + (area.icon || 'fa-circle') + '" style="color:' + (area.color || '#64748b') + ';"></i>' +
-                        '<input class="fb-ia-area-label" data-ai="' + ai + '" value="' + escapeHtml(area.label) + '" placeholder="Area name..." onclick="event.stopPropagation()">' +
+                        '<input class="fb-ia-area-label" data-sid="' + escapeHtml(sid) + '" data-ai="' + ai + '" value="' + escapeHtml(area.label) + '" placeholder="Area name..." onclick="event.stopPropagation()">' +
                         '<span style="font-size:10px;color:#94a3b8;flex-shrink:0;">' + area.questions.length + ' Q</span>' +
-                        '<button class="fb-ia-area-del" onclick="event.stopPropagation();_fbDelImpactArea(' + ai + ')" title="Remove area"><i class="fas fa-trash-alt"></i></button>' +
+                        '<button class="fb-ia-area-del" onclick="event.stopPropagation();_fbDelSecArea(\'' + sid + '\',' + ai + ')" title="Remove area"><i class="fas fa-trash-alt"></i></button>' +
                     '</div>' +
                     '<div class="fb-ia-area-body">' + qHtml +
-                        '<button class="fb-ia-add-q" onclick="_fbAddImpactQ(' + ai + ')"><i class="fas fa-plus"></i> Add Question</button>' +
+                        '<button class="fb-ia-add-q" onclick="_fbAddSecQ(\'' + sid + '\',' + ai + ')"><i class="fas fa-plus"></i> Add Question</button>' +
                     '</div>' +
                 '</div>';
             }).join('');
-            html += '<button class="fb-ia-add-area" onclick="_fbAddImpactArea()"><i class="fas fa-plus-circle"></i> Add New Area</button>';
+            html += '<button class="fb-ia-add-area" onclick="_fbAddSecArea(\'' + sid + '\')"><i class="fas fa-plus-circle"></i> Add New Area</button>';
             el.innerHTML = html;
         }
 
-        function _fbToggleImpactArea(hdr) {
+        // Backward-compat wrapper
+        function _fbRenderImpactEditor() { _fbRenderSectionEditor('mkt_ia_0'); }
+
+        function _fbToggleSectionArea(hdr) {
             var area = hdr.closest('.fb-ia-area');
             if (area) area.classList.toggle('collapsed');
         }
 
-        function _fbSyncImpactAreas() {
-            document.querySelectorAll('#fbImpactEditor .fb-ia-area-label').forEach(function(inp) {
+        function _fbSyncSectionAreas(sectionId) {
+            var edId = 'fbSecEditor_' + sectionId.replace(/[^a-zA-Z0-9_]/g, '_');
+            var container = document.getElementById(edId);
+            if (!container) return;
+            var areas = _fbDraftSectionAreas[sectionId] || [];
+            container.querySelectorAll('.fb-ia-area-label').forEach(function(inp) {
                 var ai = parseInt(inp.getAttribute('data-ai'));
-                if (_fbDraftImpactAreas[ai]) _fbDraftImpactAreas[ai].label = inp.value.trim() || 'Untitled';
+                if (areas[ai]) areas[ai].label = inp.value.trim() || 'Untitled';
             });
-            document.querySelectorAll('#fbImpactEditor .fb-ia-q-input').forEach(function(inp) {
+            container.querySelectorAll('.fb-ia-q-input').forEach(function(inp) {
                 var ai = parseInt(inp.getAttribute('data-ai'));
                 var qi = parseInt(inp.getAttribute('data-qi'));
-                if (_fbDraftImpactAreas[ai] && _fbDraftImpactAreas[ai].questions[qi] !== undefined) {
-                    _fbDraftImpactAreas[ai].questions[qi] = inp.value;
+                if (areas[ai] && areas[ai].questions[qi] !== undefined) {
+                    areas[ai].questions[qi] = inp.value;
                 }
             });
         }
 
-        function _fbAddImpactQ(ai) {
-            _fbSyncImpactAreas();
-            if (_fbDraftImpactAreas[ai]) {
-                _fbDraftImpactAreas[ai].questions.push('');
-                _fbRenderImpactEditor();
-                // Focus the new empty input
+        // Backward-compat wrapper
+        function _fbSyncImpactAreas() { _fbSyncSectionAreas('mkt_ia_0'); }
+
+        function _fbSyncAllSectionAreas() {
+            Object.keys(_fbDraftSectionAreas).forEach(function(sid) {
+                _fbSyncSectionAreas(sid);
+            });
+        }
+
+        function _fbAddSecQ(sectionId, ai) {
+            _fbSyncSectionAreas(sectionId);
+            var areas = _fbDraftSectionAreas[sectionId];
+            if (areas && areas[ai]) {
+                areas[ai].questions.push('');
+                _fbRenderSectionEditor(sectionId);
+                var edId = 'fbSecEditor_' + sectionId.replace(/[^a-zA-Z0-9_]/g, '_');
                 setTimeout(function() {
-                    var inputs = document.querySelectorAll('#fbImpactEditor .fb-ia-area[data-ai="' + ai + '"] .fb-ia-q-input');
+                    var inputs = document.querySelectorAll('#' + edId + ' .fb-ia-area[data-ai="' + ai + '"] .fb-ia-q-input');
                     if (inputs.length) inputs[inputs.length - 1].focus();
                 }, 50);
             }
         }
 
-        function _fbDelImpactQ(ai, qi) {
-            _fbSyncImpactAreas();
-            if (_fbDraftImpactAreas[ai]) {
-                _fbDraftImpactAreas[ai].questions.splice(qi, 1);
-                _fbRenderImpactEditor();
+        function _fbDelSecQ(sectionId, ai, qi) {
+            _fbSyncSectionAreas(sectionId);
+            var areas = _fbDraftSectionAreas[sectionId];
+            if (areas && areas[ai]) {
+                areas[ai].questions.splice(qi, 1);
+                _fbRenderSectionEditor(sectionId);
             }
         }
 
-        function _fbAddImpactArea() {
-            _fbSyncImpactAreas();
+        function _fbAddSecArea(sectionId) {
+            _fbSyncSectionAreas(sectionId);
+            if (!_fbDraftSectionAreas[sectionId]) _fbDraftSectionAreas[sectionId] = [];
             var icons = ['fa-layer-group','fa-bullseye','fa-clipboard-check','fa-lightbulb','fa-cogs','fa-users-cog'];
             var colors = ['#6366f1','#ec4899','#14b8a6','#f97316','#64748b','#84cc16'];
-            var idx = _fbDraftImpactAreas.length;
-            _fbDraftImpactAreas.push({
-                key: 'custom_' + Date.now(),
+            var idx = _fbDraftSectionAreas[sectionId].length;
+            _fbDraftSectionAreas[sectionId].push({
+                key: 'area_' + Date.now(),
                 label: 'New Area',
                 icon: icons[idx % icons.length],
                 color: colors[idx % colors.length],
                 questions: ['Enter your first question here']
             });
-            _fbRenderImpactEditor();
+            _fbRenderSectionEditor(sectionId);
         }
 
-        function _fbDelImpactArea(ai) {
-            _fbSyncImpactAreas();
-            _fbDraftImpactAreas.splice(ai, 1);
-            _fbRenderImpactEditor();
+        function _fbDelSecArea(sectionId, ai) {
+            _fbSyncSectionAreas(sectionId);
+            var areas = _fbDraftSectionAreas[sectionId];
+            if (areas) {
+                areas.splice(ai, 1);
+                _fbRenderSectionEditor(sectionId);
+            }
         }
 
         function _isTemplateAdded(tpl) {
@@ -11486,10 +11517,22 @@
                     });
                 }
             });
-            // Initialize draft impact areas for editing
-            _fbDraftImpactAreas = _impactAreas.map(function(a) {
+            // Initialize draft section areas for editing
+            _fbDraftSectionAreas = {};
+            // Seed Impact Assessment areas under its section ID
+            _fbDraftSectionAreas['mkt_ia_0'] = _impactAreas.map(function(a) {
                 return { key: a.key, label: a.label, icon: a.icon, color: a.color, questions: a.questions.slice() };
             });
+            _fbDraftImpactAreas = _fbDraftSectionAreas['mkt_ia_0'];
+            // Load any persisted custom section areas
+            if (_customSectionAreas) {
+                Object.keys(_customSectionAreas).forEach(function(sid) {
+                    if (sid === 'mkt_ia_0') return; // already seeded
+                    _fbDraftSectionAreas[sid] = _customSectionAreas[sid].map(function(a) {
+                        return { key: a.key, label: a.label, icon: a.icon, color: a.color, questions: (a.questions || []).slice() };
+                    });
+                });
+            }
             renderFBDefaults();
             renderFBCustoms();
             _renderFBPreview();
@@ -11510,11 +11553,22 @@
             });
             try { localStorage.setItem('ptStdFieldLabels', JSON.stringify(stored)); } catch(e) {}
             formSchema = _collectFBSchema();
-            // Persist impact area edits
-            _fbSyncImpactAreas();
-            _impactAreas = _fbDraftImpactAreas.map(function(a) {
+            // Persist all section area edits
+            _fbSyncAllSectionAreas();
+            // Extract Impact Assessment areas (backward compat)
+            var iaAreas = _fbDraftSectionAreas['mkt_ia_0'] || [];
+            _impactAreas = iaAreas.map(function(a) {
                 return { key: a.key, label: a.label, icon: a.icon, color: a.color, questions: a.questions.filter(function(q) { return q.trim(); }) };
             }).filter(function(a) { return a.questions.length > 0; });
+            // Extract all other section areas
+            _customSectionAreas = {};
+            Object.keys(_fbDraftSectionAreas).forEach(function(sid) {
+                if (sid === 'mkt_ia_0') return;
+                var cleaned = _fbDraftSectionAreas[sid].map(function(a) {
+                    return { key: a.key, label: a.label, icon: a.icon, color: a.color, questions: a.questions.filter(function(q) { return q.trim(); }) };
+                }).filter(function(a) { return a.questions.length > 0; });
+                if (cleaned.length > 0) _customSectionAreas[sid] = cleaned;
+            });
             saveExtendedSettings();
             showToast('Form Builder saved');
             closeFormBuilderModal();
@@ -11600,7 +11654,6 @@
                 var secColor = (f.colorIdx !== undefined && _fbColorChoices[f.colorIdx]) ? _fbColorChoices[f.colorIdx] : _fbColorChoices[0];
                 var secIcon = f.icon || 'fa-minus';
                 if (f.type === 'section') {
-                    var isImpactSection = (f.id === 'mkt_ia_0');
                     html += '<div class="fb-section-row" id="fbRow_' + i + '" draggable="true" ondragstart="fbDragStart(event,' + i + ')" ondragover="fbDragOver(event,' + i + ')" ondrop="fbDrop(event,' + i + ')" ondragend="fbDragEnd(event)" style="position:relative;background:' + secColor.bg + ';border-color:' + secColor.border + ';">' +
                         '<span class="fb-grip"><i class="fas fa-grip-vertical"></i></span>' +
                         '<button style="background:none;border:none;cursor:pointer;font-size:12px;color:' + secColor.accent + ';flex-shrink:0;" onclick="fbToggleIconPicker(' + i + ')" title="Change icon"><i class="fas ' + secIcon + '"></i></button>' +
@@ -11611,10 +11664,9 @@
                         _fbBuildIconPicker(i) +
                         _fbBuildColorPicker(i) +
                     '</div>';
-                    // Inject Impact Assessment area editor right after the IA section header
-                    if (isImpactSection) {
-                        html += '<div class="fb-ia-editor" id="fbImpactEditor"></div>';
-                    }
+                    // Inject area/question editor after EVERY section header
+                    var _secEdId = 'fbSecEditor_' + f.id.replace(/[^a-zA-Z0-9_]/g, '_');
+                    html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
                     return;
                 }
                 var typeOpts = ['text','textarea','number','date','select','checkbox'].map(function(v) {
@@ -11643,10 +11695,14 @@
             });
             el.innerHTML = html;
             _renderFBPreview();
-            // If Impact Assessment section is present, render the area editor
-            if (document.getElementById('fbImpactEditor')) {
-                _fbRenderImpactEditor();
-            }
+            // Render area editors for all sections that have them
+            fbDraftSchema.forEach(function(f) {
+                if (f.type !== 'section') return;
+                var _secEdId = 'fbSecEditor_' + f.id.replace(/[^a-zA-Z0-9_]/g, '_');
+                if (document.getElementById(_secEdId)) {
+                    _fbRenderSectionEditor(f.id);
+                }
+            });
         }
 
         function fbToggleOptions(i) {
@@ -11664,6 +11720,11 @@
 
         function fbDeleteField(i) {
             _fbSyncDOM();
+            var removed = fbDraftSchema[i];
+            // Clean up section areas when deleting a section
+            if (removed && removed.type === 'section' && removed.id) {
+                delete _fbDraftSectionAreas[removed.id];
+            }
             fbDraftSchema.splice(i, 1);
             renderFBCustoms();
             renderFBPrebuiltPanel();
@@ -11675,7 +11736,9 @@
             if (!typeEl || !labelEl) return;
             var label = labelEl.value.trim();
             if (typeEl.value === 'section') {
-                fbDraftSchema.push({ type: 'section', label: label || 'New Section', id: 'sec_' + Date.now(), options: [] });
+                var secId = 'sec_' + Date.now();
+                fbDraftSchema.push({ type: 'section', label: label || 'New Section', id: secId, options: [] });
+                _fbDraftSectionAreas[secId] = [];
                 labelEl.value = '';
                 renderFBCustoms();
                 return;
@@ -11725,6 +11788,7 @@
                     if (opts) f.options = opts.value.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
                 }
             });
+            _fbSyncAllSectionAreas();
         }
 
         function _collectFBSchema() {
