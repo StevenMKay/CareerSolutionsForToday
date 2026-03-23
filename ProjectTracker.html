@@ -91,17 +91,21 @@
             align-items: center;
             justify-content: space-between;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            position: sticky;
+            position: fixed;
             top: 0;
-            z-index: 100;
+            left: 0;
+            right: 0;
+            z-index: 500;
         }
 
         .gradient-bar {
             height: 4px;
             background: linear-gradient(90deg, #8e44ad 0%, #f39c12 50%, #e74c3c 100%);
-            position: sticky;
+            position: fixed;
             top: 56px;
-            z-index: 100;
+            left: 0;
+            right: 0;
+            z-index: 500;
         }
 
         .header-left {
@@ -214,7 +218,7 @@
 
         /* Main Container */
         .main-container {
-            padding: 16px 20px;
+            padding: 76px 20px 16px;
             max-width: 1600px;
             margin: 0 auto;
         }
@@ -3895,6 +3899,12 @@
                         </button>
                         <button class="mobile-view-btn" id="mobileViewPriority" onclick="switchView('priority'); updateMobileViewBtns('priority'); closeSidebar();">
                             <i class="fas fa-flag"></i> Priority
+                        </button>
+                        <button class="mobile-view-btn" id="mobileViewDashboard" onclick="switchView('dashboard'); updateMobileViewBtns('dashboard'); closeSidebar();">
+                            <i class="fas fa-th-large"></i> Dashboard
+                        </button>
+                        <button class="mobile-view-btn" id="mobileViewAnalytics" onclick="switchView('analytics'); updateMobileViewBtns('analytics'); closeSidebar();">
+                            <i class="fas fa-chart-bar"></i> Analytics
                         </button>
                     </div>
                 </div>
@@ -7906,6 +7916,7 @@
         var auditPageStart = 0;
         var auditPageSize = 50;
         var analyticsChartsMap = {};
+        var dashChartsMap = {};
 
         // ============================================================
         // LOAD NEW SETTINGS (departments, systems, AI key, form schema)
@@ -8511,6 +8522,12 @@
             activeTasks.forEach(function(t) { statusCounts[t.status] = (statusCounts[t.status] || 0) + 1; });
             var overdueCount = activeTasks.filter(function(t) { return t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < today; }).length;
 
+            // Priority and department counts (for chart widgets)
+            var priorityCounts = { high: 0, medium: 0, low: 0 };
+            activeTasks.forEach(function(t) { priorityCounts[t.priority] = (priorityCounts[t.priority] || 0) + 1; });
+            var deptCounts = {};
+            activeTasks.forEach(function(t) { var d = t.owningDepartment || 'Unassigned'; deptCounts[d] = (deptCounts[d] || 0) + 1; });
+
             // Upcoming: due in next 7 days, not completed
             var in7 = new Date(today); in7.setDate(in7.getDate() + 7);
             var upcoming = activeTasks.filter(function(t) { return t.status !== 'completed' && t.dueDate && new Date(t.dueDate) >= today && new Date(t.dueDate) <= in7; }).sort(function(a, b) { return new Date(a.dueDate) - new Date(b.dueDate); }).slice(0, 5);
@@ -8571,6 +8588,59 @@
                             }).join('') +
                             '</div>') +
                         '</div></div>';
+                },
+                custom_kpi: function(span) {
+                    var customKpis = prefs.customKpis || [];
+                    if (!customKpis.length) return '';
+                    var cls = 'widget' + (span >= 3 ? ' widget-full' : span === 2 ? ' widget-wide' : '');
+                    var cols = Math.min(customKpis.length, 4);
+                    var metricVals = {
+                        total: activeTasks.length,
+                        in_progress: statusCounts['in-progress'] || 0,
+                        completed: statusCounts['completed'] || 0,
+                        on_hold: statusCounts['on-hold'] || 0,
+                        not_started: statusCounts['not-started'] || 0,
+                        overdue: overdueCount,
+                        high_priority: activeTasks.filter(function(t) { return t.priority === 'high'; }).length,
+                        medium_priority: activeTasks.filter(function(t) { return t.priority === 'medium'; }).length,
+                        low_priority: activeTasks.filter(function(t) { return t.priority === 'low'; }).length,
+                        completion_rate: (activeTasks.length > 0 ? Math.round(((statusCounts['completed'] || 0) / activeTasks.length) * 100) : 0) + '%'
+                    };
+                    return '<div class="' + cls + '"><div class="widget-header"><div class="widget-title"><i class="fas fa-tachometer-alt" style="color:#8b5cf6;"></i> Custom KPIs</div></div>' +
+                        '<div class="widget-body" style="display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:0;">' +
+                        customKpis.map(function(kpi) {
+                            var value = metricVals[kpi.metric] !== undefined ? metricVals[kpi.metric] : '–';
+                            return wKpiCard(kpi.label, value, kpi.icon || 'fa-star', kpi.color || '#3b82f6');
+                        }).join('') +
+                        '</div></div>';
+                },
+                chart_status: function(span) {
+                    var spanCls = span >= 3 ? ' widget-full' : span === 2 ? ' widget-wide' : '';
+                    return '<div class="widget' + spanCls + '">' +
+                        '<div class="widget-header"><div class="widget-title"><i class="fas fa-chart-pie" style="color:#2563eb;"></i> Status Breakdown</div></div>' +
+                        '<div class="widget-body" style="height:200px;"><canvas id="dashChart_status"></canvas></div>' +
+                    '</div>';
+                },
+                chart_priority: function(span) {
+                    var spanCls = span >= 3 ? ' widget-full' : span === 2 ? ' widget-wide' : '';
+                    return '<div class="widget' + spanCls + '">' +
+                        '<div class="widget-header"><div class="widget-title"><i class="fas fa-flag" style="color:#f59e0b;"></i> Priority Breakdown</div></div>' +
+                        '<div class="widget-body" style="height:200px;"><canvas id="dashChart_priority"></canvas></div>' +
+                    '</div>';
+                },
+                chart_dept: function(span) {
+                    var spanCls = span >= 3 ? ' widget-full' : span === 2 ? ' widget-wide' : '';
+                    return '<div class="widget' + spanCls + '">' +
+                        '<div class="widget-header"><div class="widget-title"><i class="fas fa-building" style="color:#8b5cf6;"></i> By Department</div></div>' +
+                        '<div class="widget-body" style="height:220px;"><canvas id="dashChart_dept"></canvas></div>' +
+                    '</div>';
+                },
+                chart_timeline: function(span) {
+                    var spanCls = span >= 3 ? ' widget-full' : span === 2 ? ' widget-wide' : '';
+                    return '<div class="widget' + spanCls + '">' +
+                        '<div class="widget-header"><div class="widget-title"><i class="fas fa-chart-line" style="color:#22c55e;"></i> Timeline</div></div>' +
+                        '<div class="widget-body" style="height:200px;"><canvas id="dashChart_timeline"></canvas></div>' +
+                    '</div>';
                 }
             };
 
@@ -8584,7 +8654,7 @@
             }
 
             // Determine render order
-            var defaultOrder = ['kpi','upcoming','highpriority','recent'];
+            var defaultOrder = ['kpi','upcoming','highpriority','recent','custom_kpi','chart_status','chart_priority','chart_dept','chart_timeline'];
             var order = (prefs.order && prefs.order.length) ? prefs.order : defaultOrder;
 
             var widgetsHtml = order.map(function(key) {
@@ -8618,6 +8688,61 @@
                     '</div>';
                 })() +
                 '<div class="dashboard-grid">' + widgetsHtml + '</div>';
+
+            // Initialize any chart widgets that were rendered
+            setTimeout(function() {
+                Object.keys(dashChartsMap).forEach(function(k) { if (dashChartsMap[k]) { try { dashChartsMap[k].destroy(); } catch(e) {} } });
+                dashChartsMap = {};
+                if (typeof Chart === 'undefined') return;
+
+                var ctxS = document.getElementById('dashChart_status');
+                if (ctxS) {
+                    dashChartsMap.status = new Chart(ctxS, {
+                        type: 'doughnut',
+                        data: { labels: statusOrder.map(function(s) { return statusLabels[s]; }), datasets: [{ data: statusOrder.map(function(s) { return statusCounts[s] || 0; }), backgroundColor: ['#94a3b8','#3b82f6','#f59e0b','#22c55e'], borderWidth: 0 }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#475569', font: { size: 10 } } } } }
+                    });
+                }
+                var ctxP = document.getElementById('dashChart_priority');
+                if (ctxP) {
+                    dashChartsMap.priority = new Chart(ctxP, {
+                        type: 'bar',
+                        data: { labels: ['High', 'Medium', 'Low'], datasets: [{ label: 'Projects', data: [priorityCounts.high||0, priorityCounts.medium||0, priorityCounts.low||0], backgroundColor: ['#ef4444','#f59e0b','#22c55e'], borderRadius: 6, borderWidth: 0 }] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
+                    });
+                }
+                var ctxD = document.getElementById('dashChart_dept');
+                if (ctxD) {
+                    var dLabels = Object.keys(deptCounts);
+                    var dValues = dLabels.map(function(l) { return deptCounts[l]; });
+                    var dColors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#14b8a6','#6366f1','#ef4444','#84cc16','#06b6d4','#f97316'];
+                    dashChartsMap.dept = new Chart(ctxD, {
+                        type: 'bar',
+                        data: { labels: dLabels, datasets: [{ label: 'Projects', data: dValues, backgroundColor: dLabels.map(function(_, i) { return dColors[i % dColors.length]; }), borderRadius: 6, borderWidth: 0 }] },
+                        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' } }, y: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
+                    });
+                }
+                var ctxT = document.getElementById('dashChart_timeline');
+                if (ctxT) {
+                    var now2 = new Date();
+                    var months = [], openCnts = [], closedCnts = [];
+                    for (var i = 11; i >= 0; i--) {
+                        var d = new Date(now2.getFullYear(), now2.getMonth() - i, 1);
+                        months.push(d.toLocaleString('default', { month: 'short', year: '2-digit' }));
+                        var mo = d.getMonth(), yr = d.getFullYear();
+                        openCnts.push(activeTasks.filter(function(t) { var cd = new Date(t.createdDate || t.startDate || ''); return cd.getMonth() === mo && cd.getFullYear() === yr; }).length);
+                        closedCnts.push(activeTasks.filter(function(t) { if (t.status !== 'completed') return false; var cd = new Date(t.createdDate || t.startDate || ''); return cd.getMonth() === mo && cd.getFullYear() === yr; }).length);
+                    }
+                    dashChartsMap.timeline = new Chart(ctxT, {
+                        type: 'line',
+                        data: { labels: months, datasets: [
+                            { label: 'Created', data: openCnts, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4, pointRadius: 4 },
+                            { label: 'Completed', data: closedCnts, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.4, pointRadius: 4 }
+                        ] },
+                        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#475569', font: { size: 10 } } } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' } }, x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { display: false } } } }
+                    });
+                }
+            }, 50);
         }
 
         // ============================================================
@@ -8631,10 +8756,15 @@
             return _dashboardPrefs;
         }
         var _dashWidgetDefs = [
-            { key: 'kpi',          label: 'KPI Cards',         icon: '📊', desc: 'Total, In Progress, Completed, Overdue' },
-            { key: 'upcoming',     label: 'Due in 7 Days',      icon: '📅', desc: 'Projects with upcoming deadlines' },
-            { key: 'highpriority', label: 'High Priority',      icon: '🔴', desc: 'High priority projects not yet completed' },
-            { key: 'recent',       label: 'Recently Updated',   icon: '🕒', desc: '10 most recently modified projects' }
+            { key: 'kpi',           label: 'KPI Cards',          icon: '📊', desc: 'Total, In Progress, Completed, Overdue' },
+            { key: 'custom_kpi',    label: 'Custom KPI Cards',   icon: '✨', desc: 'Your custom metric cards (configure below)' },
+            { key: 'upcoming',      label: 'Due in 7 Days',      icon: '📅', desc: 'Projects with upcoming deadlines' },
+            { key: 'highpriority',  label: 'High Priority',      icon: '🔴', desc: 'High priority projects not yet completed' },
+            { key: 'recent',        label: 'Recently Updated',   icon: '🕒', desc: '10 most recently modified projects' },
+            { key: 'chart_status',  label: 'Status Chart',       icon: '🥧', desc: 'Projects by status (doughnut chart)' },
+            { key: 'chart_priority',label: 'Priority Chart',     icon: '📊', desc: 'Projects by priority (bar chart)' },
+            { key: 'chart_dept',    label: 'Department Chart',   icon: '🏢', desc: 'Projects by department (bar chart)' },
+            { key: 'chart_timeline',label: 'Timeline Chart',     icon: '📈', desc: 'Created & completed over time (line chart)' }
         ];
         var _dashWidgetOrder   = null; // loaded from prefs
         var _dwDragSrc = null;
@@ -8645,8 +8775,42 @@
             // Ensure all keys present
             _dashWidgetDefs.forEach(function(d) { if (_dashWidgetOrder.indexOf(d.key) === -1) _dashWidgetOrder.push(d.key); });
             _renderDashWidgetList(prefs);
+            // Load custom KPI rows
+            var kpiList = document.getElementById('customKpiList');
+            if (kpiList) {
+                kpiList.innerHTML = '';
+                (prefs.customKpis || []).forEach(function(kpi) { _addCustomKpiRow(kpi); });
+            }
             var overlay = document.getElementById('dashCustomizeOverlay');
             if (overlay) overlay.style.display = 'flex';
+        }
+
+        function _addCustomKpiRow(data) {
+            var list = document.getElementById('customKpiList');
+            if (!list) return;
+            var d = data || { label: '', metric: 'total', icon: 'fa-star', color: '#3b82f6' };
+            var row = document.createElement('div');
+            row.className = 'custom-kpi-row';
+            row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto auto auto;gap:6px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;';
+            var icons = ['fa-star','fa-fire','fa-bolt','fa-trophy','fa-chart-line','fa-users','fa-clock','fa-flag','fa-thumbs-up','fa-layer-group','fa-pause-circle','fa-exclamation-circle','fa-check-double'];
+            row.innerHTML =
+                '<input type="text" class="ckpi-label" placeholder="Label (e.g. On Hold)" value="' + escapeHtml(d.label || '') + '" ' +
+                    'style="border:1px solid #ddd;border-radius:5px;padding:5px 8px;font-size:12px;font-family:inherit;color:#1e293b;">' +
+                '<select class="ckpi-metric" style="border:1px solid #ddd;border-radius:5px;padding:5px 6px;font-size:12px;font-family:inherit;color:#1e293b;">' +
+                    [['total','Total Projects'],['in_progress','In Progress'],['completed','Completed'],['on_hold','On Hold'],['not_started','Not Started'],['overdue','Overdue'],['high_priority','High Priority'],['medium_priority','Med Priority'],['low_priority','Low Priority'],['completion_rate','Completion Rate']].map(function(o) {
+                        return '<option value="' + o[0] + '"' + (d.metric === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+                    }).join('') +
+                '</select>' +
+                '<select class="ckpi-icon" title="Icon" style="border:1px solid #ddd;border-radius:5px;padding:5px 6px;font-size:12px;font-family:inherit;color:#1e293b;">' +
+                    icons.map(function(ic) {
+                        return '<option value="' + ic + '"' + (d.icon === ic ? ' selected' : '') + '>' + ic.replace('fa-','') + '</option>';
+                    }).join('') +
+                '</select>' +
+                '<input type="color" class="ckpi-color" value="' + (d.color || '#3b82f6') + '" title="Color" ' +
+                    'style="width:30px;height:30px;border:1px solid #ddd;border-radius:5px;cursor:pointer;padding:2px;">' +
+                '<button onclick="this.parentNode.remove()" ' +
+                    'style="background:none;border:none;color:#ef4444;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;">&times;</button>';
+            list.appendChild(row);
         }
 
         function _renderDashWidgetList(prefs) {
@@ -8724,6 +8888,16 @@
                 var activeW = item.querySelector('.dash-w-btn.active');
                 prefs.widths[key] = activeW ? parseInt(activeW.dataset.w, 10) : 1;
             });
+            // Save custom KPI configs
+            var kpiRows = document.querySelectorAll('#customKpiList .custom-kpi-row');
+            prefs.customKpis = Array.from(kpiRows).map(function(row) {
+                return {
+                    label: row.querySelector('.ckpi-label').value.trim(),
+                    metric: row.querySelector('.ckpi-metric').value,
+                    icon: row.querySelector('.ckpi-icon').value,
+                    color: row.querySelector('.ckpi-color').value
+                };
+            }).filter(function(k) { return k.label; });
             _dashboardPrefs = prefs;
             try { localStorage.setItem('ptDashPrefs', JSON.stringify(prefs)); } catch(e) {}
             closeDashboardCustomize();
@@ -10060,6 +10234,18 @@
             </div>
             <div style="padding:10px 20px;overflow-y:auto;flex:1;">
                 <div class="dash-widget-list" id="dashWidgetList"></div>
+                <!-- Custom KPI Cards configuration -->
+                <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;">
+                    <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:4px;">
+                        <i class="fas fa-star" style="color:#f59e0b;margin-right:6px;"></i>Custom KPI Cards
+                        <span style="font-size:11px;font-weight:400;color:#64748b;margin-left:6px;">(used by the ✨ Custom KPI Cards widget)</span>
+                    </div>
+                    <p style="font-size:11px;color:#94a3b8;margin:0 0 10px;">Add custom metric cards to your dashboard. Enable the ✨ widget above to display them.</p>
+                    <div id="customKpiList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+                    <button onclick="_addCustomKpiRow()" style="background:#f8fafc;border:1.5px dashed #cbd5e1;color:#2563eb;font-size:12px;font-weight:600;padding:8px 0;border-radius:8px;cursor:pointer;font-family:inherit;width:100%;transition:background 0.2s;">
+                        <i class="fas fa-plus"></i> Add KPI Card
+                    </button>
+                </div>
             </div>
             <div style="padding:12px 20px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #f1f5f9;flex-shrink:0;">
                 <button onclick="closeDashboardCustomize()" style="background:#f1f5f9;border:none;color:#475569;font-size:13px;font-weight:600;padding:9px 18px;border-radius:8px;cursor:pointer;font-family:inherit;">Cancel</button>
