@@ -6672,7 +6672,8 @@
                 confidentialViewers: confViewers,
                 impactAssessment: readImpactAssessment(),
                 projectSteps: _projectStepsData || [],
-                issues: _issuesData || []
+                issues: _issuesData || [],
+                updatedAt: new Date().toISOString()
             };
 
             if (currentEditIndex === -1) {
@@ -7617,9 +7618,31 @@
             loadFromSharePoint()
                 .then(function(firestoreTasks) {
                     if (!_tasksModified && firestoreTasks && firestoreTasks.length > 0) {
-                        // Firestore has data — use it and sync to localStorage
-                        // Only apply if the user has not made local changes (prevents resurrection of deleted items)
-                        tasks = firestoreTasks;
+                        // Merge Firestore data with local data by task ID,
+                        // keeping whichever version has the newer updatedAt.
+                        var localMap = {};
+                        tasks.forEach(function(t) { localMap[t.id] = t; });
+                        var mergedMap = {};
+                        // Start with all local tasks
+                        tasks.forEach(function(t) { mergedMap[t.id] = t; });
+                        // Layer in Firestore tasks — only if newer or not present locally
+                        firestoreTasks.forEach(function(ft) {
+                            var local = localMap[ft.id];
+                            if (!local) {
+                                // Task exists in cloud but not locally — add it
+                                mergedMap[ft.id] = ft;
+                            } else {
+                                var localTime = local.updatedAt || local.createdDate || '';
+                                var cloudTime = ft.updatedAt || ft.createdDate || '';
+                                if (cloudTime > localTime) {
+                                    mergedMap[ft.id] = ft;
+                                }
+                                // else keep local version (it's newer)
+                            }
+                        });
+                        var merged = Object.keys(mergedMap).map(function(k) { return mergedMap[k]; });
+                        merged.sort(function(a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); });
+                        tasks = merged;
                         safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                         filteredTasks = tasks.slice();
                         updateStats();
