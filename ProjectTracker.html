@@ -3767,14 +3767,22 @@
         .dash-widget-grip  { color: #cbd5e1; font-size: 13px; flex-shrink: 0; }
         .dash-widget-label { flex: 1; font-size: 13px; font-weight: 600; color: #1e293b; }
         .dash-widget-vis   input { accent-color: #3b82f6; width: 15px; height: 15px; cursor: pointer; }
-        .dash-w-btns       { display: flex; gap: 3px; }
-        .dash-w-btn {
-            width: 24px; height: 24px; border: 1.5px solid #e2e8f0; border-radius: 5px;
+        .dash-col-btns { display: flex; gap: 3px; }
+        .dash-col-btn {
+            width: 22px; height: 22px; border: 1.5px solid #e2e8f0; border-radius: 5px;
             background: #fff; color: #94a3b8; font-size: 10px; font-weight: 700;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             transition: all 0.15s; font-family: inherit;
         }
-        .dash-w-btn.active, .dash-w-btn:hover { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
+        .dash-col-btn.active { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
+        .dash-col-btn:hover  { border-color: #93c5fd; background: #f0f9ff; color: #3b82f6; }
+        .dash-row-sel {
+            font-size: 10px; font-weight: 600; color: #475569; border: 1.5px solid #e2e8f0;
+            border-radius: 5px; background: #fff; padding: 2px 4px; cursor: pointer;
+            font-family: inherit; height: 22px; max-width: 62px;
+        }
+        .dash-row-sel:hover { border-color: #3b82f6; }
+        #editProjectId[readonly] { background: #f1f5f9 !important; color: #94a3b8 !important; cursor: not-allowed !important; }
 
         /* ===== LOGO UPLOAD (Admin General) ===== */
         .logo-upload-area {
@@ -6148,7 +6156,7 @@
             // Populate new fields
             populateDepartmentDropdown(task.owningDepartment || '');
             var projIdEl = document.getElementById('editProjectId');
-            if (projIdEl) projIdEl.value = task.projectId || '';
+            if (projIdEl) { projIdEl.value = task.projectId || ''; projIdEl.readOnly = !!task.projectId; projIdEl.title = task.projectId ? 'Project ID is locked after creation' : ''; }
 
             // Show project number badge in top bar
             var badge = document.getElementById('modalProjNumBadge');
@@ -6227,7 +6235,7 @@
             // Clear new fields
             populateDepartmentDropdown('');
             var projIdEl = document.getElementById('editProjectId');
-            if (projIdEl) projIdEl.value = generateProjectNumber();
+            if (projIdEl) { projIdEl.value = generateProjectNumber(); projIdEl.readOnly = false; projIdEl.title = ''; }
 
             // Project number badge
             var badge = document.getElementById('modalProjNumBadge');
@@ -8268,7 +8276,7 @@
 
         function toggleCollabLink() {
             var row = document.getElementById('collabLinkRow');
-            if (row) row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+            if (row) row.style.display = row.style.display === 'none' ? 'block' : 'none';
         }
 
         function openGoogleCreate(type) {
@@ -8756,8 +8764,23 @@
                 if (prefs[key] === false) return '';
                 var fn = _wRender[key];
                 if (!fn) return '';
-                var w = (prefs.widths && prefs.widths[key]) ? parseInt(prefs.widths[key], 10) : (key === 'recent' ? 3 : key === 'kpi' ? 3 : 2);
-                return fn(w);
+                // Resolve column selection → grid placement
+                var cols = prefs.cols && prefs.cols[key];
+                var span, startCol, endCol;
+                if (cols && cols.length) {
+                    startCol = Math.min.apply(null, cols);
+                    endCol   = Math.max.apply(null, cols) + 1;
+                    span     = endCol - startCol;
+                } else {
+                    span     = (prefs.widths && prefs.widths[key]) ? parseInt(prefs.widths[key], 10) : (key === 'recent' || key === 'kpi' ? 3 : 2);
+                    startCol = 1; endCol = 1 + span;
+                }
+                var html = fn(span);
+                // Inject grid-column (and grid-row if set) as inline style
+                var gs = 'grid-column:' + startCol + '/' + endCol + ';';
+                var rowNum = prefs.rows && prefs.rows[key];
+                if (rowNum) gs += 'grid-row:' + rowNum + ';';
+                return html.replace('<div class="widget', '<div style="' + gs + '" class="widget');
             }).join('');
 
             container.innerHTML =
@@ -8915,27 +8938,44 @@
                 var def = _dashWidgetDefs.find(function(d) { return d.key === key; });
                 if (!def) return '';
                 var visible = prefs[key] !== false;
-                var width   = (prefs.widths && prefs.widths[key]) || 1;
+                // Load column selections; fall back to old width pref
+                var savedCols = (prefs.cols && prefs.cols[key]);
+                if (!savedCols || !savedCols.length) {
+                    var oldW = (prefs.widths && prefs.widths[key]) || (key === 'recent' || key === 'kpi' ? 3 : 2);
+                    savedCols = oldW >= 3 ? [1,2,3] : oldW >= 2 ? [1,2] : [1];
+                }
+                var savedRow = (prefs.rows && prefs.rows[key]) || 0;
                 return '<div class="dash-widget-item" draggable="true" data-key="' + key + '" ' +
                     'ondragstart="_dwDragStart(event)" ondragover="_dwDragOver(event)" ondragleave="_dwDragLeave(event)" ondrop="_dwDrop(event)">' +
                     '<span class="dash-widget-grip"><i class="fas fa-grip-vertical"></i></span>' +
                     '<span style="font-size:18px;line-height:1;">' + def.icon + '</span>' +
                     '<span class="dash-widget-label">' + def.label + '</span>' +
-                    '<div class="dash-w-btns">' +
-                        [1,2,3].map(function(w) {
-                            return '<button class="dash-w-btn' + (width===w?' active':'') + '" ' +
-                                'onclick="_setDashWidth(this,' + w + ')" data-w="' + w + '" title="' + w + ' column(s)">' + w + '</button>';
+                    '<div class="dash-col-btns" title="Columns this widget occupies">' +
+                        [1,2,3].map(function(c) {
+                            return '<button class="dash-col-btn' + (savedCols.indexOf(c) !== -1 ? ' active' : '') + '" ' +
+                                'onclick="_toggleDashCol(this,' + c + ')" data-col="' + c + '" title="Column ' + c + '">' + c + '</button>';
                         }).join('') +
                     '</div>' +
+                    '<select class="dash-row-sel" title="Row group — widgets with the same number share a row">' +
+                        '<option value="0"' + (savedRow===0?' selected':'') + '>Row</option>' +
+                        [1,2,3,4,5,6,7,8].map(function(r) {
+                            return '<option value="' + r + '"' + (savedRow===r?' selected':'') + '>' + r + '</option>';
+                        }).join('') +
+                    '</select>' +
                     '<span class="dash-widget-vis"><input type="checkbox" ' + (visible?'checked':'') + ' title="Show/hide" onchange="void(0)"></span>' +
                 '</div>';
             }).join('');
         }
 
-        function _setDashWidth(btn, w) {
-            var item = btn.closest('.dash-widget-item');
-            item.querySelectorAll('.dash-w-btn').forEach(function(b) { b.classList.remove('active'); });
-            btn.classList.add('active');
+        function _toggleDashCol(btn, c) {
+            var item    = btn.closest('.dash-widget-item');
+            var allBtns = Array.from(item.querySelectorAll('.dash-col-btn'));
+            var active  = allBtns.filter(function(b) { return b.classList.contains('active'); });
+            if (btn.classList.contains('active')) {
+                if (active.length > 1) btn.classList.remove('active'); // must keep ≥1 active
+            } else {
+                btn.classList.add('active');
+            }
         }
 
         function _dwDragStart(e) {
@@ -8974,14 +9014,20 @@
         function saveDashboardCustomize() {
             var container = document.getElementById('dashWidgetList');
             var items = container ? Array.from(container.querySelectorAll('.dash-widget-item')) : [];
-            var prefs = { order: [], widths: {} };
+            var prefs = { order: [], widths: {}, cols: {}, rows: {} };
             items.forEach(function(item) {
                 var key = item.dataset.key;
                 prefs.order.push(key);
                 var cb = item.querySelector('.dash-widget-vis input');
                 prefs[key] = cb ? cb.checked : true;
-                var activeW = item.querySelector('.dash-w-btn.active');
-                prefs.widths[key] = activeW ? parseInt(activeW.dataset.w, 10) : 1;
+                // Column checkboxes → cols array
+                var activeCols = Array.from(item.querySelectorAll('.dash-col-btn.active')).map(function(b) { return parseInt(b.dataset.col, 10); }).sort(function(a,b){return a-b;});
+                if (!activeCols.length) activeCols = [1];
+                prefs.cols[key]   = activeCols;
+                prefs.widths[key] = activeCols.length; // backward compat
+                // Row selector
+                var rowSel = item.querySelector('.dash-row-sel');
+                prefs.rows[key] = rowSel ? parseInt(rowSel.value, 10) : 0;
             });
             // Save custom KPI configs
             var kpiRows = document.querySelectorAll('#customKpiList .custom-kpi-row');
@@ -10087,6 +10133,13 @@
 
         function startTour() {
             closeSiteFeaturesModal();
+            // Expand sidebar so tour targets are visible
+            var _sb = document.getElementById('sidebar');
+            if (_sb && !_sb.classList.contains('open')) {
+                _sb.classList.add('open');
+                var _sbo = document.getElementById('sidebarOverlay');
+                if (_sbo) _sbo.classList.add('open');
+            }
             _tourActive = true; _tourStep = 0;
             var overlay = document.getElementById('tourOverlay');
             if (overlay) { overlay.style.display = 'block'; renderTourStep(); }
@@ -10325,7 +10378,7 @@
                 <button onclick="closeDashboardCustomize()" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;">&times;</button>
             </div>
             <div style="padding:14px 20px 4px;flex-shrink:0;">
-                <p style="font-size:12px;color:#64748b;margin:0;">Drag to reorder &bull; Toggle visibility &bull; Set column width (1&ndash;3)</p>
+                <p style="font-size:12px;color:#64748b;margin:0;">Drag to reorder &bull; Toggle visibility &bull; <b style="color:#475569;">1&ndash;3</b> = which columns &bull; Row = group widgets on same row</p>
             </div>
             <div style="padding:10px 20px;overflow-y:auto;flex:1;">
                 <div class="dash-widget-list" id="dashWidgetList"></div>
