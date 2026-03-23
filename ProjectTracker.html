@@ -1795,8 +1795,7 @@
 
         body.dark-mode .insights-custom-prompt-input::placeholder {
             color: #64748b;
-        };
-            text-overflow: ellipsis;
+           text-overflow: ellipsis;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
             line-height: 20px;
         }
@@ -6565,6 +6564,7 @@
                         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
                             <button onclick="runEmailSummary('summarize_actions')" style="padding:7px 14px;border-radius:8px;background:rgba(99,102,241,0.1);border:1px solid #6366f1;color:#4f46e5;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-clipboard-list"></i> Summarize &amp; Extract Action Items</button>
                             <button onclick="runEmailSummary('project')" style="padding:7px 14px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid #22c55e;color:#16a34a;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-plus-circle"></i> Create Project from This</button>
+                            <button onclick="runEmailSummary('draft_reply')" style="padding:7px 14px;border-radius:8px;background:rgba(245,158,11,0.1);border:1px solid #f59e0b;color:#d97706;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply"></i> Draft Quick Reply</button>
                         </div>
                     </div>
                     <!-- Document / Image Upload (OCR) -->
@@ -6584,6 +6584,7 @@
                         <button onclick="copyEmailOutput()" style="padding:8px 14px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;color:#334155;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-copy"></i> Copy</button>
                         <button id="aiSummarizeOcrBtn" onclick="summarizeOCROutput()" style="display:none;padding:8px 14px;border-radius:8px;background:rgba(99,102,241,0.1);border:1px solid #6366f1;color:#4f46e5;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-clipboard-list"></i> Summarize &amp; Extract Action Items</button>
                         <button id="aiCreateProjectBtn" onclick="createProjectFromEmail()" style="display:none;padding:8px 14px;border-radius:8px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-plus"></i> Create Project from AI Output</button>
+                        <button id="aiDraftReplyBtn" onclick="runEmailSummary('draft_reply')" style="display:none;padding:8px 14px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px solid #f59e0b;color:#d97706;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;"><i class="fas fa-reply"></i> Draft Quick Reply</button>
                     </div>
                 </div><!-- /aiEmailTab -->
                 
@@ -13524,7 +13525,8 @@
             outEl.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size:22px;"></i><p style="margin-top:10px;">Processing with AI...</p></div>';
             var prompts = {
                 summarize_actions: 'You are a professional business analyst and project manager. Analyze the following text and provide a well-structured response using this EXACT format:\n\n## Summary\nProvide a concise 2-3 sentence executive summary.\n\n## Key Points\n- List the most important points as bullet items\n- Be specific and actionable\n\n## Action Items\n1. [Owner if mentioned] - Action item description\n2. [Owner if mentioned] - Next action item\n\n## Priority Level\nState whether the overall priority seems High, Medium, or Low and briefly explain why.\n\nBe concise but thorough.',
-                project: 'You are a project manager assistant. Based on the following text, propose a project record. Return ONLY valid JSON with these exact keys: {"title":"...","description":"...","priority":"high|medium|low","department":"..."}. If a field cannot be determined, use an empty string.'
+                project: 'You are a project manager assistant. Based on the following text, propose a project record. Return ONLY valid JSON with these exact keys: {"title":"...","description":"...","priority":"high|medium|low","department":"..."}. If a field cannot be determined, use an empty string.',
+                draft_reply: 'You are a professional business communicator. Based on the following email or text, draft a concise, professional reply email. Use this format:\n\n## Draft Reply\n\nSubject: Re: [infer appropriate subject]\n\n[Greeting],\n\n[Body — address the key points raised, provide clear answers or next steps, keep it concise and professional but friendly]\n\n[Professional sign-off]\n[Your Name]\n\nKeep the reply under 150 words. Match the tone of the original — formal if formal, friendly if casual.'
             };
             try {
                 var result = await callOpenAI(prompts[type] || prompts.summarize_actions, text);
@@ -13535,12 +13537,19 @@
                 }
                 actEl.style.display = 'flex';
                 if (ocrBtn) ocrBtn.style.display = 'none';
+                var replyBtn = document.getElementById('aiDraftReplyBtn');
                 if (type === 'project') {
                     window._pendingAIEmailProject = result;
                     if (createBtn) createBtn.style.display = 'inline-flex';
+                    if (replyBtn) replyBtn.style.display = 'none';
+                } else if (type === 'draft_reply') {
+                    window._pendingAIEmailProject = null;
+                    if (createBtn) createBtn.style.display = 'none';
+                    if (replyBtn) replyBtn.style.display = 'none';
                 } else {
                     window._pendingAIEmailProject = null;
                     if (createBtn) createBtn.style.display = 'none';
+                    if (replyBtn) replyBtn.style.display = 'inline-flex';
                 }
             } catch(e) {
                 outEl.innerHTML = '<div style="color:#ef4444;padding:10px;"><i class="fas fa-exclamation-circle"></i> Error: ' + escapeHtml(e.message || 'Analysis failed') + '</div>';
@@ -14942,7 +14951,8 @@
             _drawProjectSteps();
         }
 
-        function _buildOwnerOptions(selectedVal) {
+        // Shared helper: build <option> HTML from org chart / teamMembers
+        function _buildMembersOptions(selectedVal) {
             var opts = '<option value="">— Unassigned —</option>';
             if (orgChartData && orgChartData.teams && orgChartData.teams.length) {
                 orgChartData.teams.forEach(function(team) {
@@ -14975,6 +14985,10 @@
                 opts += '</optgroup>';
             }
             return opts;
+        }
+
+        function _buildOwnerOptions(selectedVal) {
+            return _buildMembersOptions(selectedVal);
         }
 
         function _drawProjectSteps() {
@@ -15608,8 +15622,8 @@
                     html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
                     return;
                 }
-                var typeOpts = ['text','textarea','number','date','select','checkbox'].map(function(v) {
-                    var labels = {text:'Text',textarea:'Text Area',number:'Number',date:'Date',select:'Dropdown',checkbox:'Checkbox'};
+                var typeOpts = ['text','textarea','number','date','select','checkbox','members'].map(function(v) {
+                    var labels = {text:'Text',textarea:'Text Area',number:'Number',date:'Date',select:'Dropdown',checkbox:'Checkbox',members:'Members (People)'};
                     return '<option value="' + v + '"' + (f.type === v ? ' selected' : '') + '>' + labels[v] + '</option>';
                 }).join('');
                 var fieldIcon = f.icon || 'fa-pen';
@@ -15621,6 +15635,7 @@
                     '<span class="fb-actions-cell">' +
                     (isBuiltIn ? '<span class="fb-locked-badge" style="background:rgba(59,130,246,0.08);color:#3b82f6;"><i class="fas fa-cube" style="font-size:9px;margin-right:3px;"></i>Built-in</span>' : '') +
                     (f.type === 'select' ? '<button class="fb-options-btn" onclick="fbToggleOptions(' + i + ')"><i class="fas fa-list" style="margin-right:4px;"></i>Options</button>' : '') +
+                    (f.type === 'members' ? '<span style="font-size:10px;color:#8b5cf6;font-weight:600;white-space:nowrap;"><i class="fas fa-users" style="margin-right:3px;"></i>Auto-populated</span>' : '') +
                     '</span>' +
                     '<button class="fb-delete-btn" onclick="fbDeleteField(' + i + ')"><i class="fas fa-times"></i></button>' +
                     _fbBuildIconPicker(i) +
@@ -15778,6 +15793,8 @@
                 html += '<div class="fb-preview-field"><label>' + escapeHtml(label) + '</label>';
                 if (f.type === 'textarea') {
                     html += '<textarea disabled placeholder="' + escapeHtml(label) + '..."></textarea>';
+                } else if (f.type === 'members') {
+                    html += '<select disabled>' + _buildMembersOptions('') + '</select>';
                 } else if (f.type === 'select') {
                     html += '<select disabled><option>— Select ' + escapeHtml(label) + ' —</option>';
                     (f.options || []).forEach(function(o) { html += '<option>' + escapeHtml(o) + '</option>'; });
@@ -16656,6 +16673,7 @@
                                 <option value="date">Date</option>
                                 <option value="select">Dropdown</option>
                                 <option value="checkbox">Checkbox</option>
+                                <option value="members">Members (People)</option>
                                 <option value="section">&#x2500; Section Header</option>
                             </select>
                             <input type="text" class="fb-add-label-input" id="fbAddLabel" placeholder="Field label..." onkeypress="if(event.key==='Enter')fbAddField()">
