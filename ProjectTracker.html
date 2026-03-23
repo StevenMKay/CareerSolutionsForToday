@@ -5274,7 +5274,7 @@
             </button>
 
             <!-- Pricing/Upgrade link -->
-            <a href="pricing.html" class="sidebar-item" style="text-decoration:none;">
+            <a href="ProjectTrackerPricing.html" class="sidebar-item" style="text-decoration:none;" target="_blank">
                 <i class="fas fa-crown item-icon" style="color:#f59e0b;"></i>
                 Pricing &amp; Plans
                 <i class="fas fa-chevron-right item-chevron"></i>
@@ -5447,6 +5447,36 @@
                         <span>Site Theme</span>
                     </div>
                     <div id="themePicker" class="theme-picker-grid"></div>
+                </div>
+                <!-- Default View Preferences -->
+                <div class="options-section-title" style="margin-top:14px;">Default View</div>
+                <div style="padding:0 4px;">
+                    <label style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#cbd5e1;margin-bottom:8px;">
+                        <span>Start on view</span>
+                        <select id="prefDefaultView" class="filter-select" style="width:auto;min-width:110px;font-size:12px;" onchange="saveDefaultViewPrefs()">
+                            <option value="kanban">Kanban</option>
+                            <option value="dashboard">Dashboard</option>
+                            <option value="list">List</option>
+                            <option value="calendar">Calendar</option>
+                            <option value="priority">Priority</option>
+                            <option value="analytics">Analytics</option>
+                            <option value="contacts">Contacts</option>
+                        </select>
+                    </label>
+                    <label style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#cbd5e1;margin-bottom:8px;">
+                        <span>Show items</span>
+                        <select id="prefDefaultAssigned" class="filter-select" style="width:auto;min-width:110px;font-size:12px;" onchange="saveDefaultViewPrefs()">
+                            <option value="all">All Items</option>
+                            <option value="mine">My Items</option>
+                        </select>
+                    </label>
+                    <label style="display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#cbd5e1;margin-bottom:8px;">
+                        <span>Department</span>
+                        <select id="prefDefaultDept" class="filter-select" style="width:auto;min-width:110px;font-size:12px;" onchange="saveDefaultViewPrefs()">
+                            <option value="all">All Depts</option>
+                        </select>
+                    </label>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>These preferences apply each time you load the page.</div>
                 </div>
             </div>
 
@@ -8061,6 +8091,69 @@
                 var el = document.getElementById('opt-' + key);
                 if (el) el.checked = cardDisplayOptions[key];
             });
+        }
+
+        // ============================================================
+        // DEFAULT VIEW PREFERENCES
+        // ============================================================
+        function _dvpKey() { return 'pt_default_view_prefs_' + (currentTenantId || '') + '_' + (currentUser && currentUser.uid ? currentUser.uid : ''); }
+
+        function saveDefaultViewPrefs() {
+            var prefs = {
+                view: document.getElementById('prefDefaultView').value,
+                assigned: document.getElementById('prefDefaultAssigned').value,
+                department: document.getElementById('prefDefaultDept').value
+            };
+            localStorage.setItem(_dvpKey(), JSON.stringify(prefs));
+            showToast('Default view saved');
+        }
+
+        function loadDefaultViewPrefs() {
+            var saved = localStorage.getItem(_dvpKey());
+            var prefs = null;
+            if (saved) { try { prefs = JSON.parse(saved); } catch(e) {} }
+            // Populate preference dropdowns with current departments
+            var deptSel = document.getElementById('prefDefaultDept');
+            if (deptSel) {
+                deptSel.innerHTML = '<option value="all">All Depts</option>';
+                (departments || []).forEach(function(d) {
+                    var o = document.createElement('option');
+                    o.value = d; o.textContent = d;
+                    deptSel.appendChild(o);
+                });
+            }
+            // Reflect saved values into the preference dropdowns
+            if (prefs) {
+                var vEl = document.getElementById('prefDefaultView');
+                if (vEl && prefs.view) vEl.value = prefs.view;
+                var aEl = document.getElementById('prefDefaultAssigned');
+                if (aEl && prefs.assigned) aEl.value = prefs.assigned;
+                if (deptSel && prefs.department) deptSel.value = prefs.department;
+            }
+            return prefs;
+        }
+
+        function applyDefaultViewPrefs() {
+            var prefs = loadDefaultViewPrefs();
+            if (!prefs) return;
+            // Apply default view
+            if (prefs.view && prefs.view !== 'kanban') {
+                switchView(prefs.view);
+            }
+            // Apply default assigned filter
+            if (prefs.assigned) {
+                var aEl = document.getElementById('filterAssigned');
+                if (aEl) aEl.value = prefs.assigned;
+            }
+            // Apply default department filter
+            if (prefs.department && prefs.department !== 'all') {
+                var dEl = document.getElementById('filterDepartment');
+                if (dEl) dEl.value = prefs.department;
+            }
+            // Re-run filters with the new defaults
+            if (prefs.assigned !== 'all' || prefs.department !== 'all') {
+                applyFilters();
+            }
         }
 
         function applyCardOption(key, value) {
@@ -11407,9 +11500,11 @@
                     var aiEmailNoKey = document.getElementById('aiEmailNoKeyNote');
                     if (aiEmailNoKey) aiEmailNoKey.style.display = aiApiKey ? 'none' : 'flex';
                     populateDepartmentFilter();
+                    // Apply user's default view preferences (after departments are loaded)
+                    applyDefaultViewPrefs();
                     // Re-render views so newly loaded settings (departments, labels, etc.) are reflected
                     renderCurrentView();
-                }).catch(function() { populateDepartmentFilter(); });
+                }).catch(function() { populateDepartmentFilter(); applyDefaultViewPrefs(); });
         }
 
         function saveExtendedSettings() {
