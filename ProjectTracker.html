@@ -11381,26 +11381,27 @@
                 applyViewerRestrictions();
             }
 
-            // ── Step 1: Load from localStorage IMMEDIATELY (instant, always works) ──
-            var localData = safeGetItem('projectTrackerTasks');
-            if (localData) {
-                try { tasks = JSON.parse(localData); } catch(e) { tasks = []; }
-            } else {
-                tasks = [];
-            }
-            filteredTasks = tasks.slice();
+            // ── Step 1: Start with empty state, fetch from Firestore (source of truth) ──
+            // localStorage is only used as an offline fallback if Firestore fails.
+            tasks = [];
+            filteredTasks = [];
             applyFilters();
 
-            // ── Step 2: Try Firestore in the background (non-blocking) ──
-            // Firestore is the source of truth. When it loads, it fully
-            // replaces localStorage cache. localStorage is only used for
-            // instant initial render and offline fallback.
+            // ── Step 2: Load from Firestore ──
             loadFromSharePoint()
                 .then(function(firestoreTasks) {
-                    if (!_tasksModified && firestoreTasks && firestoreTasks.length > 0) {
+                    if (firestoreTasks && firestoreTasks.length > 0) {
                         tasks = firestoreTasks;
                         safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                         applyFilters();
+                    } else {
+                        // Firestore empty — fall back to localStorage cache
+                        var localData = safeGetItem('projectTrackerTasks');
+                        if (localData) {
+                            try { tasks = JSON.parse(localData); } catch(e) { tasks = []; }
+                            filteredTasks = tasks.slice();
+                            applyFilters();
+                        }
                     }
                     // If Firestore is empty, keep localStorage data — nothing to do
                     // Deep-link: open project if #project=<id> in URL
@@ -11418,11 +11419,14 @@
                 });
 
             // ── Step 3: Real-time listener — sync changes from other devices ──
+            // Skip snapshots from Firestore's local cache; only act on server data.
             if (currentTenantId) {
                 try {
                     if (_snapshotUnsub) { _snapshotUnsub(); _snapshotUnsub = null; }
                     _snapshotUnsub = db.collection('tenants').doc(currentTenantId).collection('tasks')
                         .onSnapshot(function(snapshot) {
+                            // Ignore cached/local snapshots — only trust server data
+                            if (snapshot.metadata.fromCache) return;
                             if (_tasksModified) return; // user is editing, skip
                             var live = [];
                             snapshot.forEach(function(doc) { live.push(doc.data()); });
