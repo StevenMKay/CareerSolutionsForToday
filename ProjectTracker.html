@@ -2100,7 +2100,7 @@
         .modal-right-tab-body {
             flex: 1;
             overflow-y: auto;
-            padding: 14px;
+            padding: 28px 24px;
         }
 
         .modal-right-tab-pane {
@@ -3834,6 +3834,46 @@
             transition: color 0.2s;
         }
         .sidebar-close:hover { color: white; }
+
+        /* Sidebar user profile section */
+        .sidebar-user-section {
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .sidebar-user-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .sidebar-user-avatar {
+            width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+        }
+        .sidebar-user-initials {
+            width: 36px; height: 36px; border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb, #8b5cf6);
+            color: white; font-size: 13px; font-weight: 700;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .sidebar-user-info { min-width: 0; }
+        .sidebar-user-greeting {
+            color: #fff; font-size: 14px; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .sidebar-user-email {
+            color: rgba(255,255,255,0.5); font-size: 11px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .sidebar-signout-btn {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.08); border: none;
+            color: rgba(255,255,255,0.65); font-size: 12px; font-weight: 600;
+            padding: 7px 14px; border-radius: 6px; cursor: pointer;
+            transition: background 0.2s, color 0.2s; width: 100%;
+        }
+        .sidebar-signout-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
         .sidebar-nav { flex: 1; padding: 10px 0; overflow-y: auto; }
         .sidebar-item {
             display: flex;
@@ -5619,6 +5659,20 @@
             </div>
             <button class="sidebar-close" onclick="closeSidebar()" title="Close menu"><i class="fas fa-times"></i></button>
         </div>
+        <!-- User profile section in sidebar -->
+        <div class="sidebar-user-section" id="sidebarUserSection" style="display:none;">
+            <div class="sidebar-user-row">
+                <img id="sidebarUserAvatar" src="" alt="" class="sidebar-user-avatar" style="display:none;">
+                <div id="sidebarUserInitials" class="sidebar-user-initials" style="display:none;"></div>
+                <div class="sidebar-user-info">
+                    <div class="sidebar-user-greeting" id="sidebarUserGreeting"></div>
+                    <div class="sidebar-user-email" id="sidebarUserEmail"></div>
+                </div>
+            </div>
+            <button class="sidebar-signout-btn" onclick="signOutUser()" title="Sign Out">
+                <i class="fas fa-sign-out-alt"></i> Sign Out
+            </button>
+        </div>
         <div class="sidebar-nav">
 
             <!-- Admin Settings (only visible to admin) -->
@@ -6228,14 +6282,6 @@
                 <i class="fas fa-save"></i> Save
             </button>
             -->
-            <div class="user-badge" id="userBadge">
-                <img id="userAvatar" src="" alt="" class="user-avatar" style="display:none;">
-                <div id="userInitials" class="user-initials" style="display:none;"></div>
-                <span id="userBadgeName"></span>
-                <button class="btn-signout" onclick="signOutUser()" title="Sign Out">
-                    <i class="fas fa-sign-out-alt"></i>
-                </button>
-            </div>
         </div>
     </header>
     <div class="gradient-bar"></div>
@@ -8301,6 +8347,7 @@
                                 '<i class="fas fa-sticky-note"></i>' +
                                 (task.notes.length > 0 ? '<span class="note-count">' + task.notes.length + '</span>' : '') +
                             '</button>' +
+                            '<button class="action-btn" onclick="event.stopPropagation(); copyProjectLink(\'' + task.id + '\')" title="Copy Link"><i class="fas fa-link"></i></button>' +
                             '<button class="action-btn" onclick="openEditModal(\'' + task.id + '\')" title="Edit"><i class="fas fa-pencil"></i></button>' +
                             '<button class="action-btn" onclick="confirmDelete(\'' + task.id + '\')" title="Delete"><i class="fas fa-trash"></i></button>' +
                         '</div>' +
@@ -8707,6 +8754,9 @@
                         '<button class="action-btn note-btn ' + (task.notes.length > 0 ? 'has-notes' : '') + '" onclick="event.stopPropagation(); openNotesQuick(\'' + task.id + '\')" title="Add Note">' +
                             '<i class="fas fa-sticky-note"></i>' +
                             (task.notes.length > 0 ? '<span class="note-count">' + task.notes.length + '</span>' : '') +
+                        '</button>' +
+                        '<button class="action-btn" onclick="event.stopPropagation(); copyProjectLink(\'' + task.id + '\')" title="Copy Link">' +
+                            '<i class="fas fa-link"></i>' +
                         '</button>' +
                     '</div>' +
                 '</div>' +
@@ -9796,7 +9846,7 @@
         async function loadIntegrationSettings() {
             if (!db || !currentUser) return;
             try {
-                var settingsRef = db.collection('tenants').doc(tenantId).collection('settings').doc('integrations');
+                var settingsRef = db.collection('tenants').doc(currentTenantId).collection('settings').doc('integrations');
                 var doc = await settingsRef.get();
                 if (doc.exists) {
                     integrationSettings = doc.data() || {};
@@ -9956,9 +10006,9 @@
             integrationSettings[currentIntegrationType] = settings;
             
             // Save to Firestore
-            if (db && currentUser && tenantId) {
+            if (db && currentUser && currentTenantId) {
                 try {
-                    var settingsRef = db.collection('tenants').doc(tenantId).collection('settings').doc('integrations');
+                    var settingsRef = db.collection('tenants').doc(currentTenantId).collection('settings').doc('integrations');
                     await settingsRef.set(integrationSettings, { merge: true });
                     showToast('Integration saved successfully');
                 } catch(e) {
@@ -9985,9 +10035,9 @@
             integrationSettings[currentIntegrationType] = { enabled: false, webhookUrl: '', events: {} };
             
             // Save to Firestore
-            if (db && currentUser && tenantId) {
+            if (db && currentUser && currentTenantId) {
                 try {
-                    var settingsRef = db.collection('tenants').doc(tenantId).collection('settings').doc('integrations');
+                    var settingsRef = db.collection('tenants').doc(currentTenantId).collection('settings').doc('integrations');
                     await settingsRef.set(integrationSettings, { merge: true });
                     showToast('Integration disconnected');
                 } catch(e) {
@@ -11290,24 +11340,28 @@
             document.getElementById('authOverlay').style.display = 'none';
             var _displayName = currentUser.displayName || currentUser.email.split('@')[0];
             var _firstName   = _displayName.split(' ')[0];
-            document.getElementById('userBadgeName').textContent = 'Hi, ' + _firstName;
             // Compute initials (up to 2 chars)
             var _initials = (currentUser.displayName || '')
                 .split(' ').filter(Boolean).slice(0, 2)
                 .map(function(w) { return w[0].toUpperCase(); }).join('');
             if (!_initials) _initials = _firstName[0] ? _firstName[0].toUpperCase() : '?';
-            // Show profile photo if available (Google sign-in), else initials
-            var photoUrl   = currentUser.photoURL;
-            var avatarImg  = document.getElementById('userAvatar');
-            var initElem   = document.getElementById('userInitials');
+            // Populate sidebar user section
+            var sidebarSection = document.getElementById('sidebarUserSection');
+            var sidebarAvatar  = document.getElementById('sidebarUserAvatar');
+            var sidebarInits   = document.getElementById('sidebarUserInitials');
+            var sidebarGreet   = document.getElementById('sidebarUserGreeting');
+            var sidebarEmail   = document.getElementById('sidebarUserEmail');
+            if (sidebarGreet) sidebarGreet.textContent = 'Hi, ' + _firstName;
+            if (sidebarEmail) sidebarEmail.textContent = currentUser.email || '';
+            var photoUrl = currentUser.photoURL;
             if (photoUrl) {
-                avatarImg.src = photoUrl;
-                avatarImg.style.display = 'inline-block';
-                if (initElem) initElem.style.display = 'none';
+                if (sidebarAvatar) { sidebarAvatar.src = photoUrl; sidebarAvatar.style.display = 'inline-block'; }
+                if (sidebarInits) sidebarInits.style.display = 'none';
             } else {
-                avatarImg.style.display = 'none';
-                if (initElem) { initElem.textContent = _initials; initElem.style.display = 'inline-flex'; }
+                if (sidebarAvatar) sidebarAvatar.style.display = 'none';
+                if (sidebarInits) { sidebarInits.textContent = _initials; sidebarInits.style.display = 'inline-flex'; }
             }
+            if (sidebarSection) sidebarSection.style.display = 'block';
             loadCardDisplayOptions();
             loadDropdownSettings();
             loadNewSettings();
@@ -12399,6 +12453,15 @@
                 attempts++;
             } while (existing.indexOf(num) !== -1 && attempts < 2000);
             return num;
+        }
+
+        function copyProjectLink(taskId) {
+            var url = window.location.href.split('#')[0] + '#project=' + taskId;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function() {
+                    showToast('Link copied to clipboard!');
+                }).catch(function() { fallbackCopyLink(url); });
+            } else { fallbackCopyLink(url); }
         }
 
         function copyModalLink() {
