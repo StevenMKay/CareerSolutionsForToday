@@ -5168,6 +5168,17 @@
                     <p style="color:#64748b;font-size:11px;margin:4px 0 8px;">Store procedures, articles, or reference material the AI can use during analysis.</p>
                     <div id="aiContextList"></div>
                     <div id="aiContextEditor" style="display:none;margin-top:8px;">
+                        <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+                            <select id="aiContextDept" onchange="onAIContextFilterChange()" style="flex:1;min-width:100px;padding:6px 8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#e2e8f0;font-size:11px;font-family:inherit;outline:none;">
+                                <option value="">Department (optional)</option>
+                            </select>
+                            <select id="aiContextTeam" onchange="onAIContextFilterChange()" style="flex:1;min-width:100px;padding:6px 8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#e2e8f0;font-size:11px;font-family:inherit;outline:none;">
+                                <option value="">Team (optional)</option>
+                            </select>
+                            <select id="aiContextProject" onchange="onAIContextProjectChange()" style="flex:1;min-width:140px;padding:6px 8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#e2e8f0;font-size:11px;font-family:inherit;outline:none;">
+                                <option value="">Project (optional)</option>
+                            </select>
+                        </div>
                         <input type="text" id="aiContextTitle" placeholder="Title (e.g. Change Management Policy)" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:inherit;outline:none;">
                         <textarea id="aiContextBody" placeholder="Paste your reference content here..." style="width:100%;box-sizing:border-box;min-height:80px;padding:8px 10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#e2e8f0;font-size:12px;font-family:inherit;outline:none;resize:vertical;"></textarea>
                         <div style="display:flex;gap:6px;margin-top:6px;">
@@ -8629,6 +8640,11 @@
                         var adminTitleIn = document.getElementById('adminSiteTitle');
                         if (adminTitleIn) adminTitleIn.value = d.siteTitle || '';
                     }
+                    // Refresh AI key warnings in case AI modal was opened before settings loaded
+                    var aiNoKey = document.getElementById('aiNoKeyNote');
+                    if (aiNoKey) aiNoKey.style.display = aiApiKey ? 'none' : 'flex';
+                    var aiEmailNoKey = document.getElementById('aiEmailNoKeyNote');
+                    if (aiEmailNoKey) aiEmailNoKey.style.display = aiApiKey ? 'none' : 'flex';
                     populateDepartmentFilter();
                 }).catch(function() { populateDepartmentFilter(); });
         }
@@ -10207,7 +10223,9 @@
             box.style.cssText = 'margin:16px 0;padding:20px 24px;border-radius:14px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,0.08);';
             box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
                 '<span style="font-weight:700;color:#1e293b;font-size:16px;display:flex;align-items:center;gap:8px;"><i class="fas fa-brain" style="color:#7c3aed;"></i>AI Portfolio Intelligence</span>' +
-                '<button onclick="this.closest(\'#aiImpactResultBox\').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;"><i class="fas fa-times"></i></button></div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                '<button onclick="emailAIImpactAnalysis()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;cursor:pointer;font-size:11px;font-weight:600;padding:6px 12px;border-radius:6px;display:flex;align-items:center;gap:5px;font-family:inherit;" title="Email this analysis"><i class="fas fa-envelope"></i> Email</button>' +
+                '<button onclick="this.closest(\'#aiImpactResultBox\').remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;"><i class="fas fa-times"></i></button></div></div>' +
                 '<div id="aiImpactResultContent" style="color:#1e293b;font-size:13px;">' +
                 '<div style="display:flex;align-items:center;gap:8px;padding:20px;justify-content:center;">' +
                 '<i class="fas fa-spinner fa-spin" style="color:#7c3aed;font-size:18px;"></i>' +
@@ -10287,6 +10305,17 @@
             openSlidesModal();
         }
 
+        function emailAIImpactAnalysis() {
+            var el = document.getElementById('aiImpactResultContent');
+            if (!el) { showToast('No analysis to email'); return; }
+            var text = (el.innerText || el.textContent || '').trim();
+            if (!text) { showToast('No analysis content to email'); return; }
+            var userEmail = currentUser ? (currentUser.email || '') : '';
+            var subject = 'AI Portfolio Impact Analysis - ' + new Date().toLocaleDateString();
+            window.open('mailto:' + encodeURIComponent(userEmail) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(text), '_self');
+            showToast('Opening email client...');
+        }
+
         // ── AI CONTEXT LIBRARY ────────────────────────────────
         var _editingContextIdx = -1;
 
@@ -10302,7 +10331,10 @@
                     '<input type="checkbox" ' + (c.enabled !== false ? 'checked' : '') + ' onchange="toggleAIContext(' + i + ',this.checked)" style="accent-color:#6366f1;">' +
                     '<div style="flex:1;min-width:0;">' +
                         '<div style="color:#e2e8f0;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(c.title) + '</div>' +
-                        '<div style="color:#64748b;font-size:10px;">' + (c.body || '').length + ' chars</div>' +
+                        '<div style="color:#64748b;font-size:10px;">' +
+                            (c.department ? '<span style="background:rgba(99,102,241,0.2);color:#a5b4fc;padding:1px 5px;border-radius:3px;margin-right:3px;font-size:9px;">' + escapeHtml(c.department) + '</span>' : '') +
+                            (c.team ? '<span style="background:rgba(34,197,94,0.2);color:#86efac;padding:1px 5px;border-radius:3px;margin-right:3px;font-size:9px;">' + escapeHtml(c.team) + '</span>' : '') +
+                            (c.body || '').length + ' chars</div>' +
                     '</div>' +
                     '<button onclick="editAIContext(' + i + ')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:11px;" title="Edit"><i class="fas fa-pen"></i></button>' +
                     '<button onclick="deleteAIContext(' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;" title="Delete"><i class="fas fa-trash"></i></button>' +
@@ -10316,6 +10348,13 @@
             var bodyEl = document.getElementById('aiContextBody');
             if (titleEl) titleEl.value = '';
             if (bodyEl) bodyEl.value = '';
+            populateAIContextDropdowns();
+            var deptEl = document.getElementById('aiContextDept');
+            var teamEl = document.getElementById('aiContextTeam');
+            var projEl = document.getElementById('aiContextProject');
+            if (deptEl) deptEl.value = '';
+            if (teamEl) teamEl.value = '';
+            if (projEl) projEl.value = '';
             var ed = document.getElementById('aiContextEditor');
             if (ed) ed.style.display = 'block';
         }
@@ -10324,10 +10363,17 @@
             _editingContextIdx = i;
             var c = aiContextLibrary[i];
             if (!c) return;
+            populateAIContextDropdowns();
             var titleEl = document.getElementById('aiContextTitle');
             var bodyEl = document.getElementById('aiContextBody');
             if (titleEl) titleEl.value = c.title || '';
             if (bodyEl) bodyEl.value = c.body || '';
+            var deptEl = document.getElementById('aiContextDept');
+            var teamEl = document.getElementById('aiContextTeam');
+            var projEl = document.getElementById('aiContextProject');
+            if (deptEl) deptEl.value = c.department || '';
+            if (teamEl) teamEl.value = c.team || '';
+            if (projEl) projEl.value = c.projectId || '';
             var ed = document.getElementById('aiContextEditor');
             if (ed) ed.style.display = 'block';
         }
@@ -10337,11 +10383,17 @@
             var body = (document.getElementById('aiContextBody').value || '').trim();
             if (!title) { showToast('Enter a title'); return; }
             if (!body) { showToast('Enter content'); return; }
+            var dept = (document.getElementById('aiContextDept') || {}).value || '';
+            var team = (document.getElementById('aiContextTeam') || {}).value || '';
+            var projId = (document.getElementById('aiContextProject') || {}).value || '';
             if (_editingContextIdx >= 0 && _editingContextIdx < aiContextLibrary.length) {
                 aiContextLibrary[_editingContextIdx].title = title;
                 aiContextLibrary[_editingContextIdx].body = body;
+                aiContextLibrary[_editingContextIdx].department = dept;
+                aiContextLibrary[_editingContextIdx].team = team;
+                aiContextLibrary[_editingContextIdx].projectId = projId;
             } else {
-                aiContextLibrary.push({ title: title, body: body, enabled: true });
+                aiContextLibrary.push({ title: title, body: body, enabled: true, department: dept, team: team, projectId: projId });
             }
             cancelAIContext();
             renderAIContextList();
@@ -10366,9 +10418,82 @@
             saveExtendedSettings();
         }
 
+        function populateAIContextDropdowns() {
+            var deptEl = document.getElementById('aiContextDept');
+            var teamEl = document.getElementById('aiContextTeam');
+            var projEl = document.getElementById('aiContextProject');
+            if (deptEl) {
+                deptEl.innerHTML = '<option value="">Department (optional)</option>' +
+                    departments.map(function(d) { return '<option value="' + escapeHtml(d) + '">' + escapeHtml(d) + '</option>'; }).join('');
+            }
+            if (teamEl) {
+                var teamNames = [];
+                if (orgChartData && orgChartData.teams) {
+                    orgChartData.teams.forEach(function(t) { if (t.name) teamNames.push(t.name); });
+                }
+                teamEl.innerHTML = '<option value="">Team (optional)</option>' +
+                    teamNames.map(function(n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
+            }
+            if (projEl) {
+                var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
+                projEl.innerHTML = '<option value="">Project (optional)</option>' +
+                    activeTasks.map(function(t) { return '<option value="' + t.id + '">' + escapeHtml(t.title) + '</option>'; }).join('');
+            }
+        }
+
+        function onAIContextFilterChange() {
+            var dept = (document.getElementById('aiContextDept') || {}).value || '';
+            var team = (document.getElementById('aiContextTeam') || {}).value || '';
+            var titleEl = document.getElementById('aiContextTitle');
+            if (titleEl && !titleEl.value.trim()) {
+                var parts = [];
+                if (dept) parts.push(dept);
+                if (team) parts.push(team);
+                if (parts.length) titleEl.value = parts.join(' - ') + ' Context';
+            }
+        }
+
+        function onAIContextProjectChange() {
+            var projEl = document.getElementById('aiContextProject');
+            if (!projEl || !projEl.value) return;
+            var task = tasks.find(function(t) { return t.id === projEl.value; });
+            if (!task) return;
+            var titleEl = document.getElementById('aiContextTitle');
+            var bodyEl = document.getElementById('aiContextBody');
+            if (titleEl && !titleEl.value.trim()) titleEl.value = 'Project: ' + task.title;
+            if (bodyEl && !bodyEl.value.trim()) {
+                var lines = ['Project: ' + task.title];
+                lines.push('Status: ' + (statusLabels[task.status] || task.status));
+                if (task.priority) lines.push('Priority: ' + task.priority);
+                if (task.owningDepartment) lines.push('Department: ' + task.owningDepartment);
+                if (task.assignedTo) lines.push('Assigned To: ' + task.assignedTo);
+                if (task.affectedSystems && task.affectedSystems.length) lines.push('Systems: ' + task.affectedSystems.join(', '));
+                if (task.description) lines.push('Description: ' + task.description);
+                if (task.dueDate) lines.push('Due Date: ' + task.dueDate);
+                if (task.projectSteps && task.projectSteps.length) {
+                    var done = task.projectSteps.filter(function(s) { return s.status === 'completed'; }).length;
+                    lines.push('Steps Progress: ' + done + '/' + task.projectSteps.length + ' completed');
+                }
+                if (task.issues && task.issues.length) {
+                    var openIssues = task.issues.filter(function(iss) { return iss.status !== 'resolved'; }).length;
+                    lines.push('Open Issues: ' + openIssues + '/' + task.issues.length);
+                }
+                if (task.notes && task.notes.length) {
+                    lines.push('Recent Notes:');
+                    task.notes.slice(-5).forEach(function(n) { lines.push('  - [' + n.date + '] ' + n.text); });
+                }
+                bodyEl.value = lines.join('\n');
+            }
+            var deptEl = document.getElementById('aiContextDept');
+            if (deptEl && task.owningDepartment) deptEl.value = task.owningDepartment;
+        }
+
         function getActiveAIContext() {
             return aiContextLibrary.filter(function(c) { return c.enabled !== false && c.body; }).map(function(c) {
-                return '--- ' + c.title + ' ---\n' + c.body;
+                var prefix = '';
+                if (c.department) prefix += '[Dept: ' + c.department + '] ';
+                if (c.team) prefix += '[Team: ' + c.team + '] ';
+                return '--- ' + prefix + c.title + ' ---\n' + c.body;
             }).join('\n\n');
         }
 
