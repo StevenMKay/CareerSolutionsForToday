@@ -95,7 +95,7 @@
             top: 0;
             left: 0;
             right: 0;
-            z-index: 500;
+            z-index: 600;
         }
 
         .gradient-bar {
@@ -755,14 +755,6 @@
             border-color: rgba(56, 161, 105, 0.2);
         }
 
-        /* Priority Badge */
-        .priority-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: 700;
-        }
-
         .priority-high {
             background: rgba(229, 62, 62, 0.22);
             color: #9b2c2c;
@@ -1250,17 +1242,6 @@
             text-shadow: 0 1px 2px rgba(0,0,0,0.2);
         }
 
-        /* Calendar Legend - Compact */
-        .calendar-legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #f1f5f9;
-            justify-content: center;
-        }
-
         .calendar-legend-item {
             display: flex;
             align-items: center;
@@ -1400,32 +1381,7 @@
         }
 
         /* ===== AI INSIGHTS PANEL ===== */
-        .insights-toggle-btn {
-            display: none !important; /* Insights now in right panel tab */
-        }
-
-        .insights-toggle-btn:hover {
-            padding-right: 18px;
-        }
-
-        .insights-toggle-btn i {
-            margin-bottom: 8px;
-            font-size: 16px;
-        }
-
-        /* Insights panel — now embedded in right-panel tab, legacy CSS kept minimal */
-        .insights-panel {
-            display: none; /* standalone panel no longer used */
-        }
-
-        .insights-panel.open {
-            display: none;
-        }
-
-        .insights-panel.open ~ .modal-overlay,
-        .modal-overlay.insights-shifted {
-            padding-left: 0;
-        }
+        /* Dead insights toggle/panel styles removed — insights now in right-panel tab */
 
         .insights-panel-header {
             background: linear-gradient(135deg, #6366f1, #8b5cf6);
@@ -1791,8 +1747,9 @@
 
         body.dark-mode .insights-custom-prompt-input::placeholder {
             color: #64748b;
-           text-overflow: ellipsis;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        body.dark-mode .insights-custom-prompt-input {
+            text-overflow: ellipsis;
             line-height: 20px;
         }
 
@@ -5731,6 +5688,13 @@
                 <i class="fas fa-chevron-right item-chevron"></i>
             </button>
 
+            <!-- Form Builder (only visible to admin) -->
+            <button class="sidebar-item admin-only-el" id="formBuilderMenuItem" onclick="openFormBuilderModal(); closeSidebar();" style="display:none;">
+                <i class="fas fa-pencil-ruler item-icon"></i>
+                Form Builder
+                <i class="fas fa-chevron-right item-chevron"></i>
+            </button>
+
             <!-- Team Settings (visible to all signed-in members) -->
             <button class="sidebar-item" id="teamMenuItem" onclick="openTeamPanel(); closeSidebar();">
                 <i class="fas fa-users item-icon"></i>
@@ -5770,7 +5734,7 @@
             <!-- Options menu item -->
             <button class="sidebar-item" id="optionsMenuItem" onclick="toggleOptionsPanel()">
                 <i class="fas fa-sliders-h item-icon"></i>
-                Options
+                View Options
                 <i class="fas fa-chevron-right item-chevron"></i>
             </button>
 
@@ -5802,10 +5766,6 @@
                             <i class="fas fa-address-book"></i> Contacts
                         </button>
                     </div>
-                </div>
-                <!-- Form Builder shortcut — admin only -->
-                <div id="optFBRow" class="admin-only-el" style="padding:4px 0 8px;">
-                    <button onclick="openFormBuilderModal();toggleOptionsPanel();" style="display:flex;align-items:center;gap:8px;width:100%;background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.18);border-radius:7px;padding:8px 12px;font-size:13px;font-weight:600;color:#2563eb;cursor:pointer;font-family:inherit;"><i class="fas fa-pencil-ruler" style="font-size:12px;"></i> Form Builder</button>
                 </div>
                 <div class="options-section-title">Card Display</div>
                 <label class="toggle-row">
@@ -11880,10 +11840,10 @@
         var _memberEditUid = null;
 
         function _personMatch(email, name, nodeEmail, nodeName) {
-            // Match by email only when BOTH sides have a non-empty email
-            var emailOk = email && nodeEmail && email === nodeEmail;
-            // Always fall back to name match
-            var nameOk  = name && nodeName && name.toLowerCase() === nodeName.toLowerCase();
+            // Match by email (case-insensitive, trimmed) when BOTH sides have a non-empty email
+            var emailOk = email && nodeEmail && email.trim().toLowerCase() === nodeEmail.trim().toLowerCase();
+            // Always fall back to name match (case-insensitive, trimmed)
+            var nameOk  = name && nodeName && name.trim().toLowerCase() === nodeName.trim().toLowerCase();
             return emailOk || nameOk;
         }
 
@@ -11991,7 +11951,10 @@
         async function saveMemberEdit() {
             var m = teamMembers.find(function(x) { return x.uid === _memberEditUid; });
             if (!m) return;
-            var newName     = document.getElementById('memberEditName').value.trim() || m.displayName || '';
+            // Capture OLD identity before patching so removal finds the original org chart node
+            var oldName  = m.displayName || m.name || '';
+            var oldEmail = m.email || '';
+            var newName     = document.getElementById('memberEditName').value.trim() || oldName;
             var newTitle    = document.getElementById('memberEditJobTitle').value.trim();
             var newDept     = document.getElementById('memberEditDept').value.trim();
             var newMgr      = document.getElementById('memberEditManager').value;
@@ -12025,8 +11988,10 @@
                 }
             }
 
-            // Remove ALL occurrences from org chart (handles any phantom duplicates)
-            _removeAllFromOrgChart(m.email, m.displayName);
+            // Remove ALL occurrences from org chart using BOTH old and new identity
+            _removeAllFromOrgChart(oldEmail, oldName);
+            if (newName !== oldName) _removeAllFromOrgChart(oldEmail, newName);
+            if (m.email && m.email !== oldEmail) _removeAllFromOrgChart(m.email, oldName);
 
             // Place at new org chart position
             if (newMgr || newDept || newTeamIdx !== '') {
@@ -12229,6 +12194,8 @@
                     renderOrgTeamTabs();
                     renderOrgChart();
                 } else if (name && orgChartData.teams && orgChartData.teams.length > 0) {
+                    // Remove any existing occurrence first to prevent duplicates
+                    _removeAllFromOrgChart(email, name);
                     var targetTeam = orgChartData.teams[currentOrgTeam] || orgChartData.teams[0];
                     var placed = false;
                     if (manager) {
@@ -12726,6 +12693,8 @@
                 }
             } else if (type === 'new-member') {
                 var newMember = { name: name, title: title, email: email };
+                // Remove any existing occurrence first to prevent duplicates
+                _removeAllFromOrgChart(email, name);
                 // Find destination branch by selected manager
                 if (mgr) {
                     var destBranch = (team.branches || []).find(function(b) { return b.manager && b.manager.name === mgr; });
@@ -12742,6 +12711,8 @@
                     team.branches[bIdx].members.push(newMember);
                 }
             } else if (type === 'new-branch') {
+                // Remove any existing occurrence first to prevent duplicates
+                _removeAllFromOrgChart(email, name);
                 if (!team.branches) team.branches = [];
                 team.branches.push({
                     id: 'b-' + Date.now(),
@@ -18606,7 +18577,7 @@
     </div>
 
     <!-- ===== GUIDED TOUR OVERLAY ===== -->
-    <div id="tourOverlay" style="display:none;position:fixed;inset:0;z-index:12000;">
+    <div id="tourOverlay" style="display:none;">
         <div style="position:absolute;inset:0;background:rgba(0,0,0,0.55);pointer-events:none;"></div>
         <div class="tour-spotlight" id="tourSpotlight" style="display:none;"></div>
         <div class="tour-tooltip" id="tourTooltip" style="pointer-events:all;">
@@ -18648,4 +18619,4 @@
     </div>
 
 </body>
-</html>
+</html>    
