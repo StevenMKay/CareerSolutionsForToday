@@ -5376,6 +5376,7 @@
         .fb-prebuilt-preview-input { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 3px; padding: 2px 5px; font-size: 9px; color: #cbd5e1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .fb-prebuilt-preview-sel { background: #fff; border: 1px solid #e2e8f0; border-radius: 3px; padding: 2px 4px; font-size: 9px; color: #94a3b8; flex-shrink: 0; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .fb-prebuilt-preview-del { color: #d1d5db; font-size: 9px; flex-shrink: 0; }
+        .fb-prebuilt-divider { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; padding: 10px 0 4px; border-top: 1px solid #e2e8f0; margin-top: 4px; }
         .fb-prebuilt-add-btn { width: 100%; padding: 6px 0; border: 1.5px solid #e2e8f0; border-radius: 6px; background: #fff; font-size: 12px; font-weight: 600; color: #3b82f6; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.15s; }
         .fb-prebuilt-add-btn:hover { background: #eff6ff; border-color: #3b82f6; }
         .fb-prebuilt-add-btn.added { background: #f0fdf4; border-color: #86efac; color: #16a34a; cursor: default; }
@@ -6652,6 +6653,9 @@
             </div>
               </div><!-- /modal-section-body -->
             </div><!-- /sectionBasicInfo -->
+
+            <!-- === CUSTOM FIELDS FROM FORM BUILDER === -->
+            <div id="modalCustomFieldsContainer"></div>
 
             <!-- === SECTION 1.1: IMPACT ASSESSMENT === -->
             <div class="modal-section modal-section-collapsed" id="sectionImpact">
@@ -9014,6 +9018,8 @@
             renderImpactAssessment(task.impactAssessment || {});
             renderProjectSteps(task.projectSteps || []);
             renderIssues(task.issues || []);
+            // Custom fields from form builder
+            _renderModalCustomFields(task.customFields || {});
             _resetModalSections();
 
             // Show/hide admin-only edit buttons on section headers
@@ -9098,6 +9104,7 @@
             renderImpactAssessment({});
             renderProjectSteps([]);
             renderIssues([]);
+            _renderModalCustomFields({});
             _resetModalSections();
 
             // Show/hide admin-only edit buttons on section headers
@@ -9273,6 +9280,7 @@
                 impactAssessment: readImpactAssessment(),
                 projectSteps: _projectStepsData || [],
                 issues: _issuesData || [],
+                customFields: _collectModalCustomFields(),
                 updatedAt: new Date().toISOString()
             };
 
@@ -17120,10 +17128,70 @@
             return '';
         }
 
+        var _fbPrebuiltForms = (function() {
+            function _cloneFields(arr) {
+                return arr.map(function(f) { return Object.assign({}, f, { options: (f.options || []).slice() }); });
+            }
+            function _tplFields(id) {
+                var t = _fbMarketplaceTemplates.find(function(t){ return t.id === id; });
+                return t ? _cloneFields(t.fields) : [];
+            }
+            return [
+                {
+                    id: 'default_form',
+                    title: 'Standard Project Form',
+                    icon: 'fa-clipboard-list',
+                    color: '#2563eb',
+                    desc: 'The original default form with all standard fields, Project Steps, and Issues Log.',
+                    fields: _cloneFields(_builtInEditableFields).concat(_tplFields('project_steps')).concat(_tplFields('issues_log'))
+                }
+            ];
+        })();
+
+        function _isFormApplied(form) {
+            var ids = fbDraftSchema.map(function(f) { return f.id; });
+            return form.fields.every(function(f) { return ids.indexOf(f.id) !== -1; });
+        }
+
+        function fbApplyPrebuiltForm(formId) {
+            var form = _fbPrebuiltForms.find(function(f) { return f.id === formId; });
+            if (!form) return;
+            _fbSyncDOM();
+            // Add any missing fields from the form template
+            var existingIds = fbDraftSchema.map(function(f) { return f.id; });
+            form.fields.forEach(function(f) {
+                if (existingIds.indexOf(f.id) === -1) {
+                    fbDraftSchema.push(Object.assign({}, f, { options: (f.options || []).slice() }));
+                }
+            });
+            renderFBCustoms();
+            renderFBPrebuiltPanel();
+            showToast('Applied \u201c' + form.title + '\u201d — missing fields restored.');
+        }
+
         function renderFBPrebuiltPanel() {
             var body = document.getElementById('fbPrebuiltBody');
             if (!body) return;
-            body.innerHTML = _fbMarketplaceTemplates.map(function(tpl) {
+            // Prebuilt Forms
+            var formsHtml = _fbPrebuiltForms.map(function(form) {
+                var applied = _isFormApplied(form);
+                var fieldCount = form.fields.length;
+                return '<div class="fb-prebuilt-card' + (applied ? ' added' : '') + '">' +
+                    '<div class="fb-prebuilt-card-top">' +
+                        '<div class="fb-prebuilt-card-icon" style="background:' + form.color + '15;color:' + form.color + ';"><i class="fas ' + form.icon + '"></i></div>' +
+                        '<div class="fb-prebuilt-card-title">' + escapeHtml(form.title) + '</div>' +
+                    '</div>' +
+                    '<div class="fb-prebuilt-card-desc">' + escapeHtml(form.desc) + '</div>' +
+                    '<div class="fb-prebuilt-card-fields">' + fieldCount + ' field' + (fieldCount !== 1 ? 's' : '') + '</div>' +
+                    (applied
+                        ? '<button class="fb-prebuilt-add-btn added" disabled><i class="fas fa-check"></i> Applied</button>'
+                        : '<button class="fb-prebuilt-add-btn" onclick="fbApplyPrebuiltForm(\'' + form.id + '\')"><i class="fas fa-plus"></i> Apply Form</button>'
+                    ) +
+                '</div>';
+            }).join('');
+
+            // Prebuilt Sections
+            var sectionsHtml = _fbMarketplaceTemplates.map(function(tpl) {
                 var added = _isTemplateAdded(tpl);
                 var fieldCount = tpl.fields.filter(function(f) { return f.type !== 'section'; }).length;
                 return '<div class="fb-prebuilt-card' + (added ? ' added' : '') + '">' +
@@ -17140,6 +17208,12 @@
                     ) +
                 '</div>';
             }).join('');
+
+            body.innerHTML =
+                '<div class="fb-prebuilt-divider" style="border-top:none;margin-top:0;">Prebuilt Forms</div>' +
+                formsHtml +
+                '<div class="fb-prebuilt-divider">Prebuilt Sections</div>' +
+                sectionsHtml;
         }
 
         function fbInsertTemplate(templateId) {
@@ -17538,6 +17612,89 @@
             if (confRow && viewRow && confRow.style.display === 'none') {
                 viewRow.style.display = 'none';
             }
+        }
+
+        // Render custom (non-builtin) fields from formSchema into the edit modal
+        function _renderModalCustomFields(customValues) {
+            var container = document.getElementById('modalCustomFieldsContainer');
+            if (!container) return;
+            // Skip mkt_ps_* and mkt_is_* fields — those are handled by the
+            // dedicated Project Steps / Issues sections with dynamic add/remove.
+            var customs = formSchema.filter(function(f) {
+                if (f.builtIn) return false;
+                var fid = f.id || '';
+                if (/^mkt_ps_/.test(fid) || /^mkt_is_/.test(fid)) return false;
+                return true;
+            });
+            if (!customs.length) { container.innerHTML = ''; return; }
+            var vals = customValues || {};
+            var html = '';
+            var _secOpen = false;
+            customs.forEach(function(f) {
+                var fid = f.id || '';
+                var label = f.label || 'Untitled';
+                var val = vals[fid] !== undefined ? vals[fid] : '';
+                if (f.type === 'section') {
+                    if (_secOpen) html += '</div></div></div>';
+                    var sc = (f.colorIdx !== undefined && typeof _fbColorChoices !== 'undefined' && _fbColorChoices[f.colorIdx]) ? _fbColorChoices[f.colorIdx] : { bg: '#f1f5f9', border: '#e2e8f0', accent: '#3b82f6' };
+                    var si = f.icon || 'fa-minus';
+                    html += '<div class="modal-section" style="border-color:' + sc.border + ';">' +
+                        '<div class="modal-section-header" style="background:linear-gradient(135deg,' + sc.bg + ',' + sc.border + '22);" onclick="toggleModalSection(this.parentElement.id)" id="cfSec_' + fid + '">' +
+                        '<span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>' +
+                        '<i class="fas ' + si + '" style="color:' + sc.accent + ';font-size:12px;"></i>' +
+                        '<span class="modal-section-title">' + escapeHtml(label) + '</span>' +
+                        '</div>' +
+                        '<div class="modal-section-body" style="padding:12px 16px;">';
+                    _secOpen = true;
+                    return;
+                }
+                html += '<div class="form-row full" style="margin-bottom:10px;">' +
+                    '<div class="form-group">' +
+                    '<label class="form-label">' + escapeHtml(label) + (f.required ? ' <span style="color:#ef4444;">*</span>' : '') + '</label>';
+                if (f.type === 'textarea') {
+                    html += '<textarea class="form-textarea" id="cf_' + fid + '" placeholder="' + escapeHtml(label) + '...">' + escapeHtml(val) + '</textarea>';
+                } else if (f.type === 'members') {
+                    html += '<select class="form-select" id="cf_' + fid + '">' + _buildMembersOptions(val) + '</select>';
+                } else if (f.type === 'select') {
+                    html += '<select class="form-select" id="cf_' + fid + '"><option value="">\u2014 Select ' + escapeHtml(label) + ' \u2014</option>';
+                    (f.options || []).forEach(function(o) { html += '<option value="' + escapeHtml(o) + '"' + (val === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
+                    html += '</select>';
+                } else if (f.type === 'checkbox') {
+                    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" id="cf_' + fid + '"' + (val ? ' checked' : '') + '> ' + escapeHtml(label) + '</label>';
+                } else if (f.type === 'date') {
+                    html += '<input type="date" class="form-input" id="cf_' + fid + '" value="' + escapeHtml(val) + '">';
+                } else if (f.type === 'number') {
+                    html += '<input type="number" class="form-input" id="cf_' + fid + '" placeholder="0" value="' + escapeHtml(String(val)) + '">';
+                } else {
+                    html += '<input type="text" class="form-input" id="cf_' + fid + '" placeholder="' + escapeHtml(label) + '..." value="' + escapeHtml(val) + '">';
+                }
+                html += '</div></div>';
+            });
+            if (_secOpen) html += '</div></div></div>';
+            container.innerHTML = html;
+        }
+
+        // Collect custom field values from the modal
+        function _collectModalCustomFields() {
+            var vals = {};
+            var customs = formSchema.filter(function(f) {
+                if (f.builtIn || f.type === 'section') return false;
+                var fid = f.id || '';
+                if (/^mkt_ps_/.test(fid) || /^mkt_is_/.test(fid)) return false;
+                return true;
+            });
+            customs.forEach(function(f) {
+                var el = document.getElementById('cf_' + f.id);
+                if (!el) return;
+                if (f.type === 'checkbox') {
+                    vals[f.id] = el.checked;
+                } else if (f.type === 'number') {
+                    vals[f.id] = parseFloat(el.value) || 0;
+                } else {
+                    vals[f.id] = el.value || '';
+                }
+            });
+            return vals;
         }
 
         function _renderFBPreview() {
@@ -18442,8 +18599,8 @@
                 <!-- Prebuilt Sections Panel (Left) -->
                 <div class="fb-prebuilt-panel" id="fbPrebuiltPanel">
                     <div class="fb-prebuilt-header">
-                        <div class="fb-prebuilt-title"><i class="fas fa-puzzle-piece" style="color:#7c3aed;"></i> Prebuilt Sections</div>
-                        <div class="fb-prebuilt-subtitle">Click to add entire sections to your form in one click.</div>
+                        <div class="fb-prebuilt-title"><i class="fas fa-puzzle-piece" style="color:#7c3aed;"></i> Templates</div>
+                        <div class="fb-prebuilt-subtitle">Apply a prebuilt form or add individual sections to your form.</div>
                     </div>
                     <div class="fb-prebuilt-body" id="fbPrebuiltBody"></div>
                 </div>
