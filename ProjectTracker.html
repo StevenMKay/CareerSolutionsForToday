@@ -5793,6 +5793,10 @@
                         </button>
                     </div>
                 </div>
+                <!-- Form Builder shortcut — admin only -->
+                <div id="optFBRow" class="admin-only-el" style="padding:4px 0 8px;">
+                    <button onclick="openFormBuilderModal();toggleOptionsPanel();" style="display:flex;align-items:center;gap:8px;width:100%;background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.18);border-radius:7px;padding:8px 12px;font-size:13px;font-weight:600;color:#2563eb;cursor:pointer;font-family:inherit;"><i class="fas fa-pencil-ruler" style="font-size:12px;"></i> Form Builder</button>
+                </div>
                 <div class="options-section-title">Card Display</div>
                 <label class="toggle-row">
                     <span>Description</span>
@@ -16500,8 +16504,11 @@
             var secSteps  = document.getElementById('sectionProjectSteps');
             var secIssues = document.getElementById('sectionIssues');
             if (secImpact) secImpact.style.display = _enabledSections.impact ? '' : 'none';
-            if (secSteps)  secSteps.style.display  = _enabledSections.steps  ? '' : 'none';
-            if (secIssues) secIssues.style.display  = _enabledSections.issues ? '' : 'none';
+            // Derive steps/issues visibility from formSchema — only show section if template fields exist
+            var _hasStepsFields  = formSchema.some(function(f) { return f.id && /^mkt_ps_/.test(f.id); });
+            var _hasIssuesFields = formSchema.some(function(f) { return f.id && /^mkt_is_/.test(f.id); });
+            if (secSteps)  secSteps.style.display  = _hasStepsFields  ? '' : 'none';
+            if (secIssues) secIssues.style.display = _hasIssuesFields ? '' : 'none';
             var bi = document.getElementById('sectionBasicInfo');
             if (bi) {
                 bi.classList.remove('modal-section-collapsed');
@@ -17115,26 +17122,13 @@
 
         function openFormBuilderModal() {
             fbDraftSchema = formSchema.map(function(f) { return Object.assign({}, f, { options: f.options ? f.options.slice() : [] }); });
-            // Seed built-in editable fields if not already present
-            _builtInEditableFields.forEach(function(bf) {
-                var exists = fbDraftSchema.some(function(f) { return f.id === bf.id; });
-                if (!exists) fbDraftSchema.push(Object.assign({}, bf, { options: (bf.options || []).slice() }));
-            });
-            // Auto-seed enabled prebuilt sections if not already present
-            var _autoSeedSections = { impact_assessment: 'impact', project_steps: 'steps', issues_log: 'issues' };
-            _fbMarketplaceTemplates.forEach(function(tpl) {
-                var secKey = _autoSeedSections[tpl.id];
-                if (!secKey || !_enabledSections[secKey]) return;
-                var existingIds = fbDraftSchema.map(function(f) { return f.id; });
-                var allPresent = tpl.fields.every(function(f) { return existingIds.indexOf(f.id) !== -1; });
-                if (!allPresent) {
-                    tpl.fields.forEach(function(f) {
-                        if (existingIds.indexOf(f.id) === -1) {
-                            fbDraftSchema.push(Object.assign({}, f, { options: (f.options || []).slice() }));
-                        }
-                    });
-                }
-            });
+            // Seed built-in editable fields only on first-time setup (empty formSchema)
+            // On subsequent opens, respect what the user has saved (don't re-add deleted fields)
+            if (formSchema.length === 0) {
+                _builtInEditableFields.forEach(function(bf) {
+                    fbDraftSchema.push(Object.assign({}, bf, { options: (bf.options || []).slice() }));
+                });
+            }
             // Initialize draft section areas for editing
             _fbDraftSectionAreas = {};
             // Seed Impact Assessment areas under its section ID
@@ -17199,6 +17193,7 @@
                 var label = _getStdLabel(d.storageKey, d.defaultLabel);
                 return '<div class="fb-default-row">' +
                     '<span style="width:18px;flex-shrink:0;"></span>' +
+                    '<span style="width:28px;flex-shrink:0;"></span>' +
                     '<input type="text" class="fb-label-input" id="fbDfLabel_' + d.key + '" value="' + escapeHtml(label) + '" placeholder="' + escapeHtml(d.defaultLabel) + '">' +
                     '<span class="fb-locked-badge"><i class="fas fa-lock" style="font-size:9px;margin-right:3px;"></i>Default</span>' +
                 '</div>';
@@ -17920,7 +17915,22 @@
         // ============================================================
         function openSiteFeaturesModal() {
             showFAQTab();
+            var _sfInp = document.getElementById('sfSearchInput');
+            if (_sfInp) { _sfInp.value = ''; filterSFSearch(''); }
             document.getElementById('siteFeaturesModal').classList.add('visible');
+        }
+
+        function filterSFSearch(q) {
+            var query = (q || '').toLowerCase().trim();
+            var items = document.querySelectorAll('#sfTabFAQ .faq-item');
+            var visible = 0;
+            items.forEach(function(item) {
+                var match = !query || item.textContent.toLowerCase().indexOf(query) !== -1;
+                item.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            var emptyEl = document.getElementById('sfSearchEmpty');
+            if (emptyEl) emptyEl.style.display = (query && visible === 0) ? 'block' : 'none';
         }
 
         function closeSiteFeaturesModal() {
@@ -18407,6 +18417,14 @@
 
                     <!-- FAQ Tab -->
                     <div id="sfTabFAQ">
+                        <!-- Search -->
+                        <div style="margin-bottom:14px;">
+                            <div style="position:relative;">
+                                <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:12px;pointer-events:none;"></i>
+                                <input type="text" id="sfSearchInput" placeholder="Search features &amp; help..." oninput="filterSFSearch(this.value)" style="width:100%;box-sizing:border-box;padding:8px 10px 8px 30px;border:1px solid #e2e8f0;border-radius:7px;font-size:13px;font-family:inherit;color:#1e293b;outline:none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                            </div>
+                            <div id="sfSearchEmpty" style="display:none;text-align:center;padding:14px;color:#94a3b8;font-size:13px;"><i class="fas fa-search" style="margin-right:6px;"></i>No results found.</div>
+                        </div>
                         <div class="faq-item">
                             <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I change a team member's access level?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
                             <div class="faq-answer">Go to <strong>Team Settings</strong> in the sidebar. Find the member in the list, click the role dropdown next to their name, and select <em>Admin</em> or <em>Member</em>. Changes take effect on their next page load.</div>
@@ -18421,7 +18439,7 @@
                         </div>
                         <div class="faq-item">
                             <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I create custom fields for project entries?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Open <strong>Admin Settings</strong> in the sidebar, then navigate to the <em>Form Builder</em> tab. Add custom fields (text, number, date, dropdown, etc.) by selecting a type and label, then click <em>Add Field</em>. Drag to reorder.</div>
+                            <div class="faq-answer">Open <strong>Admin Settings</strong> in the sidebar, then navigate to the <em>Form Builder</em> tab. Add custom fields (text, number, date, dropdown, etc.) by selecting a type and label, then click <em>Add Field</em>. Drag to reorder.<br><button onclick="closeSiteFeaturesModal();openFormBuilderModal();" style="margin-top:8px;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.2);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-pencil-ruler" style="margin-right:5px;"></i>Open Form Builder</button></div>
                         </div>
                         <div class="faq-item">
                             <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I generate a PowerPoint presentation from my projects?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
