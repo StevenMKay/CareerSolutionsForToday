@@ -6272,6 +6272,10 @@
                 <input type="text" class="org-edit-input" id="memberEditDept" placeholder="e.g. Finance">
             </div>
             <div class="org-edit-field">
+                <label class="org-edit-label">Team</label>
+                <select class="org-edit-input" id="memberEditTeam"></select>
+            </div>
+            <div class="org-edit-field">
                 <label class="org-edit-label">Reports To (Manager)</label>
                 <select class="org-edit-input" id="memberEditManager"></select>
             </div>
@@ -11880,6 +11884,22 @@
             document.getElementById('memberEditJobTitle').value = (orgInfo && orgInfo.title) || m.jobTitle || '';
             document.getElementById('memberEditDept').value     = (orgInfo && orgInfo.dept)  || m.dept    || '';
 
+            // Populate Team dropdown
+            var teamSel = document.getElementById('memberEditTeam');
+            teamSel.innerHTML = '<option value="">— New Team —</option>';
+            (orgChartData.teams || []).forEach(function(team, idx) {
+                var o = document.createElement('option');
+                o.value = String(idx);
+                o.textContent = team.name;
+                teamSel.appendChild(o);
+            });
+            // Pre-select the team the member is currently in
+            if (orgInfo && orgInfo.teamIdx !== undefined) {
+                teamSel.value = String(orgInfo.teamIdx);
+            } else if (orgChartData.teams && orgChartData.teams.length > 0) {
+                teamSel.value = String(currentOrgTeam || 0);
+            }
+
             var sel = document.getElementById('memberEditManager');
             sel.innerHTML = '<option value="">No Manager — Root</option>';
             (orgChartData.teams || []).forEach(function(team) {
@@ -11911,10 +11931,12 @@
         async function saveMemberEdit() {
             var m = teamMembers.find(function(x) { return x.uid === _memberEditUid; });
             if (!m) return;
-            var newName  = document.getElementById('memberEditName').value.trim() || m.displayName || '';
-            var newTitle = document.getElementById('memberEditJobTitle').value.trim();
-            var newDept  = document.getElementById('memberEditDept').value.trim();
-            var newMgr   = document.getElementById('memberEditManager').value;
+            var newName     = document.getElementById('memberEditName').value.trim() || m.displayName || '';
+            var newTitle    = document.getElementById('memberEditJobTitle').value.trim();
+            var newDept     = document.getElementById('memberEditDept').value.trim();
+            var newMgr      = document.getElementById('memberEditManager').value;
+            var newTeamIdx  = document.getElementById('memberEditTeam').value;
+            var newTeamName = document.getElementById('memberEditTeam').options[document.getElementById('memberEditTeam').selectedIndex]?.text || '';
 
             // Patch all changed fields to backend
             var _patchPayload = {};
@@ -11945,8 +11967,21 @@
             _removeFromOrgChart(orgInfo);
 
             // Place at new org chart position
-            if (newMgr || newDept) {
-                var targetTeam = orgChartData.teams[currentOrgTeam] || orgChartData.teams[0];
+            if (newMgr || newDept || newTeamIdx !== '') {
+                // If no teams exist, or user chose "New Team", create one
+                if (!orgChartData.teams || orgChartData.teams.length === 0 || newTeamIdx === '') {
+                    var autoTeamName = newTeamName === '— New Team —' ? (newDept || 'Main Team') : newTeamName;
+                    orgChartData.teams = (orgChartData.teams || []);
+                    orgChartData.teams.push({
+                        id: 'team-' + Date.now(),
+                        name: autoTeamName,
+                        leader: null,
+                        branches: []
+                    });
+                    currentOrgTeam = orgChartData.teams.length - 1;
+                    newTeamIdx = String(currentOrgTeam);
+                }
+                var targetTeam = orgChartData.teams[parseInt(newTeamIdx, 10)] || orgChartData.teams[currentOrgTeam] || orgChartData.teams[0];
                 if (targetTeam) {
                     var placed = false;
                     if (newMgr) {
@@ -12266,10 +12301,11 @@
 
         function saveOrgChart() {
             localStorage.setItem('ptOrgChart_' + currentTenantId, JSON.stringify(orgChartData));
+            var hasContent = orgChartData.teams && orgChartData.teams.length > 0;
             db.collection('tenants').doc(currentTenantId).collection('orgChart')
                 .doc('data').set(orgChartData)
-                .then(function() { showToast('Org chart saved'); })
-                .catch(function() { showToast('Saved locally (offline)'); });
+                .then(function() { if (hasContent) showToast('Org chart saved'); })
+                .catch(function(err) { console.warn('[OrgChart] Firestore save failed:', err); showToast('Saved locally (offline)'); });
         }
 
         function getOrgInitials(name) {
