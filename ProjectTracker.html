@@ -11813,6 +11813,7 @@
                     '</div>' +
                     '<span class="team-member-badge ' + (m.role === 'admin' ? 'admin' : m.role === 'viewer' ? 'member' : 'member') + '">' + (m.role === 'admin' ? 'Admin' : m.role === 'viewer' ? 'Viewer' : 'Member') + '</span>' +
                     (currentRole === 'admin' ? '<button class="team-member-remove" style="color:#94a3b8;margin-right:2px;" onclick="openMemberEditModal(\'' + m.uid + '\')" title="Edit member"><i class="fas fa-pencil-alt"></i></button>' : '') +
+                    (currentRole === 'admin' ? '<button class="team-member-remove" style="color:#60a5fa;margin-right:2px;" onclick="sendResetToMember(\'' + m.uid + '\')" title="Send password reset email"><i class="fas fa-key"></i></button>' : '') +
                     (canRemove ? '<button class="team-member-remove" onclick="removeMember(\'' + m.uid + '\',\'' + escapeHtml(m.displayName || m.email) + '\')" title="Remove member"><i class="fas fa-times"></i></button>' : '') +
                 '</div>';
             }).join('');
@@ -12026,7 +12027,17 @@
                 var data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
                 // Send them a password setup email (Firebase reset email)
-                auth.sendPasswordResetEmail(email).catch(function(){});
+                // Send branded invite email via backend
+                (async function() {
+                    try {
+                        var tok = await auth.currentUser.getIdToken();
+                        await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
+                            method: 'POST',
+                            headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email: email, displayName: name, inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '' })
+                        });
+                    } catch(e) { console.warn('[Invite email]', e); }
+                })();
                 // ── Auto-add to org chart (new team OR existing team placement) ──
                 var isNewTeam = document.getElementById('inviteNewTeam') && document.getElementById('inviteNewTeam').checked;
                 var newTeamName = isNewTeam && document.getElementById('inviteNewTeamName') ? document.getElementById('inviteNewTeamName').value.trim() : '';
@@ -12070,7 +12081,7 @@
                 }
                 msgEl.style.color = '#34d399';
                 msgEl.innerHTML = '\u2713 <strong>' + escapeHtml(email) + '</strong> has been invited!<br>' +
-                    '<span style="font-size:11px;color:#94a3b8;line-height:1.6;">Tell them to go to the login page, enter their email, and click <strong style="color:#60a5fa;">\"First time? Set up your password\"</strong> to create their password.</span>';
+                    '<span style="font-size:11px;color:#94a3b8;line-height:1.6;">A setup email has been sent. Once they set their password, they can sign in at <strong style="color:#60a5fa;">NotebookPM.com</strong>.</span>';
                 document.getElementById('inviteName').value  = '';
                 document.getElementById('inviteEmail').value = '';
                 document.getElementById('inviteTitle').value = '';
@@ -12116,7 +12127,17 @@
                     });
                     var data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Failed');
-                    auth.sendPasswordResetEmail(emails[i]).catch(function(){});
+                    // Send branded invite email via backend
+                    (async function(em) {
+                        try {
+                            var tok2 = await auth.currentUser.getIdToken();
+                            await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
+                                method: 'POST',
+                                headers: { 'Authorization': 'Bearer ' + tok2, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: em, displayName: '', inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '' })
+                            });
+                        } catch(e) { console.warn('[Invite email]', e); }
+                    })(emails[i]);
                     success++;
                 } catch (e) {
                     failed++;
@@ -12132,9 +12153,24 @@
             msgEl.innerHTML = msgParts.join(' &bull; ');
             if (errors.length) msgEl.innerHTML += '<br><span style="font-size:10px;color:#f87171;">' + errors.map(escapeHtml).join('<br>') + '</span>';
             if (success) {
-                msgEl.innerHTML += '<br><span style="font-size:11px;color:#94a3b8;">Password setup emails have been sent. They can also use "First time? Set up your password" on the login page.</span>';
+                msgEl.innerHTML += '<br><span style="font-size:11px;color:#94a3b8;">Setup emails have been sent. Once they set their password, they can sign in at <strong style="color:#60a5fa;">NotebookPM.com</strong>.</span>';
                 document.getElementById('bulkInviteEmails').value = '';
                 loadTeamMembers();
+            }
+        }
+
+        async function sendResetToMember(uid) {
+            try {
+                var token = await auth.currentUser.getIdToken();
+                var res = await fetch(BACKEND_URL + '/api/tenant/members/' + uid + '/send-reset', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                showToast('Password reset email sent');
+            } catch (err) {
+                showToast('Error: ' + err.message);
             }
         }
 
@@ -12344,10 +12380,20 @@
                     });
                     var data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Invite failed');
-                    auth.sendPasswordResetEmail(leaderEmail).catch(function(){});
+                    // Send branded invite email via backend
+                    (async function() {
+                        try {
+                            var tok3 = await auth.currentUser.getIdToken();
+                            await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
+                                method: 'POST',
+                                headers: { 'Authorization': 'Bearer ' + tok3, 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: leaderEmail, displayName: leaderName, inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '' })
+                            });
+                        } catch(e) { console.warn('[Invite email]', e); }
+                    })();
                     loadTeamMembers();
                     msgEl.style.color = '#34d399';
-                    msgEl.textContent = '\u2713 Team created and invite sent to ' + leaderEmail;
+                    msgEl.textContent = '\u2713 Team created! Invite sent to ' + leaderEmail + '. They\'ll receive an email to set their password and access NotebookPM.com.';
                     setTimeout(function() { closeCreateTeamModal(); }, 1800);
                 } catch(e) {
                     msgEl.style.color = '#f87171';
