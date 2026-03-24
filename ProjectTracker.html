@@ -5998,11 +5998,15 @@
                                 <input type="text" class="invite-input" id="inviteTitle" placeholder="e.g. Developer">
                             </div>
                             <div class="invite-field">
-                                <label class="invite-label">Reports To (Manager)</label>
-                                <select class="invite-select" id="inviteManager">
-                                    <option value="__admin__">Admin (default)</option>
-                                </select>
+                                <label class="invite-label">Department</label>
+                                <input type="text" class="invite-input" id="inviteDept" placeholder="e.g. Finance">
                             </div>
+                        </div>
+                        <div class="invite-field" style="margin-top:8px;">
+                            <label class="invite-label">Reports To (Manager)</label>
+                            <select class="invite-select" id="inviteManager">
+                                <option value="__admin__">Admin (default)</option>
+                            </select>
                         </div>
                         <button class="invite-btn" id="inviteBtn" onclick="inviteMember()">
                             <i class="fas fa-paper-plane"></i> Send Invite
@@ -6209,12 +6213,45 @@
 
     <!-- ===== CREATE TEAM MODAL ===== -->
     <div class="create-team-overlay" id="createTeamOverlay">
+
+    <!-- ===== MEMBER EDIT MODAL ===== -->
+    <div class="org-edit-overlay" id="memberEditOverlay" style="display:none;align-items:center;justify-content:center;">
+        <div class="org-edit-modal">
+            <div class="org-edit-modal-title">Edit Member</div>
+            <div class="org-edit-field">
+                <label class="org-edit-label">Full Name</label>
+                <input type="text" class="org-edit-input" id="memberEditName" placeholder="Full name">
+            </div>
+            <div class="org-edit-field">
+                <label class="org-edit-label">Title / Position</label>
+                <input type="text" class="org-edit-input" id="memberEditJobTitle" placeholder="e.g. Developer">
+            </div>
+            <div class="org-edit-field">
+                <label class="org-edit-label">Department</label>
+                <input type="text" class="org-edit-input" id="memberEditDept" placeholder="e.g. Finance">
+            </div>
+            <div class="org-edit-field">
+                <label class="org-edit-label">Reports To (Manager)</label>
+                <select class="org-edit-input" id="memberEditManager"></select>
+            </div>
+            <div class="org-edit-actions">
+                <button class="org-edit-cancel" onclick="closeMemberEditModal()">Cancel</button>
+                <button class="org-edit-save" onclick="saveMemberEdit()">Save</button>
+            </div>
+        </div>
+    </div>
         <div class="create-team-modal">
             <div class="create-team-modal-icon"><i class="fas fa-sitemap"></i></div>
             <h3>Create a Team</h3>
             <p>Give your team a name. You can create multiple teams and build out each one's org chart.</p>
             <input type="text" class="create-team-input" id="createTeamName" placeholder="e.g. Engineering, Marketing, Sales..."
                    onkeypress="if(event.key==='Enter')confirmCreateTeam()">
+            <div style="border-top:1px solid rgba(255,255,255,0.12);margin-top:14px;padding-top:14px;">
+                <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 8px;">Team Leader <span style="font-weight:400;text-transform:none;opacity:0.7;">(optional)</span></p>
+                <input type="text" class="create-team-input" id="createLeaderName" placeholder="Leader full name" style="margin-bottom:8px;">
+                <input type="text" class="create-team-input" id="createLeaderTitle" placeholder="Title / position" style="margin-bottom:8px;">
+                <input type="email" class="create-team-input" id="createLeaderEmail" placeholder="Email address">
+            </div>
             <div class="create-team-actions">
                 <button class="create-team-cancel" onclick="closeCreateTeamModal()">Cancel</button>
                 <button class="create-team-submit" onclick="confirmCreateTeam()"><i class="fas fa-plus"></i> Create Team</button>
@@ -11750,15 +11787,139 @@
                         '<div class="team-member-email">' + escapeHtml(m.email || '') + '</div>' +
                     '</div>' +
                     '<span class="team-member-badge ' + (m.role === 'admin' ? 'admin' : m.role === 'viewer' ? 'member' : 'member') + '">' + (m.role === 'admin' ? 'Admin' : m.role === 'viewer' ? 'Viewer' : 'Member') + '</span>' +
-                    (canRemove ? '<button class="team-member-remove" onclick="removeMember(\'' + m.uid + '\',\'' + escapeHtml(m.displayName || m.email) + '\')"><i class="fas fa-times"></i></button>' : '') +
+                    (currentRole === 'admin' ? '<button class="team-member-remove" style="color:#94a3b8;margin-right:2px;" onclick="openMemberEditModal(\'' + m.uid + '\')" title="Edit member"><i class="fas fa-pencil-alt"></i></button>' : '') +
+                    (canRemove ? '<button class="team-member-remove" onclick="removeMember(\'' + m.uid + '\',\'' + escapeHtml(m.displayName || m.email) + '\')" title="Remove member"><i class="fas fa-times"></i></button>' : '') +
                 '</div>';
             }).join('');
             // Also refresh the manager dropdown in the invite form
             populateManagerDropdown();
         }
 
-        function populateManagerDropdown() {
-            var sel = document.getElementById('inviteManager');
+        // ============================================================
+        // MEMBER EDIT (from Members tab → syncs to org chart)
+        // ============================================================
+        var _memberEditUid = null;
+
+        function _findMemberInOrgChart(email, name) {
+            for (var ti = 0; ti < (orgChartData.teams || []).length; ti++) {
+                var team = orgChartData.teams[ti];
+                for (var bi = 0; bi < (team.branches || []).length; bi++) {
+                    var branch = team.branches[bi];
+                    for (var mi = 0; mi < (branch.members || []).length; mi++) {
+                        var node = branch.members[mi];
+                        if ((email && node.email === email) || (!email && name && node.name === name)) {
+                            return { title: node.title, dept: branch.department, manager: branch.manager ? branch.manager.name : '', teamIdx: ti, branchIdx: bi, memberIdx: mi };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function openMemberEditModal(uid) {
+            var m = teamMembers.find(function(x) { return x.uid === uid; });
+            if (!m) return;
+            _memberEditUid = uid;
+            var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
+            document.getElementById('memberEditName').value     = m.displayName || '';
+            document.getElementById('memberEditJobTitle').value = (orgInfo && orgInfo.title) || '';
+            document.getElementById('memberEditDept').value     = (orgInfo && orgInfo.dept)  || '';
+
+            var sel = document.getElementById('memberEditManager');
+            sel.innerHTML = '<option value="">— None —</option>';
+            (orgChartData.teams || []).forEach(function(team) {
+                if (team.leader && team.leader.name) {
+                    var o = document.createElement('option');
+                    o.value = team.leader.name;
+                    o.textContent = team.leader.name + ' (Lead — ' + team.name + ')';
+                    sel.appendChild(o);
+                }
+                (team.branches || []).forEach(function(b) {
+                    if (b.manager && b.manager.name) {
+                        var o = document.createElement('option');
+                        o.value = b.manager.name;
+                        o.textContent = b.manager.name + ' (' + (b.department || 'Dept') + ')';
+                        sel.appendChild(o);
+                    }
+                });
+            });
+            if (orgInfo && orgInfo.manager) sel.value = orgInfo.manager;
+
+            document.getElementById('memberEditOverlay').style.display = 'flex';
+        }
+
+        function closeMemberEditModal() {
+            document.getElementById('memberEditOverlay').style.display = 'none';
+            _memberEditUid = null;
+        }
+
+        async function saveMemberEdit() {
+            var m = teamMembers.find(function(x) { return x.uid === _memberEditUid; });
+            if (!m) return;
+            var newName  = document.getElementById('memberEditName').value.trim() || m.displayName || '';
+            var newTitle = document.getElementById('memberEditJobTitle').value.trim();
+            var newDept  = document.getElementById('memberEditDept').value.trim();
+            var newMgr   = document.getElementById('memberEditManager').value;
+
+            // Update display name on backend if changed
+            if (newName !== (m.displayName || '')) {
+                try {
+                    var token = await auth.currentUser.getIdToken();
+                    await fetch(BACKEND_URL + '/api/tenant/members/' + m.uid, {
+                        method: 'PATCH',
+                        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ displayName: newName })
+                    });
+                    m.displayName = newName;
+                } catch(e) { console.warn('[MemberEdit] Name patch failed:', e); }
+            }
+
+            // Remove from current org chart position
+            var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
+            if (orgInfo) {
+                orgChartData.teams[orgInfo.teamIdx].branches[orgInfo.branchIdx].members.splice(orgInfo.memberIdx, 1);
+            }
+
+            // Place at new org chart position
+            if (newMgr || newDept) {
+                var targetTeam = orgChartData.teams[currentOrgTeam] || orgChartData.teams[0];
+                if (targetTeam) {
+                    var placed = false;
+                    if (newMgr) {
+                        (targetTeam.branches || []).forEach(function(branch) {
+                            if (!placed && branch.manager && branch.manager.name === newMgr) {
+                                branch.members = branch.members || [];
+                                branch.members.push({ name: newName, title: newTitle, email: m.email || '' });
+                                placed = true;
+                            }
+                        });
+                    }
+                    if (!placed) {
+                        targetTeam.branches = targetTeam.branches || [];
+                        var deptBranch = targetTeam.branches.find(function(b) { return b.department === newDept; });
+                        if (deptBranch) {
+                            deptBranch.members = deptBranch.members || [];
+                            deptBranch.members.push({ name: newName, title: newTitle, email: m.email || '' });
+                        } else {
+                            targetTeam.branches.push({
+                                id: 'b-' + Date.now(),
+                                department: newDept || (newMgr ? newMgr + "'s Team" : 'Team'),
+                                manager: { name: newMgr || '', title: 'Manager', email: '' },
+                                members: [{ name: newName, title: newTitle, email: m.email || '' }]
+                            });
+                        }
+                    }
+                }
+            }
+
+            saveOrgChart();
+            renderOrgChart();
+            renderTeamMembers();
+            closeMemberEditModal();
+            showToast('Member updated');
+        }
+
+        function populateManagerDropdown() {            var sel = document.getElementById('inviteManager');
             if (!sel) return;
             var prev = sel.value;
             sel.innerHTML = '<option value="__admin__">Admin (default)</option>';
@@ -11780,6 +11941,7 @@
             var email  = document.getElementById('inviteEmail').value.trim();
             var role   = document.getElementById('inviteRole').value;
             var title  = document.getElementById('inviteTitle').value.trim();
+            var dept   = document.getElementById('inviteDept') ? document.getElementById('inviteDept').value.trim() : '';
             var manager = document.getElementById('inviteManager').value;
             if (manager === '__admin__') manager = '';
             msgEl.textContent = '';
@@ -11796,23 +11958,25 @@
                 if (!res.ok) throw new Error(data.error || 'Failed');
                 // Send them a password setup email (Firebase reset email)
                 auth.sendPasswordResetEmail(email).catch(function(){});
-                // ── Auto-add to org chart only when an explicit manager is selected ──
-                if (name && manager && orgChartData.teams && orgChartData.teams.length > 0) {
+                // ── Auto-add to org chart when manager or department is specified ──
+                if (name && orgChartData.teams && orgChartData.teams.length > 0) {
                     var targetTeam = orgChartData.teams[currentOrgTeam] || orgChartData.teams[0];
-                    var found = false;
-                    (targetTeam.branches || []).forEach(function(branch) {
-                        if (!found && branch.manager && branch.manager.name === manager) {
-                            if (!branch.members) branch.members = [];
-                            branch.members.push({ name: name, title: title || role, email: email });
-                            found = true;
-                        }
-                    });
-                    if (!found) {
+                    var placed = false;
+                    if (manager) {
+                        (targetTeam.branches || []).forEach(function(branch) {
+                            if (!placed && branch.manager && branch.manager.name === manager) {
+                                if (!branch.members) branch.members = [];
+                                branch.members.push({ name: name, title: title || role, email: email });
+                                placed = true;
+                            }
+                        });
+                    }
+                    if (!placed && (manager || dept)) {
                         if (!targetTeam.branches) targetTeam.branches = [];
                         targetTeam.branches.push({
                             id: 'b-' + Date.now(),
-                            department: manager + "'s Team",
-                            manager: { name: manager, title: 'Manager', email: '' },
+                            department: dept || (manager + "'s Team"),
+                            manager: { name: manager || '', title: 'Manager', email: '' },
                             members: [{ name: name, title: title || role, email: email }]
                         });
                     }
@@ -11825,6 +11989,7 @@
                 document.getElementById('inviteName').value  = '';
                 document.getElementById('inviteEmail').value = '';
                 document.getElementById('inviteTitle').value = '';
+                if (document.getElementById('inviteDept')) document.getElementById('inviteDept').value = '';
                 loadTeamMembers();
             } catch (err) {
                 msgEl.style.color = '#f87171';
@@ -11995,13 +12160,11 @@
                             '<span class="org-name">' + escapeHtml(m.name) + '</span>' +
                             (m.email ? '<div style="color:#64748b;font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(m.email) + '</div>' : '') +
                         '</div>' +
-                        (currentRole === 'admin' ? '<button class="org-member-edit-btn" onclick="openOrgEditModal(\'member\',' + currentOrgTeam + ',' + bIdx + ',' + mIdx + ')"><i class="fas fa-pencil-alt"></i></button>' : '') +
                     '</div>';
                 }).join('');
                 return '<div class="org-branch">' +
                     '<div class="org-v-line"></div>' +
                     '<div class="org-manager-card">' +
-                        (currentRole === 'admin' ? '<button class="org-edit-btn" onclick="openOrgEditModal(\'manager\',' + currentOrgTeam + ',' + bIdx + ')"><i class="fas fa-pencil-alt"></i></button>' : '') +
                         '<div class="org-avatar">' + _orgAvatarHtml(branch.manager ? branch.manager.name : '', branch.manager ? branch.manager.email : '') + '</div>' +
                         '<div class="org-name">' + escapeHtml((branch.manager && branch.manager.name) || 'Manager') + '</div>' +
                         '<div class="org-title">' + escapeHtml((branch.manager && branch.manager.title) || '') + '</div>' +
@@ -12021,7 +12184,6 @@
                 '</div>' : '') +
                 '<div class="org-chart-wrap"><div class="org-tree">' +
                     '<div class="org-leader-card">' +
-                        (currentRole === 'admin' ? '<button class="org-edit-btn" onclick="openOrgEditModal(\'leader\',' + currentOrgTeam + ')"><i class="fas fa-pencil-alt"></i></button>' : '') +
                         '<div class="org-avatar">' + _orgAvatarHtml(leader.name, leader.email) + '</div>' +
                         '<div class="org-name">' + escapeHtml(leader.name) + '</div>' +
                         '<div class="org-title">' + escapeHtml(leader.title || '') + '</div>' +
@@ -12034,6 +12196,9 @@
 
         function addOrgTeam() {
             document.getElementById('createTeamName').value = '';
+            document.getElementById('createLeaderName').value = '';
+            document.getElementById('createLeaderTitle').value = '';
+            document.getElementById('createLeaderEmail').value = '';
             document.getElementById('createTeamOverlay').classList.add('open');
             setTimeout(function() { document.getElementById('createTeamName').focus(); }, 80);
         }
@@ -12045,10 +12210,17 @@
         function confirmCreateTeam() {
             var name = document.getElementById('createTeamName').value.trim();
             if (!name) return;
+            var leaderName  = document.getElementById('createLeaderName').value.trim();
+            var leaderTitle = document.getElementById('createLeaderTitle').value.trim();
+            var leaderEmail = document.getElementById('createLeaderEmail').value.trim();
             orgChartData.teams.push({
                 id: 'team-' + Date.now(),
                 name: name,
-                leader: { name: name + ' Lead', title: 'Team Lead', email: '' },
+                leader: {
+                    name:  leaderName  || name + ' Lead',
+                    title: leaderTitle || 'Team Lead',
+                    email: leaderEmail
+                },
                 branches: []
             });
             currentOrgTeam = orgChartData.teams.length - 1;
