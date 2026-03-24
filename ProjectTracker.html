@@ -5875,14 +5875,14 @@
                             <div class="card-height-preview small">
                                 <div class="preview-line"></div>
                             </div>
-                            <span class="card-height-label">Small</span>
+                            <span class="card-height-label">Default</span>
                         </button>
                         <button class="card-height-option active" id="cardHOptFit" onclick="applyCardHeight('fit')" data-testid="card-height-fit">
                             <div class="card-height-preview fit">
                                 <div class="preview-line"></div>
                                 <div class="preview-line short"></div>
                             </div>
-                            <span class="card-height-label">Default</span>
+                            <span class="card-height-label">Fit</span>
                         </button>
                         <button class="card-height-option" id="cardHOptLg" onclick="applyCardHeight('lg')" data-testid="card-height-large">
                             <div class="card-height-preview large">
@@ -7371,7 +7371,7 @@
             <!-- Admin Tab Nav -->
             <div style="display:flex; gap:0; border-bottom:1px solid #e9ecef; padding:0 20px; overflow-x:auto; flex-shrink:0;">
                 <button class="admin-tab-btn active" id="adminTabBtnGeneral" onclick="switchAdminTab('general')" style="padding:10px 16px; border:none; background:none; font-size:13px; font-weight:600; cursor:pointer; color:#3182ce; border-bottom:2px solid #3182ce; font-family:inherit; white-space:nowrap;">General</button>
-                <button class="admin-tab-btn" id="adminTabBtnDepts" onclick="switchAdminTab('depts')" style="padding:10px 16px; border:none; background:none; font-size:13px; font-weight:600; cursor:pointer; color:#718096; border-bottom:2px solid transparent; font-family:inherit; white-space:nowrap;">Departments &amp; Systems</button>
+                <button class="admin-tab-btn" id="adminTabBtnDepts" onclick="switchAdminTab('depts')" style="padding:10px 16px; border:none; background:none; font-size:13px; font-weight:600; cursor:pointer; color:#718096; border-bottom:2px solid transparent; font-family:inherit; white-space:nowrap;">Rules</button>
                 <button class="admin-tab-btn" id="adminTabBtnFormBuilder" onclick="switchAdminTab('formbuilder')" style="padding:10px 16px; border:none; background:none; font-size:13px; font-weight:600; cursor:pointer; color:#718096; border-bottom:2px solid transparent; font-family:inherit; white-space:nowrap;">Form Builder</button>
                 <button class="admin-tab-btn" id="adminTabBtnAI" onclick="switchAdminTab('ai')" style="padding:10px 16px; border:none; background:none; font-size:13px; font-weight:600; cursor:pointer; color:#718096; border-bottom:2px solid transparent; font-family:inherit; white-space:nowrap;">AI Settings</button>
                 <button class="admin-tab-btn" id="adminTabBtnIntegrations" onclick="switchAdminTab('integrations')" style="padding:10px 16px; border:none; background:none; font-size:13px; font-weight:600; cursor:pointer; color:#718096; border-bottom:2px solid transparent; font-family:inherit; white-space:nowrap;">Integrations</button>
@@ -7440,9 +7440,16 @@
                     </div>
                 </div>
 
-                <!-- TAB: Departments & Systems -->
+                <!-- TAB: Rules -->
                 <div id="adminTabDepts" style="display:none;">
-                    <div style="margin-bottom:24px;">
+                    <!-- Automation Rules -->
+                    <div style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e9ecef;">
+                        <h4 style="margin:0 0 4px; font-size:13px; font-weight:700; color:#2c3e50; text-transform:uppercase; letter-spacing:0.5px;">Automation Rules</h4>
+                        <p style="margin:0 0 12px; font-size:12px; color:#7f8c8d;">Rules that run automatically on your projects.</p>
+                        <div id="adminRulesList"></div>
+                    </div>
+                    <!-- Departments -->
+                    <div style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e9ecef;">
                         <h4 style="margin:0 0 4px; font-size:13px; font-weight:700; color:#2c3e50; text-transform:uppercase; letter-spacing:0.5px;">Departments</h4>
                         <p style="margin:0 0 12px; font-size:12px; color:#7f8c8d;">These appear in the "Owning Department" dropdown on every project.</p>
                         <div id="adminDeptList" style="border:1px solid #e9ecef; border-radius:6px; overflow:hidden; margin-bottom:10px;"></div>
@@ -9238,6 +9245,7 @@
         function completeTask() {
             if (currentEditIndex === null || currentEditIndex < 0) return;
             tasks[currentEditIndex].status = 'completed';
+            tasks[currentEditIndex].completedAt = tasks[currentEditIndex].completedAt || new Date().toISOString();
             var task = tasks[currentEditIndex];
             logAuditEvent('status', task, { from: task.status, to: 'completed' });
             closeModal();
@@ -9399,6 +9407,8 @@
                     });
                     // Send completion notification
                     if (taskData.status === 'completed' && oldStatus !== 'completed') {
+                        // Record when project was completed for automation rules
+                        tasks[currentEditIndex].completedAt = tasks[currentEditIndex].completedAt || new Date().toISOString();
                         sendIntegrationNotification('projectCompleted', {
                             title: taskData.title,
                             status: 'completed',
@@ -9913,6 +9923,8 @@
             // Load new tab data
             renderAdminDepts();
             renderAdminSystems();
+            renderAutomationRules();
+            loadAutomationRules();
             loadAISettings();
             switchAdminTab('general');
             document.getElementById('adminPanelOverlay').style.display = 'flex';
@@ -11503,6 +11515,7 @@
             loadNewSettings();
             loadOrgChart();
             loadIntegrationSettings();
+            loadAutomationRules();
             // AI Insights toggle is now controlled by modal open/close, not shown on init
             // showInsightsToggle();
             if (currentRole === 'admin') {
@@ -11527,6 +11540,7 @@
                         tasks = firestoreTasks;
                         safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                         applyFilters();
+                        runAutoArchiveRules();
                     } else {
                         // Firestore empty — fall back to localStorage cache
                         var localData = safeGetItem('projectTrackerTasks');
@@ -12072,27 +12086,22 @@
             if (!sel) return;
             var prev = sel.value;
             sel.innerHTML = '<option value="">No Manager — Root</option>';
-            // Collect unique departments for the datalist
+            // Populate from all team members
+            (teamMembers || []).forEach(function(m) {
+                if (!m.displayName) return;
+                var opt = document.createElement('option');
+                opt.value = m.displayName;
+                opt.textContent = m.displayName + (m.jobTitle ? ' (' + m.jobTitle + ')' : '');
+                sel.appendChild(opt);
+            });
+            if (prev) sel.value = prev;
+            // Populate department datalist from org chart branches
             var deptSet = {};
             (orgChartData.teams || []).forEach(function(team) {
-                if (team.leader && team.leader.name) {
-                    var opt = document.createElement('option');
-                    opt.value = team.leader.name;
-                    opt.textContent = team.leader.name + ' (Lead — ' + (team.name || 'Team') + ')';
-                    sel.appendChild(opt);
-                }
                 (team.branches || []).forEach(function(b) {
-                    if (b.manager && b.manager.name) {
-                        var opt = document.createElement('option');
-                        opt.value = b.manager.name;
-                        opt.textContent = b.manager.name + ' (' + (b.department || 'Dept') + ')';
-                        sel.appendChild(opt);
-                    }
                     if (b.department) deptSet[b.department] = true;
                 });
             });
-            if (prev) sel.value = prev;
-            // Populate department datalist
             var dl = document.getElementById('inviteDeptOptions');
             if (dl) {
                 dl.innerHTML = '';
@@ -12745,6 +12754,7 @@
         // ============================================================
         var departments = ['IT', 'Finance', 'HR', 'Operations', 'Marketing', 'Legal', 'Executive', 'Sales'];
         var systemsList = ['CRM', 'ERP', 'HRIS', 'Salesforce', 'SAP', 'ServiceNow', 'SharePoint', 'Workday', 'Azure', 'Power BI'];
+        var automationRules = [{ id: 'auto_archive_30', type: 'auto_archive', label: 'Auto-archive after completion', days: 30, enabled: true }];
         var aiApiKey = '';
         var aiModel = 'gpt-4o';
         var formSchema = [];
@@ -16375,8 +16385,94 @@
         }
 
         // ============================================================
-        // FORM BUILDER MODAL
+        // ADMIN — AUTOMATION RULES
         // ============================================================
+        function renderAutomationRules() {
+            var list = document.getElementById('adminRulesList');
+            if (!list) return;
+            if (!automationRules.length) {
+                list.innerHTML = '<p style="color:#999;font-size:12px;padding:8px 0;">No rules configured.</p>';
+                return;
+            }
+            list.innerHTML = automationRules.map(function(rule) {
+                var checkedAttr = rule.enabled ? ' checked' : '';
+                return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:10px;">' +
+                    '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;">' +
+                        '<input type="checkbox" id="ruleEnabled_' + rule.id + '"' + checkedAttr + ' onchange="toggleAutoRule(\'' + rule.id + '\',this.checked)" style="width:16px;height:16px;cursor:pointer;">' +
+                        '<span style="font-size:12px;font-weight:600;color:#2c3e50;">Enabled</span>' +
+                    '</label>' +
+                    '<div style="flex:1;font-size:13px;color:#2c3e50;">' +
+                        '<div style="font-weight:600;margin-bottom:4px;"><i class="fas fa-archive" style="color:#805ad5;margin-right:6px;"></i>' + escapeHtml(rule.label) + '</div>' +
+                        '<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#7f8c8d;">' +
+                            'Archive projects' +
+                            '<input type="number" id="ruleDays_' + rule.id + '" value="' + rule.days + '" min="1" max="365" style="width:52px;border:1px solid #ddd;border-radius:4px;padding:3px 6px;font-size:12px;font-family:inherit;text-align:center;">' +
+                            'days after status is set to <strong>Completed</strong>' +
+                        '</div>' +
+                    '</div>' +
+                    '<button onclick="saveRuleChange(\'' + rule.id + '\')" style="background:#805ad5;color:white;border:none;border-radius:5px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;">Save</button>' +
+                '</div>';
+            }).join('');
+        }
+
+        function toggleAutoRule(id, enabled) {
+            var rule = automationRules.find(function(r) { return r.id === id; });
+            if (rule) { rule.enabled = enabled; saveAutomationRules(); }
+        }
+
+        function saveRuleChange(id) {
+            var rule = automationRules.find(function(r) { return r.id === id; });
+            if (!rule) return;
+            var daysEl = document.getElementById('ruleDays_' + id);
+            var days = daysEl ? parseInt(daysEl.value, 10) : rule.days;
+            if (!days || days < 1) { showToast('Enter a valid number of days'); return; }
+            rule.days = days;
+            saveAutomationRules();
+            showToast('Rule saved');
+        }
+
+        async function loadAutomationRules() {
+            if (!db || !currentTenantId) return;
+            try {
+                var doc = await db.collection('tenants').doc(currentTenantId).collection('settings').doc('automations').get();
+                if (doc.exists && doc.data().rules) {
+                    automationRules = doc.data().rules;
+                }
+            } catch(e) { /* use defaults */ }
+            renderAutomationRules();
+        }
+
+        function saveAutomationRules() {
+            if (!db || !currentTenantId) return;
+            db.collection('tenants').doc(currentTenantId).collection('settings').doc('automations')
+                .set({ rules: automationRules }).catch(function() {});
+        }
+
+        function runAutoArchiveRules() {
+            if (!automationRules || !automationRules.length) return;
+            var now = Date.now();
+            var changed = false;
+            automationRules.forEach(function(rule) {
+                if (!rule.enabled || rule.type !== 'auto_archive') return;
+                var thresholdMs = (rule.days || 30) * 86400000;
+                tasks.forEach(function(task) {
+                    if (task.archived || task.status !== 'completed') return;
+                    if (!task.completedAt) return;
+                    var completedMs = new Date(task.completedAt).getTime();
+                    if (isNaN(completedMs)) return;
+                    if (now - completedMs >= thresholdMs) {
+                        task.archived = true;
+                        saveToFirestore(task, tasks.indexOf(task)).catch(function() {});
+                        changed = true;
+                    }
+                });
+            });
+            if (changed) {
+                safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+                applyFilters();
+            }
+        }
+
+
         var fbDraftSchema = [];
         var fbDragSrcIdx = null;
         // ============================================================
