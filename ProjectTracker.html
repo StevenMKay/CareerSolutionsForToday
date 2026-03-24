@@ -3255,7 +3255,10 @@
             }
 
             /* ── Views ── */
-            .kanban-container, .priority-container { grid-template-columns: 1fr; }
+            .kanban-container, .priority-container { grid-template-columns: 1fr; overflow-x: hidden; }
+            .kanban-column { min-width: 0; width: 100%; box-sizing: border-box; }
+            .kanban-title { min-width: 0; overflow: hidden; }
+            .kanban-title .status-badge { max-width: 55vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
             .list-header, .list-row { grid-template-columns: 1fr; gap: 8px; }
             .list-header-cell:not(:first-child) { display: none; }
             .form-row { grid-template-columns: 1fr; }
@@ -3280,10 +3283,11 @@
             .perm-toggle { margin-top: 3px; }
             /* Org chart: scroll horizontally, fix card min-widths */
             .org-chart-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-            .org-leader-card { width: 150px; min-width: 150px; min-height: 100px; padding: 10px 12px; }
-            .org-manager-card { width: 150px; min-width: 150px; min-height: 80px; }
+            .org-leader-card { width: 150px; min-width: 150px; height: 110px; padding: 8px 10px; }
+            .org-manager-card { width: 150px; min-width: 150px; height: 110px; }
             .org-branch { width: 150px; min-width: 150px; }
             .org-members-list { width: 150px; min-width: 150px; }
+            .org-member-row { height: 40px; min-height: 40px; max-height: 40px; }
             .org-toolbar { flex-wrap: wrap; gap: 8px; }
             /* Org edit modal */
             .org-edit-modal { width: min(340px, 92vw); }
@@ -3702,8 +3706,9 @@
         .org-tree { min-width: fit-content; display: flex; flex-direction: column; align-items: center; }
         .org-leader-card {
             background: linear-gradient(135deg,#1d4ed8,#1e40af); border-radius: 10px;
-            padding: 14px 18px; text-align: center; width: 180px; min-width: 180px; min-height: 120px; position: relative;
+            padding: 10px 14px; text-align: center; width: 180px; min-width: 180px; height: 120px; position: relative;
             box-shadow: 0 4px 16px rgba(29,78,216,0.4); display: flex; flex-direction: column; align-items: center; justify-content: center;
+            overflow: hidden; box-sizing: border-box;
         }
         .org-leader-card .org-avatar {
             width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.25);
@@ -3719,9 +3724,9 @@
         .org-branch { display: flex; flex-direction: column; align-items: center; width: 180px; min-width: 180px; }
         .org-manager-card {
             background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 8px; padding: 12px 14px; text-align: center; width: 180px; min-width: 180px; min-height: 100px;
+            border-radius: 8px; padding: 10px 14px; text-align: center; width: 180px; min-width: 180px; height: 120px;
             position: relative; margin-bottom: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            box-sizing: border-box;
+            box-sizing: border-box; overflow: hidden;
         }
         .org-manager-card .org-avatar {
             width: 36px; height: 36px; border-radius: 50%; background: #7c3aed;
@@ -3732,9 +3737,10 @@
         .org-dept { color: #94a3b8; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
         .org-members-list { width: 180px; min-width: 180px; box-sizing: border-box; }
         .org-member-row {
-            display: flex; align-items: center; gap: 8px; padding: 7px 10px;
-            background: rgba(255,255,255,0.06); border-radius: 5px; margin-bottom: 4px; min-height: 40px;
-            width: 100%; box-sizing: border-box;
+            display: flex; align-items: center; gap: 8px; padding: 0 10px;
+            background: rgba(255,255,255,0.06); border-radius: 5px; margin-bottom: 4px;
+            height: 44px; min-height: 44px; max-height: 44px;
+            width: 100%; box-sizing: border-box; overflow: hidden;
         }
         .org-member-row .org-avatar {
             width: 30px; height: 30px; border-radius: 50%; background: #059669;
@@ -6006,8 +6012,10 @@
                             </div>
                             <div class="invite-field">
                                 <label class="invite-label">Department</label>
-                                <input type="text" class="invite-input" id="inviteDept" list="inviteDeptOptions" placeholder="Select or type...">
-                                <datalist id="inviteDeptOptions"></datalist>
+                                <select class="invite-select" id="inviteDeptSel" onchange="toggleInviteNewDept()">
+                                    <option value="">— None —</option>
+                                </select>
+                                <input type="text" class="invite-input" id="inviteDeptNew" placeholder="New department name..." style="display:none;margin-top:6px;">
                             </div>
                         </div>
                         <div class="invite-field" style="margin-top:8px;">
@@ -11862,34 +11870,51 @@
         // ============================================================
         var _memberEditUid = null;
 
+        function _personMatch(email, name, nodeEmail, nodeName) {
+            // Match by email only when BOTH sides have a non-empty email
+            var emailOk = email && nodeEmail && email === nodeEmail;
+            // Always fall back to name match
+            var nameOk  = name && nodeName && name.toLowerCase() === nodeName.toLowerCase();
+            return emailOk || nameOk;
+        }
+
         function _findMemberInOrgChart(email, name) {
             for (var ti = 0; ti < (orgChartData.teams || []).length; ti++) {
                 var team = orgChartData.teams[ti];
                 // Check leader
-                if (team.leader) {
+                if (team.leader && team.leader.name) {
                     var l = team.leader;
-                    if ((email && l.email === email) || (!email && name && l.name === name)) {
+                    if (_personMatch(email, name, l.email, l.name)) {
                         return { title: l.title, dept: '', manager: '', teamIdx: ti, nodeType: 'leader' };
                     }
                 }
                 for (var bi = 0; bi < (team.branches || []).length; bi++) {
                     var branch = team.branches[bi];
                     // Check branch manager
-                    if (branch.manager) {
+                    if (branch.manager && branch.manager.name) {
                         var mgr = branch.manager;
-                        if ((email && mgr.email === email) || (!email && name && mgr.name === name)) {
+                        if (_personMatch(email, name, mgr.email, mgr.name)) {
                             return { title: mgr.title, dept: branch.department, manager: '', teamIdx: ti, branchIdx: bi, nodeType: 'manager' };
                         }
                     }
                     for (var mi = 0; mi < (branch.members || []).length; mi++) {
                         var node = branch.members[mi];
-                        if ((email && node.email === email) || (!email && name && node.name === name)) {
+                        if (_personMatch(email, name, node.email, node.name)) {
                             return { title: node.title, dept: branch.department, manager: branch.manager ? branch.manager.name : '', teamIdx: ti, branchIdx: bi, memberIdx: mi, nodeType: 'member' };
                         }
                     }
                 }
             }
             return null;
+        }
+
+        function _removeAllFromOrgChart(email, name) {
+            // Remove every occurrence (handles phantom duplicates)
+            for (var _i = 0; _i < 30; _i++) {
+                var found = _findMemberInOrgChart(email, name);
+                if (!found) break;
+                _removeFromOrgChart(found);
+            }
         }
 
         function _removeFromOrgChart(orgInfo) {
@@ -11991,9 +12016,8 @@
                 }
             }
 
-            // Remove from current org chart position
-            var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
-            _removeFromOrgChart(orgInfo);
+            // Remove ALL occurrences from org chart (handles any phantom duplicates)
+            _removeAllFromOrgChart(m.email, m.displayName);
 
             // Place at new org chart position
             if (newMgr || newDept || newTeamIdx !== '') {
@@ -12099,22 +12123,38 @@
                 sel.appendChild(opt);
             });
             if (prev) sel.value = prev;
-            // Populate department datalist from org chart branches
+            populateInviteDeptSelect();
+        }
+
+        function populateInviteDeptSelect() {
+            var deptSel = document.getElementById('inviteDeptSel');
+            if (!deptSel) return;
+            var prev = deptSel.value;
+            deptSel.innerHTML = '<option value="">— None —</option>';
             var deptSet = {};
+            (departments || []).forEach(function(d) { if (d) deptSet[d] = true; });
             (orgChartData.teams || []).forEach(function(team) {
                 (team.branches || []).forEach(function(b) {
                     if (b.department) deptSet[b.department] = true;
                 });
             });
-            var dl = document.getElementById('inviteDeptOptions');
-            if (dl) {
-                dl.innerHTML = '';
-                Object.keys(deptSet).sort().forEach(function(d) {
-                    var o = document.createElement('option');
-                    o.value = d;
-                    dl.appendChild(o);
-                });
-            }
+            Object.keys(deptSet).sort().forEach(function(d) {
+                var o = document.createElement('option');
+                o.value = d; o.textContent = d;
+                deptSel.appendChild(o);
+            });
+            var newOpt = document.createElement('option');
+            newOpt.value = '__new__'; newOpt.textContent = '+ New Department...';
+            deptSel.appendChild(newOpt);
+            if (prev && prev !== '__new__') deptSel.value = prev;
+        }
+
+        function toggleInviteNewDept() {
+            var sel = document.getElementById('inviteDeptSel');
+            var inp = document.getElementById('inviteDeptNew');
+            if (!sel || !inp) return;
+            inp.style.display = sel.value === '__new__' ? '' : 'none';
+            if (sel.value === '__new__') inp.focus();
         }
 
         async function inviteMember() {
@@ -12124,7 +12164,18 @@
             var email  = document.getElementById('inviteEmail').value.trim();
             var role   = document.getElementById('inviteRole').value;
             var title  = document.getElementById('inviteTitle').value.trim();
-            var dept   = document.getElementById('inviteDept') ? document.getElementById('inviteDept').value.trim() : '';
+            var _deptSel = document.getElementById('inviteDeptSel');
+            var _deptNew = document.getElementById('inviteDeptNew');
+            var dept = '';
+            if (_deptSel && _deptSel.value === '__new__') {
+                dept = (_deptNew ? _deptNew.value.trim() : '');
+                if (dept && departments.indexOf(dept) === -1) {
+                    departments.push(dept);
+                    saveExtendedSettings();
+                }
+            } else if (_deptSel) {
+                dept = _deptSel.value;
+            }
             var manager = document.getElementById('inviteManager').value;
             // empty string = "No Manager - Root", just use it as-is
             msgEl.textContent = '';
@@ -12185,7 +12236,7 @@
                         targetTeam.branches.push({
                             id: 'b-' + Date.now(),
                             department: dept || (manager + "'s Team"),
-                            manager: { name: manager || '', title: 'Manager', email: '' },
+                            manager: manager ? { name: manager, title: 'Manager', email: '' } : null,
                             members: [{ name: name, title: title || role, email: email }]
                         });
                     }
@@ -12198,7 +12249,9 @@
                 document.getElementById('inviteName').value  = '';
                 document.getElementById('inviteEmail').value = '';
                 document.getElementById('inviteTitle').value = '';
-                if (document.getElementById('inviteDept')) document.getElementById('inviteDept').value = '';
+                if (document.getElementById('inviteDeptSel')) { document.getElementById('inviteDeptSel').value = ''; }
+                if (document.getElementById('inviteDeptNew')) { document.getElementById('inviteDeptNew').value = ''; document.getElementById('inviteDeptNew').style.display = 'none'; }
+                populateInviteDeptSelect();
                 // Clear new-team toggle
                 if (document.getElementById('inviteNewTeam')) {
                     document.getElementById('inviteNewTeam').checked = false;
