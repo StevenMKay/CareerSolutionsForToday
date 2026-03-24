@@ -6245,9 +6245,12 @@
                 <label class="org-edit-label">Reports To (Manager)</label>
                 <select class="org-edit-input" id="memberEditManager"></select>
             </div>
-            <div class="org-edit-actions">
-                <button class="org-edit-cancel" onclick="closeMemberEditModal()">Cancel</button>
-                <button class="org-edit-save" onclick="saveMemberEdit()">Save</button>
+            <div class="org-edit-actions" style="justify-content:space-between;">
+                <button class="org-edit-cancel" style="background:#fee2e2;color:#dc2626;border:none;" onclick="deleteMemberFromEdit()"><i class="fas fa-trash-alt" style="margin-right:5px;"></i>Delete</button>
+                <div style="display:flex;gap:8px;">
+                    <button class="org-edit-cancel" onclick="closeMemberEditModal()">Cancel</button>
+                    <button class="org-edit-save" onclick="saveMemberEdit()">Save</button>
+                </div>
             </div>
         </div>
     </div>
@@ -11848,7 +11851,7 @@
             document.getElementById('memberEditDept').value     = (orgInfo && orgInfo.dept)  || '';
 
             var sel = document.getElementById('memberEditManager');
-            sel.innerHTML = '<option value="">— None —</option>';
+            sel.innerHTML = '<option value="">No Manager — Root</option>';
             (orgChartData.teams || []).forEach(function(team) {
                 if (team.leader && team.leader.name) {
                     var o = document.createElement('option');
@@ -11941,6 +11944,33 @@
             showToast('Member updated');
         }
 
+        async function deleteMemberFromEdit() {
+            var m = teamMembers.find(function(x) { return x.uid === _memberEditUid; });
+            if (!m) return;
+            if (!confirm('Permanently delete ' + (m.displayName || m.email) + '? This cannot be undone.')) return;
+            try {
+                var token = await auth.currentUser.getIdToken();
+                var res = await fetch(BACKEND_URL + '/api/tenant/members/' + m.uid, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed');
+                // Also remove from org chart
+                var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
+                if (orgInfo) {
+                    orgChartData.teams[orgInfo.teamIdx].branches[orgInfo.branchIdx].members.splice(orgInfo.memberIdx, 1);
+                    saveOrgChart();
+                    renderOrgChart();
+                }
+                closeMemberEditModal();
+                showToast((m.displayName || m.email) + ' deleted');
+                loadTeamMembers();
+            } catch (err) {
+                showToast('Error: ' + err.message);
+            }
+        }
+
         function toggleInviteNewTeam() {
             var checked = document.getElementById('inviteNewTeam').checked;
             document.getElementById('inviteNewTeamField').style.display = checked ? 'block' : 'none';
@@ -11949,17 +11979,26 @@
             if (mgrField) mgrField.closest('.invite-field').style.display = checked ? 'none' : '';
         }
 
-        function populateManagerDropdown() {            var sel = document.getElementById('inviteManager');
+        function populateManagerDropdown() {
+            var sel = document.getElementById('inviteManager');
             if (!sel) return;
             var prev = sel.value;
-            sel.innerHTML = '<option value="__admin__">Admin (default)</option>';
-            teamMembers.forEach(function(m) {
-                if (m.role === 'admin' || m.role === 'manager') {
+            sel.innerHTML = '<option value="">No Manager — Root</option>';
+            (orgChartData.teams || []).forEach(function(team) {
+                if (team.leader && team.leader.name) {
                     var opt = document.createElement('option');
-                    opt.value = m.displayName || m.email;
-                    opt.textContent = (m.displayName || m.email) + (m.role === 'admin' ? ' (Admin)' : '');
+                    opt.value = team.leader.name;
+                    opt.textContent = team.leader.name + ' (Lead — ' + (team.name || 'Team') + ')';
                     sel.appendChild(opt);
                 }
+                (team.branches || []).forEach(function(b) {
+                    if (b.manager && b.manager.name) {
+                        var opt = document.createElement('option');
+                        opt.value = b.manager.name;
+                        opt.textContent = b.manager.name + ' (' + (b.department || 'Dept') + ')';
+                        sel.appendChild(opt);
+                    }
+                });
             });
             if (prev) sel.value = prev;
         }
@@ -11973,7 +12012,7 @@
             var title  = document.getElementById('inviteTitle').value.trim();
             var dept   = document.getElementById('inviteDept') ? document.getElementById('inviteDept').value.trim() : '';
             var manager = document.getElementById('inviteManager').value;
-            if (manager === '__admin__') manager = '';
+            // empty string = "No Manager - Root", just use it as-is
             msgEl.textContent = '';
             if (!email) { msgEl.style.color = '#f87171'; msgEl.textContent = 'Email is required.'; return; }
             btn.disabled = true; btn.textContent = 'Sending...';
