@@ -11876,9 +11876,9 @@
             if (!m) return;
             _memberEditUid = uid;
             var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
-            document.getElementById('memberEditName').value     = m.displayName || '';
-            document.getElementById('memberEditJobTitle').value = (orgInfo && orgInfo.title) || '';
-            document.getElementById('memberEditDept').value     = (orgInfo && orgInfo.dept)  || '';
+            document.getElementById('memberEditName').value     = m.displayName || m.name || '';
+            document.getElementById('memberEditJobTitle').value = (orgInfo && orgInfo.title) || m.jobTitle || '';
+            document.getElementById('memberEditDept').value     = (orgInfo && orgInfo.dept)  || m.dept    || '';
 
             var sel = document.getElementById('memberEditManager');
             sel.innerHTML = '<option value="">No Manager — Root</option>';
@@ -11916,17 +11916,28 @@
             var newDept  = document.getElementById('memberEditDept').value.trim();
             var newMgr   = document.getElementById('memberEditManager').value;
 
-            // Update display name on backend if changed
-            if (newName !== (m.displayName || '')) {
+            // Patch all changed fields to backend
+            var _patchPayload = {};
+            if (newName  !== (m.displayName || m.name || '')) _patchPayload.displayName = newName;
+            if (newTitle !== (m.jobTitle || ''))               _patchPayload.jobTitle    = newTitle;
+            if (newDept  !== (m.dept || ''))                   _patchPayload.dept        = newDept;
+            if (Object.keys(_patchPayload).length > 0) {
                 try {
                     var token = await auth.currentUser.getIdToken();
-                    await fetch(BACKEND_URL + '/api/tenant/members/' + m.uid, {
+                    var _patchRes = await fetch(BACKEND_URL + '/api/tenant/members/' + m.uid, {
                         method: 'PATCH',
                         headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ displayName: newName })
+                        body: JSON.stringify(_patchPayload)
                     });
-                    m.displayName = newName;
-                } catch(e) { console.warn('[MemberEdit] Name patch failed:', e); }
+                    if (!_patchRes.ok) throw new Error(((await _patchRes.json()).error) || 'Patch failed');
+                    if (_patchPayload.displayName) { m.displayName = newName; m.name = newName; }
+                    if (_patchPayload.jobTitle !== undefined) m.jobTitle = newTitle;
+                    if (_patchPayload.dept     !== undefined) m.dept     = newDept;
+                } catch(e) {
+                    console.warn('[MemberEdit] Patch failed:', e);
+                    showToast('Save failed: ' + e.message, true);
+                    return;
+                }
             }
 
             // Remove from current org chart position
