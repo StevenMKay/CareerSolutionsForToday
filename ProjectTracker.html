@@ -5999,7 +5999,8 @@
                             </div>
                             <div class="invite-field">
                                 <label class="invite-label">Department</label>
-                                <input type="text" class="invite-input" id="inviteDept" placeholder="e.g. Finance">
+                                <input type="text" class="invite-input" id="inviteDept" list="inviteDeptOptions" placeholder="Select or type...">
+                                <datalist id="inviteDeptOptions"></datalist>
                             </div>
                         </div>
                         <div class="invite-field" style="margin-top:8px;">
@@ -6224,6 +6225,35 @@
 
     <!-- ===== CREATE TEAM MODAL ===== -->
     <div class="create-team-overlay" id="createTeamOverlay">
+        <div class="create-team-modal">
+            <div class="create-team-modal-icon"><i class="fas fa-sitemap"></i></div>
+            <h3>Create a Team</h3>
+            <p>Give your team a name. You can create multiple teams and build out each one's org chart.</p>
+            <input type="text" class="create-team-input" id="createTeamName" placeholder="e.g. Engineering, Marketing, Sales..."
+                   onkeypress="if(event.key==='Enter')document.getElementById('createLeaderName').focus()">
+            <div style="border-top:1px solid rgba(255,255,255,0.12);margin-top:14px;padding-top:14px;">
+                <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px;">Team Leader <span style="font-weight:400;text-transform:none;opacity:0.7;">(optional — same as inviting a member)</span></p>
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <input type="text" class="create-team-input" id="createLeaderName" placeholder="Full name" style="margin:0;flex:1;">
+                    <select class="create-team-input" id="createLeaderRole" style="margin:0;flex:0 0 110px;">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                        <option value="viewer">Viewer</option>
+                    </select>
+                </div>
+                <input type="email" class="create-team-input" id="createLeaderEmail" placeholder="Email address" style="margin-bottom:8px;" spellcheck="false" autocorrect="off" autocapitalize="off">
+                <div style="display:flex;gap:8px;">
+                    <input type="text" class="create-team-input" id="createLeaderTitle" placeholder="Title / position" style="margin:0;flex:1;">
+                    <input type="text" class="create-team-input" id="createLeaderDept" placeholder="Department" style="margin:0;flex:1;">
+                </div>
+            </div>
+            <div class="create-team-actions">
+                <button class="create-team-cancel" onclick="closeCreateTeamModal()">Cancel</button>
+                <button class="create-team-submit" id="createTeamSubmitBtn" onclick="confirmCreateTeam()"><i class="fas fa-plus"></i> Create Team</button>
+            </div>
+            <p id="createTeamMsg" style="margin:8px 0 0;font-size:12px;text-align:center;"></p>
+        </div>
+    </div>
 
     <!-- ===== MEMBER EDIT MODAL ===== -->
     <div class="org-edit-overlay" id="memberEditOverlay" style="display:none;align-items:center;justify-content:center;">
@@ -6252,35 +6282,6 @@
                     <button class="org-edit-save" onclick="saveMemberEdit()">Save</button>
                 </div>
             </div>
-        </div>
-    </div>
-        <div class="create-team-modal">
-            <div class="create-team-modal-icon"><i class="fas fa-sitemap"></i></div>
-            <h3>Create a Team</h3>
-            <p>Give your team a name. You can create multiple teams and build out each one's org chart.</p>
-            <input type="text" class="create-team-input" id="createTeamName" placeholder="e.g. Engineering, Marketing, Sales..."
-                   onkeypress="if(event.key==='Enter')document.getElementById('createLeaderName').focus()">
-            <div style="border-top:1px solid rgba(255,255,255,0.12);margin-top:14px;padding-top:14px;">
-                <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin:0 0 10px;">Team Leader <span style="font-weight:400;text-transform:none;opacity:0.7;">(optional — same as inviting a member)</span></p>
-                <div style="display:flex;gap:8px;margin-bottom:8px;">
-                    <input type="text" class="create-team-input" id="createLeaderName" placeholder="Full name" style="margin:0;flex:1;">
-                    <select class="create-team-input" id="createLeaderRole" style="margin:0;flex:0 0 110px;">
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                        <option value="viewer">Viewer</option>
-                    </select>
-                </div>
-                <input type="email" class="create-team-input" id="createLeaderEmail" placeholder="Email address" style="margin-bottom:8px;" spellcheck="false" autocorrect="off" autocapitalize="off">
-                <div style="display:flex;gap:8px;">
-                    <input type="text" class="create-team-input" id="createLeaderTitle" placeholder="Title / position" style="margin:0;flex:1;">
-                    <input type="text" class="create-team-input" id="createLeaderDept" placeholder="Department" style="margin:0;flex:1;">
-                </div>
-            </div>
-            <div class="create-team-actions">
-                <button class="create-team-cancel" onclick="closeCreateTeamModal()">Cancel</button>
-                <button class="create-team-submit" id="createTeamSubmitBtn" onclick="confirmCreateTeam()"><i class="fas fa-plus"></i> Create Team</button>
-            </div>
-            <p id="createTeamMsg" style="margin:8px 0 0;font-size:12px;text-align:center;"></p>
         </div>
     </div>
 
@@ -11829,17 +11830,45 @@
         function _findMemberInOrgChart(email, name) {
             for (var ti = 0; ti < (orgChartData.teams || []).length; ti++) {
                 var team = orgChartData.teams[ti];
+                // Check leader
+                if (team.leader) {
+                    var l = team.leader;
+                    if ((email && l.email === email) || (!email && name && l.name === name)) {
+                        return { title: l.title, dept: '', manager: '', teamIdx: ti, nodeType: 'leader' };
+                    }
+                }
                 for (var bi = 0; bi < (team.branches || []).length; bi++) {
                     var branch = team.branches[bi];
+                    // Check branch manager
+                    if (branch.manager) {
+                        var mgr = branch.manager;
+                        if ((email && mgr.email === email) || (!email && name && mgr.name === name)) {
+                            return { title: mgr.title, dept: branch.department, manager: '', teamIdx: ti, branchIdx: bi, nodeType: 'manager' };
+                        }
+                    }
                     for (var mi = 0; mi < (branch.members || []).length; mi++) {
                         var node = branch.members[mi];
                         if ((email && node.email === email) || (!email && name && node.name === name)) {
-                            return { title: node.title, dept: branch.department, manager: branch.manager ? branch.manager.name : '', teamIdx: ti, branchIdx: bi, memberIdx: mi };
+                            return { title: node.title, dept: branch.department, manager: branch.manager ? branch.manager.name : '', teamIdx: ti, branchIdx: bi, memberIdx: mi, nodeType: 'member' };
                         }
                     }
                 }
             }
             return null;
+        }
+
+        function _removeFromOrgChart(orgInfo) {
+            if (!orgInfo) return;
+            var team = orgChartData.teams[orgInfo.teamIdx];
+            if (!team) return;
+            if (orgInfo.nodeType === 'leader') {
+                team.leader = { name: '', title: '', email: '' };
+            } else if (orgInfo.nodeType === 'manager') {
+                // Remove the whole branch so the column disappears
+                team.branches.splice(orgInfo.branchIdx, 1);
+            } else {
+                team.branches[orgInfo.branchIdx].members.splice(orgInfo.memberIdx, 1);
+            }
         }
 
         function openMemberEditModal(uid) {
@@ -11902,9 +11931,7 @@
 
             // Remove from current org chart position
             var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
-            if (orgInfo) {
-                orgChartData.teams[orgInfo.teamIdx].branches[orgInfo.branchIdx].members.splice(orgInfo.memberIdx, 1);
-            }
+            _removeFromOrgChart(orgInfo);
 
             // Place at new org chart position
             if (newMgr || newDept) {
@@ -11960,7 +11987,7 @@
                 // Also remove from org chart
                 var orgInfo = _findMemberInOrgChart(m.email, m.displayName);
                 if (orgInfo) {
-                    orgChartData.teams[orgInfo.teamIdx].branches[orgInfo.branchIdx].members.splice(orgInfo.memberIdx, 1);
+                    _removeFromOrgChart(orgInfo);
                     saveOrgChart();
                     renderOrgChart();
                 }
@@ -11985,6 +12012,8 @@
             if (!sel) return;
             var prev = sel.value;
             sel.innerHTML = '<option value="">No Manager — Root</option>';
+            // Collect unique departments for the datalist
+            var deptSet = {};
             (orgChartData.teams || []).forEach(function(team) {
                 if (team.leader && team.leader.name) {
                     var opt = document.createElement('option');
@@ -11999,9 +12028,20 @@
                         opt.textContent = b.manager.name + ' (' + (b.department || 'Dept') + ')';
                         sel.appendChild(opt);
                     }
+                    if (b.department) deptSet[b.department] = true;
                 });
             });
             if (prev) sel.value = prev;
+            // Populate department datalist
+            var dl = document.getElementById('inviteDeptOptions');
+            if (dl) {
+                dl.innerHTML = '';
+                Object.keys(deptSet).sort().forEach(function(d) {
+                    var o = document.createElement('option');
+                    o.value = d;
+                    dl.appendChild(o);
+                });
+            }
         }
 
         async function inviteMember() {
@@ -12291,12 +12331,13 @@
                 }).join('');
                 return '<div class="org-branch">' +
                     '<div class="org-v-line"></div>' +
-                    '<div class="org-manager-card">' +
+                    '<div class="org-manager-card"' + (currentRole === 'admin' ? ' onclick="openOrgEditModal(\'manager\',' + currentOrgTeam + ',' + bIdx + ')" title="Click to edit / delete" style="cursor:pointer;"' : '') + '>' +
                         '<div class="org-avatar">' + _orgAvatarHtml(branch.manager ? branch.manager.name : '', branch.manager ? branch.manager.email : '') + '</div>' +
                         '<div class="org-name">' + escapeHtml((branch.manager && branch.manager.name) || 'Manager') + '</div>' +
                         '<div class="org-title">' + escapeHtml((branch.manager && branch.manager.title) || '') + '</div>' +
                         (branch.manager && branch.manager.email ? '<div style="color:#64748b;font-size:9px;">' + escapeHtml(branch.manager.email) + '</div>' : '') +
                         '<div class="org-dept">' + escapeHtml(branch.department || '') + '</div>' +
+                        (currentRole === 'admin' ? '<div style="font-size:9px;color:#475569;margin-top:4px;"><i class="fas fa-pencil-alt"></i> edit</div>' : '') +
                     '</div>' +
                     '<div class="org-members-list">' + membersHtml +
                         (currentRole === 'admin' ? '<button class="org-add-btn" onclick="openOrgEditModal(\'new-member\',' + currentOrgTeam + ',' + bIdx + ')"><i class="fas fa-plus"></i> Add</button>' : '') +
@@ -12347,6 +12388,8 @@
             var msgEl = document.getElementById('createTeamMsg');
 
             // Push team into org chart
+            // Note: do NOT auto-create a branch with the leader as manager — that causes duplicates.
+            // Users can add departments separately via "Add Department" on the org chart.
             orgChartData.teams.push({
                 id: 'team-' + Date.now(),
                 name: name,
@@ -12355,12 +12398,7 @@
                     title: leaderTitle || 'Team Lead',
                     email: leaderEmail
                 },
-                branches: leaderDept ? [{
-                    id: 'b-' + Date.now(),
-                    department: leaderDept,
-                    manager: { name: leaderName || name + ' Lead', title: leaderTitle || 'Team Lead', email: leaderEmail },
-                    members: []
-                }] : []
+                branches: []
             });
             currentOrgTeam = orgChartData.teams.length - 1;
             saveOrgChart();
