@@ -7855,7 +7855,7 @@
             return Promise.race([promise, timeout]);
         }
 
-        function loadFromSharePoint() {
+        function loadFromFirestore() {
             return new Promise(function(resolve, reject) {
                 if (!currentTenantId) { resolve(null); return; }
                 console.log('[Firestore] Loading tasks for tenant:', currentTenantId);
@@ -7876,7 +7876,7 @@
             });
         }
 
-        function saveToSharePoint(task, sortOrder) {
+        function saveToFirestore(task, sortOrder) {
             return new Promise(function(resolve, reject) {
                 if (!currentTenantId) { resolve(); return; }
                 var taskData = Object.assign({}, task, { sortOrder: sortOrder });
@@ -7888,7 +7888,7 @@
             });
         }
 
-        function deleteFromSharePoint(taskId) {
+        function deleteFromFirestore(taskId) {
             return new Promise(function(resolve, reject) {
                 if (!currentTenantId) { resolve(); return; }
                 console.log('[Firestore] Deleting task:', taskId);
@@ -7900,9 +7900,9 @@
             });
         }
 
-        function saveAllToSharePoint() {
+        function saveAllToFirestore() {
             var promises = tasks.map(function(task, index) {
-                return saveToSharePoint(task, index);
+                return saveToFirestore(task, index);
             });
             return Promise.all(promises);
         }
@@ -7955,7 +7955,7 @@
                 var taskIndex = tasks.indexOf(task);
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                saveToSharePoint(task, taskIndex).catch(function() {});
+                saveToFirestore(task, taskIndex).catch(function() {});
                 showToast('Status changed to ' + statusLabels[task.status]);
             }
         }
@@ -8093,8 +8093,11 @@
                 showToast('Reordered');
             }
             
-            // Auto-save
+            // Auto-save (local + Firestore)
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
+            if (statusChanged) {
+                saveToFirestore(task, tasks.indexOf(task)).catch(function() {});
+            }
             
             // Clean up drag states
             document.querySelectorAll('.kanban-cards').forEach(function(col) {
@@ -8846,7 +8849,7 @@
             document.getElementById('quickAddDueDate').value = '';
             applyFilters();
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-            saveToSharePoint(newTask, 0).catch(function() {});
+            saveToFirestore(newTask, 0).catch(function() {});
             logAuditEvent('create', newTask);
             showToast('Task added!');
             
@@ -8932,7 +8935,7 @@
                     // Assign a permanent project ID on first open
                     task.projectId = generateProjectNumber();
                     safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                    saveToSharePoint(task, currentEditIndex).catch(function() {});
+                    saveToFirestore(task, currentEditIndex).catch(function() {});
                 }
                 projIdEl.value = task.projectId;
                 projIdEl.readOnly = true;
@@ -9156,7 +9159,7 @@
             closeModal();
             applyFilters();
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-            saveToSharePoint(task, currentEditIndex).catch(function() {});
+            saveToFirestore(task, currentEditIndex).catch(function() {});
             showToast('Project marked as Completed!');
         }
 
@@ -9248,7 +9251,7 @@
                 closeModal();
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                saveToSharePoint(newTask, 0).catch(function(err) {
+                saveToFirestore(newTask, 0).catch(function(err) {
                     console.error('[Firestore] Save failed:', err);
                     showToast('Saved locally — cloud sync failed');
                 });
@@ -9293,7 +9296,7 @@
                 closeModal();
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                saveToSharePoint(_savedTask, _savedIndex).catch(function(err) {
+                saveToFirestore(_savedTask, _savedIndex).catch(function(err) {
                     console.error('[Firestore] Save failed:', err);
                     showToast('Saved locally — cloud sync failed');
                 });
@@ -9332,7 +9335,7 @@
             var taskId = task.id;
             tasks.splice(currentEditIndex, 1);
             currentEditIndex = null;
-            deleteFromSharePoint(taskId).catch(function(e) { console.error('[Firestore] Delete failed:', e); });
+            deleteFromFirestore(taskId).catch(function(e) { console.error('[Firestore] Delete failed:', e); });
             closeModal();
             applyFilters();
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
@@ -9344,7 +9347,7 @@
             if (task && confirm('Delete "' + task.title + '"?')) {
                 _tasksModified = true;
                 tasks = tasks.filter(function(t) { return t.id !== taskId; });
-                deleteFromSharePoint(taskId);
+                deleteFromFirestore(taskId);
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                 showToast('Task deleted');
@@ -9594,7 +9597,7 @@
             if (schedBtn) schedBtn.classList.remove('active');
             toggleNoteInput();
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-            saveToSharePoint(tasks[currentEditIndex], currentEditIndex).catch(function() {});
+            saveToFirestore(tasks[currentEditIndex], currentEditIndex).catch(function() {});
             logAuditEvent('note', tasks[currentEditIndex], { noteText: (note.text || '').substring(0, 80) });
             showToast('Note added!');
         }
@@ -9604,7 +9607,7 @@
             tasks[currentEditIndex].notes.splice(noteIndex, 1);
             renderNotesList(tasks[currentEditIndex].notes);
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-            saveToSharePoint(tasks[currentEditIndex], currentEditIndex).catch(function() {});
+            saveToFirestore(tasks[currentEditIndex], currentEditIndex).catch(function() {});
         }
 
         function _renderMentionText(text) {
@@ -10919,7 +10922,7 @@
                     closeModal();
                     applyFilters();
                     safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                    saveToSharePoint(task, currentEditIndex).catch(function() {});
+                    saveToFirestore(task, currentEditIndex).catch(function() {});
                     showToast('Project archived');
                 }
             });
@@ -10933,7 +10936,7 @@
                 var taskIndex = tasks.indexOf(task);
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                saveToSharePoint(task, taskIndex).catch(function() {});
+                saveToFirestore(task, taskIndex).catch(function() {});
                 showToast('Project restored');
             }
         }
@@ -10942,7 +10945,7 @@
             var task = tasks.find(function(t) { return t.id === taskId; });
             if (task && confirm('Permanently delete "' + task.title + '"? This cannot be undone.')) {
                 tasks = tasks.filter(function(t) { return t.id !== taskId; });
-                deleteFromSharePoint(taskId);
+                deleteFromFirestore(taskId);
                 applyFilters();
                 safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                 showToast('Task permanently deleted');
@@ -11204,7 +11207,7 @@
                             task.archived = true;
                             applyFilters();
                             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                            saveToSharePoint(task, tasks.indexOf(task)).catch(function() {});
+                            saveToFirestore(task, tasks.indexOf(task)).catch(function() {});
                             showToast('Task archived');
                         }
                         cleanup();
@@ -11249,7 +11252,7 @@
                             if (oldStatus !== newStatus) showToast('Moved to ' + statusLabels[newStatus]);
                             else if (dropCard) showToast('Reordered');
                             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                            saveToSharePoint(task, tasks.indexOf(task)).catch(function() {});
+                            saveToFirestore(task, tasks.indexOf(task)).catch(function() {});
                         }
                         cleanup();
                         return;
@@ -11272,7 +11275,7 @@
                             applyFilters();
                             showToast('Reordered');
                             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
-                            saveToSharePoint(task, tasks.indexOf(task)).catch(function() {});
+                            saveToFirestore(task, tasks.indexOf(task)).catch(function() {});
                         }
                         cleanup();
                         return;
@@ -11353,7 +11356,7 @@
         // ============================================================
         function saveTasks() {
             showToast('Saving...');
-            saveAllToSharePoint()
+            saveAllToFirestore()
                 .then(function() {
                     safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                     showToast('Saved!');
@@ -11434,7 +11437,7 @@
             applyFilters();
 
             // ── Step 2: Load from Firestore ──
-            loadFromSharePoint()
+            loadFromFirestore()
                 .then(function(firestoreTasks) {
                     if (firestoreTasks && firestoreTasks.length > 0) {
                         tasks = firestoreTasks;
@@ -12695,7 +12698,7 @@
                 }).then(function(url) {
                     task.attachments.push({ name: file.name, url: url, size: file.size, storagePath: path, uploadedBy: currentUser ? currentUser.uid : '', uploadedAt: new Date().toISOString() });
                     renderAttachments(task.attachments);
-                    saveToSharePoint(task, currentEditIndex).catch(function() {});
+                    saveToFirestore(task, currentEditIndex).catch(function() {});
                     safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
                     showToast('Uploaded: ' + file.name);
                 }).catch(function(e) { showToast('Upload failed: ' + (e.message || 'Unknown error')); });
@@ -12713,7 +12716,7 @@
             }
             task.attachments.splice(index, 1);
             renderAttachments(task.attachments);
-            saveToSharePoint(task, currentEditIndex).catch(function() {});
+            saveToFirestore(task, currentEditIndex).catch(function() {});
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
             showToast('Attachment removed');
         }
@@ -12755,7 +12758,7 @@
             renderAttachments(task.attachments);
             inp.value = ''; if (nameInp) nameInp.value = '';
             toggleCollabLink();
-            saveToSharePoint(task, currentEditIndex).catch(function() {});
+            saveToFirestore(task, currentEditIndex).catch(function() {});
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
             showToast('Link added');
         }
