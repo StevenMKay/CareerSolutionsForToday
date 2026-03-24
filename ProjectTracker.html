@@ -4689,6 +4689,7 @@
         .fb-label-input:focus { border-color: #3b82f6; background: #fff; }
         .fb-type-select { border: 1px solid #e2e8f0; border-radius: 5px; padding: 4px 7px; font-size: 11px; font-family: inherit; color: #475569; background: #f8fafc; cursor: pointer; outline: none; flex-shrink: 0; }
         .fb-locked-badge { font-size: 10px; color: #94a3b8; background: #f1f5f9; padding: 2px 9px; border-radius: 10px; white-space: nowrap; font-weight: 600; flex-shrink: 0; }
+        .fb-chart-badge { font-size: 10px; color: #8b5cf6; background: rgba(139,92,246,0.08); padding: 2px 9px; border-radius: 10px; white-space: nowrap; font-weight: 600; flex-shrink: 0; }
         .fb-options-btn { background: rgba(59,130,246,0.08); color: #3b82f6; border: none; border-radius: 5px; padding: 4px 9px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; flex-shrink: 0; }
         .fb-options-btn:hover { background: rgba(59,130,246,0.16); }
         .fb-delete-btn { width: 26px; height: 26px; border-radius: 5px; border: none; flex-shrink: 0; background: rgba(239,68,68,0.08); color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
@@ -5671,6 +5672,20 @@
                 <i class="fas fa-chevron-right item-chevron"></i>
             </button>
 
+            <!-- Filters -->
+            <button class="sidebar-item" id="filtersMenuItem" onclick="openFiltersPanel(); closeSidebar();">
+                <i class="fas fa-filter item-icon"></i>
+                Filters
+                <i class="fas fa-chevron-right item-chevron"></i>
+            </button>
+
+            <!-- Automations (admin only) -->
+            <button class="sidebar-item admin-only-el" id="automationsMenuItem" onclick="openAutomationsPanel(); closeSidebar();" style="display:none;">
+                <i class="fas fa-bolt item-icon" style="color:#f59e0b;"></i>
+                Automations
+                <i class="fas fa-chevron-right item-chevron"></i>
+            </button>
+
             <!-- Team Settings (visible to all signed-in members) -->
             <button class="sidebar-item" id="teamMenuItem" onclick="openTeamPanel(); closeSidebar();">
                 <i class="fas fa-users item-icon"></i>
@@ -5890,6 +5905,12 @@
                         </select>
                     </div>
                     <div style="font-size:10px;color:#64748b;padding:6px 10px 2px;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>Applied on each page load</div>
+                </div>
+                <!-- Reset All Views -->
+                <div style="padding:10px 20px 10px 52px;">
+                    <button onclick="resetAllViewPrefs();" style="width:100%;padding:9px 14px;background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">
+                        <i class="fas fa-undo" style="margin-right:6px;"></i>Reset All Views to Default
+                    </button>
                 </div>
             </div>
 
@@ -6407,20 +6428,20 @@
                 <i class="fas fa-chevron-down filter-chevron" id="filterChevron"></i>
             </button>
             <div class="filter-bar" id="filterBar">
-                <div class="filter-group">
+                <div class="filter-group" id="filterGroupAssigned">
                     <span class="filter-label">Assigned:</span>
                     <select class="filter-select" id="filterAssigned" onchange="applyFilters()" data-testid="filter-assigned">
                         <option value="all">All Items</option>
                         <option value="mine">My Items</option>
                     </select>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" id="filterGroupStatus">
                     <span class="filter-label">Status:</span>
                     <select class="filter-select" id="filterStatus" onchange="applyFilters()">
                         <option value="all">All</option>
                     </select>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" id="filterGroupPriority">
                     <span class="filter-label">Priority:</span>
                     <select class="filter-select" id="filterPriority" onchange="applyFilters()">
                         <option value="all">All</option>
@@ -6429,19 +6450,22 @@
                         <option value="low">Low</option>
                     </select>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" id="filterGroupCategory">
                     <span class="filter-label">Category:</span>
                     <select class="filter-select" id="filterCategory" onchange="applyFilters()">
                         <option value="all">All</option>
                     </select>
                 </div>
-                <div class="filter-group">
+                <div class="filter-group" id="filterGroupDepartment">
                     <span class="filter-label">Dept:</span>
                     <select class="filter-select" id="filterDepartment" onchange="applyFilters()">
                         <option value="all">All</option>
                     </select>
                 </div>
-                <input type="text" class="search-box" id="searchBox" placeholder="Search tasks (title, ID, etc.)..." oninput="applyFilters()">
+                <div id="customFilterContainer" style="display:contents;"></div>
+                <div id="filterGroupSearch" style="display:contents;">
+                    <input type="text" class="search-box" id="searchBox" placeholder="Search tasks (title, ID, etc.)..." oninput="applyFilters()">
+                </div>
             </div>
         </div>
 
@@ -6704,6 +6728,47 @@
               </div>
             </div>
 
+            <!-- === SECTION 1.4: RACI CHART === -->
+            <div class="modal-section modal-section-collapsed" id="sectionRACIChart" style="display:none;">
+              <div class="modal-section-header" onclick="toggleModalSection('sectionRACIChart')">
+                <span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>
+                <i class="fas fa-th" style="color:#6366f1;font-size:12px;"></i>
+                <span class="modal-section-title">1.4 &middot; RACI Chart</span>
+                <span class="modal-section-badge" id="raciCountBadge" style="display:none;"></span>
+              </div>
+              <div class="modal-section-body" style="display:none;">
+                <div id="raciChartContainer" style="overflow-x:auto;">
+                  <table id="raciTable" style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <thead>
+                      <tr style="background:#f8fafc;">
+                        <th style="padding:8px 10px;text-align:left;font-weight:700;color:#334155;border-bottom:2px solid #e2e8f0;min-width:160px;">Task / Deliverable</th>
+                        <th style="padding:8px 10px;text-align:center;font-weight:700;color:#2563eb;border-bottom:2px solid #e2e8f0;width:100px;">R<span style="font-size:9px;font-weight:400;color:#64748b;display:block;">Responsible</span></th>
+                        <th style="padding:8px 10px;text-align:center;font-weight:700;color:#dc2626;border-bottom:2px solid #e2e8f0;width:100px;">A<span style="font-size:9px;font-weight:400;color:#64748b;display:block;">Accountable</span></th>
+                        <th style="padding:8px 10px;text-align:center;font-weight:700;color:#f59e0b;border-bottom:2px solid #e2e8f0;width:100px;">C<span style="font-size:9px;font-weight:400;color:#64748b;display:block;">Consulted</span></th>
+                        <th style="padding:8px 10px;text-align:center;font-weight:700;color:#059669;border-bottom:2px solid #e2e8f0;width:100px;">I<span style="font-size:9px;font-weight:400;color:#64748b;display:block;">Informed</span></th>
+                        <th style="width:32px;"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="raciBody"></tbody>
+                  </table>
+                </div>
+                <button class="ps-add-btn" onclick="addRaciRow()" style="margin-top:8px;"><i class="fas fa-plus"></i> Add Row</button>
+              </div>
+            </div>
+
+            <!-- === SECTION 1.5: GANTT CHART === -->
+            <div class="modal-section modal-section-collapsed" id="sectionGanttChart" style="display:none;">
+              <div class="modal-section-header" onclick="toggleModalSection('sectionGanttChart')">
+                <span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>
+                <i class="fas fa-chart-bar" style="color:#0ea5e9;font-size:12px;transform:rotate(180deg) scaleY(-1);"></i>
+                <span class="modal-section-title">1.5 &middot; Gantt Chart</span>
+              </div>
+              <div class="modal-section-body" style="display:none;">
+                <div id="ganttChartContainer" style="overflow-x:auto;min-height:120px;"></div>
+                <p style="font-size:10px;color:#94a3b8;margin:6px 0 0;">Based on Project Steps dates. Add start/end dates to steps to populate the Gantt chart.</p>
+              </div>
+            </div>
+
             <!-- Hidden action buttons referenced by JS (real buttons are in top-bar) -->
             <div class="modal-actions" style="display:none;">
                 <div style="display: flex; gap: 10px;">
@@ -6886,7 +6951,7 @@
                                 <div class="insights-category expanded" id="insightsCatHealth">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('Health')">
                                         <div class="insights-category-icon health"><i class="fas fa-heartbeat"></i></div>
-                                        <div class="insights-category-title">🔥 Project Health</div>
+                                        <div class="insights-category-title">Project Health</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyHealth"></div>
@@ -6894,7 +6959,7 @@
                                 <div class="insights-category" id="insightsCatTimeline">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('Timeline')">
                                         <div class="insights-category-icon timeline"><i class="fas fa-clock"></i></div>
-                                        <div class="insights-category-title">⏱️ Timeline & Schedule</div>
+                                        <div class="insights-category-title">Timeline & Schedule</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyTimeline"></div>
@@ -6902,7 +6967,7 @@
                                 <div class="insights-category" id="insightsCatRisk">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('Risk')">
                                         <div class="insights-category-icon risk"><i class="fas fa-exclamation-triangle"></i></div>
-                                        <div class="insights-category-title">⚠️ Risks & Issues</div>
+                                        <div class="insights-category-title">Risks & Issues</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyRisk"></div>
@@ -6910,7 +6975,7 @@
                                 <div class="insights-category" id="insightsCatDependency">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('Dependency')">
                                         <div class="insights-category-icon dependency"><i class="fas fa-project-diagram"></i></div>
-                                        <div class="insights-category-title">🔗 Dependencies</div>
+                                        <div class="insights-category-title">Dependencies</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyDependency"></div>
@@ -6918,7 +6983,7 @@
                                 <div class="insights-category" id="insightsCatQuality">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('Quality')">
                                         <div class="insights-category-icon quality"><i class="fas fa-check-double"></i></div>
-                                        <div class="insights-category-title">🧾 Data Quality</div>
+                                        <div class="insights-category-title">Data Quality</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyQuality"></div>
@@ -6926,7 +6991,7 @@
                                 <div class="insights-category" id="insightsCatTask">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('Task')">
                                         <div class="insights-category-icon task"><i class="fas fa-sticky-note"></i></div>
-                                        <div class="insights-category-title">📝 Notes & Comments</div>
+                                        <div class="insights-category-title">Notes & Comments</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyTask"></div>
@@ -6934,7 +6999,7 @@
                                 <div class="insights-category" id="insightsCatAI">
                                     <div class="insights-category-header" onclick="toggleInsightsCategory('AI')">
                                         <div class="insights-category-icon ai"><i class="fas fa-robot"></i></div>
-                                        <div class="insights-category-title">🤖 AI Analysis</div>
+                                        <div class="insights-category-title">AI Analysis</div>
                                         <i class="fas fa-chevron-down insights-category-chevron"></i>
                                     </div>
                                     <div class="insights-category-body" id="insightsBodyAI">
@@ -7277,6 +7342,16 @@
                         <button class="slide-color-btn" data-color="purple" onclick="selectSlideColor(this)" style="background:#4c1d95;" title="Deep Purple"></button>
                         <button class="slide-color-btn" data-color="red" onclick="selectSlideColor(this)" style="background:#7f1d1d;" title="Burgundy"></button>
                     </div>
+                </div>
+                <!-- Include Charts Option -->
+                <div style="margin-bottom:14px;">
+                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                        <input type="checkbox" id="slideIncludeCharts" checked style="accent-color:#6366f1;width:16px;height:16px;">
+                        <div>
+                            <span style="font-size:13px;font-weight:600;color:#334155;">Include Charts</span>
+                            <span style="display:block;font-size:10px;color:#94a3b8;">Add status, priority, and department chart slides</span>
+                        </div>
+                    </label>
                 </div>
                 <button class="slides-gen-btn" id="slidesGenBtn" onclick="generatePresentation()">
                     <i class="fas fa-download"></i> Generate &amp; Download (.pptx)
@@ -8222,6 +8297,16 @@
                     if (!isMyItem && currentUserName && (taskAssignee === currentUserName || taskAssignee.includes(currentUserName))) isMyItem = true;
                     if (!isMyItem) return false;
                 }
+                // Custom field filters
+                var fpCustom = (_getFilterPrefs().customFilters || []);
+                for (var ci = 0; ci < fpCustom.length; ci++) {
+                    var cfId = fpCustom[ci];
+                    var cfEl = document.getElementById('filterCustom_' + cfId);
+                    if (cfEl && cfEl.value !== 'all') {
+                        var cfVal = (task.customFields && task.customFields[cfId]) || '';
+                        if (cfVal !== cfEl.value) return false;
+                    }
+                }
                 if (searchTerm && !task.title.toLowerCase().includes(searchTerm) && 
                     !(task.description || '').toLowerCase().includes(searchTerm) &&
                     !String(task.projectId || '').includes(searchTerm)) return false;
@@ -8286,33 +8371,257 @@
         // ============================================================
         // KANBAN VIEW
         // ============================================================
+        // ============================================================
+        // KANBAN COLUMN CUSTOMIZATION
+        // ============================================================
+        var _defaultKanbanPrefs = { groupBy: 'status', hiddenColumns: [], columnOrder: null };
+
+        function _getKanbanPrefs() {
+            try {
+                var saved = JSON.parse(localStorage.getItem('ptKanbanPrefs') || 'null');
+                if (saved) return Object.assign({}, _defaultKanbanPrefs, saved);
+            } catch(e) {}
+            return Object.assign({}, _defaultKanbanPrefs, { hiddenColumns: [] });
+        }
+
+        function _saveKanbanPrefs(prefs) {
+            try { localStorage.setItem('ptKanbanPrefs', JSON.stringify(prefs)); } catch(e) {}
+        }
+
+        function _getKanbanColumns() {
+            var prefs = _getKanbanPrefs();
+            var groupBy = prefs.groupBy || 'status';
+            var columns = [];
+            if (groupBy === 'status') {
+                var order = prefs.columnOrder || statusOrder.slice();
+                // Ensure all statuses are included
+                statusOrder.forEach(function(s) { if (order.indexOf(s) === -1) order.push(s); });
+                columns = order.map(function(key) {
+                    return { key: key, label: statusLabels[key] || key, cssClass: statusClasses[key] || '' };
+                });
+            } else {
+                // Group by a custom select field from formSchema
+                var field = (formSchema || []).find(function(f) { return f.id === groupBy; });
+                if (field && field.options) {
+                    columns = field.options.map(function(opt) {
+                        return { key: opt, label: opt, cssClass: '' };
+                    });
+                    columns.push({ key: '__none__', label: 'Unset', cssClass: '' });
+                } else {
+                    // Fallback to status
+                    columns = statusOrder.map(function(key) {
+                        return { key: key, label: statusLabels[key] || key, cssClass: statusClasses[key] || '' };
+                    });
+                }
+            }
+            // Remove hidden columns
+            var hidden = prefs.hiddenColumns || [];
+            columns = columns.filter(function(c) { return hidden.indexOf(c.key) === -1; });
+            return columns;
+        }
+
+        function openKanbanCustomize() {
+            var prefs = _getKanbanPrefs();
+            var groupBy = prefs.groupBy || 'status';
+            // Group-by options: status + any select fields from formSchema
+            var groupOptions = '<option value="status"' + (groupBy === 'status' ? ' selected' : '') + '>Status</option>';
+            (formSchema || []).forEach(function(f) {
+                if (f.type === 'select' && f.id && !f.builtIn && f.options && f.options.length) {
+                    groupOptions += '<option value="' + escapeHtml(f.id) + '"' + (groupBy === f.id ? ' selected' : '') + '>' + escapeHtml(f.label) + '</option>';
+                }
+            });
+            // Built-in selects too
+            ['builtin_status','builtin_priority','builtin_category'].forEach(function(bid) {
+                if (bid === 'builtin_status') return; // already handled as "status"
+                var bf = (_builtInEditableFields || []).find(function(f){ return f.id === bid; });
+                if (bf) groupOptions += '<option value="' + bid + '"' + (groupBy === bid ? ' selected' : '') + '>' + escapeHtml(bf.label) + '</option>';
+            });
+
+            // Current columns for visibility toggles
+            var allCols = [];
+            if (groupBy === 'status') {
+                var order = prefs.columnOrder || statusOrder.slice();
+                statusOrder.forEach(function(s) { if (order.indexOf(s) === -1) order.push(s); });
+                allCols = order.map(function(key) { return { key: key, label: statusLabels[key] || key }; });
+            } else {
+                var field = (formSchema || []).find(function(f) { return f.id === groupBy; });
+                if (field && field.options) {
+                    allCols = field.options.map(function(opt) { return { key: opt, label: opt }; });
+                    allCols.push({ key: '__none__', label: 'Unset' });
+                }
+            }
+            var hidden = prefs.hiddenColumns || [];
+
+            var colHtml = '';
+            allCols.forEach(function(c, i) {
+                var vis = hidden.indexOf(c.key) === -1;
+                colHtml += '<div class="kc-col-row" draggable="true" data-key="' + escapeHtml(c.key) + '" ondragstart="event.dataTransfer.setData(\'text/plain\',\'' + i + '\')" ondragover="event.preventDefault()" ondrop="_kcReorderDrop(event,' + i + ')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:grab;">' +
+                    '<i class="fas fa-grip-vertical" style="color:#cbd5e1;font-size:11px;"></i>' +
+                    '<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;">' +
+                        '<input type="checkbox" class="kc-col-vis" data-col="' + escapeHtml(c.key) + '"' + (vis ? ' checked' : '') + ' style="accent-color:#6366f1;width:16px;height:16px;">' +
+                        '<span style="font-size:13px;color:#334155;font-weight:500;">' + escapeHtml(c.label) + '</span>' +
+                    '</label>' +
+                '</div>';
+            });
+
+            var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;" id="kanbanCustomizeOverlay" onclick="if(event.target===this)closeKanbanCustomize()">' +
+                '<div style="background:#fff;border-radius:16px;max-width:440px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,.2);padding:0;">' +
+                    '<div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;">' +
+                        '<h3 style="margin:0;font-size:16px;font-weight:700;color:#0f172a;"><i class="fas fa-columns" style="margin-right:8px;color:#6366f1;"></i>Customize Kanban</h3>' +
+                        '<button onclick="closeKanbanCustomize()" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px;"><i class="fas fa-times"></i></button>' +
+                    '</div>' +
+                    '<div style="padding:16px 24px;">' +
+                        '<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Group By</div>' +
+                        '<select id="kcGroupBy" onchange="_kcGroupByChanged()" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-family:inherit;color:#334155;margin-bottom:16px;">' + groupOptions + '</select>' +
+                        '<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Columns (drag to reorder)</div>' +
+                        '<div id="kcColumnList">' + colHtml + '</div>' +
+                    '</div>' +
+                    '<div style="padding:12px 24px 16px;display:flex;gap:10px;justify-content:space-between;border-top:1px solid #e2e8f0;">' +
+                        '<button onclick="resetKanbanPrefs()" style="padding:8px 16px;border:1px solid #fecaca;border-radius:8px;background:#fff;color:#ef4444;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-undo" style="margin-right:4px;"></i>Reset Default</button>' +
+                        '<div style="display:flex;gap:10px;">' +
+                            '<button onclick="closeKanbanCustomize()" style="padding:8px 16px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>' +
+                            '<button onclick="saveKanbanCustomize()" style="padding:8px 20px;border:none;border-radius:8px;background:#6366f1;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Save</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div></div>';
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        function closeKanbanCustomize() {
+            var el = document.getElementById('kanbanCustomizeOverlay');
+            if (el) el.remove();
+        }
+
+        function _kcGroupByChanged() {
+            // Refresh column list when group-by changes
+            var sel = document.getElementById('kcGroupBy');
+            if (!sel) return;
+            var groupBy = sel.value;
+            var allCols = [];
+            if (groupBy === 'status') {
+                allCols = statusOrder.map(function(key) { return { key: key, label: statusLabels[key] || key }; });
+            } else {
+                var field = (formSchema || []).find(function(f) { return f.id === groupBy; });
+                if (!field) field = (_builtInEditableFields || []).find(function(f) { return f.id === groupBy; });
+                if (field && field.options) {
+                    allCols = field.options.map(function(opt) { return { key: opt, label: opt }; });
+                    allCols.push({ key: '__none__', label: 'Unset' });
+                }
+            }
+            var list = document.getElementById('kcColumnList');
+            if (!list) return;
+            var colHtml = '';
+            allCols.forEach(function(c, i) {
+                colHtml += '<div class="kc-col-row" draggable="true" data-key="' + escapeHtml(c.key) + '" ondragstart="event.dataTransfer.setData(\'text/plain\',\'' + i + '\')" ondragover="event.preventDefault()" ondrop="_kcReorderDrop(event,' + i + ')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9;cursor:grab;">' +
+                    '<i class="fas fa-grip-vertical" style="color:#cbd5e1;font-size:11px;"></i>' +
+                    '<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;">' +
+                        '<input type="checkbox" class="kc-col-vis" data-col="' + escapeHtml(c.key) + '" checked style="accent-color:#6366f1;width:16px;height:16px;">' +
+                        '<span style="font-size:13px;color:#334155;font-weight:500;">' + escapeHtml(c.label) + '</span>' +
+                    '</label>' +
+                '</div>';
+            });
+            list.innerHTML = colHtml;
+        }
+
+        function _kcReorderDrop(event, targetIdx) {
+            event.preventDefault();
+            var srcIdx = parseInt(event.dataTransfer.getData('text/plain'));
+            var list = document.getElementById('kcColumnList');
+            if (!list) return;
+            var rows = Array.from(list.querySelectorAll('.kc-col-row'));
+            if (srcIdx === targetIdx || !rows[srcIdx]) return;
+            var el = rows[srcIdx];
+            if (targetIdx > srcIdx) {
+                rows[targetIdx].after(el);
+            } else {
+                rows[targetIdx].before(el);
+            }
+        }
+
+        function saveKanbanCustomize() {
+            var sel = document.getElementById('kcGroupBy');
+            var groupBy = sel ? sel.value : 'status';
+            var rows = document.querySelectorAll('#kcColumnList .kc-col-row');
+            var columnOrder = [];
+            var hiddenColumns = [];
+            rows.forEach(function(row) {
+                var key = row.getAttribute('data-key');
+                columnOrder.push(key);
+                var cb = row.querySelector('.kc-col-vis');
+                if (cb && !cb.checked) hiddenColumns.push(key);
+            });
+            var prefs = { groupBy: groupBy, columnOrder: columnOrder, hiddenColumns: hiddenColumns };
+            _saveKanbanPrefs(prefs);
+            closeKanbanCustomize();
+            renderKanban();
+            showToast('Kanban view updated.');
+        }
+
+        function resetKanbanPrefs() {
+            localStorage.removeItem('ptKanbanPrefs');
+            closeKanbanCustomize();
+            renderKanban();
+            showToast('Kanban reset to default.');
+        }
+
+        function resetAllViewPrefs() {
+            if (!confirm('Reset all view preferences to defaults? This includes list columns, kanban layout, filters, and card display options.')) return;
+            localStorage.removeItem('ptKanbanPrefs');
+            localStorage.removeItem('ptListPrefs');
+            localStorage.removeItem('ptFilterPrefs');
+            localStorage.removeItem('pt_card_display_options');
+            localStorage.removeItem('pt_cardHeight');
+            try { localStorage.removeItem(_dvpKey()); } catch(e) {}
+            showToast('All views reset to default.');
+            setTimeout(function() { location.reload(); }, 600);
+        }
+
         function renderKanban() {
             var container = document.getElementById('kanbanView');
-            var html = '';
+            var prefs = _getKanbanPrefs();
+            var groupBy = prefs.groupBy || 'status';
+            var columns = _getKanbanColumns();
 
-            statusOrder.forEach(function(status) {
-                var statusTasks = filteredTasks.filter(function(t) { return t.status === status; });
-                
-                html += '<div class="kanban-column" data-status="' + status + '">' +
+            var html = '<div style="display:flex;justify-content:flex-end;padding:0 0 8px;"><button onclick="openKanbanCustomize()" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer;font-family:inherit;"><i class="fas fa-cog" style="margin-right:5px;"></i>Customize</button></div>';
+
+            columns.forEach(function(col) {
+                var colTasks;
+                if (groupBy === 'status') {
+                    colTasks = filteredTasks.filter(function(t) { return t.status === col.key; });
+                } else {
+                    colTasks = filteredTasks.filter(function(t) {
+                        var val = '';
+                        // Check built-in fields first
+                        if (groupBy === 'builtin_priority') val = t.priority || '';
+                        else if (groupBy === 'builtin_category') val = t.category || '';
+                        else val = (t.customFields && t.customFields[groupBy]) || '';
+                        if (col.key === '__none__') return !val;
+                        return val === col.key;
+                    });
+                }
+
+                var badgeClass = col.cssClass ? ' ' + col.cssClass : '';
+                var badgeStyle = !col.cssClass ? ' style="background:#f1f5f9;color:#475569;"' : '';
+                html += '<div class="kanban-column" data-status="' + escapeHtml(col.key) + '">' +
                     '<div class="kanban-header" onclick="toggleKanbanColumn(this)" style="cursor:pointer;user-select:none;">' +
                         '<span class="kanban-title">' +
-                            '<span class="status-badge ' + statusClasses[status] + '">' + statusLabels[status] + '</span>' +
+                            '<span class="status-badge' + badgeClass + '"' + badgeStyle + '>' + escapeHtml(col.label) + '</span>' +
                         '</span>' +
                         '<div style="display:flex;align-items:center;gap:8px;">' +
-                            '<span class="kanban-count">' + statusTasks.length + '</span>' +
+                            '<span class="kanban-count">' + colTasks.length + '</span>' +
                             '<i class="fas fa-chevron-down kanban-collapse-icon" style="font-size:11px;color:#a0aec0;transition:transform 0.2s;"></i>' +
                         '</div>' +
                     '</div>' +
-                    '<div class="kanban-cards" data-status="' + status + '" ' +
+                    '<div class="kanban-cards" data-status="' + escapeHtml(col.key) + '" ' +
                         'ondragover="handleDragOver(event)" ' +
                         'ondragenter="handleDragEnter(event)" ' +
                         'ondragleave="handleDragLeave(event)" ' +
-                        'ondrop="handleDrop(event, \'' + status + '\')">';
+                        'ondrop="handleDrop(event, \'' + escapeHtml(col.key) + '\')">';
 
-                if (statusTasks.length === 0) {
+                if (colTasks.length === 0) {
                     html += '<div class="empty-state drop-hint"><i class="fas fa-inbox"></i><p>Drop tasks here</p></div>';
                 } else {
-                    statusTasks.forEach(function(task) {
+                    colTasks.forEach(function(task) {
                         html += renderProjectCard(task);
                     });
                 }
@@ -8373,6 +8682,18 @@
                         va = a.dueDate ? new Date(a.dueDate).getTime() : 0;
                         vb = b.dueDate ? new Date(b.dueDate).getTime() : 0;
                         break;
+                    case 'assignedTo':
+                        va = (a.assignedTo || '').toLowerCase();
+                        vb = (b.assignedTo || '').toLowerCase();
+                        break;
+                    case 'department':
+                        va = (a.department || '').toLowerCase();
+                        vb = (b.department || '').toLowerCase();
+                        break;
+                    case 'hours':
+                        va = parseFloat(a.hours) || 0;
+                        vb = parseFloat(b.hours) || 0;
+                        break;
                     default:
                         va = ''; vb = '';
                 }
@@ -8390,19 +8711,162 @@
                 : '<i class="fas fa-sort-down sort-icon"></i>';
         }
 
+        /* ─── List Column Customization Prefs ─── */
+        var _listColumnDefs = [
+            { id: 'status',     label: 'Status',      width: '120px', sortable: true },
+            { id: 'priority',   label: 'Priority',    width: '100px', sortable: true },
+            { id: 'category',   label: 'Category',    width: '100px', sortable: true },
+            { id: 'startDate',  label: 'Start Date',  width: '100px', sortable: true },
+            { id: 'dueDate',    label: 'Due Date',    width: '120px', sortable: true },
+            { id: 'assignedTo', label: 'Assigned To', width: '120px', sortable: true },
+            { id: 'department', label: 'Department',  width: '100px', sortable: true },
+            { id: 'hours',      label: 'Hours',       width: '80px',  sortable: true }
+        ];
+        var _defaultListPrefs = { visibleColumns: ['status','priority','category','startDate','dueDate'], columnOrder: null };
+        function _getListPrefs() {
+            try { var p = JSON.parse(localStorage.getItem('ptListPrefs')); if (p && p.visibleColumns) return p; } catch(e) {}
+            return JSON.parse(JSON.stringify(_defaultListPrefs));
+        }
+        function _saveListPrefs(p) { localStorage.setItem('ptListPrefs', JSON.stringify(p)); }
+
+        function _getVisibleListCols() {
+            var prefs = _getListPrefs();
+            var order = prefs.columnOrder || prefs.visibleColumns;
+            var vis = [];
+            order.forEach(function(id) {
+                if (prefs.visibleColumns.indexOf(id) === -1) return;
+                var def = _listColumnDefs.find(function(d) { return d.id === id; });
+                if (def) vis.push(def);
+            });
+            // include any visible that aren't in order yet
+            prefs.visibleColumns.forEach(function(id) {
+                if (!vis.find(function(v) { return v.id === id; })) {
+                    var def = _listColumnDefs.find(function(d) { return d.id === id; });
+                    if (def) vis.push(def);
+                }
+            });
+            return vis;
+        }
+
+        function _listGridTemplate(cols) {
+            return '30px 1fr ' + cols.map(function(c) { return c.width; }).join(' ') + ' 100px';
+        }
+
+        function openListCustomize() {
+            var prefs = _getListPrefs();
+            var ordered = _getVisibleListCols().map(function(c) { return c.id; });
+            // then invisible ones
+            _listColumnDefs.forEach(function(d) { if (ordered.indexOf(d.id) === -1) ordered.push(d.id); });
+
+            var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">' +
+                '<h3 style="margin:0;font-size:18px;"><i class="fas fa-columns" style="color:#3b82f6;margin-right:8px;"></i>List Columns</h3>' +
+                '<button onclick="this.closest(\'.modal-overlay\').remove();" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&times;</button></div>' +
+                '<p style="font-size:13px;color:#64748b;margin-bottom:14px;">Toggle columns and drag to reorder.</p>' +
+                '<div id="lcColList" style="display:flex;flex-direction:column;gap:4px;">';
+            ordered.forEach(function(id) {
+                var def = _listColumnDefs.find(function(d) { return d.id === id; });
+                if (!def) return;
+                var checked = prefs.visibleColumns.indexOf(id) !== -1;
+                html += '<div draggable="true" data-col="' + id + '" ondragstart="event.dataTransfer.setData(\'text\',\'' + id + '\');event.dataTransfer.effectAllowed=\'move\';" ' +
+                    'ondragover="event.preventDefault();" ondrop="_lcReorderDrop(event,\'' + id + '\');" ' +
+                    'style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(0,0,0,0.03);border-radius:8px;cursor:grab;">' +
+                    '<i class="fas fa-grip-vertical" style="color:#94a3b8;font-size:11px;"></i>' +
+                    '<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;font-size:13px;font-weight:500;">' +
+                    '<input type="checkbox" ' + (checked ? 'checked' : '') + ' data-colid="' + id + '" style="accent-color:#3b82f6;"> ' + def.label + '</label></div>';
+            });
+            html += '</div>' +
+                '<div style="display:flex;gap:10px;margin-top:18px;">' +
+                '<button onclick="saveListCustomize();" style="flex:1;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Save</button>' +
+                '<button onclick="resetListPrefs();" style="padding:10px 16px;background:transparent;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;color:#64748b;">Reset</button></div>';
+
+            var overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:10000;';
+            overlay.innerHTML = '<div style="background:white;border-radius:14px;padding:24px;width:380px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">' + html + '</div>';
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+            document.body.appendChild(overlay);
+        }
+
+        function _lcReorderDrop(event, targetId) {
+            event.preventDefault();
+            var fromId = event.dataTransfer.getData('text');
+            if (fromId === targetId) return;
+            var list = document.getElementById('lcColList');
+            if (!list) return;
+            var items = Array.from(list.children);
+            var fromEl = items.find(function(el) { return el.getAttribute('data-col') === fromId; });
+            var toEl = items.find(function(el) { return el.getAttribute('data-col') === targetId; });
+            if (fromEl && toEl) list.insertBefore(fromEl, toEl);
+        }
+
+        function saveListCustomize() {
+            var list = document.getElementById('lcColList');
+            if (!list) return;
+            var items = Array.from(list.children);
+            var vis = []; var order = [];
+            items.forEach(function(el) {
+                var id = el.getAttribute('data-col');
+                order.push(id);
+                var cb = el.querySelector('input[type="checkbox"]');
+                if (cb && cb.checked) vis.push(id);
+            });
+            _saveListPrefs({ visibleColumns: vis, columnOrder: order });
+            var overlay = list.closest('.modal-overlay');
+            if (overlay) overlay.remove();
+            renderList();
+        }
+
+        function resetListPrefs() {
+            localStorage.removeItem('ptListPrefs');
+            var overlay = document.querySelector('.modal-overlay');
+            if (overlay) overlay.remove();
+            renderList();
+        }
+
+        function _listCellContent(task, colId) {
+            switch(colId) {
+                case 'status':
+                    return '<span class="status-badge ' + statusClasses[task.status] + '" onclick="cycleStatus(\'' + task.id + '\')">' + statusLabels[task.status] + '</span>';
+                case 'priority':
+                    return '<span class="priority-badge priority-' + task.priority + '">' + task.priority.toUpperCase() + '</span>';
+                case 'category':
+                    return '<span class="category-tag">' + escapeHtml(task.category) + '</span>';
+                case 'startDate':
+                    var sf = task.startDate ? formatDateShort(task.startDate) : '-';
+                    return '<span class="start-date"><i class="fas fa-play"></i> ' + sf + '</span>';
+                case 'dueDate':
+                    var di = getDueDateInfo(task.dueDate);
+                    return '<span class="due-date ' + di.class + '"><i class="fas fa-calendar"></i> ' + di.text + '</span>';
+                case 'assignedTo':
+                    return escapeHtml(task.assignedTo || '-');
+                case 'department':
+                    return escapeHtml(task.department || '-');
+                case 'hours':
+                    return task.hours ? String(task.hours) + 'h' : '-';
+                default:
+                    return '-';
+            }
+        }
+
         function renderList() {
             var container = document.getElementById('listView');
-            
-            var html = '<div class="list-header">' +
+            var cols = _getVisibleListCols();
+            var gridTpl = _listGridTemplate(cols);
+
+            var html = '<div style="display:flex;justify-content:flex-end;padding:6px 12px 0;">' +
+                '<button onclick="openListCustomize();" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:5px 14px;font-size:12px;color:#64748b;cursor:pointer;font-weight:500;"><i class="fas fa-columns" style="margin-right:5px;"></i>Columns</button></div>';
+
+            html += '<div class="list-header" style="grid-template-columns:' + gridTpl + ';">' +
                 '<div class="list-header-cell" style="width: 30px;"></div>' +
-                '<div class="list-header-cell sortable' + (_listSortField === 'title' ? ' sort-active' : '') + '" onclick="sortListBy(\'title\')">Title ' + _sortIcon('title') + '</div>' +
-                '<div class="list-header-cell sortable' + (_listSortField === 'status' ? ' sort-active' : '') + '" onclick="sortListBy(\'status\')">Status ' + _sortIcon('status') + '</div>' +
-                '<div class="list-header-cell sortable' + (_listSortField === 'priority' ? ' sort-active' : '') + '" onclick="sortListBy(\'priority\')">Priority ' + _sortIcon('priority') + '</div>' +
-                '<div class="list-header-cell sortable' + (_listSortField === 'category' ? ' sort-active' : '') + '" onclick="sortListBy(\'category\')">Category ' + _sortIcon('category') + '</div>' +
-                '<div class="list-header-cell sortable' + (_listSortField === 'startDate' ? ' sort-active' : '') + '" onclick="sortListBy(\'startDate\')">Start Date ' + _sortIcon('startDate') + '</div>' +
-                '<div class="list-header-cell sortable' + (_listSortField === 'dueDate' ? ' sort-active' : '') + '" onclick="sortListBy(\'dueDate\')">Due Date ' + _sortIcon('dueDate') + '</div>' +
-                '<div class="list-header-cell">Actions</div>' +
-            '</div>';
+                '<div class="list-header-cell sortable' + (_listSortField === 'title' ? ' sort-active' : '') + '" onclick="sortListBy(\'title\')">Title ' + _sortIcon('title') + '</div>';
+            cols.forEach(function(c) {
+                if (c.sortable) {
+                    html += '<div class="list-header-cell sortable' + (_listSortField === c.id ? ' sort-active' : '') + '" onclick="sortListBy(\'' + c.id + '\')">' + c.label + ' ' + _sortIcon(c.id) + '</div>';
+                } else {
+                    html += '<div class="list-header-cell">' + c.label + '</div>';
+                }
+            });
+            html += '<div class="list-header-cell">Actions</div></div>';
 
             html += '<div class="list-body" ondragover="handleListDragOver(event)" ondrop="handleListDrop(event)">';
 
@@ -8413,18 +8877,15 @@
                 sorted.forEach(function(task) {
                     var dueDateInfo = getDueDateInfo(task.dueDate);
                     var isOverdue = task.status !== 'completed' && task.dueDate && dueDateInfo.class === 'overdue';
-                    var startDateFormatted = task.startDate ? formatDateShort(task.startDate) : '-';
-                    html += '<div class="list-row' + (isOverdue ? ' overdue-card' : '') + '" data-id="' + task.id + '" draggable="true" ' +
+                    html += '<div class="list-row' + (isOverdue ? ' overdue-card' : '') + '" style="grid-template-columns:' + gridTpl + ';" data-id="' + task.id + '" draggable="true" ' +
                         'ondragstart="handleListDragStart(event, \'' + task.id + '\')" ' +
                         'ondragend="handleDragEnd(event)">' +
                         '<div class="drag-handle"><i class="fas fa-grip-vertical"></i></div>' +
-                        '<div class="list-title" onclick="openEditModal(\'' + task.id + '\')">' + escapeHtml(task.title) + '</div>' +
-                        '<div><span class="status-badge ' + statusClasses[task.status] + '" onclick="cycleStatus(\'' + task.id + '\')">' + statusLabels[task.status] + '</span></div>' +
-                        '<div><span class="priority-badge priority-' + task.priority + '">' + task.priority.toUpperCase() + '</span></div>' +
-                        '<div><span class="category-tag">' + task.category + '</span></div>' +
-                        '<div class="start-date"><i class="fas fa-play"></i> ' + startDateFormatted + '</div>' +
-                        '<div class="due-date ' + dueDateInfo.class + '"><i class="fas fa-calendar"></i> ' + dueDateInfo.text + '</div>' +
-                        '<div class="list-actions">' +
+                        '<div class="list-title" onclick="openEditModal(\'' + task.id + '\')">' + escapeHtml(task.title) + '</div>';
+                    cols.forEach(function(c) {
+                        html += '<div>' + _listCellContent(task, c.id) + '</div>';
+                    });
+                    html += '<div class="list-actions">' +
                             '<button class="action-btn note-btn ' + (task.notes.length > 0 ? 'has-notes' : '') + '" onclick="openNotesQuick(\'' + task.id + '\')" title="Notes">' +
                                 '<i class="fas fa-sticky-note"></i>' +
                                 (task.notes.length > 0 ? '<span class="note-count">' + task.notes.length + '</span>' : '') +
@@ -9018,6 +9479,8 @@
             renderImpactAssessment(task.impactAssessment || {});
             renderProjectSteps(task.projectSteps || []);
             renderIssues(task.issues || []);
+            renderRaciChart(task.raciChart || []);
+            renderGanttChart();
             // Custom fields from form builder
             _renderModalCustomFields(task.customFields || {});
             _resetModalSections();
@@ -9104,6 +9567,8 @@
             renderImpactAssessment({});
             renderProjectSteps([]);
             renderIssues([]);
+            renderRaciChart([]);
+            renderGanttChart();
             _renderModalCustomFields({});
             _resetModalSections();
 
@@ -9213,6 +9678,421 @@
             showToast('Project marked as Completed!');
         }
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // WORKFLOW AUTOMATION ENGINE
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        var _automationRules = [];
+
+        // Available trigger fields (built-in + custom selects)
+        function _getAutoTriggerFields() {
+            var fields = [
+                { id: 'status',     label: 'Status' },
+                { id: 'priority',   label: 'Priority' },
+                { id: 'category',   label: 'Category' },
+                { id: 'assignedTo', label: 'Assigned To' },
+                { id: 'owningDepartment', label: 'Department' },
+                { id: 'dueDate',    label: 'Due Date' },
+                { id: 'hours',      label: 'Hours' }
+            ];
+            (formSchema || []).forEach(function(f) {
+                if (f.type === 'select' || f.type === 'text' || f.type === 'number') {
+                    fields.push({ id: 'cf:' + f.id, label: f.label || f.id });
+                }
+            });
+            return fields;
+        }
+
+        // Available action fields (what can be auto-set)
+        function _getAutoActionFields() {
+            var fields = [
+                { id: 'status', label: 'Status', type: 'select', options: ['not-started','in-progress','completed','on-hold'] },
+                { id: 'priority', label: 'Priority', type: 'select', options: ['low','medium','high','critical'] },
+                { id: 'category', label: 'Category', type: 'text' },
+                { id: 'assignedTo', label: 'Assigned To', type: 'text' },
+                { id: 'owningDepartment', label: 'Department', type: 'text' }
+            ];
+            (formSchema || []).forEach(function(f) {
+                if (f.type === 'select') {
+                    fields.push({ id: 'cf:' + f.id, label: f.label || f.id, type: 'select', options: f.options || [] });
+                } else if (f.type === 'text' || f.type === 'number') {
+                    fields.push({ id: 'cf:' + f.id, label: f.label || f.id, type: f.type });
+                }
+            });
+            return fields;
+        }
+
+        function _loadAutomationRules() {
+            if (!currentTenantId) return;
+            try {
+                var key = 'ptAutoRules_' + currentTenantId;
+                var saved = localStorage.getItem(key);
+                if (saved) _automationRules = JSON.parse(saved);
+            } catch(e) { _automationRules = []; }
+            // Also try loading from Firestore
+            firebase.firestore().collection('tenants').doc(currentTenantId)
+                .collection('settings').doc('automationRules').get()
+                .then(function(doc) {
+                    if (doc.exists && doc.data().rules) {
+                        _automationRules = doc.data().rules;
+                        localStorage.setItem('ptAutoRules_' + currentTenantId, JSON.stringify(_automationRules));
+                    }
+                }).catch(function() {});
+        }
+
+        function _saveAutomationRules() {
+            if (!currentTenantId) return;
+            localStorage.setItem('ptAutoRules_' + currentTenantId, JSON.stringify(_automationRules));
+            firebase.firestore().collection('tenants').doc(currentTenantId)
+                .collection('settings').doc('automationRules')
+                .set({ rules: _automationRules, updatedAt: new Date().toISOString() })
+                .catch(function(e) { console.error('[Automations] Firestore save failed:', e); });
+        }
+
+        // ═══ Rule Execution Engine ═══
+        function _runAutomationRules(task, oldTask) {
+            if (!_automationRules.length) return;
+            var actionsApplied = [];
+
+            _automationRules.forEach(function(rule) {
+                if (!rule.enabled) return;
+
+                // Check trigger
+                var triggered = false;
+                if (rule.trigger.type === 'field_change') {
+                    var trigField = rule.trigger.field;
+                    var oldVal = _getTaskFieldVal(oldTask, trigField);
+                    var newVal = _getTaskFieldVal(task, trigField);
+                    if (oldVal !== newVal) triggered = true;
+                } else if (rule.trigger.type === 'task_created') {
+                    if (!oldTask) triggered = true;
+                }
+
+                if (!triggered) return;
+
+                // Check conditions
+                var conditionsMet = true;
+                if (rule.conditions && rule.conditions.length) {
+                    var logic = rule.conditionLogic || 'AND';
+                    if (logic === 'AND') {
+                        conditionsMet = rule.conditions.every(function(c) { return _evalCondition(task, c); });
+                    } else {
+                        conditionsMet = rule.conditions.some(function(c) { return _evalCondition(task, c); });
+                    }
+                }
+
+                if (!conditionsMet) return;
+
+                // Execute actions
+                (rule.actions || []).forEach(function(action) {
+                    if (action.type === 'set_field') {
+                        _setTaskFieldVal(task, action.field, action.value);
+                        actionsApplied.push('Set ' + action.field + ' → ' + action.value);
+                    } else if (action.type === 'notify') {
+                        showToast('⚡ ' + (action.message || rule.name), 4000);
+                    } else if (action.type === 'add_note') {
+                        if (!task.notes) task.notes = [];
+                        task.notes.push({
+                            id: 'note-' + Date.now(),
+                            text: action.message || ('Auto-note from rule: ' + rule.name),
+                            author: 'Automation',
+                            timestamp: new Date().toISOString()
+                        });
+                        actionsApplied.push('Added note');
+                    }
+                });
+            });
+
+            if (actionsApplied.length) {
+                showToast('⚡ Automation: ' + actionsApplied.join(', '));
+            }
+        }
+
+        function _getTaskFieldVal(task, fieldId) {
+            if (!task) return '';
+            if (fieldId.indexOf('cf:') === 0) {
+                var cfId = fieldId.substring(3);
+                return (task.customFields && task.customFields[cfId]) || '';
+            }
+            return String(task[fieldId] || '');
+        }
+
+        function _setTaskFieldVal(task, fieldId, value) {
+            if (fieldId.indexOf('cf:') === 0) {
+                var cfId = fieldId.substring(3);
+                if (!task.customFields) task.customFields = {};
+                task.customFields[cfId] = value;
+            } else {
+                task[fieldId] = value;
+            }
+        }
+
+        function _evalCondition(task, cond) {
+            var val = _getTaskFieldVal(task, cond.field);
+            var target = cond.value || '';
+            switch (cond.operator) {
+                case 'equals':      return val === target;
+                case 'not_equals':  return val !== target;
+                case 'contains':    return val.toLowerCase().indexOf(target.toLowerCase()) !== -1;
+                case 'is_empty':    return !val || val === '';
+                case 'is_not_empty': return val && val !== '';
+                case 'greater_than': return parseFloat(val) > parseFloat(target);
+                case 'less_than':    return parseFloat(val) < parseFloat(target);
+                default: return false;
+            }
+        }
+
+        // ═══ Automation Panel UI ═══
+        function openAutomationsPanel() {
+            var triggerFields = _getAutoTriggerFields();
+            var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+                '<h3 style="margin:0;font-size:18px;"><i class="fas fa-bolt" style="color:#f59e0b;margin-right:8px;"></i>Workflow Automations</h3>' +
+                '<button onclick="this.closest(\'.modal-overlay\').remove();" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;">&times;</button></div>' +
+                '<p style="font-size:13px;color:#64748b;margin-bottom:14px;">Create rules that automatically trigger actions when fields change.</p>' +
+                '<button onclick="_addNewRule();" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:6px;"></i>New Rule</button>' +
+                '<div id="autoRulesList"></div>';
+
+            var overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'automationsOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10000;';
+            overlay.innerHTML = '<div style="background:white;border-radius:14px;padding:24px;width:560px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">' + html + '</div>';
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+            document.body.appendChild(overlay);
+            _renderRulesList();
+        }
+
+        function _renderRulesList() {
+            var container = document.getElementById('autoRulesList');
+            if (!container) return;
+            if (!_automationRules.length) {
+                container.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8;"><i class="fas fa-bolt" style="font-size:28px;margin-bottom:10px;display:block;"></i>No automation rules yet.<br><span style="font-size:12px;">Click "New Rule" to create one.</span></div>';
+                return;
+            }
+            var html = '';
+            _automationRules.forEach(function(rule, idx) {
+                var trigLabel = rule.trigger.field || rule.trigger.type;
+                var actionSummary = (rule.actions || []).map(function(a) {
+                    if (a.type === 'set_field') return 'Set ' + a.field;
+                    if (a.type === 'notify') return 'Notify';
+                    if (a.type === 'add_note') return 'Add Note';
+                    return a.type;
+                }).join(', ');
+                html += '<div style="background:rgba(0,0,0,0.03);border-radius:10px;padding:14px;margin-bottom:8px;border-left:3px solid ' + (rule.enabled ? '#22c55e' : '#94a3b8') + ';">' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+                    '<div>' +
+                    '<strong style="font-size:14px;">' + escapeHtml(rule.name || 'Unnamed Rule') + '</strong>' +
+                    '<div style="font-size:11px;color:#64748b;margin-top:3px;">When <strong>' + escapeHtml(trigLabel) + '</strong> changes → ' + escapeHtml(actionSummary) + '</div>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:6px;align-items:center;">' +
+                    '<label style="cursor:pointer;" title="' + (rule.enabled ? 'Enabled' : 'Disabled') + '"><input type="checkbox" ' + (rule.enabled ? 'checked' : '') + ' onchange="_toggleRule(' + idx + ',this.checked);" style="accent-color:#22c55e;"></label>' +
+                    '<button onclick="_editRule(' + idx + ');" style="background:none;border:none;cursor:pointer;color:#3b82f6;font-size:13px;" title="Edit"><i class="fas fa-pencil"></i></button>' +
+                    '<button onclick="_deleteRule(' + idx + ');" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:13px;" title="Delete"><i class="fas fa-trash"></i></button>' +
+                    '</div></div></div>';
+            });
+            container.innerHTML = html;
+        }
+
+        function _toggleRule(idx, enabled) {
+            if (_automationRules[idx]) {
+                _automationRules[idx].enabled = enabled;
+                _saveAutomationRules();
+            }
+        }
+
+        function _deleteRule(idx) {
+            if (!confirm('Delete this automation rule?')) return;
+            _automationRules.splice(idx, 1);
+            _saveAutomationRules();
+            _renderRulesList();
+        }
+
+        function _addNewRule() {
+            var rule = {
+                id: 'rule_' + Date.now(),
+                name: '',
+                enabled: true,
+                trigger: { type: 'field_change', field: 'status' },
+                conditions: [],
+                conditionLogic: 'AND',
+                actions: []
+            };
+            _openRuleEditor(rule, -1);
+        }
+
+        function _editRule(idx) {
+            _openRuleEditor(JSON.parse(JSON.stringify(_automationRules[idx])), idx);
+        }
+
+        function _openRuleEditor(rule, idx) {
+            var triggerFields = _getAutoTriggerFields();
+            var actionFields = _getAutoActionFields();
+            var operators = [
+                { id: 'equals', label: 'equals' },
+                { id: 'not_equals', label: 'does not equal' },
+                { id: 'contains', label: 'contains' },
+                { id: 'is_empty', label: 'is empty' },
+                { id: 'is_not_empty', label: 'is not empty' },
+                { id: 'greater_than', label: 'greater than' },
+                { id: 'less_than', label: 'less than' }
+            ];
+
+            var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+                '<h3 style="margin:0;font-size:16px;"><i class="fas fa-pencil-alt" style="color:#3b82f6;margin-right:8px;"></i>' + (idx === -1 ? 'New Rule' : 'Edit Rule') + '</h3>' +
+                '<button onclick="document.getElementById(\'ruleEditorOverlay\').remove();" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">&times;</button></div>';
+
+            // Rule name
+            html += '<label style="font-size:12px;font-weight:600;color:#475569;">Rule Name</label>' +
+                '<input id="reRuleName" type="text" value="' + escapeHtml(rule.name) + '" placeholder="e.g., Auto-set priority on completion" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;margin:4px 0 14px;box-sizing:border-box;">';
+
+            // Trigger
+            html += '<div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);border-radius:10px;padding:14px;margin-bottom:14px;">' +
+                '<div style="font-size:12px;font-weight:700;color:#b45309;margin-bottom:8px;"><i class="fas fa-bolt" style="margin-right:5px;"></i>TRIGGER</div>' +
+                '<div style="display:flex;gap:10px;align-items:center;">' +
+                '<select id="reTriggerType" onchange="_reUpdateTrigger();" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">' +
+                '<option value="field_change"' + (rule.trigger.type === 'field_change' ? ' selected' : '') + '>When field changes</option>' +
+                '<option value="task_created"' + (rule.trigger.type === 'task_created' ? ' selected' : '') + '>When task created</option></select>' +
+                '<select id="reTriggerField" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;' + (rule.trigger.type === 'task_created' ? 'display:none;' : '') + '">';
+            triggerFields.forEach(function(f) {
+                html += '<option value="' + f.id + '"' + (rule.trigger.field === f.id ? ' selected' : '') + '>' + escapeHtml(f.label) + '</option>';
+            });
+            html += '</select></div></div>';
+
+            // Conditions
+            html += '<div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:10px;padding:14px;margin-bottom:14px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+                '<div style="font-size:12px;font-weight:700;color:#1d4ed8;"><i class="fas fa-filter" style="margin-right:5px;"></i>CONDITIONS</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' +
+                '<select id="reCondLogic" style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;">' +
+                '<option value="AND"' + (rule.conditionLogic === 'AND' ? ' selected' : '') + '>ALL match (AND)</option>' +
+                '<option value="OR"' + (rule.conditionLogic === 'OR' ? ' selected' : '') + '>ANY match (OR)</option></select>' +
+                '<button onclick="_reAddCondition();" style="padding:4px 10px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:11px;"><i class="fas fa-plus"></i></button>' +
+                '</div></div>' +
+                '<div id="reConditions"></div>' +
+                '<div style="font-size:11px;color:#64748b;margin-top:4px;">Optional — leave empty to always run.</div></div>';
+
+            // Actions
+            html += '<div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);border-radius:10px;padding:14px;margin-bottom:16px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+                '<div style="font-size:12px;font-weight:700;color:#15803d;"><i class="fas fa-play" style="margin-right:5px;"></i>ACTIONS</div>' +
+                '<button onclick="_reAddAction();" style="padding:4px 10px;background:#22c55e;color:white;border:none;border-radius:6px;cursor:pointer;font-size:11px;"><i class="fas fa-plus"></i></button>' +
+                '</div>' +
+                '<div id="reActions"></div></div>';
+
+            // Buttons
+            html += '<div style="display:flex;gap:10px;">' +
+                '<button onclick="_reSaveRule(' + idx + ');" style="flex:1;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Save Rule</button>' +
+                '<button onclick="document.getElementById(\'ruleEditorOverlay\').remove();" style="padding:10px 16px;background:transparent;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;color:#64748b;">Cancel</button></div>';
+
+            var overlay = document.createElement('div');
+            overlay.id = 'ruleEditorOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10001;';
+            overlay.innerHTML = '<div style="background:white;border-radius:14px;padding:24px;width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.35);">' + html + '</div>';
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+            document.body.appendChild(overlay);
+
+            // Store rule data for conditions/actions rendering
+            window._reEditRule = rule;
+            _reRenderConditions();
+            _reRenderActions();
+        }
+
+        function _reUpdateTrigger() {
+            var type = document.getElementById('reTriggerType').value;
+            var fieldSel = document.getElementById('reTriggerField');
+            fieldSel.style.display = type === 'task_created' ? 'none' : '';
+        }
+
+        function _reAddCondition() {
+            if (!window._reEditRule) return;
+            window._reEditRule.conditions.push({ field: 'status', operator: 'equals', value: '' });
+            _reRenderConditions();
+        }
+
+        function _reRenderConditions() {
+            var container = document.getElementById('reConditions');
+            if (!container || !window._reEditRule) return;
+            var conds = window._reEditRule.conditions;
+            var fields = _getAutoTriggerFields();
+            if (!conds.length) { container.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:4px;">No conditions — rule runs on every trigger.</div>'; return; }
+            var html = '';
+            conds.forEach(function(c, ci) {
+                html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">' +
+                    '<select onchange="window._reEditRule.conditions[' + ci + '].field=this.value;" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;flex:1;">';
+                fields.forEach(function(f) {
+                    html += '<option value="' + f.id + '"' + (c.field === f.id ? ' selected' : '') + '>' + escapeHtml(f.label) + '</option>';
+                });
+                html += '</select>' +
+                    '<select onchange="window._reEditRule.conditions[' + ci + '].operator=this.value;" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;">' +
+                    '<option value="equals"' + (c.operator === 'equals' ? ' selected' : '') + '>equals</option>' +
+                    '<option value="not_equals"' + (c.operator === 'not_equals' ? ' selected' : '') + '>≠</option>' +
+                    '<option value="contains"' + (c.operator === 'contains' ? ' selected' : '') + '>contains</option>' +
+                    '<option value="is_empty"' + (c.operator === 'is_empty' ? ' selected' : '') + '>is empty</option>' +
+                    '<option value="is_not_empty"' + (c.operator === 'is_not_empty' ? ' selected' : '') + '>is not empty</option>' +
+                    '<option value="greater_than"' + (c.operator === 'greater_than' ? ' selected' : '') + '>&gt;</option>' +
+                    '<option value="less_than"' + (c.operator === 'less_than' ? ' selected' : '') + '>&lt;</option>' +
+                    '</select>' +
+                    '<input type="text" value="' + escapeHtml(c.value || '') + '" onchange="window._reEditRule.conditions[' + ci + '].value=this.value;" placeholder="value" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;width:100px;">' +
+                    '<button onclick="window._reEditRule.conditions.splice(' + ci + ',1);_reRenderConditions();" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;"><i class="fas fa-times"></i></button></div>';
+            });
+            container.innerHTML = html;
+        }
+
+        function _reAddAction() {
+            if (!window._reEditRule) return;
+            window._reEditRule.actions.push({ type: 'set_field', field: 'status', value: '' });
+            _reRenderActions();
+        }
+
+        function _reRenderActions() {
+            var container = document.getElementById('reActions');
+            if (!container || !window._reEditRule) return;
+            var actions = window._reEditRule.actions;
+            var fields = _getAutoActionFields();
+            if (!actions.length) { container.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:4px;">No actions yet — add at least one.</div>'; return; }
+            var html = '';
+            actions.forEach(function(a, ai) {
+                html += '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">' +
+                    '<select onchange="window._reEditRule.actions[' + ai + '].type=this.value;_reRenderActions();" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">' +
+                    '<option value="set_field"' + (a.type === 'set_field' ? ' selected' : '') + '>Set Field</option>' +
+                    '<option value="notify"' + (a.type === 'notify' ? ' selected' : '') + '>Show Notification</option>' +
+                    '<option value="add_note"' + (a.type === 'add_note' ? ' selected' : '') + '>Add Note</option></select>';
+                if (a.type === 'set_field') {
+                    html += '<select onchange="window._reEditRule.actions[' + ai + '].field=this.value;" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;flex:1;">';
+                    fields.forEach(function(f) {
+                        html += '<option value="' + f.id + '"' + (a.field === f.id ? ' selected' : '') + '>' + escapeHtml(f.label) + '</option>';
+                    });
+                    html += '</select>' +
+                        '<input type="text" value="' + escapeHtml(a.value || '') + '" onchange="window._reEditRule.actions[' + ai + '].value=this.value;" placeholder="value" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;width:100px;">';
+                } else {
+                    html += '<input type="text" value="' + escapeHtml(a.message || '') + '" onchange="window._reEditRule.actions[' + ai + '].message=this.value;" placeholder="' + (a.type === 'notify' ? 'Notification message' : 'Note text') + '" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;flex:1;">';
+                }
+                html += '<button onclick="window._reEditRule.actions.splice(' + ai + ',1);_reRenderActions();" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;"><i class="fas fa-times"></i></button></div>';
+            });
+            container.innerHTML = html;
+        }
+
+        function _reSaveRule(idx) {
+            var rule = window._reEditRule;
+            if (!rule) return;
+            rule.name = document.getElementById('reRuleName').value.trim();
+            rule.trigger.type = document.getElementById('reTriggerType').value;
+            rule.trigger.field = document.getElementById('reTriggerField').value;
+            rule.conditionLogic = document.getElementById('reCondLogic').value;
+
+            if (!rule.name) { alert('Please enter a rule name.'); return; }
+            if (!rule.actions.length) { alert('Please add at least one action.'); return; }
+
+            if (idx === -1) {
+                _automationRules.push(rule);
+            } else {
+                _automationRules[idx] = rule;
+            }
+            _saveAutomationRules();
+            document.getElementById('ruleEditorOverlay').remove();
+            _renderRulesList();
+            showToast('Rule saved!');
+        }
+
         function saveTask() {
             var title = document.getElementById('editTitle').value.trim();
             if (!title) {
@@ -9280,6 +10160,7 @@
                 impactAssessment: readImpactAssessment(),
                 projectSteps: _projectStepsData || [],
                 issues: _issuesData || [],
+                raciChart: _raciData || [],
                 customFields: _collectModalCustomFields(),
                 updatedAt: new Date().toISOString()
             };
@@ -9310,6 +10191,7 @@
                 showToast('Project created!');
                 fireWorkflowNotifications('created', newTask, null);
                 if (newTask.assignedTo) fireWorkflowNotifications('assigned', newTask, null);
+                _runAutomationRules(newTask, null);
                 
                 // Send integration notification
                 sendIntegrationNotification('projectCreated', {
@@ -9321,6 +10203,7 @@
                 // Edit existing task — record field-level changes for audit trail
                 var _auditLabels = { title:'Title', description:'Description', status:'Status', priority:'Priority', category:'Category', assignedTo:'Assigned To', startDate:'Start Date', dueDate:'Due Date', owningDepartment:'Department', projectId:'Project ID', affectedSystems:'Systems' };
                 var oldStatus = tasks[currentEditIndex].status;
+                var _oldTaskSnapshot = JSON.parse(JSON.stringify(tasks[currentEditIndex]));
                 var _changes = [];
                 Object.keys(_auditLabels).forEach(function(k) {
                     var ov = k === 'affectedSystems'
@@ -9375,6 +10258,8 @@
                         });
                     }
                 }
+                // Run automation rules (edit mode — field changes)
+                _runAutomationRules(tasks[_savedIndex], _oldTaskSnapshot);
             }
         }
 
@@ -9790,6 +10675,8 @@
                     Object.assign(statusLabels, data.statusLabels);
                 }
                 repopulateDropdowns();
+                _rebuildFilterBar();
+                _loadAutomationRules();
             }
 
             // Try Firestore first (with 5 s timeout so offline falls back instantly)
@@ -16268,6 +17155,91 @@
                 }
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // CHART SLIDES (optional — when Include Charts is checked)
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                var includeCharts = document.getElementById('slideIncludeCharts');
+                if (includeCharts && includeCharts.checked && selectedTasks.length > 1) {
+                    // Status Distribution Pie Chart
+                    var statusChartData = [];
+                    var statusChartLabels = [];
+                    var statusChartColors = [];
+                    var scMap = { 'completed': '22C55E', 'in-progress': '3B82F6', 'not-started': '94A3B8', 'on-hold': 'F59E0B' };
+                    Object.keys(sCounts).forEach(function(s) {
+                        statusChartLabels.push(statusLabels[s] || s);
+                        statusChartData.push(sCounts[s]);
+                        statusChartColors.push(scMap[s] || '64748B');
+                    });
+                    if (statusChartData.length) {
+                        var sChart1 = pptx.addSlide();
+                        sChart1.background = { color: 'FFFFFF' };
+                        sChart1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
+                        sChart1.addText('STATUS DISTRIBUTION', { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
+                        sChart1.addChart(pptx.charts.DOUGHNUT, [{ name: 'Status', labels: statusChartLabels, values: statusChartData }], {
+                            x: 1.5, y: 1.2, w: 5.5, h: 5.0,
+                            showLegend: true, legendPos: 'r', legendFontSize: 11,
+                            showPercent: true, showValue: false,
+                            chartColors: statusChartColors,
+                            dataLabelFontSize: 11, dataLabelColor: '000000'
+                        });
+                        // KPI summary next to chart
+                        var kpiY = 1.5;
+                        [['Total Projects', selectedTasks.length, '1E293B'],['Completed', completedCount, '22C55E'],['In Progress', inProgressCount, '3B82F6'],['On Hold', onHoldCount, 'F59E0B']].forEach(function(kpi) {
+                            sChart1.addText(kpi[0], { x: 8.0, y: kpiY, w: 3, h: 0.3, fontSize: 10, color: '64748B', fontFace: 'Calibri' });
+                            sChart1.addText(String(kpi[1]), { x: 11.0, y: kpiY, w: 1, h: 0.3, fontSize: 14, bold: true, color: kpi[2], fontFace: 'Calibri', align: 'right' });
+                            kpiY += 0.5;
+                        });
+                    }
+
+                    // Priority Distribution Bar Chart
+                    var priChartLabels = [];
+                    var priChartData = [];
+                    var priChartColors = [];
+                    var pcMap = { 'high': 'EF4444', 'medium': 'F59E0B', 'low': '22C55E' };
+                    Object.keys(pCounts).forEach(function(p) {
+                        priChartLabels.push(p.charAt(0).toUpperCase() + p.slice(1));
+                        priChartData.push(pCounts[p]);
+                        priChartColors.push(pcMap[p] || '64748B');
+                    });
+                    if (priChartData.length) {
+                        var sChart2 = pptx.addSlide();
+                        sChart2.background = { color: 'FFFFFF' };
+                        sChart2.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
+                        sChart2.addText('PRIORITY DISTRIBUTION', { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
+                        sChart2.addChart(pptx.charts.BAR, [{ name: 'Priority', labels: priChartLabels, values: priChartData }], {
+                            x: 1.5, y: 1.2, w: 10, h: 5.0,
+                            showLegend: false,
+                            showValue: true,
+                            chartColors: priChartColors,
+                            catAxisLabelFontSize: 12, valAxisLabelFontSize: 10,
+                            dataLabelFontSize: 12, dataLabelColor: '000000'
+                        });
+                    }
+
+                    // Department Distribution Bar Chart
+                    var deptChartLabels = [];
+                    var deptChartData = [];
+                    Object.keys(deptCounts).forEach(function(d) {
+                        deptChartLabels.push(d);
+                        deptChartData.push(deptCounts[d]);
+                    });
+                    if (deptChartData.length > 1) {
+                        var sChart3 = pptx.addSlide();
+                        sChart3.background = { color: 'FFFFFF' };
+                        sChart3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
+                        sChart3.addText('DEPARTMENT BREAKDOWN', { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
+                        sChart3.addChart(pptx.charts.BAR, [{ name: 'Department', labels: deptChartLabels, values: deptChartData }], {
+                            x: 1.5, y: 1.2, w: 10, h: 5.0,
+                            barDir: 'bar',
+                            showLegend: false,
+                            showValue: true,
+                            chartColors: [pC(theme.accent)],
+                            catAxisLabelFontSize: 11, valAxisLabelFontSize: 10,
+                            dataLabelFontSize: 11, dataLabelColor: '000000'
+                        });
+                    }
+                }
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // CLOSING SLIDE — clean and professional (all templates)
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 var sLast = pptx.addSlide();
@@ -16506,8 +17478,8 @@
         }
 
         function _resetModalSections() {
-            // Collapse sub-sections (1.1, 1.2, 1.3), ensure Basic Info is open
-            ['sectionImpact','sectionProjectSteps','sectionIssues'].forEach(function(id) {
+            // Collapse sub-sections (1.1, 1.2, 1.3, 1.4, 1.5), ensure Basic Info is open
+            ['sectionImpact','sectionProjectSteps','sectionIssues','sectionRACIChart','sectionGanttChart'].forEach(function(id) {
                 var sec = document.getElementById(id);
                 if (!sec) return;
                 sec.classList.add('modal-section-collapsed');
@@ -16518,12 +17490,19 @@
             var secImpact = document.getElementById('sectionImpact');
             var secSteps  = document.getElementById('sectionProjectSteps');
             var secIssues = document.getElementById('sectionIssues');
+            var secRaci   = document.getElementById('sectionRACIChart');
+            var secGantt  = document.getElementById('sectionGanttChart');
             if (secImpact) secImpact.style.display = _enabledSections.impact ? '' : 'none';
             // Derive steps/issues visibility from formSchema — only show section if template fields exist
             var _hasStepsFields  = formSchema.some(function(f) { return f.id && /^mkt_ps_/.test(f.id); });
             var _hasIssuesFields = formSchema.some(function(f) { return f.id && /^mkt_is_/.test(f.id); });
             if (secSteps)  secSteps.style.display  = _hasStepsFields  ? '' : 'none';
             if (secIssues) secIssues.style.display = _hasIssuesFields ? '' : 'none';
+            // RACI and Gantt visibility from formSchema chart templates
+            var _hasRaciFields = formSchema.some(function(f) { return f.id && /^mkt_raci_/.test(f.id); });
+            var _hasGanttFields = _hasStepsFields; // Gantt chart uses project steps data
+            if (secRaci)  secRaci.style.display  = _hasRaciFields ? '' : 'none';
+            if (secGantt) secGantt.style.display = _hasGanttFields ? '' : 'none';
             var bi = document.getElementById('sectionBasicInfo');
             if (bi) {
                 bi.classList.remove('modal-section-collapsed');
@@ -16678,7 +17657,7 @@
             } else {
                 container.innerHTML = _projectStepsData.map(function(step, i) {
                     var ownerOpts = _buildOwnerOptions(step.owner || '');
-                    return '<div class="ps-step-row" draggable="true" ' + +
+                    return '<div class="ps-step-row" draggable="true" ' +
                         'ondragstart="_psDragStart(event,' + i + ')" ondragover="event.preventDefault()" ' +
                         'ondrop="_psDrop(event,' + i + ')" ondragend="_psDragEnd()">' +
                         '<span class="ps-grip"><i class="fas fa-grip-vertical"></i></span>' +
@@ -16693,6 +17672,8 @@
                         '<select class="ps-owner-sel" title="Tag owner (email used for alerts)" onchange="_projectStepsData[' + i + '].owner=this.value;_markModalDirty()">' +
                             ownerOpts +
                         '</select>' +
+                        '<input type="date" value="' + (step.startDate || '') + '" title="Step start date" onchange="_projectStepsData[' + i + '].startDate=this.value;_markModalDirty();renderGanttChart()" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 5px;font-size:10px;font-family:inherit;color:#475569;max-width:110px;">' +
+                        '<input type="date" value="' + (step.endDate || '') + '" title="Step end date" onchange="_projectStepsData[' + i + '].endDate=this.value;_markModalDirty();renderGanttChart()" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 5px;font-size:10px;font-family:inherit;color:#475569;max-width:110px;">' +
                         '<button class="ps-del-btn" onclick="_deleteProjectStep(' + i + ')" title="Remove step"><i class="fas fa-times"></i></button>' +
                     '</div>';
                 }).join('');
@@ -16802,6 +17783,136 @@
             var total = _issuesData.filter(function(iss) { return iss.title && iss.title.trim(); }).length;
             badge.textContent = total ? (open ? open + ' open' : total + ' resolved') : '';
             badge.style.display = total ? 'inline-block' : 'none';
+        }
+
+        // ============================================================
+        // RACI CHART DATA & RENDERING
+        // ============================================================
+        var _raciData = [];
+
+        function renderRaciChart(data) {
+            _raciData = (data || []).slice();
+            _drawRaci();
+        }
+
+        function _drawRaci() {
+            var body = document.getElementById('raciBody');
+            if (!body) return;
+            if (!_raciData.length) {
+                body.innerHTML = '<tr><td colspan="6" style="padding:16px;text-align:center;color:#94a3b8;font-size:12px;">No rows yet — click Add Row below.</td></tr>';
+            } else {
+                var memberOpts = _buildOwnerOptions('');
+                body.innerHTML = _raciData.map(function(row, i) {
+                    return '<tr style="border-bottom:1px solid #f1f5f9;">' +
+                        '<td style="padding:6px 8px;"><input type="text" value="' + escapeHtml(row.task || '') + '" placeholder="Task/deliverable…" oninput="_raciData[' + i + '].task=this.value;_markModalDirty()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit;"></td>' +
+                        '<td style="padding:6px 4px;background:rgba(37,99,235,0.04);"><select onchange="_raciData[' + i + '].responsible=this.value;_markModalDirty()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:11px;font-family:inherit;">' + _buildOwnerOptions(row.responsible || '') + '</select></td>' +
+                        '<td style="padding:6px 4px;background:rgba(220,38,38,0.04);"><select onchange="_raciData[' + i + '].accountable=this.value;_markModalDirty()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:11px;font-family:inherit;">' + _buildOwnerOptions(row.accountable || '') + '</select></td>' +
+                        '<td style="padding:6px 4px;background:rgba(245,158,11,0.04);"><select onchange="_raciData[' + i + '].consulted=this.value;_markModalDirty()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:11px;font-family:inherit;">' + _buildOwnerOptions(row.consulted || '') + '</select></td>' +
+                        '<td style="padding:6px 4px;background:rgba(5,150,105,0.04);"><select onchange="_raciData[' + i + '].informed=this.value;_markModalDirty()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:4px;font-size:11px;font-family:inherit;">' + _buildOwnerOptions(row.informed || '') + '</select></td>' +
+                        '<td style="padding:6px 2px;"><button onclick="_deleteRaciRow(' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;" title="Remove row"><i class="fas fa-times"></i></button></td>' +
+                    '</tr>';
+                }).join('');
+            }
+            _updateRaciBadge();
+        }
+
+        function addRaciRow() {
+            _raciData.push({ task: '', responsible: '', accountable: '', consulted: '', informed: '' });
+            _markModalDirty();
+            _drawRaci();
+        }
+
+        function _deleteRaciRow(i) {
+            _raciData.splice(i, 1);
+            _markModalDirty();
+            _drawRaci();
+        }
+
+        function _updateRaciBadge() {
+            var badge = document.getElementById('raciCountBadge');
+            if (!badge) return;
+            var count = _raciData.filter(function(r) { return r.task && r.task.trim(); }).length;
+            badge.textContent = count ? count + ' row' + (count !== 1 ? 's' : '') : '';
+            badge.style.display = count ? 'inline-block' : 'none';
+        }
+
+        // ============================================================
+        // GANTT CHART RENDERING (from Project Steps data)
+        // ============================================================
+        function renderGanttChart() {
+            var container = document.getElementById('ganttChartContainer');
+            if (!container) return;
+            var steps = (_projectStepsData || []).filter(function(s) { return s.title && s.title.trim(); });
+            if (!steps.length) {
+                container.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px;"><i class="fas fa-chart-bar" style="font-size:24px;margin-bottom:8px;display:block;opacity:.4;"></i>Add project steps with dates to see the Gantt chart.</div>';
+                return;
+            }
+            // Determine date range
+            var allDates = [];
+            steps.forEach(function(s) {
+                if (s.startDate) allDates.push(new Date(s.startDate));
+                if (s.endDate) allDates.push(new Date(s.endDate));
+            });
+            if (!allDates.length) {
+                container.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:12px;">Add start/end dates to project steps to generate the Gantt chart.</div>';
+                return;
+            }
+            var minDate = new Date(Math.min.apply(null, allDates));
+            var maxDate = new Date(Math.max.apply(null, allDates));
+            // Add 2 days padding
+            minDate.setDate(minDate.getDate() - 1);
+            maxDate.setDate(maxDate.getDate() + 2);
+            var totalDays = Math.max(Math.ceil((maxDate - minDate) / 86400000), 1);
+            var today = new Date();
+            today.setHours(0,0,0,0);
+            var todayOffset = Math.max(0, Math.ceil((today - minDate) / 86400000));
+
+            var statusColors = { 'not-started': '#94a3b8', 'in-progress': '#3b82f6', 'completed': '#10b981', 'blocked': '#ef4444' };
+
+            var html = '<div style="position:relative;">';
+            // Header with month labels
+            html += '<div style="display:flex;height:24px;border-bottom:1px solid #e2e8f0;margin-bottom:2px;margin-left:160px;">';
+            var d = new Date(minDate);
+            var prevMonth = -1;
+            for (var dx = 0; dx < totalDays; dx++) {
+                d.setTime(minDate.getTime() + dx * 86400000);
+                if (d.getMonth() !== prevMonth) {
+                    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    html += '<div style="font-size:9px;color:#64748b;font-weight:600;white-space:nowrap;padding:4px 2px;">' + monthNames[d.getMonth()] + ' ' + d.getFullYear() + '</div>';
+                    prevMonth = d.getMonth();
+                }
+            }
+            html += '</div>';
+
+            // Step rows
+            steps.forEach(function(step, i) {
+                var sDate = step.startDate ? new Date(step.startDate) : null;
+                var eDate = step.endDate ? new Date(step.endDate) : sDate;
+                if (!sDate) return;
+                var startOffset = Math.max(0, Math.ceil((sDate - minDate) / 86400000));
+                var duration = eDate ? Math.max(1, Math.ceil((eDate - sDate) / 86400000) + 1) : 1;
+                var leftPct = (startOffset / totalDays * 100).toFixed(2);
+                var widthPct = (duration / totalDays * 100).toFixed(2);
+                var color = statusColors[step.status] || '#94a3b8';
+
+                html += '<div style="display:flex;align-items:center;height:28px;margin-bottom:2px;">' +
+                    '<div style="width:160px;flex-shrink:0;font-size:11px;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;" title="' + escapeHtml(step.title) + '">' +
+                        '<span style="color:#94a3b8;font-size:10px;margin-right:4px;">' + (i + 1) + '.</span>' + escapeHtml(step.title) +
+                    '</div>' +
+                    '<div style="flex:1;position:relative;height:20px;background:#f8fafc;border-radius:4px;overflow:hidden;">' +
+                        '<div style="position:absolute;left:' + leftPct + '%;width:' + widthPct + '%;height:100%;background:' + color + ';border-radius:4px;opacity:.85;transition:all .2s;" title="' + escapeHtml(step.title) + ' (' + (step.status || 'not-started') + ')"></div>' +
+                    '</div>' +
+                '</div>';
+            });
+
+            // Today marker
+            if (todayOffset >= 0 && todayOffset <= totalDays) {
+                var todayPct = (todayOffset / totalDays * 100).toFixed(2);
+                html += '<div style="position:absolute;left:calc(160px + ' + todayPct + '%);top:24px;bottom:0;width:2px;background:#ef4444;opacity:.6;z-index:1;" title="Today"></div>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         // ============================================================
@@ -16937,6 +18048,156 @@
                     { type: 'select',   label: 'Type',                id: 'mkt_ll_2', options: ['Success','Improvement','Failure'] },
                     { type: 'textarea', label: 'Description',         id: 'mkt_ll_3', options: [] },
                     { type: 'textarea', label: 'Recommendation',      id: 'mkt_ll_4', options: [] }
+                ]
+            },
+            {
+                id: 'financial_tracking',
+                title: 'Financial Tracking',
+                icon: 'fa-dollar-sign',
+                color: '#059669',
+                desc: 'Track budget, costs, ROI, and funding sources for your project.',
+                fields: [
+                    { type: 'section',  label: 'Financial Tracking',  id: 'mkt_fin_0' },
+                    { type: 'number',   label: 'Budget',              id: 'mkt_fin_1', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'Actual Cost',         id: 'mkt_fin_2', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'Forecasted Cost',     id: 'mkt_fin_3', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'Cost Variance',       id: 'mkt_fin_4', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'ROI (%)',             id: 'mkt_fin_5', options: [], chartEnabled: true },
+                    { type: 'text',     label: 'Funding Source',      id: 'mkt_fin_6', options: [] }
+                ]
+            },
+            {
+                id: 'workflow_approvals',
+                title: 'Workflow & Approvals',
+                icon: 'fa-project-diagram',
+                color: '#6366f1',
+                desc: 'Track phases, approvals, SLAs, and escalation paths.',
+                fields: [
+                    { type: 'section',  label: 'Workflow & Approvals', id: 'mkt_wf_0' },
+                    { type: 'select',   label: 'Current Phase',       id: 'mkt_wf_1', options: ['Initiation','Planning','Execution','Monitoring','Closing'], chartEnabled: true },
+                    { type: 'select',   label: 'Next Phase',          id: 'mkt_wf_2', options: ['Initiation','Planning','Execution','Monitoring','Closing'] },
+                    { type: 'select',   label: 'Approval Status',     id: 'mkt_wf_3', options: ['Pending','Approved','Rejected','Deferred'], chartEnabled: true },
+                    { type: 'checkbox', label: 'Approval Required',   id: 'mkt_wf_4', options: [] },
+                    { type: 'members',  label: 'Approver',            id: 'mkt_wf_5', options: [] },
+                    { type: 'text',     label: 'SLA',                 id: 'mkt_wf_6', options: [] },
+                    { type: 'text',     label: 'Escalation Path',     id: 'mkt_wf_7', options: [] }
+                ]
+            },
+            {
+                id: 'strategic_alignment',
+                title: 'Strategic Alignment',
+                icon: 'fa-bullseye',
+                color: '#0369a1',
+                desc: 'Align projects to strategic objectives, OKRs, business priorities, and success criteria.',
+                fields: [
+                    { type: 'section',  label: 'Strategic Alignment', id: 'mkt_str_0' },
+                    { type: 'text',     label: 'Strategic Objective', id: 'mkt_str_1', options: [] },
+                    { type: 'text',     label: 'OKR Alignment',      id: 'mkt_str_2', options: [] },
+                    { type: 'select',   label: 'Business Priority',  id: 'mkt_str_3', options: ['Critical','High','Medium','Low'], chartEnabled: true },
+                    { type: 'textarea', label: 'Success Criteria',   id: 'mkt_str_4', options: [] },
+                    { type: 'textarea', label: 'KPI Impact',         id: 'mkt_str_5', options: [] },
+                    { type: 'textarea', label: 'Value Delivered',    id: 'mkt_str_6', options: [] }
+                ]
+            },
+            {
+                id: 'resource_capacity',
+                title: 'Resource & Capacity',
+                icon: 'fa-user-cog',
+                color: '#7c3aed',
+                desc: 'Track resource allocation, capacity, utilization, and skill sets.',
+                fields: [
+                    { type: 'section',  label: 'Resource & Capacity', id: 'mkt_res_0' },
+                    { type: 'number',   label: 'Allocation (%)',      id: 'mkt_res_1', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'Capacity (Hours)',    id: 'mkt_res_2', options: [] },
+                    { type: 'number',   label: 'Utilization Rate (%)', id: 'mkt_res_3', options: [], chartEnabled: true },
+                    { type: 'text',     label: 'Required Skill Set',  id: 'mkt_res_4', options: [] },
+                    { type: 'members',  label: 'Backup Resource',     id: 'mkt_res_5', options: [] }
+                ]
+            },
+            {
+                id: 'compliance_governance',
+                title: 'Compliance & Governance',
+                icon: 'fa-balance-scale',
+                color: '#b45309',
+                desc: 'Track regulatory, compliance, audit, security, and data privacy impacts.',
+                fields: [
+                    { type: 'section',  label: 'Compliance & Governance', id: 'mkt_gov_0' },
+                    { type: 'select',   label: 'Regulatory Impact',     id: 'mkt_gov_1', options: ['High','Medium','Low','None'], chartEnabled: true },
+                    { type: 'text',     label: 'Compliance Requirement', id: 'mkt_gov_2', options: [] },
+                    { type: 'select',   label: 'Audit Impact',          id: 'mkt_gov_3', options: ['High','Medium','Low','None'], chartEnabled: true },
+                    { type: 'select',   label: 'Security Impact',       id: 'mkt_gov_4', options: ['Critical','High','Medium','Low','None'], chartEnabled: true },
+                    { type: 'select',   label: 'Data Privacy Impact',   id: 'mkt_gov_5', options: ['High','Medium','Low','None'], chartEnabled: true },
+                    { type: 'select',   label: 'Compliance Status',     id: 'mkt_gov_6', options: ['Compliant','Non-Compliant','Pending Review','Exempt'], chartEnabled: true }
+                ]
+            },
+            {
+                id: 'quality_testing',
+                title: 'Quality & Testing',
+                icon: 'fa-check-double',
+                color: '#16a34a',
+                desc: 'Track QA status, testing progress, defect counts, and validation.',
+                fields: [
+                    { type: 'section',  label: 'Quality & Testing', id: 'mkt_qa_0' },
+                    { type: 'select',   label: 'QA Status',          id: 'mkt_qa_1', options: ['Not Started','In Progress','Passed','Failed','Blocked'], chartEnabled: true },
+                    { type: 'select',   label: 'Testing Status',     id: 'mkt_qa_2', options: ['Not Started','Unit Testing','Integration Testing','UAT','Completed'] },
+                    { type: 'number',   label: 'Defect Count',       id: 'mkt_qa_3', options: [], chartEnabled: true },
+                    { type: 'select',   label: 'Validation Status',  id: 'mkt_qa_4', options: ['Pending','Validated','Rejected'] }
+                ]
+            },
+            {
+                id: 'dependencies',
+                title: 'Dependencies',
+                icon: 'fa-link',
+                color: '#64748b',
+                desc: 'Track project dependencies \u2014 internal, external, vendor, and cross-team.',
+                fields: [
+                    { type: 'section',  label: 'Dependencies',          id: 'mkt_dep_0' },
+                    { type: 'text',     label: 'Dependent Projects',    id: 'mkt_dep_1', options: [] },
+                    { type: 'text',     label: 'Blocking Tasks',        id: 'mkt_dep_2', options: [] },
+                    { type: 'text',     label: 'External Dependencies', id: 'mkt_dep_3', options: [] },
+                    { type: 'text',     label: 'Vendor Dependencies',   id: 'mkt_dep_4', options: [] },
+                    { type: 'text',     label: 'Upstream Dependencies', id: 'mkt_dep_5', options: [] },
+                    { type: 'text',     label: 'Downstream Dependencies', id: 'mkt_dep_6', options: [] }
+                ]
+            },
+            {
+                id: 'advanced_tracking',
+                title: 'Advanced Tracking',
+                icon: 'fa-tachometer-alt',
+                color: '#e11d48',
+                desc: 'Track % complete, health status, progress trend, confidence, and project phase.',
+                fields: [
+                    { type: 'section',  label: 'Advanced Tracking', id: 'mkt_adv_0' },
+                    { type: 'number',   label: '% Complete',         id: 'mkt_adv_1', options: [], chartEnabled: true },
+                    { type: 'select',   label: 'Health Status',      id: 'mkt_adv_2', options: ['Green','Yellow','Red'], chartEnabled: true },
+                    { type: 'select',   label: 'Progress Trend',     id: 'mkt_adv_3', options: ['Improving','Stable','Declining'], chartEnabled: true },
+                    { type: 'select',   label: 'Confidence Rating',  id: 'mkt_adv_4', options: ['High','Medium','Low'] },
+                    { type: 'select',   label: 'Phase',              id: 'mkt_adv_5', options: ['Initiation','Planning','Execution','Monitoring','Closing'], chartEnabled: true },
+                    { type: 'textarea', label: 'Status Notes',       id: 'mkt_adv_6', options: [] }
+                ]
+            }
+        ];
+
+        // Chart templates (separate from regular marketplace, shown in "Charts" section)
+        var _fbChartTemplates = [
+            {
+                id: 'raci_chart',
+                title: 'RACI Chart',
+                icon: 'fa-th',
+                color: '#6366f1',
+                desc: 'Responsibility matrix — assign Responsible, Accountable, Consulted, Informed roles per deliverable.',
+                fields: [
+                    { type: 'section', label: 'RACI Chart', id: 'mkt_raci_0' }
+                ]
+            },
+            {
+                id: 'gantt_chart',
+                title: 'Gantt Chart',
+                icon: 'fa-chart-bar',
+                color: '#0ea5e9',
+                desc: 'Visual timeline of project steps. Requires the Project Steps section to be added first.',
+                fields: [
+                    { type: 'section', label: 'Gantt Chart', id: 'mkt_gantt_0' }
                 ]
             }
         ];
@@ -17125,8 +18386,39 @@
                 });
                 return '<div class="fb-prebuilt-preview">' + phtml + '</div>';
             }
+            // Generic preview for all other templates
+            var genericFields = tpl.fields.filter(function(f) { return f.type !== 'section'; }).slice(0, 4);
+            if (genericFields.length) {
+                var ghtml = '';
+                genericFields.forEach(function(f) {
+                    var right = f.type === 'select' ? '<span class="fb-prebuilt-preview-sel">' + (f.options && f.options[0] ? escapeHtml(f.options[0]) : 'Select') + ' \u25BE</span>'
+                              : f.type === 'textarea' ? '<span class="fb-prebuilt-preview-input">\u2026</span>'
+                              : f.type === 'number' ? '<span class="fb-prebuilt-preview-input">0</span>'
+                              : f.type === 'members' ? '<span class="fb-prebuilt-preview-sel">Member \u25BE</span>'
+                              : f.type === 'checkbox' ? '<span style="font-size:9px;color:#94a3b8;">\u2610</span>'
+                              : '<span class="fb-prebuilt-preview-input">\u2026</span>';
+                    var chartIcon = f.chartEnabled ? ' <i class="fas fa-chart-bar" style="font-size:7px;color:#8b5cf6;"></i>' : '';
+                    ghtml += '<div class="fb-prebuilt-preview-row"><span style="font-size:9px;font-weight:600;color:#64748b;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(f.label) + chartIcon + '</span>' + right + '</div>';
+                });
+                var remaining = tpl.fields.filter(function(f) { return f.type !== 'section'; }).length - genericFields.length;
+                if (remaining > 0) ghtml += '<div style="text-align:center;font-size:9px;color:#94a3b8;padding:2px 0;">+' + remaining + ' more field' + (remaining !== 1 ? 's' : '') + '</div>';
+                return '<div class="fb-prebuilt-preview">' + ghtml + '</div>';
+            }
             return '';
         }
+
+        var _builtInEditableFields = [
+            { type: 'text',     label: 'Description',   id: 'builtin_description',   builtIn: true, options: [] },
+            { type: 'select',   label: 'Status',        id: 'builtin_status',        builtIn: true, options: ['Not Started','In Progress','On Hold','Completed'], chartEnabled: true },
+            { type: 'select',   label: 'Priority',      id: 'builtin_priority',      builtIn: true, options: ['Low','Medium','High'], chartEnabled: true },
+            { type: 'select',   label: 'Category',      id: 'builtin_category',      builtIn: true, options: [], chartEnabled: true },
+            { type: 'date',     label: 'Start Date',    id: 'builtin_startDate',     builtIn: true, options: [], chartEnabled: true },
+            { type: 'date',     label: 'Due Date',      id: 'builtin_dueDate',       builtIn: true, options: [], chartEnabled: true },
+            { type: 'number',   label: 'Estimated Hours', id: 'builtin_hours',       builtIn: true, options: [], chartEnabled: true },
+            { type: 'text',     label: 'Department',    id: 'builtin_department',    builtIn: true, options: [], chartEnabled: true },
+            { type: 'text',     label: 'Systems',       id: 'builtin_systems',       builtIn: true, options: [] },
+            { type: 'checkbox',  label: 'Confidential', id: 'builtin_confidential',  builtIn: true, options: [] }
+        ];
 
         var _fbPrebuiltForms = null;
         function _getFbPrebuiltForms() {
@@ -17212,15 +18504,34 @@
                 '</div>';
             }).join('');
 
+            // Charts section
+            var chartsHtml = _fbChartTemplates.map(function(tpl) {
+                var added = _isTemplateAdded(tpl);
+                return '<div class="fb-prebuilt-card' + (added ? ' added' : '') + '">' +
+                    '<div class="fb-prebuilt-card-top">' +
+                        '<div class="fb-prebuilt-card-icon" style="background:' + tpl.color + '15;color:' + tpl.color + ';"><i class="fas ' + tpl.icon + '"></i></div>' +
+                        '<div class="fb-prebuilt-card-title">' + escapeHtml(tpl.title) + '</div>' +
+                    '</div>' +
+                    '<div class="fb-prebuilt-card-desc">' + escapeHtml(tpl.desc) + '</div>' +
+                    (added
+                        ? '<button class="fb-prebuilt-add-btn added" disabled><i class="fas fa-check"></i> Added</button>'
+                        : '<button class="fb-prebuilt-add-btn" onclick="fbInsertTemplate(\'' + tpl.id + '\')"><i class="fas fa-plus"></i> Add to Form</button>'
+                    ) +
+                '</div>';
+            }).join('');
+
             body.innerHTML =
                 '<div class="fb-prebuilt-divider" style="border-top:none;margin-top:0;">Prebuilt Forms</div>' +
                 formsHtml +
                 '<div class="fb-prebuilt-divider">Prebuilt Sections</div>' +
-                sectionsHtml;
+                sectionsHtml +
+                '<div class="fb-prebuilt-divider">Charts</div>' +
+                chartsHtml;
         }
 
         function fbInsertTemplate(templateId) {
             var tpl = _fbMarketplaceTemplates.find(function(t) { return t.id === templateId; });
+            if (!tpl) tpl = _fbChartTemplates.find(function(t) { return t.id === templateId; });
             if (!tpl) return;
             _fbSyncDOM();
             var existingIds = fbDraftSchema.map(function(f) { return f.id; });
@@ -17243,19 +18554,6 @@
         function _getStdLabel(storageKey, fallback) {
             try { var s = JSON.parse(localStorage.getItem('ptStdFieldLabels') || '{}'); return s[storageKey] || fallback; } catch(e) { return fallback; }
         }
-
-        var _builtInEditableFields = [
-            { type: 'text',     label: 'Description',   id: 'builtin_description',   builtIn: true, options: [] },
-            { type: 'select',   label: 'Status',        id: 'builtin_status',        builtIn: true, options: ['Not Started','In Progress','On Hold','Completed'] },
-            { type: 'select',   label: 'Priority',      id: 'builtin_priority',      builtIn: true, options: ['Low','Medium','High'] },
-            { type: 'select',   label: 'Category',      id: 'builtin_category',      builtIn: true, options: [] },
-            { type: 'date',     label: 'Start Date',    id: 'builtin_startDate',     builtIn: true, options: [] },
-            { type: 'date',     label: 'Due Date',      id: 'builtin_dueDate',       builtIn: true, options: [] },
-            { type: 'number',   label: 'Estimated Hours', id: 'builtin_hours',       builtIn: true, options: [] },
-            { type: 'text',     label: 'Department',    id: 'builtin_department',    builtIn: true, options: [] },
-            { type: 'text',     label: 'Systems',       id: 'builtin_systems',       builtIn: true, options: [] },
-            { type: 'checkbox',  label: 'Confidential', id: 'builtin_confidential',  builtIn: true, options: [] }
-        ];
 
         function openFormBuilderModal() {
             fbDraftSchema = formSchema.map(function(f) { return Object.assign({}, f, { options: f.options ? f.options.slice() : [] }); });
@@ -17441,6 +18739,7 @@
                     '<input type="text" class="fb-label-input" id="fbLabel_' + i + '" value="' + escapeHtml(f.label) + '" placeholder="Field name..." oninput="_renderFBPreview()">' +
                     '<select class="fb-type-select" id="fbType_' + i + '" onchange="fbTypeChange(' + i + ',this.value)">' + typeOpts + '</select>' +
                     '<span class="fb-actions-cell">' +
+                    (f.chartEnabled ? '<span class="fb-chart-badge" title="This field powers charts &amp; analytics"><i class="fas fa-chart-bar" style="font-size:9px;margin-right:3px;"></i>Chart</span>' : '') +
                     (isBuiltIn ? '<span class="fb-locked-badge" style="background:rgba(59,130,246,0.08);color:#3b82f6;"><i class="fas fa-cube" style="font-size:9px;margin-right:3px;"></i>Built-in</span>' : '') +
                     (f.type === 'select' ? '<button class="fb-options-btn" onclick="fbToggleOptions(' + i + ')"><i class="fas fa-list" style="margin-right:4px;"></i>Options</button>' : '') +
                     (f.type === 'members' ? '<span style="font-size:10px;color:#8b5cf6;font-weight:600;white-space:nowrap;"><i class="fas fa-users" style="margin-right:3px;"></i>Auto-populated</span>' : '') +
@@ -17565,6 +18864,7 @@
                 if (f.icon) out.icon = f.icon;
                 if (f.colorIdx !== undefined) out.colorIdx = f.colorIdx;
                 if (f.builtIn) out.builtIn = true;
+                if (f.chartEnabled) out.chartEnabled = true;
                 if (f.rowGroup) out.rowGroup = f.rowGroup;
                 return out;
             });
@@ -17616,6 +18916,135 @@
             if (confRow && viewRow && confRow.style.display === 'none') {
                 viewRow.style.display = 'none';
             }
+        }
+
+        // ============================================================
+        // FILTERS CUSTOMIZATION PANEL
+        // ============================================================
+        var _defaultFilterPrefs = {
+            assigned: true, status: true, priority: true, category: true, department: true, search: true,
+            customFilters: [] // array of field IDs from formSchema to add as filter dropdowns
+        };
+
+        function _getFilterPrefs() {
+            try {
+                var key = 'ptFilterPrefs';
+                var saved = JSON.parse(localStorage.getItem(key) || 'null');
+                if (saved) return Object.assign({}, _defaultFilterPrefs, saved);
+            } catch(e) {}
+            return Object.assign({}, _defaultFilterPrefs, { customFilters: [] });
+        }
+
+        function _saveFilterPrefs(prefs) {
+            try { localStorage.setItem('ptFilterPrefs', JSON.stringify(prefs)); } catch(e) {}
+        }
+
+        function openFiltersPanel() {
+            var prefs = _getFilterPrefs();
+            // Get eligible custom fields (select/members types only)
+            var customEligible = (formSchema || []).filter(function(f) {
+                return !f.builtIn && f.type === 'select' && f.id && f.type !== 'section';
+            });
+            var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;" id="filtersPanelOverlay" onclick="if(event.target===this)closeFiltersPanel()">' +
+                '<div style="background:#fff;border-radius:16px;max-width:480px;width:95%;max-height:85vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,.2);padding:0;">' +
+                    '<div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;">' +
+                        '<h3 style="margin:0;font-size:16px;font-weight:700;color:#0f172a;"><i class="fas fa-filter" style="margin-right:8px;color:#6366f1;"></i>Filter Settings</h3>' +
+                        '<button onclick="closeFiltersPanel()" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px;"><i class="fas fa-times"></i></button>' +
+                    '</div>' +
+                    '<p style="padding:4px 24px 12px;margin:0;font-size:12px;color:#64748b;">Choose which filters appear in the filter bar.</p>' +
+                    '<div style="padding:0 24px 8px;">' +
+                        '<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Built-in Filters</div>';
+            var builtins = [
+                { key: 'assigned', label: 'Assigned To', icon: 'fa-user' },
+                { key: 'status', label: 'Status', icon: 'fa-circle' },
+                { key: 'priority', label: 'Priority', icon: 'fa-flag' },
+                { key: 'category', label: 'Category', icon: 'fa-folder' },
+                { key: 'department', label: 'Department', icon: 'fa-building' },
+                { key: 'search', label: 'Search Box', icon: 'fa-search' }
+            ];
+            builtins.forEach(function(b) {
+                var checked = prefs[b.key] !== false ? ' checked' : '';
+                html += '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;border-bottom:1px solid #f1f5f9;">' +
+                    '<input type="checkbox" class="fp-builtin-toggle" data-key="' + b.key + '"' + checked + ' style="accent-color:#6366f1;width:16px;height:16px;">' +
+                    '<i class="fas ' + b.icon + '" style="font-size:12px;color:#64748b;width:16px;text-align:center;"></i>' +
+                    '<span style="font-size:13px;color:#334155;font-weight:500;">' + b.label + '</span>' +
+                '</label>';
+            });
+            html += '</div>';
+            if (customEligible.length) {
+                html += '<div style="padding:0 24px 8px;">' +
+                    '<div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">Custom Field Filters</div>' +
+                    '<p style="font-size:11px;color:#94a3b8;margin:0 0 8px;">Add dropdown fields from your form as extra filters.</p>';
+                customEligible.forEach(function(f) {
+                    var checked = (prefs.customFilters || []).indexOf(f.id) !== -1 ? ' checked' : '';
+                    html += '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;border-bottom:1px solid #f1f5f9;">' +
+                        '<input type="checkbox" class="fp-custom-toggle" data-fid="' + escapeHtml(f.id) + '"' + checked + ' style="accent-color:#8b5cf6;width:16px;height:16px;">' +
+                        '<i class="fas fa-sliders-h" style="font-size:12px;color:#8b5cf6;width:16px;text-align:center;"></i>' +
+                        '<span style="font-size:13px;color:#334155;font-weight:500;">' + escapeHtml(f.label) + '</span>' +
+                        '<span style="font-size:10px;color:#94a3b8;margin-left:auto;">' + (f.options || []).length + ' options</span>' +
+                    '</label>';
+                });
+                html += '</div>';
+            }
+            html += '<div style="padding:16px 24px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #e2e8f0;">' +
+                '<button onclick="closeFiltersPanel()" style="padding:8px 16px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">Cancel</button>' +
+                '<button onclick="saveFiltersPanel()" style="padding:8px 20px;border:none;border-radius:8px;background:#6366f1;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">Save</button>' +
+            '</div></div></div>';
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        function closeFiltersPanel() {
+            var el = document.getElementById('filtersPanelOverlay');
+            if (el) el.remove();
+        }
+
+        function saveFiltersPanel() {
+            var prefs = _getFilterPrefs();
+            document.querySelectorAll('.fp-builtin-toggle').forEach(function(cb) {
+                prefs[cb.getAttribute('data-key')] = cb.checked;
+            });
+            prefs.customFilters = [];
+            document.querySelectorAll('.fp-custom-toggle').forEach(function(cb) {
+                if (cb.checked) prefs.customFilters.push(cb.getAttribute('data-fid'));
+            });
+            _saveFilterPrefs(prefs);
+            closeFiltersPanel();
+            _rebuildFilterBar();
+            showToast('Filter preferences saved.');
+        }
+
+        function _rebuildFilterBar() {
+            var prefs = _getFilterPrefs();
+            // Toggle built-in filter groups
+            var mappings = [
+                { key: 'assigned', elId: 'filterGroupAssigned' },
+                { key: 'status', elId: 'filterGroupStatus' },
+                { key: 'priority', elId: 'filterGroupPriority' },
+                { key: 'category', elId: 'filterGroupCategory' },
+                { key: 'department', elId: 'filterGroupDepartment' },
+                { key: 'search', elId: 'filterGroupSearch' }
+            ];
+            mappings.forEach(function(m) {
+                var el = document.getElementById(m.elId);
+                if (el) el.style.display = prefs[m.key] !== false ? '' : 'none';
+            });
+            // Build custom filter dropdowns
+            var container = document.getElementById('customFilterContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            (prefs.customFilters || []).forEach(function(fid) {
+                var field = (formSchema || []).find(function(f) { return f.id === fid; });
+                if (!field || field.type !== 'select') return;
+                var options = (field.options || []).map(function(o) {
+                    return '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>';
+                }).join('');
+                container.innerHTML += '<div class="filter-group" data-custom-filter="' + escapeHtml(fid) + '">' +
+                    '<span class="filter-label">' + escapeHtml(field.label) + ':</span>' +
+                    '<select class="filter-select" id="filterCustom_' + escapeHtml(fid) + '" onchange="applyFilters()">' +
+                        '<option value="all">All</option>' + options +
+                    '</select>' +
+                '</div>';
+            });
         }
 
         // Render custom (non-builtin) fields from formSchema into the edit modal
