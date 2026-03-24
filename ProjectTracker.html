@@ -456,7 +456,15 @@
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 16px;
+            position: relative;
         }
+        .kanban-edit-icon {
+            position: absolute; top: -28px; right: 2px; z-index: 5;
+            background: none; border: none; cursor: pointer;
+            color: #94a3b8; font-size: 13px; padding: 4px 6px;
+            border-radius: 6px; transition: color 0.2s, background 0.2s;
+        }
+        .kanban-edit-icon:hover { color: #3b82f6; background: rgba(59,130,246,0.08); }
 
         .kanban-column {
             background: white;
@@ -5679,8 +5687,8 @@
                 <i class="fas fa-chevron-right item-chevron"></i>
             </button>
 
-            <!-- Automations (admin only) -->
-            <button class="sidebar-item admin-only-el" id="automationsMenuItem" onclick="openAutomationsPanel(); closeSidebar();" style="display:none;">
+            <!-- Automations -->
+            <button class="sidebar-item" id="automationsMenuItem" onclick="openAutomationsPanel(); closeSidebar();">
                 <i class="fas fa-bolt item-icon" style="color:#f59e0b;"></i>
                 Automations
                 <i class="fas fa-chevron-right item-chevron"></i>
@@ -6729,14 +6737,14 @@
             </div>
 
             <!-- === SECTION 1.4: RACI CHART === -->
-            <div class="modal-section modal-section-collapsed" id="sectionRACIChart" style="display:none;">
-              <div class="modal-section-header" onclick="toggleModalSection('sectionRACIChart')">
+            <div class="modal-section modal-section-collapsed" id="sectionRACIChart" style="display:none;border-color:#c7d2fe;">
+              <div class="modal-section-header" style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);" onclick="toggleModalSection('sectionRACIChart')">
                 <span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>
                 <i class="fas fa-th" style="color:#6366f1;font-size:12px;"></i>
                 <span class="modal-section-title">1.4 &middot; RACI Chart</span>
                 <span class="modal-section-badge" id="raciCountBadge" style="display:none;"></span>
               </div>
-              <div class="modal-section-body" style="display:none;">
+              <div class="modal-section-body" style="display:none;padding:12px 16px;">
                 <div id="raciChartContainer" style="overflow-x:auto;">
                   <table id="raciTable" style="width:100%;border-collapse:collapse;font-size:12px;">
                     <thead>
@@ -6757,13 +6765,13 @@
             </div>
 
             <!-- === SECTION 1.5: GANTT CHART === -->
-            <div class="modal-section modal-section-collapsed" id="sectionGanttChart" style="display:none;">
-              <div class="modal-section-header" onclick="toggleModalSection('sectionGanttChart')">
+            <div class="modal-section modal-section-collapsed" id="sectionGanttChart" style="display:none;border-color:#bae6fd;">
+              <div class="modal-section-header" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);" onclick="toggleModalSection('sectionGanttChart')">
                 <span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>
                 <i class="fas fa-chart-bar" style="color:#0ea5e9;font-size:12px;transform:rotate(180deg) scaleY(-1);"></i>
                 <span class="modal-section-title">1.5 &middot; Gantt Chart</span>
               </div>
-              <div class="modal-section-body" style="display:none;">
+              <div class="modal-section-body" style="display:none;padding:12px 16px;">
                 <div id="ganttChartContainer" style="overflow-x:auto;min-height:120px;"></div>
                 <p style="font-size:10px;color:#94a3b8;margin:6px 0 0;">Based on Project Steps dates. Add start/end dates to steps to populate the Gantt chart.</p>
               </div>
@@ -7477,6 +7485,17 @@
                         <h4 style="margin:0 0 4px; font-size:13px; font-weight:700; color:#2c3e50; text-transform:uppercase; letter-spacing:0.5px;">Automation Rules</h4>
                         <p style="margin:0 0 12px; font-size:12px; color:#7f8c8d;">Rules that run automatically on your projects.</p>
                         <div id="adminRulesList"></div>
+                    </div>
+                    <!-- Workflow Automation Rules -->
+                    <div style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e9ecef;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                            <div>
+                                <h4 style="margin:0 0 4px; font-size:13px; font-weight:700; color:#2c3e50; text-transform:uppercase; letter-spacing:0.5px;"><i class="fas fa-bolt" style="color:#f59e0b;margin-right:5px;"></i>Workflow Rules</h4>
+                                <p style="margin:0; font-size:12px; color:#7f8c8d;">Field-based triggers with conditions and actions.</p>
+                            </div>
+                            <button onclick="openAutomationsPanel();" style="background:#3b82f6;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-external-link-alt" style="margin-right:5px;"></i>Manage</button>
+                        </div>
+                        <div id="adminWorkflowRulesSummary" style="font-size:12px;color:#64748b;"></div>
                     </div>
                     <!-- Departments -->
                     <div style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e9ecef;">
@@ -8582,7 +8601,12 @@
             var groupBy = prefs.groupBy || 'status';
             var columns = _getKanbanColumns();
 
-            var html = '<div style="display:flex;justify-content:flex-end;padding:0 0 8px;"><button onclick="openKanbanCustomize()" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer;font-family:inherit;"><i class="fas fa-cog" style="margin-right:5px;"></i>Customize</button></div>';
+            // Dynamic grid: up to 5 columns per row, 6+ wraps
+            var colCount = columns.length;
+            var perRow = colCount <= 5 ? colCount : 5;
+            container.style.gridTemplateColumns = 'repeat(' + perRow + ', 1fr)';
+
+            var html = '<button class="kanban-edit-icon" onclick="openKanbanCustomize()" title="Customize Kanban"><i class="fas fa-pencil-alt"></i></button>';
 
             columns.forEach(function(col) {
                 var colTasks;
@@ -9842,6 +9866,57 @@
         }
 
         // ═══ Automation Panel UI ═══
+        var _suggestedAutoRules = [
+            {
+                name: 'Auto In-Progress on Assignment',
+                desc: 'When a project is assigned to someone, automatically set status to In Progress.',
+                icon: 'fa-user-check', color: '#3b82f6',
+                rule: { trigger: { type: 'field_change', field: 'assignedTo' }, conditions: [{ field: 'status', op: 'equals', value: 'not-started' }], conditionLogic: 'AND', actions: [{ type: 'set_field', field: 'status', value: 'in-progress' }] }
+            },
+            {
+                name: 'Completion Note',
+                desc: 'Add an automatic note when a project is marked as Completed.',
+                icon: 'fa-check-circle', color: '#22c55e',
+                rule: { trigger: { type: 'field_change', field: 'status' }, conditions: [{ field: 'status', op: 'equals', value: 'completed' }], conditionLogic: 'AND', actions: [{ type: 'add_note', value: 'Project marked as completed.' }] }
+            },
+            {
+                name: 'Escalate High-Priority On Hold',
+                desc: 'Notify when a high-priority project is put on hold.',
+                icon: 'fa-exclamation-triangle', color: '#f59e0b',
+                rule: { trigger: { type: 'field_change', field: 'status' }, conditions: [{ field: 'priority', op: 'equals', value: 'high' }, { field: 'status', op: 'equals', value: 'on-hold' }], conditionLogic: 'AND', actions: [{ type: 'notify', value: 'High-priority project placed on hold — review needed.' }] }
+            },
+            {
+                name: 'Flag Stale Not-Started Projects',
+                desc: 'Add a review note when a project reverts to Not Started.',
+                icon: 'fa-flag', color: '#ef4444',
+                rule: { trigger: { type: 'field_change', field: 'status' }, conditions: [{ field: 'status', op: 'equals', value: 'not-started' }], conditionLogic: 'AND', actions: [{ type: 'add_note', value: 'Project reverted to Not Started — review needed.' }] }
+            },
+            {
+                name: 'Auto-Set Priority on Department',
+                desc: 'When department changes to Executive, auto-set priority to High.',
+                icon: 'fa-building', color: '#8b5cf6',
+                rule: { trigger: { type: 'field_change', field: 'owningDepartment' }, conditions: [{ field: 'owningDepartment', op: 'equals', value: 'Executive' }], conditionLogic: 'AND', actions: [{ type: 'set_field', field: 'priority', value: 'high' }] }
+            },
+            {
+                name: 'Notify on Status Change',
+                desc: 'Send a notification whenever any project status changes.',
+                icon: 'fa-bell', color: '#0ea5e9',
+                rule: { trigger: { type: 'field_change', field: 'status' }, conditions: [], conditionLogic: 'AND', actions: [{ type: 'notify', value: 'Project status has been updated.' }] }
+            }
+        ];
+
+        function _addSuggestedRule(idx) {
+            var tpl = _suggestedAutoRules[idx];
+            if (!tpl) return;
+            var rule = JSON.parse(JSON.stringify(tpl.rule));
+            rule.id = 'rule_' + Date.now();
+            rule.name = tpl.name;
+            rule.enabled = true;
+            _automationRules.push(rule);
+            _saveAutomationRules();
+            _renderRulesList();
+        }
+
         function openAutomationsPanel() {
             var triggerFields = _getAutoTriggerFields();
             var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
@@ -9849,7 +9924,8 @@
                 '<button onclick="this.closest(\'.modal-overlay\').remove();" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748b;">&times;</button></div>' +
                 '<p style="font-size:13px;color:#64748b;margin-bottom:14px;">Create rules that automatically trigger actions when fields change.</p>' +
                 '<button onclick="_addNewRule();" style="padding:8px 16px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:6px;"></i>New Rule</button>' +
-                '<div id="autoRulesList"></div>';
+                '<div id="autoRulesList"></div>' +
+                '<div id="autoSuggestedRules"></div>';
 
             var overlay = document.createElement('div');
             overlay.className = 'modal-overlay';
@@ -9859,6 +9935,31 @@
             overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
             document.body.appendChild(overlay);
             _renderRulesList();
+            _renderSuggestedRules();
+        }
+
+        function _renderSuggestedRules() {
+            var container = document.getElementById('autoSuggestedRules');
+            if (!container) return;
+            // Filter out suggestions already added (by name match)
+            var existingNames = _automationRules.map(function(r) { return r.name; });
+            var available = _suggestedAutoRules.filter(function(s) { return existingNames.indexOf(s.name) === -1; });
+            if (!available.length) { container.innerHTML = ''; return; }
+            var html = '<div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;">' +
+                '<div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:10px;"><i class="fas fa-lightbulb" style="color:#f59e0b;margin-right:6px;"></i>Suggested Rules</div>';
+            _suggestedAutoRules.forEach(function(tpl, idx) {
+                if (existingNames.indexOf(tpl.name) !== -1) return;
+                html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px dashed #e2e8f0;border-radius:10px;margin-bottom:6px;">' +
+                    '<div style="width:28px;height:28px;border-radius:8px;background:' + tpl.color + '15;color:' + tpl.color + ';display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;"><i class="fas ' + tpl.icon + '"></i></div>' +
+                    '<div style="flex:1;min-width:0;">' +
+                    '<div style="font-size:12px;font-weight:600;color:#1e293b;">' + escapeHtml(tpl.name) + '</div>' +
+                    '<div style="font-size:11px;color:#64748b;margin-top:2px;">' + escapeHtml(tpl.desc) + '</div>' +
+                    '</div>' +
+                    '<button onclick="_addSuggestedRule(' + idx + ');_renderSuggestedRules();" style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add</button>' +
+                '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         function _renderRulesList() {
@@ -9890,6 +9991,12 @@
                     '</div></div></div>';
             });
             container.innerHTML = html;
+            // Also update admin summary if visible
+            var adminSummary = document.getElementById('adminWorkflowRulesSummary');
+            if (adminSummary) {
+                var en = _automationRules.filter(function(r) { return r.enabled; }).length;
+                adminSummary.innerHTML = _automationRules.length ? en + ' of ' + _automationRules.length + ' rules enabled' : 'No workflow rules configured.';
+            }
         }
 
         function _toggleRule(idx, enabled) {
@@ -14396,6 +14503,169 @@
         }
 
         // ============================================================
+        // ANALYTICS VIEW — Chart Defs & Preferences
+        // ============================================================
+        var _analyticsBuiltInCharts = [
+            { id: 'status',      title: 'Projects by Status',                    icon: 'fa-circle-notch' },
+            { id: 'priority',    title: 'Projects by Priority',                  icon: 'fa-flag' },
+            { id: 'dept',        title: 'By Owning Department',                  icon: 'fa-building' },
+            { id: 'timeline',    title: 'Created Over Time (last 12 months)',     icon: 'fa-chart-line' },
+            { id: 'forecast',    title: 'Due Date Forecast (next 12 months)',     icon: 'fa-calendar-alt' },
+            { id: 'capacity',    title: 'Capacity by Assignee (Estimated Hours)', icon: 'fa-users' },
+            { id: 'hoursStatus', title: 'Hours by Status',                        icon: 'fa-clock' }
+        ];
+
+        function _getAnalyticsPrefs() {
+            try {
+                var raw = localStorage.getItem('ptAnalyticsPrefs');
+                if (raw) {
+                    var p = JSON.parse(raw);
+                    if (p && Array.isArray(p.order)) return p;
+                }
+            } catch(e) {}
+            return { order: _analyticsBuiltInCharts.map(function(c) { return c.id; }), hidden: [], customCharts: [] };
+        }
+        function _saveAnalyticsPrefs(p) {
+            localStorage.setItem('ptAnalyticsPrefs', JSON.stringify(p));
+        }
+
+        function _getCustomChartableFields() {
+            return formSchema.filter(function(f) {
+                if (f.builtIn || f.type === 'section') return false;
+                var fid = f.id || '';
+                if (/^mkt_ps_|^mkt_is_|^mkt_raci_/.test(fid)) return false;
+                return f.type === 'select' || f.type === 'number' || f.type === 'checkbox';
+            });
+        }
+
+        function openAnalyticsCustomize() {
+            var existing = document.getElementById('analyticsCustomizePanel');
+            if (existing) { existing.remove(); return; }
+
+            var prefs = _getAnalyticsPrefs();
+            var allDefs = _analyticsBuiltInCharts.slice();
+            var chartableFields = _getCustomChartableFields();
+
+            var panel = document.createElement('div');
+            panel.id = 'analyticsCustomizePanel';
+            panel.style.cssText = 'position:fixed;top:0;right:0;width:340px;height:100%;background:#fff;z-index:9999;box-shadow:-4px 0 24px rgba(0,0,0,0.15);display:flex;flex-direction:column;font-family:inherit;';
+            if (document.body.classList.contains('dark-mode')) panel.style.background = '#1e293b';
+
+            function renderPanel() {
+                prefs = _getAnalyticsPrefs();
+                var html = '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">' +
+                    '<div style="font-size:15px;font-weight:700;color:#1e293b;"><i class="fas fa-chart-bar" style="margin-right:8px;color:#3b82f6;"></i>Customize Charts</div>' +
+                    '<button onclick="document.getElementById(\'analyticsCustomizePanel\').remove();" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;">&times;</button>' +
+                '</div>';
+                html += '<div style="flex:1;overflow-y:auto;padding:12px 16px;">';
+                html += '<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Chart Order & Visibility</div>';
+
+                // Render ordered charts
+                var ordered = prefs.order.slice();
+                // Ensure all built-in ids are present
+                allDefs.forEach(function(d) { if (ordered.indexOf(d.id) === -1) ordered.push(d.id); });
+                // Include custom charts
+                (prefs.customCharts || []).forEach(function(cc) { if (ordered.indexOf(cc.id) === -1) ordered.push(cc.id); });
+
+                ordered.forEach(function(chartId, idx) {
+                    var def = allDefs.find(function(d) { return d.id === chartId; });
+                    var customChart = !def ? (prefs.customCharts || []).find(function(cc) { return cc.id === chartId; }) : null;
+                    if (!def && !customChart) return;
+                    var title = def ? def.title : customChart.title;
+                    var icon = def ? def.icon : 'fa-chart-pie';
+                    var isHidden = prefs.hidden.indexOf(chartId) !== -1;
+                    var isCustom = !!customChart;
+
+                    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ' + (isHidden ? '#f1f5f9' : '#e2e8f0') + ';border-radius:8px;margin-bottom:6px;background:' + (isHidden ? '#fafafa' : '#fff') + ';opacity:' + (isHidden ? '0.55' : '1') + ';">' +
+                        '<i class="fas ' + icon + '" style="color:#64748b;font-size:11px;width:16px;text-align:center;"></i>' +
+                        '<span style="flex:1;font-size:12px;font-weight:500;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(title) + '</span>';
+                    if (idx > 0) html += '<button onclick="_analyticsReorder(' + idx + ',-1)" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px;padding:2px 4px;" title="Move up"><i class="fas fa-chevron-up"></i></button>';
+                    if (idx < ordered.length - 1) html += '<button onclick="_analyticsReorder(' + idx + ',1)" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px;padding:2px 4px;" title="Move down"><i class="fas fa-chevron-down"></i></button>';
+                    html += '<button onclick="_analyticsToggleChart(\'' + chartId + '\')" style="background:none;border:none;cursor:pointer;font-size:12px;color:' + (isHidden ? '#94a3b8' : '#3b82f6') + ';padding:2px 4px;" title="' + (isHidden ? 'Show' : 'Hide') + '"><i class="fas ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i></button>';
+                    if (isCustom) html += '<button onclick="_analyticsRemoveCustom(\'' + chartId + '\')" style="background:none;border:none;cursor:pointer;font-size:11px;color:#ef4444;padding:2px 4px;" title="Remove"><i class="fas fa-trash"></i></button>';
+                    html += '</div>';
+                });
+
+                // Add custom field chart section
+                html += '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px;">';
+                html += '<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Add Custom Field Chart</div>';
+                var usedFieldIds = (prefs.customCharts || []).map(function(cc) { return cc.fieldId; });
+                var available = chartableFields.filter(function(f) { return usedFieldIds.indexOf(f.id) === -1; });
+                if (available.length === 0) {
+                    html += '<p style="font-size:12px;color:#94a3b8;margin:0;">No more chartable fields available. Add select, number, or checkbox fields in the Form Builder.</p>';
+                } else {
+                    html += '<select id="analyticsCustomFieldSelect" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;margin-bottom:8px;">';
+                    html += '<option value="">— Select a field —</option>';
+                    available.forEach(function(f) {
+                        html += '<option value="' + escapeHtml(f.id) + '">' + escapeHtml(f.label || f.id) + ' (' + f.type + ')</option>';
+                    });
+                    html += '</select>';
+                    html += '<button onclick="_analyticsAddCustomChart()" style="width:100%;padding:8px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-plus" style="margin-right:6px;"></i>Add Chart</button>';
+                }
+                html += '</div>';
+
+                // Reset button
+                html += '<div style="margin-top:16px;text-align:center;">';
+                html += '<button onclick="_analyticsResetPrefs()" style="background:none;border:1px solid #e2e8f0;color:#64748b;padding:6px 16px;border-radius:8px;font-size:11px;cursor:pointer;"><i class="fas fa-undo" style="margin-right:4px;"></i>Reset to Default</button>';
+                html += '</div>';
+                html += '</div>';
+                panel.innerHTML = html;
+            }
+            renderPanel();
+            document.body.appendChild(panel);
+
+            window._analyticsReorder = function(idx, dir) {
+                var prefs = _getAnalyticsPrefs();
+                var newIdx = idx + dir;
+                if (newIdx < 0 || newIdx >= prefs.order.length) return;
+                var temp = prefs.order[idx];
+                prefs.order[idx] = prefs.order[newIdx];
+                prefs.order[newIdx] = temp;
+                _saveAnalyticsPrefs(prefs);
+                renderPanel();
+                renderAnalytics();
+            };
+            window._analyticsToggleChart = function(chartId) {
+                var prefs = _getAnalyticsPrefs();
+                var i = prefs.hidden.indexOf(chartId);
+                if (i === -1) prefs.hidden.push(chartId);
+                else prefs.hidden.splice(i, 1);
+                _saveAnalyticsPrefs(prefs);
+                renderPanel();
+                renderAnalytics();
+            };
+            window._analyticsAddCustomChart = function() {
+                var sel = document.getElementById('analyticsCustomFieldSelect');
+                if (!sel || !sel.value) return;
+                var fieldId = sel.value;
+                var field = formSchema.find(function(f) { return f.id === fieldId; });
+                if (!field) return;
+                var prefs = _getAnalyticsPrefs();
+                var ccId = 'cf_chart_' + fieldId;
+                if (prefs.customCharts.some(function(cc) { return cc.id === ccId; })) return;
+                prefs.customCharts.push({ id: ccId, fieldId: fieldId, title: (field.label || fieldId) + ' Distribution', type: field.type === 'number' ? 'bar' : 'doughnut' });
+                prefs.order.push(ccId);
+                _saveAnalyticsPrefs(prefs);
+                renderPanel();
+                renderAnalytics();
+            };
+            window._analyticsRemoveCustom = function(chartId) {
+                var prefs = _getAnalyticsPrefs();
+                prefs.customCharts = prefs.customCharts.filter(function(cc) { return cc.id !== chartId; });
+                prefs.order = prefs.order.filter(function(id) { return id !== chartId; });
+                prefs.hidden = prefs.hidden.filter(function(id) { return id !== chartId; });
+                _saveAnalyticsPrefs(prefs);
+                renderPanel();
+                renderAnalytics();
+            };
+            window._analyticsResetPrefs = function() {
+                localStorage.removeItem('ptAnalyticsPrefs');
+                renderPanel();
+                renderAnalytics();
+            };
+        }
+
+        // ============================================================
         // ANALYTICS VIEW
         // ============================================================
         function renderAnalytics() {
@@ -14429,9 +14699,10 @@
             }).length;
 
             container.innerHTML =
-                '<div class="analytics-header">' +
+                '<div class="analytics-header" style="position:relative;">' +
                     '<h2 style="font-size:22px;font-weight:700;color:#fff;margin:0;">Analytics Overview</h2>' +
                     '<p style="color:rgba(255,255,255,0.7);font-size:13px;margin:4px 0 0;">Live metrics from your project portfolio</p>' +
+                    '<button onclick="openAnalyticsCustomize()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:13px;padding:6px 8px;border-radius:6px;transition:all 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.25)\';this.style.color=\'#fff\';" onmouseout="this.style.background=\'rgba(255,255,255,0.15)\';this.style.color=\'rgba(255,255,255,0.7)\';"><i class="fas fa-pencil-alt"></i></button>' +
                 '</div>' +
                 '<div class="analytics-kpi-grid">' +
                     kpiCard('Total Projects', activeTasks.length, 'fa-layer-group', 'kpi-blue') +
@@ -14442,36 +14713,28 @@
                     kpiCard('Completion Rate', completionRate + '%', 'fa-chart-pie', 'kpi-blue') +
                     kpiCard('Total Hours', totalHours, 'fa-clock', 'kpi-purple') +
                 '</div>' +
-                '<div class="analytics-charts-grid">' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">Projects by Status</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartStatus"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">Projects by Priority</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartPriority"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">By Owning Department</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartDept"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">Created Over Time (last 12 months)</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartTimeline"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">Due Date Forecast (next 12 months)</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartForecast"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">Capacity by Assignee (Estimated Hours)</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartCapacity"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<div class="chart-title">Hours by Status</div>' +
-                        '<div class="chart-canvas-wrap"><canvas id="chartHoursStatus"></canvas></div>' +
-                    '</div>' +
-                '</div>';
+                '<div class="analytics-charts-grid" id="analyticsChartsGrid"></div>';
+
+            // Build chart cards dynamically from prefs
+            var _aPrefs = _getAnalyticsPrefs();
+            var _aOrder = _aPrefs.order.slice();
+            // Ensure all built-in IDs present
+            _analyticsBuiltInCharts.forEach(function(d) { if (_aOrder.indexOf(d.id) === -1) _aOrder.push(d.id); });
+            (_aPrefs.customCharts || []).forEach(function(cc) { if (_aOrder.indexOf(cc.id) === -1) _aOrder.push(cc.id); });
+
+            var _builtInCanvasMap = { status: 'chartStatus', priority: 'chartPriority', dept: 'chartDept', timeline: 'chartTimeline', forecast: 'chartForecast', capacity: 'chartCapacity', hoursStatus: 'chartHoursStatus' };
+            var chartsHtml = '';
+            _aOrder.forEach(function(chartId) {
+                if (_aPrefs.hidden.indexOf(chartId) !== -1) return;
+                var def = _analyticsBuiltInCharts.find(function(d) { return d.id === chartId; });
+                var customChart = !def ? (_aPrefs.customCharts || []).find(function(cc) { return cc.id === chartId; }) : null;
+                if (!def && !customChart) return;
+                var title = def ? def.title : customChart.title;
+                var canvasId = def ? _builtInCanvasMap[chartId] : 'customChart_' + chartId;
+                chartsHtml += '<div class="chart-card"><div class="chart-title">' + escapeHtml(title) + '</div><div class="chart-canvas-wrap"><canvas id="' + canvasId + '"></canvas></div></div>';
+            });
+            var gridEl = document.getElementById('analyticsChartsGrid');
+            if (gridEl) gridEl.innerHTML = chartsHtml;
 
             // ── Cross-Impact data ───────────────────────────────────────
             var sysCounts = {};
@@ -14596,14 +14859,64 @@
             analyticsChartsMap = {};
 
             setTimeout(function() {
-                renderStatusChart(statusCounts);
-                renderPriorityChart(priorityCounts);
-                renderDeptChart(deptCounts);
-                renderTimelineChart(activeTasks);
-                renderForecastChart(activeTasks);
-                renderCapacityChart(activeTasks);
-                renderHoursStatusChart(activeTasks);
+                if (_aPrefs.hidden.indexOf('status') === -1) renderStatusChart(statusCounts);
+                if (_aPrefs.hidden.indexOf('priority') === -1) renderPriorityChart(priorityCounts);
+                if (_aPrefs.hidden.indexOf('dept') === -1) renderDeptChart(deptCounts);
+                if (_aPrefs.hidden.indexOf('timeline') === -1) renderTimelineChart(activeTasks);
+                if (_aPrefs.hidden.indexOf('forecast') === -1) renderForecastChart(activeTasks);
+                if (_aPrefs.hidden.indexOf('capacity') === -1) renderCapacityChart(activeTasks);
+                if (_aPrefs.hidden.indexOf('hoursStatus') === -1) renderHoursStatusChart(activeTasks);
+                // Render custom field charts
+                (_aPrefs.customCharts || []).forEach(function(cc) {
+                    if (_aPrefs.hidden.indexOf(cc.id) !== -1) return;
+                    _renderCustomFieldChart(cc, activeTasks);
+                });
             }, 50);
+        }
+
+        function _renderCustomFieldChart(cc, activeTasks) {
+            var canvasId = 'customChart_' + cc.id;
+            var ctx = document.getElementById(canvasId);
+            if (!ctx || typeof Chart === 'undefined') return;
+            var field = formSchema.find(function(f) { return f.id === cc.fieldId; });
+            if (!field) return;
+            var colors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#14b8a6','#6366f1','#ef4444','#84cc16','#06b6d4','#f97316','#a855f7','#22c55e'];
+
+            if (field.type === 'number') {
+                // Bar chart — bucket by ranges
+                var vals = activeTasks.map(function(t) { return parseFloat((t.customFields || {})[cc.fieldId]) || 0; }).filter(function(v) { return v !== 0; });
+                if (!vals.length) { ctx.parentElement.innerHTML = '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:24px;">No data yet.</p>'; return; }
+                var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+                var bucketCount = Math.min(8, vals.length);
+                var step = (mx - mn) / bucketCount || 1;
+                var labels = [], data = [];
+                for (var b = 0; b < bucketCount; b++) {
+                    var lo = mn + b * step, hi = (b === bucketCount - 1) ? mx + 1 : mn + (b + 1) * step;
+                    labels.push(Math.round(lo) + '-' + Math.round(hi - 1));
+                    data.push(vals.filter(function(v) { return v >= lo && v < hi; }).length);
+                }
+                analyticsChartsMap[cc.id] = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels: labels, datasets: [{ label: field.label || cc.fieldId, data: data, backgroundColor: colors.slice(0, bucketCount), borderRadius: 6, borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' } }, x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
+                });
+            } else {
+                // Doughnut chart — count by value
+                var counts = {};
+                activeTasks.forEach(function(t) {
+                    var v = (t.customFields || {})[cc.fieldId];
+                    if (field.type === 'checkbox') v = v ? 'Yes' : 'No';
+                    else if (!v || String(v).trim() === '') v = '(No value)';
+                    counts[v] = (counts[v] || 0) + 1;
+                });
+                var labels = Object.keys(counts);
+                var data = labels.map(function(l) { return counts[l]; });
+                analyticsChartsMap[cc.id] = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#475569', font: { size: 11 } } } } }
+                });
+            }
         }
 
         function kpiCard(label, value, icon, colorClass) {
@@ -18409,7 +18722,7 @@
 
         var _builtInEditableFields = [
             { type: 'text',     label: 'Description',   id: 'builtin_description',   builtIn: true, options: [] },
-            { type: 'select',   label: 'Status',        id: 'builtin_status',        builtIn: true, options: ['Not Started','In Progress','On Hold','Completed'], chartEnabled: true },
+            { type: 'select',   label: 'Status',        id: 'builtin_status',        builtIn: true, locked: true, options: ['Not Started','In Progress','On Hold','Completed'], chartEnabled: true },
             { type: 'select',   label: 'Priority',      id: 'builtin_priority',      builtIn: true, options: ['Low','Medium','High'], chartEnabled: true },
             { type: 'select',   label: 'Category',      id: 'builtin_category',      builtIn: true, options: [], chartEnabled: true },
             { type: 'date',     label: 'Start Date',    id: 'builtin_startDate',     builtIn: true, options: [], chartEnabled: true },
@@ -18464,11 +18777,21 @@
             showToast('Applied \u201c' + form.title + '\u201d — missing fields restored.');
         }
 
+        var _fbSectionCollapsed = {};
         function renderFBPrebuiltPanel() {
             var body = document.getElementById('fbPrebuiltBody');
             if (!body) return;
+            var searchTerm = (document.getElementById('fbPrebuiltSearch') || {}).value || '';
+            var q = searchTerm.toLowerCase().trim();
+
+            function matchesSearch(item) {
+                if (!q) return true;
+                return (item.title || '').toLowerCase().indexOf(q) !== -1 || (item.desc || '').toLowerCase().indexOf(q) !== -1;
+            }
+
             // Prebuilt Forms
-            var formsHtml = _getFbPrebuiltForms().map(function(form) {
+            var formsItems = _getFbPrebuiltForms().filter(matchesSearch);
+            var formsHtml = formsItems.map(function(form) {
                 var applied = _isFormApplied(form);
                 var fieldCount = form.fields.length;
                 return '<div class="fb-prebuilt-card' + (applied ? ' added' : '') + '">' +
@@ -18486,7 +18809,8 @@
             }).join('');
 
             // Prebuilt Sections
-            var sectionsHtml = _fbMarketplaceTemplates.map(function(tpl) {
+            var sectionsItems = _fbMarketplaceTemplates.filter(matchesSearch);
+            var sectionsHtml = sectionsItems.map(function(tpl) {
                 var added = _isTemplateAdded(tpl);
                 var fieldCount = tpl.fields.filter(function(f) { return f.type !== 'section'; }).length;
                 return '<div class="fb-prebuilt-card' + (added ? ' added' : '') + '">' +
@@ -18505,7 +18829,8 @@
             }).join('');
 
             // Charts section
-            var chartsHtml = _fbChartTemplates.map(function(tpl) {
+            var chartsItems = _fbChartTemplates.filter(matchesSearch);
+            var chartsHtml = chartsItems.map(function(tpl) {
                 var added = _isTemplateAdded(tpl);
                 return '<div class="fb-prebuilt-card' + (added ? ' added' : '') + '">' +
                     '<div class="fb-prebuilt-card-top">' +
@@ -18520,13 +18845,24 @@
                 '</div>';
             }).join('');
 
-            body.innerHTML =
-                '<div class="fb-prebuilt-divider" style="border-top:none;margin-top:0;">Prebuilt Forms</div>' +
-                formsHtml +
-                '<div class="fb-prebuilt-divider">Prebuilt Sections</div>' +
-                sectionsHtml +
-                '<div class="fb-prebuilt-divider">Charts</div>' +
-                chartsHtml;
+            function divider(label, key, count) {
+                var collapsed = !!_fbSectionCollapsed[key];
+                var chevron = collapsed ? 'fa-chevron-right' : 'fa-chevron-down';
+                return '<div class="fb-prebuilt-divider" style="cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none;' + (key === 'forms' ? 'border-top:none;margin-top:0;' : '') + '" onclick="_fbSectionCollapsed[\'' + key + '\']=!' + collapsed + ';renderFBPrebuiltPanel();">' +
+                    '<i class="fas ' + chevron + '" style="font-size:8px;transition:transform 0.15s;"></i>' +
+                    label + '<span style="font-weight:500;color:#cbd5e1;margin-left:auto;">' + count + '</span></div>';
+            }
+
+            var html = '<div style="padding:0 0 10px;"><input id="fbPrebuiltSearch" type="text" value="' + escapeHtml(searchTerm) + '" placeholder="Search templates..." oninput="renderFBPrebuiltPanel();" style="width:100%;padding:8px 12px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;box-sizing:border-box;background:url(\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22 fill=%22%2394a3b8%22><path d=%22M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z%22/></svg>\') no-repeat 10px center/14px;"></div>';
+
+            html += divider('Prebuilt Forms', 'forms', formsItems.length);
+            if (!_fbSectionCollapsed['forms']) html += formsHtml;
+            html += divider('Prebuilt Sections', 'sections', sectionsItems.length);
+            if (!_fbSectionCollapsed['sections']) html += sectionsHtml;
+            html += divider('Charts', 'charts', chartsItems.length);
+            if (!_fbSectionCollapsed['charts']) html += chartsHtml;
+
+            body.innerHTML = html;
         }
 
         function fbInsertTemplate(templateId) {
@@ -18707,7 +19043,12 @@
                 // Handle row-group boundaries
                 if (_curRowGroup !== _prevRowGroup) {
                     if (_prevRowGroup) html += '</div>'; // close previous group
-                    if (_curRowGroup) html += '<div class="fb-field-group">';
+                    if (_curRowGroup) {
+                        var _groupLabel = _curRowGroup.replace(/_/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+                        html += '<div class="fb-field-group">' +
+                            '<div style="font-size:10px;font-weight:700;color:#8b5cf6;text-transform:uppercase;letter-spacing:0.5px;padding:4px 8px 2px;display:flex;align-items:center;gap:5px;">' +
+                            '<i class="fas fa-arrows-alt-h" style="font-size:8px;"></i>' + escapeHtml(_groupLabel) + ' · <span style="font-weight:500;color:#94a3b8;">same row in modal</span></div>';
+                    }
                 }
                 _prevRowGroup = _curRowGroup;
                 if (f.type === 'section') {
@@ -18733,18 +19074,19 @@
                     return '<option value="' + v + '"' + (f.type === v ? ' selected' : '') + '>' + labels[v] + '</option>';
                 }).join('');
                 var fieldIcon = f.icon || 'fa-pen';
+                var isLocked = !!f.locked;
                 html += '<div class="fb-field-row' + (isBuiltIn ? ' fb-builtin-row' : '') + '" id="fbRow_' + i + '" draggable="true" ondragstart="fbDragStart(event,' + i + ')" ondragover="fbDragOver(event,' + i + ')" ondrop="fbDrop(event,' + i + ')" ondragend="fbDragEnd(event)" style="position:relative;">' +
                     '<span class="fb-grip"><i class="fas fa-grip-vertical"></i></span>' +
                     '<button style="background:none;border:none;cursor:pointer;font-size:11px;color:#64748b;flex-shrink:0;" onclick="fbToggleIconPicker(' + i + ')" title="Change icon"><i class="fas ' + fieldIcon + '"></i></button>' +
-                    '<input type="text" class="fb-label-input" id="fbLabel_' + i + '" value="' + escapeHtml(f.label) + '" placeholder="Field name..." oninput="_renderFBPreview()">' +
-                    '<select class="fb-type-select" id="fbType_' + i + '" onchange="fbTypeChange(' + i + ',this.value)">' + typeOpts + '</select>' +
+                    '<input type="text" class="fb-label-input" id="fbLabel_' + i + '" value="' + escapeHtml(f.label) + '" placeholder="Field name..."' + (isLocked ? ' readonly style="opacity:0.7;"' : '') + ' oninput="_renderFBPreview()">' +
+                    '<select class="fb-type-select" id="fbType_' + i + '" onchange="fbTypeChange(' + i + ',this.value)"' + (isLocked ? ' disabled style="opacity:0.6;"' : '') + '>' + typeOpts + '</select>' +
                     '<span class="fb-actions-cell">' +
                     (f.chartEnabled ? '<span class="fb-chart-badge" title="This field powers charts &amp; analytics"><i class="fas fa-chart-bar" style="font-size:9px;margin-right:3px;"></i>Chart</span>' : '') +
-                    (isBuiltIn ? '<span class="fb-locked-badge" style="background:rgba(59,130,246,0.08);color:#3b82f6;"><i class="fas fa-cube" style="font-size:9px;margin-right:3px;"></i>Built-in</span>' : '') +
-                    (f.type === 'select' ? '<button class="fb-options-btn" onclick="fbToggleOptions(' + i + ')"><i class="fas fa-list" style="margin-right:4px;"></i>Options</button>' : '') +
+                    (isLocked ? '<span class="fb-locked-badge" style="background:rgba(239,68,68,0.08);color:#ef4444;"><i class="fas fa-lock" style="font-size:9px;margin-right:3px;"></i>Locked</span>' : (isBuiltIn ? '<span class="fb-locked-badge" style="background:rgba(59,130,246,0.08);color:#3b82f6;"><i class="fas fa-cube" style="font-size:9px;margin-right:3px;"></i>Built-in</span>' : '')) +
+                    (f.type === 'select' && !isLocked ? '<button class="fb-options-btn" onclick="fbToggleOptions(' + i + ')"><i class="fas fa-list" style="margin-right:4px;"></i>Options</button>' : '') +
                     (f.type === 'members' ? '<span style="font-size:10px;color:#8b5cf6;font-weight:600;white-space:nowrap;"><i class="fas fa-users" style="margin-right:3px;"></i>Auto-populated</span>' : '') +
                     '</span>' +
-                    '<button class="fb-delete-btn" onclick="fbDeleteField(' + i + ')"><i class="fas fa-times"></i></button>' +
+                    (isLocked ? '<span style="width:24px;flex-shrink:0;"></span>' : '<button class="fb-delete-btn" onclick="fbDeleteField(' + i + ')"><i class="fas fa-times"></i></button>') +
                     _fbBuildIconPicker(i) +
                 '</div>';
                 if (f.type === 'select') {
