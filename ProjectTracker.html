@@ -6279,6 +6279,14 @@
                 <label class="org-edit-label">Reports To (Manager)</label>
                 <select class="org-edit-input" id="memberEditManager"></select>
             </div>
+            <div class="org-edit-field">
+                <label class="org-edit-label">Access Level</label>
+                <select class="org-edit-input" id="memberEditRole">
+                    <option value="member">Member</option>
+                    <option value="viewer">Viewer</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
             <div class="org-edit-actions" style="justify-content:space-between;">
                 <button class="org-edit-cancel" style="background:#fee2e2;color:#dc2626;border:none;" onclick="deleteMemberFromEdit()"><i class="fas fa-trash-alt" style="margin-right:5px;"></i>Delete</button>
                 <div style="display:flex;gap:8px;">
@@ -11900,25 +11908,20 @@
                 teamSel.value = String(currentOrgTeam || 0);
             }
 
+            // Populate manager dropdown from ALL team members (not just org chart nodes)
             var sel = document.getElementById('memberEditManager');
             sel.innerHTML = '<option value="">No Manager — Root</option>';
-            (orgChartData.teams || []).forEach(function(team) {
-                if (team.leader && team.leader.name) {
-                    var o = document.createElement('option');
-                    o.value = team.leader.name;
-                    o.textContent = team.leader.name + ' (Lead — ' + team.name + ')';
-                    sel.appendChild(o);
-                }
-                (team.branches || []).forEach(function(b) {
-                    if (b.manager && b.manager.name) {
-                        var o = document.createElement('option');
-                        o.value = b.manager.name;
-                        o.textContent = b.manager.name + ' (' + (b.department || 'Dept') + ')';
-                        sel.appendChild(o);
-                    }
-                });
+            teamMembers.forEach(function(tm) {
+                if (tm.uid === uid) return; // can't report to yourself
+                var o = document.createElement('option');
+                o.value = tm.displayName || tm.email;
+                o.textContent = (tm.displayName || tm.email) + (tm.jobTitle ? ' — ' + tm.jobTitle : '');
+                sel.appendChild(o);
             });
             if (orgInfo && orgInfo.manager) sel.value = orgInfo.manager;
+
+            // Pre-fill access level
+            document.getElementById('memberEditRole').value = m.role || 'member';
 
             document.getElementById('memberEditOverlay').style.display = 'flex';
         }
@@ -11935,6 +11938,7 @@
             var newTitle    = document.getElementById('memberEditJobTitle').value.trim();
             var newDept     = document.getElementById('memberEditDept').value.trim();
             var newMgr      = document.getElementById('memberEditManager').value;
+            var newRole     = document.getElementById('memberEditRole').value;
             var newTeamIdx  = document.getElementById('memberEditTeam').value;
             var newTeamName = document.getElementById('memberEditTeam').options[document.getElementById('memberEditTeam').selectedIndex]?.text || '';
 
@@ -11943,6 +11947,7 @@
             if (newName  !== (m.displayName || m.name || '')) _patchPayload.displayName = newName;
             if (newTitle !== (m.jobTitle || ''))               _patchPayload.jobTitle    = newTitle;
             if (newDept  !== (m.dept || ''))                   _patchPayload.dept        = newDept;
+            if (newRole  !== (m.role || 'member'))             _patchPayload.role        = newRole;
             if (Object.keys(_patchPayload).length > 0) {
                 try {
                     var token = await auth.currentUser.getIdToken();
@@ -11955,6 +11960,7 @@
                     if (_patchPayload.displayName) { m.displayName = newName; m.name = newName; }
                     if (_patchPayload.jobTitle !== undefined) m.jobTitle = newTitle;
                     if (_patchPayload.dept     !== undefined) m.dept     = newDept;
+                    if (_patchPayload.role     !== undefined) m.role     = newRole;
                 } catch(e) {
                     console.warn('[MemberEdit] Patch failed:', e);
                     showToast('Save failed: ' + e.message, true);
