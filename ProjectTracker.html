@@ -532,6 +532,8 @@
             flex-direction: column;
             gap: 10px;
             min-height: 100px;
+            max-height: calc(100vh - 260px);
+            overflow-y: auto;
             flex: 1;
             transition: background-color 0.2s ease;
         }
@@ -6807,6 +6809,28 @@
               </div>
             </div>
 
+            <!-- === SECTION 1.35: RELATED PROJECTS === -->
+            <div class="modal-section modal-section-collapsed" id="sectionRelatedProjects" style="border-color:#a5b4fc;">
+              <div class="modal-section-header" style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);" onclick="toggleModalSection('sectionRelatedProjects')">
+                <span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>
+                <i class="fas fa-project-diagram" style="color:#6366f1;font-size:12px;"></i>
+                <span class="modal-section-title">1.35 &middot; Related Projects</span>
+                <span class="modal-section-badge" id="relatedCountBadge" style="display:none;"></span>
+              </div>
+              <div class="modal-section-body" style="display:none;padding:12px 16px;">
+                <div id="relatedProjectsContent">
+                  <div style="margin-bottom:10px;">
+                    <div style="position:relative;" id="relatedProjectsSearchWrap">
+                      <input type="text" id="relatedProjectsSearch" placeholder="Search projects to link..." oninput="_filterRelatedProjects()" onfocus="_showRelatedDropdown()" style="width:100%;padding:8px 12px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:inherit;box-sizing:border-box;">
+                      <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:12px;"></i>
+                    </div>
+                    <div id="relatedProjectsDropdown" style="display:none;max-height:200px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;margin-top:4px;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.08);"></div>
+                  </div>
+                  <div id="relatedProjectsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                </div>
+              </div>
+            </div>
+
             <!-- === SECTION 1.4: RACI CHART === -->
             <div class="modal-section modal-section-collapsed" id="sectionRACIChart" style="display:none;border-color:#c7d2fe;">
               <div class="modal-section-header" style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);" onclick="toggleModalSection('sectionRACIChart')">
@@ -9680,6 +9704,7 @@
             renderIssues(task.issues || []);
             renderRaciChart(task.raciChart || []);
             renderGanttChart();
+            renderRelatedProjects(task.relatedProjects || []);
             // Custom fields from form builder
             _renderModalCustomFields(task.customFields || {});
             _resetModalSections();
@@ -9768,6 +9793,7 @@
             renderIssues([]);
             renderRaciChart([]);
             renderGanttChart();
+            renderRelatedProjects([]);
             _renderModalCustomFields({});
             _resetModalSections();
 
@@ -10471,6 +10497,7 @@
                 issues: _issuesData || [],
                 raciChart: _raciData || [],
                 customFields: _collectModalCustomFields(),
+                relatedProjects: _relatedProjectIds || [],
                 updatedAt: new Date().toISOString()
             };
 
@@ -14002,6 +14029,7 @@
                         if (d.customSectionAreas && typeof d.customSectionAreas === 'object') _customSectionAreas = d.customSectionAreas;
                         if (d.stepFieldsConfig) _stepFieldsConfig = Object.assign({ status: true, startDate: true, endDate: true, assignee: true, notes: true }, d.stepFieldsConfig);
                         if (d.issueFieldsConfig) _issueFieldsConfig = Object.assign({ priority: true, status: true, notes: true, date: true, owner: true }, d.issueFieldsConfig);
+                        if (Array.isArray(d.stepCustomFields)) _stepCustomFields = d.stepCustomFields;
                         if (d.siteTitle) applySiteTitle(d.siteTitle);
                         if (d.logoUrl) applySiteLogo(d.logoUrl);
                         // Populate admin general inputs if already open
@@ -14037,7 +14065,8 @@
                     siteTitle: _siteTitle, 
                     logoUrl: _logoUrl,
                     stepFieldsConfig: _stepFieldsConfig,
-                    issueFieldsConfig: _issueFieldsConfig
+                    issueFieldsConfig: _issueFieldsConfig,
+                    stepCustomFields: _stepCustomFields
                 })
                 .catch(function() {});
         }
@@ -18342,7 +18371,7 @@
 
         function _resetModalSections() {
             // Collapse sub-sections (1.1, 1.2, 1.3, 1.4, 1.5), ensure Basic Info is open
-            ['sectionImpact','sectionProjectSteps','sectionIssues','sectionRACIChart','sectionGanttChart'].forEach(function(id) {
+            ['sectionImpact','sectionProjectSteps','sectionIssues','sectionRelatedProjects','sectionRACIChart','sectionGanttChart'].forEach(function(id) {
                 var sec = document.getElementById(id);
                 if (!sec) return;
                 sec.classList.add('modal-section-collapsed');
@@ -18356,9 +18385,9 @@
             var secRaci   = document.getElementById('sectionRACIChart');
             var secGantt  = document.getElementById('sectionGanttChart');
             if (secImpact) secImpact.style.display = _enabledSections.impact ? '' : 'none';
-            // Derive steps/issues visibility from formSchema — only show section if template fields exist
-            var _hasStepsFields  = formSchema.some(function(f) { return f.id && /^mkt_ps_/.test(f.id); });
-            var _hasIssuesFields = formSchema.some(function(f) { return f.id && /^mkt_is_/.test(f.id); });
+            // Derive steps/issues visibility from _enabledSections AND formSchema
+            var _hasStepsFields  = _enabledSections.steps !== false || formSchema.some(function(f) { return f.id && /^mkt_ps_/.test(f.id); });
+            var _hasIssuesFields = _enabledSections.issues !== false || formSchema.some(function(f) { return f.id && /^mkt_is_/.test(f.id); });
             if (secSteps)  secSteps.style.display  = _hasStepsFields  ? '' : 'none';
             if (secIssues) secIssues.style.display = _hasIssuesFields ? '' : 'none';
             // RACI and Gantt visibility from formSchema chart templates
@@ -18516,6 +18545,7 @@
             var container = document.getElementById('projectStepsList');
             if (!container) return;
             var cfg = _stepFieldsConfig || {};
+            var customFields = _stepCustomFields || [];
             if (!_projectStepsData.length) {
                 container.innerHTML = '<p class="ps-empty">No steps yet \u2014 click Add Step below.</p>';
             } else {
@@ -18548,14 +18578,48 @@
                     }
                     html += '<button class="ps-del-btn" onclick="_deleteProjectStep(' + i + ')" title="Remove step"><i class="fas fa-times"></i></button>' +
                     '</div>';
-                    if (cfg.notes !== false) {
-                        html += '<div style="margin:-4px 0 6px 42px;"><textarea class="issue-notes" placeholder="Step notes\u2026" style="min-height:32px;font-size:11px;" ' +
-                            'oninput="_projectStepsData[' + i + '].notes=this.value;_markModalDirty()">' + escapeHtml(step.notes || '') + '</textarea></div>';
+                    // Custom fields row + notes
+                    var hasExtras = (cfg.notes !== false) || customFields.length > 0;
+                    if (hasExtras) {
+                        html += '<div style="margin:-4px 0 6px 42px;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start;">';
+                        // Custom step fields
+                        var cData = (step.customData || {});
+                        customFields.forEach(function(cf) {
+                            var val = cData[cf.key] || '';
+                            if (cf.type === 'members') {
+                                html += '<div style="flex:0 0 auto;min-width:120px;"><label style="font-size:9px;color:#64748b;font-weight:600;display:block;margin-bottom:2px;">' + escapeHtml(cf.label) + '</label>' +
+                                    '<select class="ps-owner-sel" style="width:100%;" onchange="_psSetCustom(' + i + ',\'' + cf.key + '\',this.value)">' +
+                                    _buildOwnerOptions(val) + '</select></div>';
+                            } else if (cf.type === 'date') {
+                                html += '<div style="flex:0 0 auto;"><label style="font-size:9px;color:#64748b;font-weight:600;display:block;margin-bottom:2px;">' + escapeHtml(cf.label) + '</label>' +
+                                    '<input type="date" value="' + escapeHtml(val) + '" onchange="_psSetCustom(' + i + ',\'' + cf.key + '\',this.value)" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 5px;font-size:10px;font-family:inherit;color:#475569;max-width:110px;"></div>';
+                            } else if (cf.type === 'number') {
+                                html += '<div style="flex:0 0 auto;"><label style="font-size:9px;color:#64748b;font-weight:600;display:block;margin-bottom:2px;">' + escapeHtml(cf.label) + '</label>' +
+                                    '<input type="number" value="' + escapeHtml(val) + '" placeholder="0" onchange="_psSetCustom(' + i + ',\'' + cf.key + '\',this.value)" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 5px;font-size:10px;font-family:inherit;color:#475569;width:70px;"></div>';
+                            } else if (cf.type === 'checkbox') {
+                                html += '<div style="flex:0 0 auto;display:flex;align-items:center;gap:4px;margin-top:12px;"><input type="checkbox" ' + (val ? 'checked' : '') + ' onchange="_psSetCustom(' + i + ',\'' + cf.key + '\',this.checked)" style="accent-color:#16a34a;">' +
+                                    '<label style="font-size:10px;color:#475569;font-weight:500;">' + escapeHtml(cf.label) + '</label></div>';
+                            } else {
+                                html += '<div style="flex:1;min-width:100px;"><label style="font-size:9px;color:#64748b;font-weight:600;display:block;margin-bottom:2px;">' + escapeHtml(cf.label) + '</label>' +
+                                    '<input type="text" value="' + escapeHtml(val) + '" placeholder="' + escapeHtml(cf.label) + '\u2026" oninput="_psSetCustom(' + i + ',\'' + cf.key + '\',this.value)" style="width:100%;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;font-size:10px;font-family:inherit;color:#475569;box-sizing:border-box;"></div>';
+                            }
+                        });
+                        if (cfg.notes !== false) {
+                            html += '<div style="flex:1 1 100%;"><textarea class="issue-notes" placeholder="Step notes\u2026" style="min-height:32px;font-size:11px;" ' +
+                                'oninput="_projectStepsData[' + i + '].notes=this.value;_markModalDirty()">' + escapeHtml(step.notes || '') + '</textarea></div>';
+                        }
+                        html += '</div>';
                     }
                     return html;
                 }).join('');
             }
             _updateStepsBadge();
+        }
+
+        function _psSetCustom(stepIdx, key, value) {
+            if (!_projectStepsData[stepIdx].customData) _projectStepsData[stepIdx].customData = {};
+            _projectStepsData[stepIdx].customData[key] = value;
+            _markModalDirty();
         }
 
         function addProjectStep() {
@@ -18677,6 +18741,110 @@
             badge.textContent = total ? (open ? open + ' open' : total + ' resolved') : '';
             badge.style.display = total ? 'inline-block' : 'none';
         }
+
+        // ============================================================
+        // RELATED PROJECTS
+        // ============================================================
+        var _relatedProjectIds = [];
+
+        function renderRelatedProjects(ids) {
+            _relatedProjectIds = (ids || []).slice();
+            _drawRelatedProjects();
+        }
+
+        function _drawRelatedProjects() {
+            var container = document.getElementById('relatedProjectsList');
+            if (!container) return;
+            var badge = document.getElementById('relatedCountBadge');
+            if (badge) {
+                badge.textContent = _relatedProjectIds.length ? _relatedProjectIds.length + ' linked' : '';
+                badge.style.display = _relatedProjectIds.length ? 'inline-block' : 'none';
+            }
+            if (!_relatedProjectIds.length) {
+                container.innerHTML = '<div style="font-size:11px;color:#94a3b8;padding:4px 0;"><i class="fas fa-link" style="margin-right:4px;"></i>No related projects linked yet. Search above to add.</div>';
+                return;
+            }
+            container.innerHTML = _relatedProjectIds.map(function(tid) {
+                var t = tasks.find(function(p) { return p.id === tid; });
+                if (!t) return '';
+                var statusColors = { 'not-started':'#94a3b8', 'in-progress':'#3b82f6', 'on-hold':'#f59e0b', 'completed':'#22c55e' };
+                var sc = statusColors[t.status] || '#94a3b8';
+                return '<div data-testid="related-project-' + tid + '" style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;cursor:pointer;transition:all 0.15s;" onclick="_openRelatedProject(\'' + tid + '\')" onmouseover="this.style.background=\'#e0e7ff\'" onmouseout="this.style.background=\'#eef2ff\'">' +
+                    '<span style="width:8px;height:8px;border-radius:50%;background:' + sc + ';flex-shrink:0;"></span>' +
+                    '<span style="flex:1;font-size:12px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title) + '</span>' +
+                    '<span style="font-size:9px;color:#6366f1;font-weight:600;background:#e0e7ff;padding:1px 5px;border-radius:4px;">' + escapeHtml(t.projectId || '') + '</span>' +
+                    '<button onclick="event.stopPropagation();_unlinkRelatedProject(\'' + tid + '\')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:11px;padding:2px;" title="Unlink"><i class="fas fa-times"></i></button>' +
+                '</div>';
+            }).join('');
+        }
+
+        function _openRelatedProject(tid) {
+            closeModal();
+            setTimeout(function() { openEditModal(tid); }, 200);
+        }
+
+        function _unlinkRelatedProject(tid) {
+            _relatedProjectIds = _relatedProjectIds.filter(function(id) { return id !== tid; });
+            _markModalDirty();
+            _drawRelatedProjects();
+        }
+
+        function _showRelatedDropdown() {
+            _filterRelatedProjects();
+            document.getElementById('relatedProjectsDropdown').style.display = 'block';
+        }
+
+        function _filterRelatedProjects() {
+            var dropdown = document.getElementById('relatedProjectsDropdown');
+            var search = (document.getElementById('relatedProjectsSearch').value || '').trim().toLowerCase();
+            if (!dropdown) return;
+            // Get current task ID to exclude it
+            var currentTaskId = (currentEditIndex !== null && currentEditIndex >= 0 && tasks[currentEditIndex]) ? tasks[currentEditIndex].id : null;
+            var filtered = tasks.filter(function(t) {
+                if (t.archived) return false;
+                if (t.id === currentTaskId) return false;
+                if (search && t.title.toLowerCase().indexOf(search) === -1 && (t.projectId || '').toLowerCase().indexOf(search) === -1) return false;
+                return true;
+            }).slice(0, 20);
+            if (!filtered.length) {
+                dropdown.innerHTML = '<div style="padding:12px;font-size:12px;color:#94a3b8;text-align:center;">No matching projects found</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+            dropdown.innerHTML = filtered.map(function(t) {
+                var isLinked = _relatedProjectIds.indexOf(t.id) !== -1;
+                var statusColors = { 'not-started':'#94a3b8', 'in-progress':'#3b82f6', 'on-hold':'#f59e0b', 'completed':'#22c55e' };
+                var sc = statusColors[t.status] || '#94a3b8';
+                return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background 0.1s;' + (isLinked ? 'background:#eef2ff;' : '') + '" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'' + (isLinked ? '#eef2ff' : '#fff') + '\'" onclick="_toggleRelatedProject(\'' + t.id + '\')">' +
+                    '<input type="checkbox" ' + (isLinked ? 'checked' : '') + ' style="accent-color:#6366f1;pointer-events:none;" tabindex="-1">' +
+                    '<span style="width:8px;height:8px;border-radius:50%;background:' + sc + ';flex-shrink:0;"></span>' +
+                    '<span style="flex:1;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title) + '</span>' +
+                    '<span style="font-size:9px;color:#64748b;background:#f1f5f9;padding:1px 5px;border-radius:4px;flex-shrink:0;">' + escapeHtml(t.projectId || t.id.slice(-6)) + '</span>' +
+                '</div>';
+            }).join('');
+            dropdown.style.display = 'block';
+        }
+
+        function _toggleRelatedProject(tid) {
+            var idx = _relatedProjectIds.indexOf(tid);
+            if (idx !== -1) {
+                _relatedProjectIds.splice(idx, 1);
+            } else {
+                _relatedProjectIds.push(tid);
+            }
+            _markModalDirty();
+            _drawRelatedProjects();
+            _filterRelatedProjects();
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            var wrap = document.getElementById('relatedProjectsSearchWrap');
+            var dropdown = document.getElementById('relatedProjectsDropdown');
+            if (wrap && dropdown && !wrap.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
 
         // ============================================================
         // RACI CHART DATA & RENDERING
@@ -19540,6 +19708,7 @@
             // Save step and issue field configurations
             _stepFieldsConfig = Object.assign({}, _fbDraftStepFields);
             _issueFieldsConfig = Object.assign({}, _fbDraftIssueFields);
+            _stepCustomFields = _fbDraftStepCustomFields.map(function(f) { return Object.assign({}, f); });
             // Extract all other section areas
             _customSectionAreas = {};
             Object.keys(_fbDraftSectionAreas).forEach(function(sid) {
@@ -19669,6 +19838,47 @@
 
         // Add custom area to a section
         function _fbAddCustomArea(section) {
+
+        // ---- Step Custom Fields Management ----
+        function _fbAddStepCustomField() {
+            var labelEl = document.getElementById('fbStepNewFieldLabel');
+            var typeEl = document.getElementById('fbStepNewFieldType');
+            if (!labelEl || !typeEl) return;
+            var label = (labelEl.value || '').trim();
+            if (!label) { showToast('Enter a field label'); labelEl.focus(); return; }
+            _fbDraftStepCustomFields.push({
+                key: 'scf_' + Date.now(),
+                label: label,
+                type: typeEl.value
+            });
+            labelEl.value = '';
+            _renderFBStepCustomFields();
+            _renderFBPreview();
+        }
+
+        function _fbRemoveStepCustomField(idx) {
+            _fbDraftStepCustomFields.splice(idx, 1);
+            _renderFBStepCustomFields();
+            _renderFBPreview();
+        }
+
+        function _renderFBStepCustomFields() {
+            var container = document.getElementById('fbStepCustomFieldsList');
+            if (!container) return;
+            if (!_fbDraftStepCustomFields.length) {
+                container.innerHTML = '<div style="font-size:11px;color:#94a3b8;padding:4px 0;">No custom step fields added yet.</div>';
+                return;
+            }
+            var typeLabels = { text:'Text', number:'Number', date:'Date', members:'People Picker', select:'Dropdown', checkbox:'Checkbox' };
+            container.innerHTML = _fbDraftStepCustomFields.map(function(f, i) {
+                return '<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin-bottom:4px;">' +
+                    '<i class="fas fa-grip-vertical" style="color:#bbf7d0;font-size:9px;"></i>' +
+                    '<span style="flex:1;font-size:12px;font-weight:600;color:#1e293b;">' + escapeHtml(f.label) + '</span>' +
+                    '<span style="font-size:10px;color:#64748b;background:#e2e8f0;padding:2px 6px;border-radius:4px;">' + (typeLabels[f.type] || f.type) + '</span>' +
+                    '<button onclick="_fbRemoveStepCustomField(' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>' +
+                '</div>';
+            }).join('');
+        }
             if (section === 'impact') {
                 var input = document.getElementById('fbImpactNewArea');
                 var name = (input.value || '').trim();
@@ -19756,6 +19966,8 @@
             // Copy to draft
             _fbDraftStepFields = Object.assign({}, _stepFieldsConfig);
             _fbDraftIssueFields = Object.assign({}, _issueFieldsConfig);
+            _fbDraftStepCustomFields = _stepCustomFields.map(function(f) { return Object.assign({}, f); });
+            _renderFBStepCustomFields();
         }
 
         // Draft enabled sections for form builder
@@ -19764,6 +19976,9 @@
         // Global config for step and issue fields (persisted)
         var _stepFieldsConfig = { status: true, startDate: true, endDate: true, assignee: true, notes: true };
         var _issueFieldsConfig = { priority: true, status: true, notes: true, date: true, owner: true };
+        // Custom fields added to Project Steps (persisted in extendedSettings)
+        var _stepCustomFields = [];
+        var _fbDraftStepCustomFields = [];
 
         var _fbIconChoices = ['fa-clipboard-list','fa-cog','fa-folder','fa-star','fa-flag','fa-bolt','fa-chart-bar','fa-shield-alt','fa-users','fa-calendar-alt','fa-building','fa-server','fa-lock','fa-tag','fa-link','fa-bell','fa-file-alt','fa-search','fa-check-circle','fa-exclamation-triangle'];
         var _fbColorChoices = [
@@ -20353,6 +20568,7 @@
                 if (_draftStepF.endDate !== false) stepVisFields.push('End');
                 if (_draftStepF.assignee !== false) stepVisFields.push('Assignee');
                 if (_draftStepF.notes !== false) stepVisFields.push('Notes');
+                (_fbDraftStepCustomFields || _stepCustomFields || []).forEach(function(cf) { stepVisFields.push(cf.label); });
                 html += '<div style="border:2px solid #bbf7d0;border-radius:10px;margin-bottom:10px;overflow:hidden;">' +
                     '<div style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);padding:8px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #bbf7d0;">' +
                     '<i class="fas fa-list-ol" style="color:#16a34a;font-size:11px;"></i>' +
@@ -21333,6 +21549,21 @@
                                     <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
                                         <input type="checkbox" id="fbStepNotes" checked onchange="_fbToggleStepField('notes',this.checked)" style="accent-color:#16a34a;"><span>Notes</span>
                                     </label>
+                                </div>
+                                <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">
+                                    <div style="font-size:11px;font-weight:600;color:#16a34a;margin-bottom:6px;"><i class="fas fa-plus-circle" style="margin-right:4px;"></i>Custom Step Fields</div>
+                                    <div id="fbStepCustomFieldsList" style="margin-bottom:8px;"><div style="font-size:11px;color:#94a3b8;padding:4px 0;">No custom step fields added yet.</div></div>
+                                    <div style="display:flex;gap:6px;align-items:center;">
+                                        <input type="text" id="fbStepNewFieldLabel" placeholder="Field label (e.g. Manager)" style="flex:1;padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;">
+                                        <select id="fbStepNewFieldType" style="padding:5px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;">
+                                            <option value="text">Text</option>
+                                            <option value="members">People Picker</option>
+                                            <option value="number">Number</option>
+                                            <option value="date">Date</option>
+                                            <option value="checkbox">Checkbox</option>
+                                        </select>
+                                        <button onclick="_fbAddStepCustomField()" style="padding:5px 10px;background:#16a34a;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"><i class="fas fa-plus"></i> Add</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
