@@ -6439,7 +6439,7 @@
                 </button>
             </div>
             <button class="btn-ai" id="aiAssistBtn" onclick="openAIModal()" title="AI Assistant">
-                <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c9ab13bb89d5a66a920964a28b850120c02380aa/icons/AIicon.png" alt="AI" style="width:18px;height:18px;object-fit:contain;"> <span class="btn-ai-label">AI Assist</span>
+                <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c9ab13bb89d5a66a920964a28b850120c02380aa/icons/AIicon.png" alt="AI" style="width:18px;height:18px;object-fit:contain;filter:brightness(0) invert(1);"> <span class="btn-ai-label">AI Assist</span>
             </button>
 
             <!-- Save button commented out — app auto-saves on every task edit -->
@@ -13917,6 +13917,8 @@
                         if (Array.isArray(d.impactAreas)) _impactAreas = d.impactAreas;
                         if (d.enabledSections) _enabledSections = Object.assign({ impact: true, steps: true, issues: true }, d.enabledSections);
                         if (d.customSectionAreas && typeof d.customSectionAreas === 'object') _customSectionAreas = d.customSectionAreas;
+                        if (d.stepFieldsConfig) _stepFieldsConfig = Object.assign({ status: true, startDate: true, endDate: true, assignee: true, notes: true }, d.stepFieldsConfig);
+                        if (d.issueFieldsConfig) _issueFieldsConfig = Object.assign({ priority: true, status: true, notes: true, date: true, owner: true }, d.issueFieldsConfig);
                         if (d.siteTitle) applySiteTitle(d.siteTitle);
                         if (d.logoUrl) applySiteLogo(d.logoUrl);
                         // Populate admin general inputs if already open
@@ -13939,7 +13941,21 @@
         function saveExtendedSettings() {
             if (!currentTenantId) return;
             db.collection('tenants').doc(currentTenantId).collection('settings').doc('extended')
-                .set({ departments: departments, systemsList: systemsList, aiApiKey: aiApiKey, aiModel: aiModel, formSchema: formSchema, aiContextLibrary: aiContextLibrary, impactAreas: _impactAreas, enabledSections: _enabledSections, customSectionAreas: _customSectionAreas, siteTitle: _siteTitle, logoUrl: _logoUrl })
+                .set({ 
+                    departments: departments, 
+                    systemsList: systemsList, 
+                    aiApiKey: aiApiKey, 
+                    aiModel: aiModel, 
+                    formSchema: formSchema, 
+                    aiContextLibrary: aiContextLibrary, 
+                    impactAreas: _impactAreas, 
+                    enabledSections: _enabledSections, 
+                    customSectionAreas: _customSectionAreas, 
+                    siteTitle: _siteTitle, 
+                    logoUrl: _logoUrl,
+                    stepFieldsConfig: _stepFieldsConfig,
+                    issueFieldsConfig: _issueFieldsConfig
+                })
                 .catch(function() {});
         }
 
@@ -19370,6 +19386,9 @@
             });
             // Save section visibility toggles
             _enabledSections = Object.assign({}, _fbDraftEnabledSections);
+            // Save step and issue field configurations
+            _stepFieldsConfig = Object.assign({}, _fbDraftStepFields);
+            _issueFieldsConfig = Object.assign({}, _fbDraftIssueFields);
             // Extract all other section areas
             _customSectionAreas = {};
             Object.keys(_fbDraftSectionAreas).forEach(function(sid) {
@@ -19383,6 +19402,9 @@
             _applyBuiltinFieldVisibility();
             // Apply section visibility
             _applySectionVisibility();
+            // Apply step and issue field visibility
+            _applyStepFieldVisibility();
+            _applyIssueFieldVisibility();
             showToast('Form Builder saved');
             closeFormBuilderModal();
         }
@@ -19395,6 +19417,18 @@
             if (secImpact) secImpact.style.display = _enabledSections.impact !== false ? '' : 'none';
             if (secSteps) secSteps.style.display = _enabledSections.steps !== false ? '' : 'none';
             if (secIssues) secIssues.style.display = _enabledSections.issues !== false ? '' : 'none';
+        }
+        
+        // Apply step field visibility
+        function _applyStepFieldVisibility() {
+            // This will be applied when rendering steps
+            // The renderProjectSteps function should check _stepFieldsConfig
+        }
+        
+        // Apply issue field visibility
+        function _applyIssueFieldVisibility() {
+            // This will be applied when rendering issues
+            // The renderIssuesSection function should check _issueFieldsConfig
         }
 
         function renderFBDefaults() {
@@ -19459,10 +19493,24 @@
 
         // Temporary storage for custom impact areas being edited in form builder
         var _fbDraftImpactAreas = [];
+        
+        // Field visibility settings for Project Steps and Issues
+        var _fbDraftStepFields = { status: true, startDate: true, endDate: true, assignee: true, notes: true };
+        var _fbDraftIssueFields = { priority: true, status: true, notes: true, date: true, owner: true };
 
         // Toggle section visibility in form builder
         function _fbToggleSection(section, enabled) {
             _fbDraftEnabledSections[section] = enabled;
+        }
+        
+        // Toggle individual step field
+        function _fbToggleStepField(field, enabled) {
+            _fbDraftStepFields[field] = enabled;
+        }
+        
+        // Toggle individual issue field
+        function _fbToggleIssueField(field, enabled) {
+            _fbDraftIssueFields[field] = enabled;
         }
 
         // Add custom area to a section
@@ -19472,7 +19520,15 @@
                 var name = (input.value || '').trim();
                 if (!name) { alert('Enter an area name'); return; }
                 var key = 'custom_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
-                _fbDraftImpactAreas.push({ key: key, label: name, color: '#8b5cf6', icon: 'fa-folder', isCustom: true });
+                // Create with default questions
+                _fbDraftImpactAreas.push({ 
+                    key: key, 
+                    label: name, 
+                    color: '#8b5cf6', 
+                    icon: 'fa-folder', 
+                    isCustom: true,
+                    questions: ['Is this area impacted?', 'What is the impact level? (Low/Medium/High)', 'Notes/Details']
+                });
                 input.value = '';
                 _fbRenderCustomImpactAreas();
             }
@@ -19498,6 +19554,7 @@
                 return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;margin-bottom:4px;">' +
                     '<i class="fas ' + area.icon + '" style="color:' + area.color + ';font-size:11px;"></i>' +
                     '<span style="flex:1;font-size:12px;font-weight:500;color:#1e293b;">' + escapeHtml(area.label) + '</span>' +
+                    '<span style="font-size:10px;color:#64748b;">' + (area.questions || []).length + ' questions</span>' +
                     '<button onclick="_fbRemoveCustomArea(\'impact\',' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>' +
                 '</div>';
             }).join('');
@@ -19505,7 +19562,7 @@
 
         // Initialize form builder section toggles
         function _fbInitSectionToggles() {
-            // Set checkbox states
+            // Set checkbox states for section visibility
             var chkImpact = document.getElementById('fbSecImpact');
             var chkSteps = document.getElementById('fbSecSteps');
             var chkIssues = document.getElementById('fbSecIssues');
@@ -19521,10 +19578,38 @@
             var defaultCount = _impactAreas.filter(function(a) { return !a.isCustom; }).length;
             var countEl = document.getElementById('fbImpactDefaultCount');
             if (countEl) countEl.textContent = defaultCount;
+            
+            // Initialize step field checkboxes
+            var stepFields = ['status', 'startDate', 'endDate', 'assignee', 'notes'];
+            stepFields.forEach(function(f) {
+                var chk = document.getElementById('fbStep' + f.charAt(0).toUpperCase() + f.slice(1));
+                if (!chk) chk = document.getElementById('fbStepStart'); // handle startDate -> fbStepStart
+                if (f === 'startDate') chk = document.getElementById('fbStepStart');
+                if (f === 'endDate') chk = document.getElementById('fbStepEnd');
+                if (f === 'status') chk = document.getElementById('fbStepStatus');
+                if (f === 'assignee') chk = document.getElementById('fbStepAssignee');
+                if (f === 'notes') chk = document.getElementById('fbStepNotes');
+                if (chk) chk.checked = _stepFieldsConfig[f] !== false;
+            });
+            
+            // Initialize issue field checkboxes
+            var issueFields = ['priority', 'status', 'notes', 'date', 'owner'];
+            issueFields.forEach(function(f) {
+                var chk = document.getElementById('fbIssue' + f.charAt(0).toUpperCase() + f.slice(1));
+                if (chk) chk.checked = _issueFieldsConfig[f] !== false;
+            });
+            
+            // Copy to draft
+            _fbDraftStepFields = Object.assign({}, _stepFieldsConfig);
+            _fbDraftIssueFields = Object.assign({}, _issueFieldsConfig);
         }
 
         // Draft enabled sections for form builder
         var _fbDraftEnabledSections = { impact: true, steps: true, issues: true };
+        
+        // Global config for step and issue fields (persisted)
+        var _stepFieldsConfig = { status: true, startDate: true, endDate: true, assignee: true, notes: true };
+        var _issueFieldsConfig = { priority: true, status: true, notes: true, date: true, owner: true };
 
         var _fbIconChoices = ['fa-clipboard-list','fa-cog','fa-folder','fa-star','fa-flag','fa-bolt','fa-chart-bar','fa-shield-alt','fa-users','fa-calendar-alt','fa-building','fa-server','fa-lock','fa-tag','fa-link','fa-bell','fa-file-alt','fa-search','fa-check-circle','fa-exclamation-triangle'];
         var _fbColorChoices = [
@@ -20973,9 +21058,12 @@
                                 <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:8px;">Default Areas: <span id="fbImpactDefaultCount">8</span></div>
                                 <div style="font-size:11px;color:#64748b;margin-bottom:10px;">Add custom assessment areas (e.g., "Policy", "Training", "Compliance")</div>
                                 <div id="fbImpactCustomAreas" style="margin-bottom:8px;"></div>
-                                <div style="display:flex;gap:6px;">
+                                <div style="display:flex;gap:6px;margin-bottom:10px;">
                                     <input type="text" id="fbImpactNewArea" placeholder="New area name..." style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
                                     <button onclick="_fbAddCustomArea('impact')" style="padding:6px 12px;background:#dc2626;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;"><i class="fas fa-plus"></i></button>
+                                </div>
+                                <div style="font-size:10px;color:#94a3b8;padding:6px 8px;background:#f8fafc;border-radius:4px;">
+                                    <i class="fas fa-info-circle" style="margin-right:4px;"></i>Custom areas include 3 default questions: Impacted?, Impact Level, and Notes.
                                 </div>
                             </div>
                         </div>
@@ -20993,7 +21081,27 @@
                                 </label>
                             </div>
                             <div class="fb-section-expand" id="fbSecStepsBody" style="padding:12px 14px;background:#fff;">
-                                <div style="font-size:11px;color:#64748b;">Project steps include: Name, Status, Start Date, End Date, Assignee, and Notes.</div>
+                                <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:8px;">Configure which fields appear for each step:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:6px;" id="fbStepsFields">
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" checked disabled style="accent-color:#16a34a;"><span>Name</span><i class="fas fa-lock" style="font-size:8px;color:#94a3b8;margin-left:2px;"></i>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbStepStatus" checked onchange="_fbToggleStepField('status',this.checked)" style="accent-color:#16a34a;"><span>Status</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbStepStart" checked onchange="_fbToggleStepField('startDate',this.checked)" style="accent-color:#16a34a;"><span>Start Date</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbStepEnd" checked onchange="_fbToggleStepField('endDate',this.checked)" style="accent-color:#16a34a;"><span>End Date</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbStepAssignee" checked onchange="_fbToggleStepField('assignee',this.checked)" style="accent-color:#16a34a;"><span>Assignee</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbStepNotes" checked onchange="_fbToggleStepField('notes',this.checked)" style="accent-color:#16a34a;"><span>Notes</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -21010,7 +21118,27 @@
                                 </label>
                             </div>
                             <div class="fb-section-expand" id="fbSecIssuesBody" style="padding:12px 14px;background:#fff;">
-                                <div style="font-size:11px;color:#64748b;">Issues log includes: Title, Priority, Status, and Notes fields.</div>
+                                <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:8px;">Configure which fields appear for each issue:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:6px;" id="fbIssuesFields">
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" checked disabled style="accent-color:#ea580c;"><span>Title</span><i class="fas fa-lock" style="font-size:8px;color:#94a3b8;margin-left:2px;"></i>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbIssuePriority" checked onchange="_fbToggleIssueField('priority',this.checked)" style="accent-color:#ea580c;"><span>Priority</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbIssueStatus" checked onchange="_fbToggleIssueField('status',this.checked)" style="accent-color:#ea580c;"><span>Status</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbIssueNotes" checked onchange="_fbToggleIssueField('notes',this.checked)" style="accent-color:#ea580c;"><span>Notes</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbIssueDate" checked onchange="_fbToggleIssueField('date',this.checked)" style="accent-color:#ea580c;"><span>Date Raised</span>
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:4px;padding:4px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;font-size:11px;cursor:pointer;">
+                                        <input type="checkbox" id="fbIssueOwner" checked onchange="_fbToggleIssueField('owner',this.checked)" style="accent-color:#ea580c;"><span>Owner</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
