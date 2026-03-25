@@ -3370,7 +3370,8 @@
             .analytics-charts-grid, .analytics-charts-row3 { grid-template-columns: 1fr !important; }
 
             /* ── View Switcher Button (mobile) ── */
-            .mobile-view-fab { display: flex; }
+            #mobileViewFabWrap { display: inline-block; }
+            .mobile-view-fab { display: flex !important; }
 
             /* ── Mobile view switcher inside sidebar ── */
             .mobile-view-switcher { display: block; }
@@ -3446,7 +3447,7 @@
         }
         /* Mobile View FAB (next to AI button) */
         .mobile-view-fab {
-            display: none;
+            display: none !important;
             align-items: center;
             justify-content: center;
             width: 36px;
@@ -3462,6 +3463,7 @@
             transition: all 0.2s;
         }
         .mobile-view-fab:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
+        #mobileViewFabWrap { display: none; }
         .mobile-view-dropdown {
             display: none;
             position: absolute;
@@ -6664,8 +6666,10 @@
                     <i class="fas fa-address-book"></i> Contacts
                 </button>
             </div>
-            <button class="mobile-view-fab" id="mobileViewFab" data-testid="mobile-view-fab" onclick="toggleMobileViewDropdown()" title="Switch View">
-                <i class="fas fa-th-large"></i>
+            <div style="position:relative;display:inline-block;" id="mobileViewFabWrap">
+                <button class="mobile-view-fab" id="mobileViewFab" data-testid="mobile-view-fab" onclick="toggleMobileViewDropdown()" title="Switch View">
+                    <i class="fas fa-eye"></i>
+                </button>
                 <div class="mobile-view-dropdown" id="mobileViewDropdown">
                     <button class="mobile-view-dropdown-item active" data-view="kanban" onclick="event.stopPropagation();_mobileSwitch('kanban')"><i class="fas fa-columns"></i> Kanban</button>
                     <button class="mobile-view-dropdown-item" data-view="list" onclick="event.stopPropagation();_mobileSwitch('list')"><i class="fas fa-list"></i> List</button>
@@ -6675,7 +6679,7 @@
                     <button class="mobile-view-dropdown-item" data-view="analytics" onclick="event.stopPropagation();_mobileSwitch('analytics')"><i class="fas fa-chart-bar"></i> Analytics</button>
                     <button class="mobile-view-dropdown-item" data-view="contacts" onclick="event.stopPropagation();_mobileSwitch('contacts')"><i class="fas fa-address-book"></i> Contacts</button>
                 </div>
-            </button>
+            </div>
             <button class="btn-ai" id="aiAssistBtn" onclick="openAIModal()" title="AI Assistant">
                 <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c9ab13bb89d5a66a920964a28b850120c02380aa/icons/AIicon.png" alt="AI" style="width:18px;height:18px;object-fit:contain;filter:brightness(0) invert(1);"> <span class="btn-ai-label">AI Assist</span>
             </button>
@@ -8764,9 +8768,9 @@
 
         // Close view dropdown when clicking outside
         document.addEventListener('click', function(e) {
-            var fab = document.getElementById('mobileViewFab');
+            var wrap = document.getElementById('mobileViewFabWrap');
             var dd = document.getElementById('mobileViewDropdown');
-            if (fab && dd && !fab.contains(e.target)) {
+            if (wrap && dd && !wrap.contains(e.target)) {
                 dd.classList.remove('open');
             }
         });
@@ -15968,130 +15972,166 @@
         function _renderDashWidgetList(prefs) {
             var container = document.getElementById('dashWidgetList');
             if (!container) return;
-            // Build row assignments for visual grouping
-            var rowAssignments = {};
+            var rowColors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#06b6d4','#84cc16'];
+            var rowColorNames = ['Blue','Purple','Pink','Amber','Green','Red','Cyan','Lime'];
+            // Build row groups
+            var unassigned = [];
+            var rowGroups = {};
             _dashWidgetOrder.forEach(function(key) {
                 var def = _dashWidgetDefs.find(function(d) { return d.key === key; });
                 if (!def) return;
                 var savedRow = (prefs.rows && prefs.rows[key]) || 0;
                 if (savedRow > 0) {
-                    if (!rowAssignments[savedRow]) rowAssignments[savedRow] = [];
-                    rowAssignments[savedRow].push(key);
+                    if (!rowGroups[savedRow]) rowGroups[savedRow] = [];
+                    rowGroups[savedRow].push(key);
+                } else {
+                    unassigned.push(key);
                 }
             });
-            // Row color palette for visual distinction
-            var rowColors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#06b6d4','#84cc16'];
-            container.innerHTML = _dashWidgetOrder.map(function(key) {
-                var def = _dashWidgetDefs.find(function(d) { return d.key === key; });
-                if (!def) return '';
-                var visible = prefs[key] !== false;
-                // Load column selections; fall back to old width pref
-                var savedCols = (prefs.cols && prefs.cols[key]);
-                if (!savedCols || !savedCols.length) {
-                    var oldW = (prefs.widths && prefs.widths[key]) || (key === 'recent' || key === 'kpi' ? 3 : 2);
-                    savedCols = oldW >= 3 ? [1,2,3] : oldW >= 2 ? [1,2] : [1];
-                }
-                var savedRow = (prefs.rows && prefs.rows[key]) || 0;
-                var rowColor = savedRow > 0 ? rowColors[(savedRow - 1) % rowColors.length] : 'transparent';
-                var rowBuddy = savedRow > 0 && rowAssignments[savedRow] && rowAssignments[savedRow].length > 1;
-                return '<div class="dash-widget-item" draggable="true" data-key="' + key + '" ' +
-                    'ondragstart="_dwDragStart(event)" ondragover="_dwDragOver(event)" ondragleave="_dwDragLeave(event)" ondrop="_dwDrop(event)" ' +
-                    'style="' + (savedRow > 0 ? 'border-left:3px solid ' + rowColor + ';' : '') + '">' +
-                    '<span class="dash-widget-grip"><i class="fas fa-grip-vertical"></i></span>' +
-                    '<span style="font-size:18px;line-height:1;">' + def.icon + '</span>' +
-                    '<span class="dash-widget-label">' + def.label + '</span>' +
-                    (savedRow > 0 ? '<span data-testid="row-badge-' + key + '" style="font-size:9px;font-weight:700;color:' + rowColor + ';background:' + rowColor + '12;border:1px solid ' + rowColor + '33;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0;">R' + savedRow + (rowBuddy ? ' <i class="fas fa-link" style="font-size:7px;margin-left:1px;"></i>' : '') + '</span>' : '') +
-                    '<div class="dash-col-btns" title="Columns this widget occupies">' +
-                        [1,2,3].map(function(c) {
-                            return '<button class="dash-col-btn' + (savedCols.indexOf(c) !== -1 ? ' active' : '') + '" ' +
-                                'onclick="_toggleDashCol(this,' + c + ')" data-col="' + c + '" title="Column ' + c + '">' + c + '</button>';
-                        }).join('') +
-                    '</div>' +
-                    '<select class="dash-row-sel" title="Row group — same row number = share a row" onchange="setTimeout(_updateRowMap,0)">' +
-                        '<option value="0"' + (savedRow===0?' selected':'') + '>Row\u2026</option>' +
-                        [1,2,3,4,5,6,7,8].map(function(r) {
-                            return '<option value="' + r + '"' + (savedRow===r?' selected':'') + '>Row ' + r + '</option>';
-                        }).join('') +
-                    '</select>' +
-                    '<span class="dash-row-indicator" style="display:flex;gap:2px;align-items:center;flex-shrink:0;"></span>' +
-                    '<span class="dash-widget-vis"><input type="checkbox" ' + (visible?'checked':'') + ' title="Show/hide" onchange="void(0)"></span>' +
-                '</div>';
-            }).join('');
+            var usedRows = Object.keys(rowGroups).map(Number).sort(function(a,b){return a-b;});
+            var html = '';
+
+            // Row Legend
+            html += '<div style="padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:14px;">' +
+                '<div style="font-size:10px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Layout Preview</div>' +
+                '<div style="display:flex;flex-direction:column;gap:4px;">';
+            if (usedRows.length === 0) {
+                html += '<div style="font-size:11px;color:#94a3b8;padding:8px;text-align:center;">No rows assigned yet. Use the row dropdowns below to assign widgets to rows.</div>';
+            }
+            usedRows.forEach(function(rn) {
+                var rc = rowColors[(rn-1)%8];
+                var widgets = rowGroups[rn];
+                html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:' + rc + '08;border:1px solid ' + rc + '33;border-radius:6px;">' +
+                    '<span style="font-size:11px;font-weight:800;color:' + rc + ';min-width:42px;">Row ' + rn + '</span>' +
+                    '<div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;height:20px;">';
+                // Build col occupation map
+                var colMap = [null, null, null];
+                widgets.forEach(function(wk) {
+                    var wCols = (prefs.cols && prefs.cols[wk]);
+                    if (!wCols || !wCols.length) {
+                        var oldW = (prefs.widths && prefs.widths[wk]) || 2;
+                        wCols = oldW >= 3 ? [1,2,3] : oldW >= 2 ? [1,2] : [1];
+                    }
+                    var wd = _dashWidgetDefs.find(function(d){return d.key===wk;});
+                    wCols.forEach(function(c) { colMap[c-1] = wd ? wd.label : wk; });
+                });
+                [0,1,2].forEach(function(ci) {
+                    if (colMap[ci]) {
+                        html += '<div style="background:' + rc + ';border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px;">' + colMap[ci] + '</div>';
+                    } else {
+                        html += '<div style="background:#e2e8f0;border-radius:3px;border:1px dashed #cbd5e1;"></div>';
+                    }
+                });
+                html += '</div></div>';
+            });
+            html += '</div></div>';
+
+            // Assigned rows
+            usedRows.forEach(function(rn) {
+                var rc = rowColors[(rn-1)%8];
+                var widgets = rowGroups[rn];
+                html += '<div class="dash-row-group" style="margin-bottom:12px;border:2px solid ' + rc + '44;border-radius:12px;overflow:hidden;">' +
+                    '<div data-testid="row-header-' + rn + '" style="background:linear-gradient(135deg,' + rc + '18,' + rc + '08);padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid ' + rc + '33;">' +
+                        '<span style="width:28px;height:28px;border-radius:8px;background:' + rc + ';color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;">R' + rn + '</span>' +
+                        '<span style="font-size:13px;font-weight:700;color:#1e293b;">Row ' + rn + '</span>' +
+                        '<span style="font-size:10px;color:#64748b;">' + widgets.length + ' widget' + (widgets.length!==1?'s':'') + '</span>' +
+                        '<div style="margin-left:auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;width:48px;">';
+                var colMapForHeader = [false,false,false];
+                widgets.forEach(function(wk) {
+                    var wCols = (prefs.cols && prefs.cols[wk]);
+                    if (!wCols || !wCols.length) {
+                        var oldW2 = (prefs.widths && prefs.widths[wk]) || 2;
+                        wCols = oldW2>=3?[1,2,3]:oldW2>=2?[1,2]:[1];
+                    }
+                    wCols.forEach(function(c){colMapForHeader[c-1]=true;});
+                });
+                [0,1,2].forEach(function(ci) {
+                    html += '<div style="width:14px;height:14px;border-radius:3px;background:' + (colMapForHeader[ci]?rc:'#e2e8f0') + ';"></div>';
+                });
+                html += '</div></div>';
+                // Widgets in this row
+                widgets.forEach(function(key) {
+                    html += _renderSingleWidget(key, prefs, rn, rc);
+                });
+                html += '</div>';
+            });
+
+            // Unassigned widgets
+            if (unassigned.length) {
+                html += '<div style="margin-bottom:12px;border:2px dashed #e2e8f0;border-radius:12px;overflow:hidden;">' +
+                    '<div style="background:#f8fafc;padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e2e8f0;">' +
+                        '<span style="width:28px;height:28px;border-radius:8px;background:#94a3b8;color:white;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;"><i class="fas fa-question"></i></span>' +
+                        '<span style="font-size:13px;font-weight:700;color:#94a3b8;">Not assigned to a row</span>' +
+                        '<span style="font-size:10px;color:#cbd5e1;">' + unassigned.length + ' widget' + (unassigned.length!==1?'s':'') + '</span>' +
+                    '</div>';
+                unassigned.forEach(function(key) {
+                    html += _renderSingleWidget(key, prefs, 0, '#94a3b8');
+                });
+                html += '</div>';
+            }
+
+            container.innerHTML = html;
             setTimeout(_updateRowMap, 0);
         }
 
-        function _updateRowMap() {
+        function _renderSingleWidget(key, prefs, savedRow, rowColor) {
+            var def = _dashWidgetDefs.find(function(d) { return d.key === key; });
+            if (!def) return '';
+            var visible = prefs[key] !== false;
+            var savedCols = (prefs.cols && prefs.cols[key]);
+            if (!savedCols || !savedCols.length) {
+                var oldW = (prefs.widths && prefs.widths[key]) || (key === 'recent' || key === 'kpi' ? 3 : 2);
+                savedCols = oldW >= 3 ? [1,2,3] : oldW >= 2 ? [1,2] : [1];
+            }
+            return '<div class="dash-widget-item" draggable="true" data-key="' + key + '" ' +
+                'ondragstart="_dwDragStart(event)" ondragover="_dwDragOver(event)" ondragleave="_dwDragLeave(event)" ondrop="_dwDrop(event)" ' +
+                'style="border-left:3px solid ' + rowColor + ';">' +
+                '<span class="dash-widget-grip"><i class="fas fa-grip-vertical"></i></span>' +
+                '<span style="font-size:18px;line-height:1;">' + def.icon + '</span>' +
+                '<span class="dash-widget-label">' + def.label + '</span>' +
+                '<div class="dash-col-btns" title="Columns this widget occupies">' +
+                    [1,2,3].map(function(c) {
+                        return '<button class="dash-col-btn' + (savedCols.indexOf(c) !== -1 ? ' active' : '') + '" ' +
+                            'onclick="_toggleDashCol(this,' + c + ')" data-col="' + c + '" title="Column ' + c + '">' + c + '</button>';
+                    }).join('') +
+                '</div>' +
+                '<select class="dash-row-sel" title="Assign to a row" onchange="setTimeout(function(){_rebuildDashCustomize()},0)">' +
+                    '<option value="0"' + (savedRow===0?' selected':'') + '>No Row</option>' +
+                    [1,2,3,4,5,6,7,8].map(function(r) {
+                        return '<option value="' + r + '"' + (savedRow===r?' selected':'') + '>Row ' + r + '</option>';
+                    }).join('') +
+                '</select>' +
+                '<span class="dash-widget-vis"><input type="checkbox" ' + (visible?'checked':'') + ' title="Show/hide" onchange="void(0)"></span>' +
+            '</div>';
+        }
+
+        function _rebuildDashCustomize() {
+            // Rebuild the widget list reading current DOM values
             var container = document.getElementById('dashWidgetList');
             if (!container) return;
             var items = Array.from(container.querySelectorAll('.dash-widget-item'));
-            var rowColors = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#06b6d4','#84cc16'];
-            // Build rowMap: rowNum -> [col1Used, col2Used, col3Used]
-            var rowMap = {};
-            var rowWidgets = {};
+            var prefs = getDashboardPrefs();
+            // Read current row/col/visible from DOM
             items.forEach(function(item) {
+                var key = item.dataset.key;
                 var rowSel = item.querySelector('.dash-row-sel');
-                var rowNum = rowSel ? parseInt(rowSel.value, 10) : 0;
-                if (!rowNum) return;
-                if (!rowMap[rowNum]) rowMap[rowNum] = [false, false, false];
-                if (!rowWidgets[rowNum]) rowWidgets[rowNum] = [];
-                rowWidgets[rowNum].push(item);
-                Array.from(item.querySelectorAll('.dash-col-btn.active')).forEach(function(b) {
-                    var c = parseInt(b.dataset.col, 10) - 1;
-                    if (c >= 0 && c < 3) rowMap[rowNum][c] = true;
-                });
-            });
-            // Update each item
-            items.forEach(function(item) {
-                var rowSel   = item.querySelector('.dash-row-sel');
-                var indicator = item.querySelector('.dash-row-indicator');
-                if (!rowSel) return;
-                var ownRow  = parseInt(rowSel.value, 10);
-                var ownCols = Array.from(item.querySelectorAll('.dash-col-btn.active')).map(function(b) { return parseInt(b.dataset.col, 10); });
-                var rowColor = ownRow > 0 ? rowColors[(ownRow - 1) % rowColors.length] : 'transparent';
-                var rowBuddy = ownRow > 0 && rowWidgets[ownRow] && rowWidgets[ownRow].length > 1;
-                // Update left border color and row badge
-                item.style.borderLeft = ownRow > 0 ? '3px solid ' + rowColor : 'none';
-                // Update or create row badge
-                var existingBadge = item.querySelector('[data-testid^="row-badge-"]');
-                if (ownRow > 0) {
-                    var badgeHTML = '<span data-testid="row-badge-' + (item.dataset.key || '') + '" style="font-size:9px;font-weight:700;color:' + rowColor + ';background:' + rowColor + '12;border:1px solid ' + rowColor + '33;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0;">R' + ownRow + (rowBuddy ? ' <i class="fas fa-link" style="font-size:7px;margin-left:1px;"></i>' : '') + '</span>';
-                    if (existingBadge) {
-                        existingBadge.outerHTML = badgeHTML;
-                    } else {
-                        var labelEl = item.querySelector('.dash-widget-label');
-                        if (labelEl) labelEl.insertAdjacentHTML('afterend', badgeHTML);
-                    }
-                } else if (existingBadge) {
-                    existingBadge.remove();
+                var visCb = item.querySelector('.dash-widget-vis input[type="checkbox"]');
+                if (rowSel) {
+                    if (!prefs.rows) prefs.rows = {};
+                    prefs.rows[key] = parseInt(rowSel.value, 10) || 0;
                 }
-                // Update indicator mini-bar
-                if (indicator) {
-                    if (ownRow) {
-                        var rm = (rowMap[ownRow] || [false,false,false]);
-                        indicator.innerHTML = rm.map(function(used, i) {
-                            var isMine = ownCols.indexOf(i + 1) !== -1;
-                            return '<span style="width:9px;height:9px;border-radius:2px;display:inline-block;background:' +
-                                (isMine ? rowColor : used ? '#f59e0b' : '#e2e8f0') + '" title="Col ' + (i+1) + ': ' +
-                                (isMine ? 'yours' : used ? 'taken' : 'free') + '"></span>';
-                        }).join('');
-                    } else {
-                        indicator.innerHTML = '';
-                    }
-                }
-                // Rebuild row options so disabled state is reliably rendered
-                var curRowVal = rowSel.value;
-                rowSel.innerHTML = '<option value="0">Row\u2026</option>' +
-                    [1,2,3,4,5,6,7,8].map(function(r) {
-                        var slotsFree = [true, true, true];
-                        (rowMap[r] || []).forEach(function(used, ci) { slotsFree[ci] = !used; });
-                        if (r === ownRow) ownCols.forEach(function(c) { slotsFree[c - 1] = true; });
-                        var canFit = slotsFree.filter(Boolean).length >= ownCols.length;
-                        return '<option value="' + r + '"' +
-                            (parseInt(curRowVal, 10) === r ? ' selected' : '') +
-                            (!canFit ? ' disabled style="color:#bbb;background:#f8f8f8;"' : '') + '>' +
-                            (canFit ? 'Row ' + r : 'Row ' + r + ' \u2014 full') + '</option>';
-                    }).join('');
+                if (!prefs.cols) prefs.cols = {};
+                prefs.cols[key] = Array.from(item.querySelectorAll('.dash-col-btn.active')).map(function(b){ return parseInt(b.dataset.col,10); });
+                if (visCb) prefs[key] = visCb.checked;
             });
+            // Re-read widget order from DOM
+            _dashWidgetOrder = items.map(function(item) { return item.dataset.key; });
+            _renderDashWidgetList(prefs);
+        }
+
+        function _updateRowMap() {
+            // Row map is now handled visually by _renderDashWidgetList grouping
+            // This function only updates inline column indicators if needed
         }
 
         function _toggleDashCol(btn, c) {
@@ -16103,7 +16143,7 @@
             } else {
                 btn.classList.add('active');
             }
-            setTimeout(_updateRowMap, 0);
+            setTimeout(function(){ _rebuildDashCustomize(); }, 0);
         }
 
         function _dwDragStart(e) {
