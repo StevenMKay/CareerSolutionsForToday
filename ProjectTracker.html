@@ -7353,13 +7353,34 @@
                 </div>
                 <!-- Include Charts Option -->
                 <div style="margin-bottom:14px;">
-                    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
-                        <input type="checkbox" id="slideIncludeCharts" checked style="accent-color:#6366f1;width:16px;height:16px;">
-                        <div>
-                            <span style="font-size:13px;font-weight:600;color:#334155;">Include Charts</span>
-                            <span style="display:block;font-size:10px;color:#94a3b8;">Add status, priority, and department chart slides</span>
+                    <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                        <div onclick="toggleSlideChartPicker()" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:#f8fafc;user-select:none;">
+                            <i class="fas fa-chevron-right" id="slideChartPickerArrow" style="font-size:10px;color:#94a3b8;transition:transform 0.2s;"></i>
+                            <i class="fas fa-chart-pie" style="color:#6366f1;font-size:14px;"></i>
+                            <div style="flex:1;">
+                                <span style="font-size:13px;font-weight:600;color:#334155;">Include Charts</span>
+                                <span style="display:block;font-size:10px;color:#94a3b8;" id="slideChartPickerSummary">Select charts to add as slides</span>
+                            </div>
+                            <span id="slideChartPickerCount" style="font-size:11px;font-weight:600;color:#6366f1;background:#eef2ff;padding:2px 8px;border-radius:10px;">0</span>
                         </div>
-                    </label>
+                        <div id="slideChartPickerBody" style="display:none;border-top:1px solid #e2e8f0;padding:8px 12px;background:#ffffff;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                <span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Available Charts</span>
+                                <button onclick="toggleAllSlideCharts()" id="slideChartToggleAll" style="background:none;border:none;font-size:11px;color:#3b82f6;cursor:pointer;padding:0;font-weight:600;">Select All</button>
+                            </div>
+                            <div id="slideChartPickerList" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;"></div>
+                            <!-- AI Commentary option -->
+                            <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+                                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                                    <input type="checkbox" id="slideChartAICommentary" checked style="accent-color:#6366f1;width:14px;height:14px;">
+                                    <div>
+                                        <span style="font-size:12px;font-weight:600;color:#334155;"><i class="fas fa-magic" style="color:#8b5cf6;margin-right:4px;font-size:10px;"></i>Add AI commentary</span>
+                                        <span style="display:block;font-size:10px;color:#94a3b8;">Generate contextual insights for each chart slide</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <button class="slides-gen-btn" id="slidesGenBtn" onclick="generatePresentation()">
                     <i class="fas fa-download"></i> Generate &amp; Download (.pptx)
@@ -16560,6 +16581,101 @@
             }
         };
 
+        // ── Slide Chart Picker ──────────────────────────────────────
+        var slideChartRegistry = [
+            { key: 'status',      label: 'Status Distribution',          icon: 'fa-circle-notch', desc: 'Projects by status (doughnut)', defaultOn: true },
+            { key: 'priority',    label: 'Priority Distribution',        icon: 'fa-flag',         desc: 'Projects by priority (bar)',     defaultOn: true },
+            { key: 'dept',        label: 'Department Breakdown',         icon: 'fa-building',     desc: 'Projects by department (bar)',   defaultOn: true },
+            { key: 'timeline',    label: 'Timeline Trend',               icon: 'fa-chart-line',   desc: 'Created vs completed over 12 months (line)', defaultOn: false },
+            { key: 'forecast',    label: 'Due Date Forecast',            icon: 'fa-calendar-alt', desc: 'Overdue + upcoming by quarter (bar)',        defaultOn: false },
+            { key: 'capacity',    label: 'Workload by Assignee',         icon: 'fa-users',        desc: 'Hours by assignee (stacked bar)',            defaultOn: false },
+            { key: 'hoursStatus', label: 'Hours by Status',              icon: 'fa-clock',        desc: 'Estimated hours per status (doughnut)',      defaultOn: false }
+        ];
+
+        function buildSlideChartPicker() {
+            var listEl = document.getElementById('slideChartPickerList');
+            if (!listEl) return;
+            var html = '';
+            // Built-in charts
+            slideChartRegistry.forEach(function(c) {
+                html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background 0.15s;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'transparent\'">' +
+                    '<input type="checkbox" class="slideChartCb" data-chart-key="' + c.key + '"' + (c.defaultOn ? ' checked' : '') + ' onchange="updateSlideChartCount()" style="accent-color:#6366f1;width:14px;height:14px;flex-shrink:0;">' +
+                    '<i class="fas ' + c.icon + '" style="color:#6366f1;font-size:12px;width:16px;text-align:center;flex-shrink:0;"></i>' +
+                    '<div style="min-width:0;">' +
+                        '<span style="font-size:12px;font-weight:600;color:#334155;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + c.label + '</span>' +
+                        '<span style="font-size:10px;color:#94a3b8;display:block;">' + c.desc + '</span>' +
+                    '</div>' +
+                '</label>';
+            });
+            // Custom field charts from analytics prefs
+            try {
+                var aPrefs = _getAnalyticsPrefs();
+                (aPrefs.customCharts || []).forEach(function(cc) {
+                    html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background 0.15s;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'transparent\'">' +
+                        '<input type="checkbox" class="slideChartCb" data-chart-key="' + cc.id + '" data-custom-field="' + cc.fieldId + '" data-custom-type="' + (cc.type || 'doughnut') + '" onchange="updateSlideChartCount()" style="accent-color:#6366f1;width:14px;height:14px;flex-shrink:0;">' +
+                        '<i class="fas fa-puzzle-piece" style="color:#8b5cf6;font-size:12px;width:16px;text-align:center;flex-shrink:0;"></i>' +
+                        '<div style="min-width:0;">' +
+                            '<span style="font-size:12px;font-weight:600;color:#334155;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(cc.title) + '</span>' +
+                            '<span style="font-size:10px;color:#94a3b8;display:block;">Custom field (' + cc.type + ')</span>' +
+                        '</div>' +
+                    '</label>';
+                });
+            } catch(e) {}
+            listEl.innerHTML = html;
+            updateSlideChartCount();
+        }
+
+        function toggleSlideChartPicker() {
+            var body = document.getElementById('slideChartPickerBody');
+            var arrow = document.getElementById('slideChartPickerArrow');
+            if (!body) return;
+            var open = body.style.display !== 'none';
+            body.style.display = open ? 'none' : 'block';
+            if (arrow) arrow.style.transform = open ? '' : 'rotate(90deg)';
+        }
+
+        function updateSlideChartCount() {
+            var cbs = document.querySelectorAll('.slideChartCb:checked');
+            var countEl = document.getElementById('slideChartPickerCount');
+            var summaryEl = document.getElementById('slideChartPickerSummary');
+            if (countEl) countEl.textContent = cbs.length;
+            if (summaryEl) {
+                if (cbs.length === 0) summaryEl.textContent = 'No charts selected';
+                else {
+                    var names = [];
+                    cbs.forEach(function(cb) {
+                        var reg = slideChartRegistry.find(function(r) { return r.key === cb.dataset.chartKey; });
+                        names.push(reg ? reg.label : cb.dataset.chartKey);
+                    });
+                    summaryEl.textContent = names.length <= 3 ? names.join(', ') : names.slice(0, 2).join(', ') + ' +' + (names.length - 2) + ' more';
+                }
+            }
+            // Toggle Select All / Deselect All label
+            var allCbs = document.querySelectorAll('.slideChartCb');
+            var btn = document.getElementById('slideChartToggleAll');
+            if (btn) btn.textContent = (cbs.length === allCbs.length) ? 'Deselect All' : 'Select All';
+        }
+
+        function toggleAllSlideCharts() {
+            var allCbs = document.querySelectorAll('.slideChartCb');
+            var checkedCbs = document.querySelectorAll('.slideChartCb:checked');
+            var shouldCheck = checkedCbs.length < allCbs.length;
+            allCbs.forEach(function(cb) { cb.checked = shouldCheck; });
+            updateSlideChartCount();
+        }
+
+        function getSelectedSlideCharts() {
+            var selected = [];
+            document.querySelectorAll('.slideChartCb:checked').forEach(function(cb) {
+                selected.push({
+                    key: cb.dataset.chartKey,
+                    customField: cb.dataset.customField || null,
+                    customType: cb.dataset.customType || null
+                });
+            });
+            return selected;
+        }
+
         function openSlidesModal() {
             var listEl = document.getElementById('slideProjectList');
             var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
@@ -16568,6 +16684,7 @@
                     return '<label class="slide-project-opt"><input type="checkbox" value="' + t.id + '"> ' + escapeHtml(t.title) + '</label>';
                 }).join('');
             }
+            buildSlideChartPicker();
             _restoreTemplateStatus();
             document.getElementById('slidesModalOverlay').style.display = 'flex';
         }
@@ -17470,88 +17587,286 @@
                 }
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // CHART SLIDES (optional — when Include Charts is checked)
+                // CHART SLIDES (data-driven from chart picker selection)
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                var includeCharts = document.getElementById('slideIncludeCharts');
-                if (includeCharts && includeCharts.checked && selectedTasks.length > 1) {
-                    // Status Distribution Pie Chart
-                    var statusChartData = [];
-                    var statusChartLabels = [];
-                    var statusChartColors = [];
-                    var scMap = { 'completed': '22C55E', 'in-progress': '3B82F6', 'not-started': '94A3B8', 'on-hold': 'F59E0B' };
-                    Object.keys(sCounts).forEach(function(s) {
-                        statusChartLabels.push(statusLabels[s] || s);
-                        statusChartData.push(sCounts[s]);
-                        statusChartColors.push(scMap[s] || '64748B');
-                    });
-                    if (statusChartData.length) {
-                        var sChart1 = pptx.addSlide();
-                        sChart1.background = { color: 'FFFFFF' };
-                        sChart1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
-                        sChart1.addText('STATUS DISTRIBUTION', { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
-                        sChart1.addChart(pptx.charts.DOUGHNUT, [{ name: 'Status', labels: statusChartLabels, values: statusChartData }], {
-                            x: 1.5, y: 1.2, w: 5.5, h: 5.0,
-                            showLegend: true, legendPos: 'r', legendFontSize: 11,
-                            showPercent: true, showValue: false,
-                            chartColors: statusChartColors,
-                            dataLabelFontSize: 11, dataLabelColor: '000000'
+                var selectedCharts = getSelectedSlideCharts();
+                if (selectedCharts.length > 0) {
+                    // ── AI Commentary for charts (optional) ──
+                    var aiChartCommentary = {};
+                    var wantAICommentary = document.getElementById('slideChartAICommentary');
+                    if (aiApiKey && wantAICommentary && wantAICommentary.checked) {
+                        genBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating chart insights...';
+                        // Build data summary for all selected charts in one call
+                        var chartDataSummaries = [];
+                        selectedCharts.forEach(function(sc) {
+                            var summary = '';
+                            if (sc.key === 'status') {
+                                summary = 'Status Distribution: ' + Object.keys(sCounts).map(function(s) { return (statusLabels[s] || s) + ': ' + sCounts[s]; }).join(', ');
+                            } else if (sc.key === 'priority') {
+                                summary = 'Priority Distribution: ' + Object.keys(pCounts).map(function(p) { return p + ': ' + pCounts[p]; }).join(', ');
+                            } else if (sc.key === 'dept') {
+                                summary = 'Department Breakdown: ' + Object.keys(deptCounts).map(function(d) { return d + ': ' + deptCounts[d]; }).join(', ');
+                            } else if (sc.key === 'timeline') {
+                                var tlNow = new Date();
+                                var recentCreated = 0, recentCompleted = 0;
+                                selectedTasks.forEach(function(t) {
+                                    var cd = new Date(t.createdDate || t.startDate || '');
+                                    if (cd.getFullYear() === tlNow.getFullYear()) recentCreated++;
+                                    if (t.status === 'completed' && cd.getFullYear() === tlNow.getFullYear()) recentCompleted++;
+                                });
+                                summary = 'Timeline Trend: ' + recentCreated + ' projects created and ' + recentCompleted + ' completed in current year. Total active: ' + selectedTasks.length;
+                            } else if (sc.key === 'forecast') {
+                                summary = 'Due Date Forecast: ' + overdueCount + ' overdue. ' + selectedTasks.filter(function(t) { return t.dueDate && t.status !== 'completed'; }).length + ' with upcoming deadlines';
+                            } else if (sc.key === 'capacity') {
+                                var assignees = {};
+                                selectedTasks.forEach(function(t) {
+                                    if (t.status === 'completed' || t.status === 'cancelled') return;
+                                    var who = t.assignedTo || 'Unassigned';
+                                    assignees[who] = (assignees[who] || 0) + (parseFloat(t.hours) || 0);
+                                });
+                                summary = 'Workload by Assignee: ' + Object.keys(assignees).map(function(a) { return a + ': ' + assignees[a] + 'h'; }).join(', ');
+                            } else if (sc.key === 'hoursStatus') {
+                                var hbs = {};
+                                statusOrder.forEach(function(s) { hbs[s] = 0; });
+                                selectedTasks.forEach(function(t) { hbs[t.status] = (hbs[t.status] || 0) + (parseFloat(t.hours) || 0); });
+                                summary = 'Hours by Status: ' + Object.keys(hbs).filter(function(s) { return hbs[s] > 0; }).map(function(s) { return (statusLabels[s] || s) + ': ' + hbs[s] + 'h'; }).join(', ');
+                            } else if (sc.customField) {
+                                var cfCounts = {};
+                                selectedTasks.forEach(function(t) {
+                                    var v = (t.customFields || {})[sc.customField];
+                                    if (!v || String(v).trim() === '') v = '(No value)';
+                                    cfCounts[v] = (cfCounts[v] || 0) + 1;
+                                });
+                                summary = sc.key + ': ' + Object.keys(cfCounts).map(function(k) { return k + ': ' + cfCounts[k]; }).join(', ');
+                            }
+                            if (summary) chartDataSummaries.push({ key: sc.key, summary: summary });
                         });
-                        // KPI summary next to chart
-                        var kpiY = 1.5;
-                        [['Total Projects', selectedTasks.length, '1E293B'],['Completed', completedCount, '22C55E'],['In Progress', inProgressCount, '3B82F6'],['On Hold', onHoldCount, 'F59E0B']].forEach(function(kpi) {
-                            sChart1.addText(kpi[0], { x: 8.0, y: kpiY, w: 3, h: 0.3, fontSize: 10, color: '64748B', fontFace: 'Calibri' });
-                            sChart1.addText(String(kpi[1]), { x: 11.0, y: kpiY, w: 1, h: 0.3, fontSize: 14, bold: true, color: kpi[2], fontFace: 'Calibri', align: 'right' });
-                            kpiY += 0.5;
-                        });
+                        if (chartDataSummaries.length) {
+                            try {
+                                var chartAIResponse = await callOpenAI(
+                                    'You are a professional business analyst writing concise commentary for project portfolio presentation slides. For each chart, write 2-3 sentences highlighting the key takeaway, any concerns, and recommended actions. Return ONLY valid JSON — an object with chart keys as properties and commentary strings as values. No markdown, no code fences.',
+                                    'Write brief, insightful commentary for each of these charts from a portfolio of ' + selectedTasks.length + ' projects (' + completedCount + ' completed, ' + inProgressCount + ' in progress, ' + overdueCount + ' overdue):\n\n' +
+                                    chartDataSummaries.map(function(cs) { return cs.key + ': ' + cs.summary; }).join('\n')
+                                );
+                                // Parse JSON response
+                                var cleaned = chartAIResponse.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+                                aiChartCommentary = JSON.parse(cleaned);
+                            } catch(e) {
+                                // Silently continue without commentary
+                                aiChartCommentary = {};
+                            }
+                        }
                     }
 
-                    // Priority Distribution Bar Chart
-                    var priChartLabels = [];
-                    var priChartData = [];
-                    var priChartColors = [];
-                    var pcMap = { 'high': 'EF4444', 'medium': 'F59E0B', 'low': '22C55E' };
-                    Object.keys(pCounts).forEach(function(p) {
-                        priChartLabels.push(p.charAt(0).toUpperCase() + p.slice(1));
-                        priChartData.push(pCounts[p]);
-                        priChartColors.push(pcMap[p] || '64748B');
-                    });
-                    if (priChartData.length) {
-                        var sChart2 = pptx.addSlide();
-                        sChart2.background = { color: 'FFFFFF' };
-                        sChart2.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
-                        sChart2.addText('PRIORITY DISTRIBUTION', { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
-                        sChart2.addChart(pptx.charts.BAR, [{ name: 'Priority', labels: priChartLabels, values: priChartData }], {
-                            x: 1.5, y: 1.2, w: 10, h: 5.0,
-                            showLegend: false,
-                            showValue: true,
-                            chartColors: priChartColors,
-                            catAxisLabelFontSize: 12, valAxisLabelFontSize: 10,
-                            dataLabelFontSize: 12, dataLabelColor: '000000'
-                        });
+                    genBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Building chart slides...';
+
+                    // ── Helper: add a chart slide with header, chart, optional commentary ──
+                    function addChartSlide(title, chartType, chartData, chartOpts, commentary, sideKPIs) {
+                        var sl = pptx.addSlide();
+                        sl.background = { color: 'FFFFFF' };
+                        sl.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
+                        sl.addText(title, { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
+                        // Position chart — smaller if commentary exists
+                        var chartH = commentary ? 3.8 : 5.0;
+                        var chartW = sideKPIs ? 5.5 : 10;
+                        sl.addChart(chartType, chartData, Object.assign({ x: 1.5, y: 1.2, w: chartW, h: chartH }, chartOpts));
+                        // Side KPIs
+                        if (sideKPIs) {
+                            var kpiY = 1.5;
+                            sideKPIs.forEach(function(kpi) {
+                                sl.addText(kpi[0], { x: 8.0, y: kpiY, w: 3, h: 0.3, fontSize: 10, color: '64748B', fontFace: 'Calibri' });
+                                sl.addText(String(kpi[1]), { x: 11.0, y: kpiY, w: 1, h: 0.3, fontSize: 14, bold: true, color: kpi[2], fontFace: 'Calibri', align: 'right' });
+                                kpiY += 0.5;
+                            });
+                        }
+                        // AI Commentary below chart
+                        if (commentary) {
+                            sl.addShape(pptx.ShapeType.rect, { x: 0.8, y: 5.3, w: 11.73, h: 0.02, fill: { color: 'E2E8F0' } });
+                            sl.addShape(pptx.ShapeType.roundRect, { x: 0.8, y: 5.5, w: 11.73, h: 1.2, fill: { color: 'F8FAFC' }, rectRadius: 0.08, line: { color: 'E2E8F0', width: 0.5 } });
+                            sl.addText([
+                                { text: 'AI INSIGHT  ', options: { fontSize: 8, bold: true, color: '8B5CF6', fontFace: 'Calibri' } },
+                                { text: commentary, options: { fontSize: 10, color: '475569', fontFace: 'Calibri', italic: true } }
+                            ], { x: 1.0, y: 5.6, w: 11.33, h: 1.0, valign: 'top', paraSpaceBefore: 2 });
+                        }
+                        return sl;
                     }
 
-                    // Department Distribution Bar Chart
-                    var deptChartLabels = [];
-                    var deptChartData = [];
-                    Object.keys(deptCounts).forEach(function(d) {
-                        deptChartLabels.push(d);
-                        deptChartData.push(deptCounts[d]);
-                    });
-                    if (deptChartData.length > 1) {
-                        var sChart3 = pptx.addSlide();
-                        sChart3.background = { color: 'FFFFFF' };
-                        sChart3.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 0.06, fill: { color: theme.accent } });
-                        sChart3.addText('DEPARTMENT BREAKDOWN', { x: 0.8, y: 0.3, w: 10, h: 0.5, fontSize: 20, bold: true, color: pC(theme.title), fontFace: 'Calibri' });
-                        sChart3.addChart(pptx.charts.BAR, [{ name: 'Department', labels: deptChartLabels, values: deptChartData }], {
-                            x: 1.5, y: 1.2, w: 10, h: 5.0,
-                            barDir: 'bar',
-                            showLegend: false,
-                            showValue: true,
-                            chartColors: [pC(theme.accent)],
-                            catAxisLabelFontSize: 11, valAxisLabelFontSize: 10,
-                            dataLabelFontSize: 11, dataLabelColor: '000000'
-                        });
-                    }
+                    // ── Build each selected chart slide ──
+                    selectedCharts.forEach(function(sc) {
+                        var commentary = aiChartCommentary[sc.key] || null;
+
+                        if (sc.key === 'status') {
+                            var statusChartData = [], statusChartLabels = [], statusChartColors = [];
+                            var scMap = { 'completed': '22C55E', 'in-progress': '3B82F6', 'not-started': '94A3B8', 'on-hold': 'F59E0B' };
+                            Object.keys(sCounts).forEach(function(s) {
+                                statusChartLabels.push(statusLabels[s] || s);
+                                statusChartData.push(sCounts[s]);
+                                statusChartColors.push(scMap[s] || '64748B');
+                            });
+                            if (statusChartData.length) {
+                                addChartSlide('STATUS DISTRIBUTION',
+                                    pptx.charts.DOUGHNUT,
+                                    [{ name: 'Status', labels: statusChartLabels, values: statusChartData }],
+                                    { showLegend: true, legendPos: 'r', legendFontSize: 11, showPercent: true, showValue: false, chartColors: statusChartColors, dataLabelFontSize: 11, dataLabelColor: '000000' },
+                                    commentary,
+                                    [['Total Projects', selectedTasks.length, '1E293B'],['Completed', completedCount, '22C55E'],['In Progress', inProgressCount, '3B82F6'],['On Hold', onHoldCount, 'F59E0B']]
+                                );
+                            }
+
+                        } else if (sc.key === 'priority') {
+                            var priChartLabels = [], priChartData = [], priChartColors = [];
+                            var pcMap = { 'high': 'EF4444', 'medium': 'F59E0B', 'low': '22C55E' };
+                            Object.keys(pCounts).forEach(function(p) {
+                                priChartLabels.push(p.charAt(0).toUpperCase() + p.slice(1));
+                                priChartData.push(pCounts[p]);
+                                priChartColors.push(pcMap[p] || '64748B');
+                            });
+                            if (priChartData.length) {
+                                addChartSlide('PRIORITY DISTRIBUTION',
+                                    pptx.charts.BAR,
+                                    [{ name: 'Priority', labels: priChartLabels, values: priChartData }],
+                                    { showLegend: false, showValue: true, chartColors: priChartColors, catAxisLabelFontSize: 12, valAxisLabelFontSize: 10, dataLabelFontSize: 12, dataLabelColor: '000000' },
+                                    commentary, null
+                                );
+                            }
+
+                        } else if (sc.key === 'dept') {
+                            var deptChartLabels = [], deptChartData = [];
+                            Object.keys(deptCounts).forEach(function(d) { deptChartLabels.push(d); deptChartData.push(deptCounts[d]); });
+                            if (deptChartData.length > 1) {
+                                addChartSlide('DEPARTMENT BREAKDOWN',
+                                    pptx.charts.BAR,
+                                    [{ name: 'Department', labels: deptChartLabels, values: deptChartData }],
+                                    { barDir: 'bar', showLegend: false, showValue: true, chartColors: [pC(theme.accent)], catAxisLabelFontSize: 11, valAxisLabelFontSize: 10, dataLabelFontSize: 11, dataLabelColor: '000000' },
+                                    commentary, null
+                                );
+                            }
+
+                        } else if (sc.key === 'timeline') {
+                            var tlNow = new Date();
+                            var tlMonths = [], tlOpen = [], tlClosed = [];
+                            for (var tli = 11; tli >= 0; tli--) {
+                                var tld = new Date(tlNow.getFullYear(), tlNow.getMonth() - tli, 1);
+                                tlMonths.push(tld.toLocaleString('default', { month: 'short', year: '2-digit' }));
+                                var tlMo = tld.getMonth(), tlYr = tld.getFullYear();
+                                tlOpen.push(selectedTasks.filter(function(t) { var cd = new Date(t.createdDate || t.startDate || ''); return cd.getMonth() === tlMo && cd.getFullYear() === tlYr; }).length);
+                                tlClosed.push(selectedTasks.filter(function(t) { if (t.status !== 'completed') return false; var cd = new Date(t.createdDate || t.startDate || ''); return cd.getMonth() === tlMo && cd.getFullYear() === tlYr; }).length);
+                            }
+                            if (tlMonths.length) {
+                                addChartSlide('TIMELINE TREND',
+                                    pptx.charts.LINE,
+                                    [{ name: 'Created', labels: tlMonths, values: tlOpen }, { name: 'Completed', labels: tlMonths, values: tlClosed }],
+                                    { showLegend: true, legendPos: 'b', legendFontSize: 11, chartColors: ['3B82F6', '22C55E'], lineDataSymbol: 'circle', lineDataSymbolSize: 6, lineSmooth: true, catAxisLabelFontSize: 10, valAxisLabelFontSize: 10 },
+                                    commentary, null
+                                );
+                            }
+
+                        } else if (sc.key === 'forecast') {
+                            var fcNow = new Date();
+                            var fcToday = new Date(fcNow); fcToday.setHours(0,0,0,0);
+                            var fcLabels = ['Overdue'];
+                            var fcData = [selectedTasks.filter(function(t) { return t.status !== 'completed' && t.status !== 'cancelled' && t.dueDate && new Date(t.dueDate) < fcToday; }).length];
+                            var fcColors = ['EF4444'];
+                            var curQ = Math.floor(fcNow.getMonth() / 3);
+                            var curY = fcNow.getFullYear();
+                            for (var qi = 0; qi < 4; qi++) {
+                                var q = (curQ + qi) % 4;
+                                var y = curY + Math.floor((curQ + qi) / 4);
+                                var qStart = new Date(y, q * 3, 1);
+                                var qEnd = new Date(y, q * 3 + 3, 0, 23, 59, 59);
+                                fcLabels.push('Q' + (q + 1) + ' ' + String(y).slice(-2));
+                                fcData.push(selectedTasks.filter(function(t) {
+                                    if (t.status === 'completed' || t.status === 'cancelled' || !t.dueDate) return false;
+                                    var due = new Date(t.dueDate); return due >= qStart && due <= qEnd;
+                                }).length);
+                                fcColors.push('3B82F6');
+                            }
+                            if (fcData.some(function(d) { return d > 0; })) {
+                                addChartSlide('DUE DATE FORECAST',
+                                    pptx.charts.BAR,
+                                    [{ name: 'Projects Due', labels: fcLabels, values: fcData }],
+                                    { showLegend: false, showValue: true, chartColors: fcColors, catAxisLabelFontSize: 11, valAxisLabelFontSize: 10, dataLabelFontSize: 11, dataLabelColor: '000000' },
+                                    commentary, null
+                                );
+                            }
+
+                        } else if (sc.key === 'capacity') {
+                            var capCounts = {};
+                            selectedTasks.forEach(function(t) {
+                                if (t.status === 'completed' || t.status === 'cancelled') return;
+                                var who = t.assignedTo || 'Unassigned';
+                                if (!capCounts[who]) capCounts[who] = { inProgress: 0, remaining: 0 };
+                                var h = parseFloat(t.hours) || 0;
+                                if (t.status === 'in-progress') capCounts[who].inProgress += h;
+                                else capCounts[who].remaining += h;
+                            });
+                            var capSorted = Object.keys(capCounts).sort(function(a,b) { return (capCounts[b].inProgress + capCounts[b].remaining) - (capCounts[a].inProgress + capCounts[a].remaining); }).slice(0, 10);
+                            if (capSorted.length) {
+                                addChartSlide('WORKLOAD BY ASSIGNEE',
+                                    pptx.charts.BAR,
+                                    [
+                                        { name: 'In Progress', labels: capSorted, values: capSorted.map(function(k) { return capCounts[k].inProgress; }) },
+                                        { name: 'Not Started', labels: capSorted, values: capSorted.map(function(k) { return capCounts[k].remaining; }) }
+                                    ],
+                                    { barDir: 'bar', barGrouping: 'stacked', showLegend: true, legendPos: 'b', legendFontSize: 10, showValue: true, chartColors: ['3B82F6', '94A3B8'], catAxisLabelFontSize: 10, valAxisLabelFontSize: 10, dataLabelFontSize: 10, dataLabelColor: '000000' },
+                                    commentary, null
+                                );
+                            }
+
+                        } else if (sc.key === 'hoursStatus') {
+                            var hsData = [], hsLabels = [], hsColors = [];
+                            var hsColorMap = { 'not-started': '94A3B8', 'in-progress': '3B82F6', 'on-hold': 'F59E0B', 'completed': '22C55E', 'cancelled': 'EF4444' };
+                            statusOrder.forEach(function(s) {
+                                var hrs = 0;
+                                selectedTasks.forEach(function(t) { if (t.status === s) hrs += (parseFloat(t.hours) || 0); });
+                                if (hrs > 0) {
+                                    hsLabels.push(statusLabels[s] || s);
+                                    hsData.push(hrs);
+                                    hsColors.push(hsColorMap[s] || '64748B');
+                                }
+                            });
+                            if (hsData.length) {
+                                var totalHrs = hsData.reduce(function(a,b) { return a + b; }, 0);
+                                addChartSlide('HOURS BY STATUS',
+                                    pptx.charts.DOUGHNUT,
+                                    [{ name: 'Hours', labels: hsLabels, values: hsData }],
+                                    { showLegend: true, legendPos: 'r', legendFontSize: 11, showPercent: true, chartColors: hsColors, dataLabelFontSize: 11, dataLabelColor: '000000' },
+                                    commentary,
+                                    [['Total Hours', Math.round(totalHrs), '1E293B']]
+                                );
+                            }
+
+                        } else if (sc.customField) {
+                            // Custom field chart
+                            var cfCounts = {};
+                            selectedTasks.forEach(function(t) {
+                                var v = (t.customFields || {})[sc.customField];
+                                if (sc.customType === 'bar') {
+                                    // Numeric — bucket by value
+                                    v = parseFloat(v) || 0;
+                                    cfCounts[String(v)] = (cfCounts[String(v)] || 0) + 1;
+                                } else {
+                                    if (!v || String(v).trim() === '') v = '(No value)';
+                                    cfCounts[v] = (cfCounts[v] || 0) + 1;
+                                }
+                            });
+                            var cfLabels = Object.keys(cfCounts);
+                            var cfData = cfLabels.map(function(l) { return cfCounts[l]; });
+                            var cfPalette = ['3B82F6','8B5CF6','EC4899','F59E0B','14B8A6','6366F1','EF4444','84CC16','06B6D4','F97316'];
+                            if (cfLabels.length) {
+                                var cfTitle = sc.key.replace('cf_chart_', '').replace(/_/g, ' ').toUpperCase();
+                                var cfChartType = sc.customType === 'bar' ? pptx.charts.BAR : pptx.charts.DOUGHNUT;
+                                var cfOpts = sc.customType === 'bar'
+                                    ? { showLegend: false, showValue: true, chartColors: cfLabels.map(function(_, i) { return cfPalette[i % cfPalette.length]; }), catAxisLabelFontSize: 11, valAxisLabelFontSize: 10, dataLabelFontSize: 11, dataLabelColor: '000000' }
+                                    : { showLegend: true, legendPos: 'r', legendFontSize: 11, showPercent: true, chartColors: cfLabels.map(function(_, i) { return cfPalette[i % cfPalette.length]; }), dataLabelFontSize: 11, dataLabelColor: '000000' };
+                                addChartSlide(cfTitle + ' DISTRIBUTION',
+                                    cfChartType,
+                                    [{ name: cfTitle, labels: cfLabels, values: cfData }],
+                                    cfOpts, commentary, null
+                                );
+                            }
+                        }
+                    }); // end selectedCharts.forEach
                 }
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
