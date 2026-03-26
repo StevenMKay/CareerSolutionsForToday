@@ -11450,6 +11450,12 @@
                 desc: 'Add a note when project category is changed.',
                 icon: 'fa-folder', color: '#7c3aed',
                 rule: { trigger: { type: 'field_change', field: 'category' }, conditions: [], conditionLogic: 'AND', actions: [{ type: 'add_note', value: 'Project category has been updated.' }] }
+            },
+            {
+                name: 'Notify Required Approver',
+                desc: 'Send a notification when someone is added as a required approver on a project.',
+                icon: 'fa-user-shield', color: '#0d9488',
+                rule: { trigger: { type: 'field_change', field: 'approvers' }, conditions: [], conditionLogic: 'AND', actions: [{ type: 'notify', value: 'You have been added as a required approver on this project \u2014 please review.' }] }
             }
         ];
 
@@ -13671,19 +13677,31 @@
             // ── touchstart ──────────────────────────────────────────
             var holdTimer = null;
             var dragCollapsedColumns = []; // columns we auto-collapsed, to restore on cleanup
+            var pendingDragEl = null;      // element awaiting hold confirmation
+            var pendingDragTouch = null;   // initial touch coords
+            var TOUCH_HOLD_MS = 350;       // hold duration before drag activates (mobile)
+            var TOUCH_MOVE_THRESHOLD = 10; // px of movement allowed during hold
             document.addEventListener('touchstart', function(e) {
                 var card = e.target.closest('.project-card[draggable]');
                 var row  = e.target.closest('.list-row[draggable]');
                 var el   = card || row;
                 if (!el) return;
 
-                touchDragId = el.dataset.id;
-                el.classList.add('dragging');
-                touchClone = createClone(el, e.touches[0]);
+                // Store pending drag — don't activate until hold timer fires
+                pendingDragEl = el;
+                pendingDragTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
-                // After a short hold, confirm it's a drag and collapse other kanban columns
                 holdTimer = setTimeout(function() {
-                    if (!touchDragId) return; // drag already ended (was a tap)
+                    holdTimer = null;
+                    if (!pendingDragEl) return; // cancelled by movement or lift
+
+                    // Activate the drag
+                    touchDragId = pendingDragEl.dataset.id;
+                    pendingDragEl.classList.add('dragging');
+                    touchClone = createClone(pendingDragEl, { clientX: pendingDragTouch.x, clientY: pendingDragTouch.y });
+
+                    // Haptic feedback if available
+                    if (navigator.vibrate) navigator.vibrate(30);
 
                     // Collapse quick-add and filter panels if open
                     var quickBar     = document.getElementById('quickAddBar');
@@ -13706,7 +13724,7 @@
                     // Collapse all kanban columns so only headers are visible —
                     // makes it easy to scroll/drop into a different status column
                     dragCollapsedColumns = [];
-                    var sourceCol = el.closest('.kanban-column');
+                    var sourceCol = pendingDragEl.closest('.kanban-column');
                     document.querySelectorAll('.kanban-column').forEach(function(col) {
                         if (!col.classList.contains('collapsed')) {
                             col.classList.add('collapsed', 'drag-auto-collapsed');
@@ -13718,19 +13736,34 @@
                         sourceCol.classList.remove('collapsed', 'drag-auto-collapsed');
                         dragCollapsedColumns = dragCollapsedColumns.filter(function(c) { return c !== sourceCol; });
                     }
-                }, 180); // 180ms hold = intentional drag
+                    pendingDragEl = null;
+                    pendingDragTouch = null;
+                }, TOUCH_HOLD_MS);
             }, { passive: true });
 
             // Cancel hold timer if touch ends before drag confirmed
             document.addEventListener('touchend', function(e) {
-                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; pendingDragEl = null; pendingDragTouch = null; }
             }, { passive: true, capture: true });
             document.addEventListener('touchcancel', function() {
-                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; pendingDragEl = null; pendingDragTouch = null; }
             }, { passive: true });
 
             // ── touchmove ───────────────────────────────────────────
             document.addEventListener('touchmove', function(e) {
+                // If hold timer is still pending, check if finger moved too far (scrolling)
+                if (holdTimer && pendingDragTouch) {
+                    var dx = e.touches[0].clientX - pendingDragTouch.x;
+                    var dy = e.touches[0].clientY - pendingDragTouch.y;
+                    if (Math.abs(dx) > TOUCH_MOVE_THRESHOLD || Math.abs(dy) > TOUCH_MOVE_THRESHOLD) {
+                        clearTimeout(holdTimer);
+                        holdTimer = null;
+                        pendingDragEl = null;
+                        pendingDragTouch = null;
+                    }
+                    return; // not dragging yet — let browser scroll
+                }
+
                 if (!touchDragId) return;
                 e.preventDefault();   // prevent page scroll while dragging
 
@@ -21825,7 +21858,7 @@
             function _tplFields(id) {
                 var t = _fbMarketplaceTemplates.find(function(t){ return t.id === id; });
                 return t ? _cloneFields(t.fields) : [];
-            }
+            }    
             _fbPrebuiltForms = [
                 {
                     id: 'default_form',
