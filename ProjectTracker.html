@@ -9491,6 +9491,16 @@
             draggedTaskId = null;
             draggedElement = null;
             
+            // Clear tracked drag indicator
+            if (_lastDragIndicator) {
+                _lastDragIndicator.classList.remove('drag-above', 'drag-below');
+                _lastDragIndicator = null;
+            }
+            if (_lastListDragIndicator) {
+                _lastListDragIndicator.classList.remove('drag-above', 'drag-below');
+                _lastListDragIndicator = null;
+            }
+
             // Remove all drag-over states
             document.querySelectorAll('.kanban-cards').forEach(function(col) {
                 col.classList.remove('drag-over');
@@ -9506,6 +9516,7 @@
             });
         }
 
+        var _lastDragIndicator = null; // track last highlighted card to avoid querySelectorAll
         function handleDragOver(event) {
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
@@ -9515,17 +9526,18 @@
             if (card && card !== draggedElement) {
                 var rect = card.getBoundingClientRect();
                 var midY = rect.top + rect.height / 2;
+                var pos  = event.clientY < midY ? 'drag-above' : 'drag-below';
                 
-                // Remove previous indicators
-                document.querySelectorAll('.project-card').forEach(function(c) {
-                    c.classList.remove('drag-above', 'drag-below');
-                });
+                // Only update DOM if indicator changed
+                if (_lastDragIndicator === card && card.classList.contains(pos)) return;
                 
-                if (event.clientY < midY) {
-                    card.classList.add('drag-above');
-                } else {
-                    card.classList.add('drag-below');
+                // Clear previous indicator (single element, not full querySelectorAll)
+                if (_lastDragIndicator) {
+                    _lastDragIndicator.classList.remove('drag-above', 'drag-below');
                 }
+                
+                card.classList.add(pos);
+                _lastDragIndicator = card;
             }
         }
 
@@ -10430,6 +10442,7 @@
             event.dataTransfer.setData('text/plain', taskId);
         }
 
+        var _lastListDragIndicator = null;
         function handleListDragOver(event) {
             event.preventDefault();
             event.dataTransfer.dropEffect = 'move';
@@ -10438,16 +10451,16 @@
             if (row && row !== draggedElement) {
                 var rect = row.getBoundingClientRect();
                 var midY = rect.top + rect.height / 2;
+                var pos  = event.clientY < midY ? 'drag-above' : 'drag-below';
                 
-                document.querySelectorAll('.list-row').forEach(function(r) {
-                    r.classList.remove('drag-above', 'drag-below');
-                });
+                if (_lastListDragIndicator === row && row.classList.contains(pos)) return;
                 
-                if (event.clientY < midY) {
-                    row.classList.add('drag-above');
-                } else {
-                    row.classList.add('drag-below');
+                if (_lastListDragIndicator) {
+                    _lastListDragIndicator.classList.remove('drag-above', 'drag-below');
                 }
+                
+                row.classList.add(pos);
+                _lastListDragIndicator = row;
             }
         }
 
@@ -13763,6 +13776,7 @@
             }, { passive: true });
 
             // ── touchmove ───────────────────────────────────────────
+            var _touchRafPending = false;
             document.addEventListener('touchmove', function(e) {
                 // If hold timer is still pending, check if finger moved too far (scrolling)
                 if (holdTimer && pendingDragTouch) {
@@ -13781,11 +13795,19 @@
                 e.preventDefault();   // prevent page scroll while dragging
 
                 var touch = e.touches[0];
-                moveClone(touch);
+                moveClone(touch); // always update clone position immediately for smoothness
+
+                // Throttle heavy hit-testing to once per animation frame
+                if (_touchRafPending) return;
+                _touchRafPending = true;
+                var cx = touch.clientX, cy = touch.clientY;
+                requestAnimationFrame(function() {
+                    _touchRafPending = false;
+                    if (!touchDragId) return;
 
                 clearIndicator();
 
-                var under = elFromTouch(touch);
+                var under = elFromTouch({ clientX: cx, clientY: cy });
                 if (!under) return;
 
                 // Highlight kanban column drop zone
@@ -13809,7 +13831,7 @@
                 var target = under.closest('.project-card') || under.closest('.list-row');
                 if (target && target.dataset.id !== touchDragId) {
                     var rect = target.getBoundingClientRect();
-                    var pos  = touch.clientY < rect.top + rect.height / 2 ? 'above' : 'below';
+                    var pos  = cy < rect.top + rect.height / 2 ? 'above' : 'below';
                     target.classList.add('drag-' + pos);
                     lastIndicator    = target;
                     lastIndicatorPos = pos;
@@ -13829,6 +13851,7 @@
                     var archiveSec = document.getElementById('archivedSection');
                     if (archiveSec) archiveSec.classList.remove('drag-target-archive');
                 }
+                }); // end requestAnimationFrame
             }, { passive: false });
 
             // ── touchend ────────────────────────────────────────────
