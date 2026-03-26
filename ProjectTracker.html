@@ -7499,7 +7499,8 @@
 
     <!-- Auth Overlay — covers the app until the user is signed in -->
     <div id="authOverlay" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;">
-        <div class="auth-card">
+        <!-- Login Card -->
+        <div class="auth-card" id="loginCard">
             <div class="auth-logo"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/bacda1a80eca14c97b84022ac6bc252551398609/icons/FinalIcon.png" alt="NotebookPM" style="width:48px;height:48px;"></div>
             <h2 class="auth-title">NotebookPM</h2>
             <p class="auth-subtitle">Sign in to your workspace</p>
@@ -7519,7 +7520,7 @@
                 <i class="fas fa-sign-in-alt"></i> Sign In
             </button>
             <button class="auth-forgot" onclick="handleForgotPassword()">Forgot your password?</button>
-            <button class="auth-forgot" onclick="handleFirstTimeSetup()" style="color:#60a5fa;margin-top:-2px;"><i class="fas fa-user-plus" style="margin-right:4px;font-size:11px;"></i>First time? Set up your password</button>
+            <button class="auth-forgot" onclick="handleFirstTimeSetup()" style="color:#60a5fa;margin-top:-2px;"><i class="fas fa-envelope" style="margin-right:4px;font-size:11px;"></i>Didn't get your invite email? Request a new setup link</button>
             <div class="auth-divider">or</div>
             <button class="btn-google" id="googleBtn" onclick="signInWithGoogle()">
                 <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -7530,7 +7531,37 @@
                 </svg>
                 Sign in with Google
             </button>
-            <p class="auth-footer">Invited? Enter your email above and click <strong>"First time? Set up your password"</strong></p>
+            <p class="auth-footer">Invited? Check your email for a setup link, or click above to request one.</p>
+        </div>
+
+        <!-- Invite Password Setup Card (shown when ?invite=TOKEN is in URL) -->
+        <div class="auth-card" id="inviteSetupCard" style="display:none;">
+            <div class="auth-logo"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/bacda1a80eca14c97b84022ac6bc252551398609/icons/FinalIcon.png" alt="NotebookPM" style="width:48px;height:48px;"></div>
+            <h2 class="auth-title">NotebookPM</h2>
+            <p class="auth-subtitle" id="inviteGreeting">Set up your password</p>
+            <div class="auth-field">
+                <label class="auth-label">Email Address</label>
+                <input type="email" id="inviteEmail" class="auth-input" readonly style="background:#f1f5f9;color:#64748b;cursor:default;">
+            </div>
+            <div class="auth-field">
+                <label class="auth-label">Create Password</label>
+                <input type="password" id="invitePassword" class="auth-input" placeholder="Min 8 chars, 1 letter, 1 number"
+                    onkeypress="if(event.key==='Enter')document.getElementById('invitePasswordConfirm').focus()">
+            </div>
+            <div class="auth-field">
+                <label class="auth-label">Confirm Password</label>
+                <input type="password" id="invitePasswordConfirm" class="auth-input" placeholder="Re-enter your password"
+                    onkeypress="if(event.key==='Enter')submitInvitePassword()">
+            </div>
+            <p id="inviteSetupError" class="auth-error"></p>
+            <button id="inviteSetupBtn" class="auth-btn" onclick="submitInvitePassword()">
+                <i class="fas fa-lock"></i> Set My Password
+            </button>
+            <p class="auth-footer" style="margin-top:12px;">
+                <a href="#" onclick="showLoginCard();return false;" style="color:#60a5fa;text-decoration:none;">
+                    <i class="fas fa-arrow-left" style="margin-right:4px;font-size:11px;"></i>Back to sign in
+                </a>
+            </p>
         </div>
     </div>
 
@@ -9344,6 +9375,118 @@
                         errEl.textContent = 'Could not send setup email. Check the address and try again.';
                     }
                 });
+        }
+
+        // ============================================================
+        // INVITE TOKEN — Password Setup via Custom Token Link
+        // ============================================================
+        var _pendingInviteToken = null;
+
+        function showLoginCard() {
+            document.getElementById('loginCard').style.display = '';
+            document.getElementById('inviteSetupCard').style.display = 'none';
+        }
+
+        function showInviteSetupCard(email, displayName) {
+            document.getElementById('loginCard').style.display = 'none';
+            var card = document.getElementById('inviteSetupCard');
+            card.style.display = '';
+            document.getElementById('inviteEmail').value = email || '';
+            document.getElementById('invitePassword').value = '';
+            document.getElementById('invitePasswordConfirm').value = '';
+            document.getElementById('inviteSetupError').textContent = '';
+            if (displayName) {
+                document.getElementById('inviteGreeting').textContent = 'Welcome, ' + displayName + '! Set your password.';
+            } else {
+                document.getElementById('inviteGreeting').textContent = 'Set up your password';
+            }
+            document.getElementById('invitePassword').focus();
+        }
+
+        function showInviteError(msg) {
+            document.getElementById('loginCard').style.display = 'none';
+            var card = document.getElementById('inviteSetupCard');
+            card.style.display = '';
+            document.getElementById('inviteEmail').value = '';
+            document.getElementById('invitePassword').parentElement.style.display = 'none';
+            document.getElementById('invitePasswordConfirm').parentElement.style.display = 'none';
+            document.getElementById('inviteSetupBtn').style.display = 'none';
+            document.getElementById('inviteGreeting').textContent = 'Setup Link Problem';
+            var errEl = document.getElementById('inviteSetupError');
+            errEl.style.color = '#f87171';
+            errEl.textContent = msg;
+        }
+
+        async function checkInviteToken() {
+            var params = new URLSearchParams(window.location.search);
+            var token = params.get('invite');
+            if (!token) return false;
+            _pendingInviteToken = token;
+            // Clean the URL so token isn't visible / bookmarked
+            if (window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+            var backendUrl = window.location.hostname === 'localhost'
+                ? 'http://localhost:3001'
+                : 'https://projectbackend-production-aa38.up.railway.app';
+            try {
+                var res = await fetch(backendUrl + '/api/invite/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: token })
+                });
+                var data = await res.json();
+                if (data.valid) {
+                    showInviteSetupCard(data.email, data.displayName);
+                } else {
+                    showInviteError(data.reason || 'This setup link is no longer valid.');
+                }
+            } catch (err) {
+                showInviteError('Could not verify the setup link. Please check your internet connection and try again.');
+            }
+            return true;
+        }
+
+        async function submitInvitePassword() {
+            var btn = document.getElementById('inviteSetupBtn');
+            var errEl = document.getElementById('inviteSetupError');
+            var pw = document.getElementById('invitePassword').value;
+            var pw2 = document.getElementById('invitePasswordConfirm').value;
+            errEl.style.color = '#f87171';
+            errEl.textContent = '';
+
+            if (!pw || pw.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+            if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) { errEl.textContent = 'Password must contain at least one letter and one number.'; return; }
+            if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; return; }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Setting password...';
+
+            var backendUrl = window.location.hostname === 'localhost'
+                ? 'http://localhost:3001'
+                : 'https://projectbackend-production-aa38.up.railway.app';
+            try {
+                var res = await fetch(backendUrl + '/api/invite/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: _pendingInviteToken, password: pw })
+                });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to set password');
+                // Success — switch to login form with pre-filled email
+                showLoginCard();
+                var loginErr = document.getElementById('loginError');
+                loginErr.style.color = '#22c55e';
+                loginErr.innerHTML = '\u2713 Password set successfully! Sign in below.';
+                document.getElementById('loginEmail').value = data.email || '';
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginPassword').focus();
+            } catch (err) {
+                errEl.textContent = err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-lock"></i> Set My Password';
+            }
         }
 
         // ============================================================
@@ -14204,6 +14347,14 @@
 
         // Auth-gated initialisation
         function setupAuth() {
+            // Check for invite token in URL — if present, show password setup
+            var _inviteParams = new URLSearchParams(window.location.search);
+            if (_inviteParams.get('invite')) {
+                checkInviteToken();
+                // Don't return — still set up onAuthStateChanged so after
+                // they set their password and sign in, the app loads normally
+            }
+
             // Check for creator bypass before touching Firebase Auth
             var urlParams  = new URLSearchParams(window.location.search);
             var urlCreator = urlParams.get('creator');
@@ -14763,18 +14914,16 @@
                 });
                 var data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed');
-                // Send them a password setup email (Firebase reset email)
-                // Send branded invite email via backend
-                (async function() {
-                    try {
-                        var tok = await auth.currentUser.getIdToken();
-                        await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
-                            method: 'POST',
-                            headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ email: email, displayName: name, inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '' })
-                        });
-                    } catch(e) { console.warn('[Invite email]', e); }
-                })();
+                // Send branded invite email with setup token
+                try {
+                    var tok = await auth.currentUser.getIdToken();
+                    var emailRes = await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email, displayName: name, inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '', inviteToken: data.inviteToken })
+                    });
+                    if (!emailRes.ok) { var ed = await emailRes.json(); console.warn('[Invite email]', ed.error); }
+                } catch(e) { console.warn('[Invite email]', e); }
                 // ── Auto-add to org chart (new team OR existing team placement) ──
                 var isNewTeam = document.getElementById('inviteNewTeam') && document.getElementById('inviteNewTeam').checked;
                 var newTeamName = isNewTeam && document.getElementById('inviteNewTeamName') ? document.getElementById('inviteNewTeamName').value.trim() : '';
@@ -14868,17 +15017,17 @@
                     });
                     var data = await res.json();
                     if (!res.ok) throw new Error(data.error || 'Failed');
-                    // Send branded invite email via backend
-                    (async function(em) {
+                    // Send branded invite email with setup token
+                    if (data.inviteToken) {
                         try {
                             var tok2 = await auth.currentUser.getIdToken();
                             await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
                                 method: 'POST',
                                 headers: { 'Authorization': 'Bearer ' + tok2, 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email: em, displayName: '', inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '' })
+                                body: JSON.stringify({ email: emails[i], displayName: '', inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '', inviteToken: data.inviteToken })
                             });
                         } catch(e) { console.warn('[Invite email]', e); }
-                    })(emails[i]);
+                    }
                     success++;
                 } catch (e) {
                     failed++;
@@ -15338,7 +15487,16 @@
                             });
                             var data = await res.json();
                             if (!res.ok) throw new Error(data.error || 'Failed');
-                            showToast('Invite sent! Tell ' + email + ' to visit the login page and click \"First time? Set up your password\"');
+                            // Send branded invite email with setup token
+                            if (data.inviteToken) {
+                                var tok = await auth.currentUser.getIdToken();
+                                await fetch(BACKEND_URL + '/api/tenant/send-invite-email', {
+                                    method: 'POST',
+                                    headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ email: email, displayName: name, inviterName: currentUser ? (currentUser.displayName || currentUser.email) : '', companyName: _siteTitle || '', inviteToken: data.inviteToken })
+                                });
+                            }
+                            showToast('Invite sent! ' + email + ' will receive a setup email.');
                             loadTeamMembers();
                         } catch(e) {
                             showToast('Added to org chart (invite failed: ' + e.message + ')');
