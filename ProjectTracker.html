@@ -3142,10 +3142,11 @@
         .integration-card:hover { border-color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
         .integration-card.connected { border-color: #86efac; background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%); }
         .integration-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-        .integration-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; flex-shrink: 0; }
-        .integration-icon.teams { background: linear-gradient(135deg, #464eb8, #7b83eb); }
-        .integration-icon.slack { background: linear-gradient(135deg, #611f69, #e01e5a); }
-        .integration-icon.outlook { background: linear-gradient(135deg, #0078d4, #28a8ea); }
+        .integration-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; flex-shrink: 0; overflow: hidden; }
+        .integration-icon img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+        .integration-icon.teams { background: transparent; }
+        .integration-icon.slack { background: transparent; }
+        .integration-icon.outlook { background: transparent; }
         .integration-icon.jira { background: linear-gradient(135deg, #0052cc, #2684ff); }
         .integration-icon.servicenow { background: linear-gradient(135deg, #81b5a1, #62a387); }
         .integration-icon.webhook { background: linear-gradient(135deg, #475569, #64748b); }
@@ -8937,7 +8938,7 @@
                         <!-- Microsoft Teams -->
                         <div class="integration-card" id="integrationTeams">
                             <div class="integration-card-header">
-                                <div class="integration-icon teams"><i class="fas fa-users"></i></div>
+                                <div class="integration-icon teams"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/icons/2025%20Teams%20Icon.png" alt="Teams"></div>
                                 <div>
                                     <div class="integration-title">Microsoft Teams</div>
                                     <div class="integration-desc">Channel notifications & status updates</div>
@@ -8952,7 +8953,7 @@
                         <!-- Slack -->
                         <div class="integration-card" id="integrationSlack">
                             <div class="integration-card-header">
-                                <div class="integration-icon slack"><i class="fab fa-slack"></i></div>
+                                <div class="integration-icon slack"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/icons/Slack%20Icon%202025.png" alt="Slack"></div>
                                 <div>
                                     <div class="integration-title">Slack</div>
                                     <div class="integration-desc">Channel alerts & project updates</div>
@@ -8967,7 +8968,7 @@
                         <!-- Microsoft Outlook -->
                         <div class="integration-card" id="integrationOutlook">
                             <div class="integration-card-header">
-                                <div class="integration-icon outlook"><i class="fas fa-envelope"></i></div>
+                                <div class="integration-icon outlook"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/icons/2025%20Outlook%20Icon.png" alt="Outlook"></div>
                                 <div>
                                     <div class="integration-title">Microsoft Outlook</div>
                                     <div class="integration-desc">Email notifications for key events</div>
@@ -21680,6 +21681,7 @@
             var areas = _fbDraftSectionAreas[sectionId];
             if (areas && areas[ai]) {
                 areas[ai].questions.push('');
+                _markFBDirty();
                 _fbRenderSectionEditor(sectionId);
                 var edId = 'fbSecEditor_' + sectionId.replace(/[^a-zA-Z0-9_]/g, '_');
                 setTimeout(function() {
@@ -21694,6 +21696,7 @@
             var areas = _fbDraftSectionAreas[sectionId];
             if (areas && areas[ai]) {
                 areas[ai].questions.splice(qi, 1);
+                _markFBDirty();
                 _fbRenderSectionEditor(sectionId);
             }
         }
@@ -21711,6 +21714,7 @@
                 color: colors[idx % colors.length],
                 questions: ['Enter your first question here']
             });
+            _markFBDirty();
             _fbRenderSectionEditor(sectionId);
         }
 
@@ -21719,6 +21723,7 @@
             var areas = _fbDraftSectionAreas[sectionId];
             if (areas) {
                 areas.splice(ai, 1);
+                _markFBDirty();
                 _fbRenderSectionEditor(sectionId);
             }
         }
@@ -21850,6 +21855,7 @@
                     fbDraftSchema.push(Object.assign({}, f, { options: (f.options || []).slice() }));
                 }
             });
+            _markFBDirty();
             renderFBCustoms();
             renderFBPrebuiltPanel();
             showToast('Applied \u201c' + form.title + '\u201d — missing fields restored.');
@@ -22003,10 +22009,36 @@
             renderFBPrebuiltPanel();
             // Initialize section toggle UI
             _fbInitSectionToggles();
+            _resetFBDirty();
+            // Wire input/change listeners for inline edits to mark dirty
+            var fbModal = document.getElementById('formBuilderModal');
+            if (fbModal && !fbModal._fbDirtyWired) {
+                fbModal.addEventListener('input', function(e) {
+                    var t = e.target;
+                    if (t.matches('.fb-label-input, .fb-options-textarea, .fb-ia-q-input, input[id^="fbDfLabel_"]')) _markFBDirty();
+                });
+                fbModal.addEventListener('change', function(e) {
+                    var t = e.target;
+                    if (t.matches('.fb-type-select, .fb-label-input, .fb-options-textarea, input[type="checkbox"]')) _markFBDirty();
+                });
+                fbModal._fbDirtyWired = true;
+            }
             document.getElementById('formBuilderModal').classList.add('visible');
         }
 
         function closeFormBuilderModal() {
+            if (_fbIsDirty) {
+                _unsavedPendingAction = function() {
+                    _resetFBDirty();
+                    document.getElementById('formBuilderModal').classList.remove('visible');
+                };
+                _unsavedSaveCallback = function() {
+                    _resetFBDirty();
+                    saveFormBuilderModal();
+                };
+                document.getElementById('unsavedOverlay').classList.add('visible');
+                return;
+            }
             document.getElementById('formBuilderModal').classList.remove('visible');
         }
 
@@ -22055,8 +22087,9 @@
             // Apply step and issue field visibility
             _applyStepFieldVisibility();
             _applyIssueFieldVisibility();
+            _resetFBDirty();
             showToast('Form Builder saved');
-            closeFormBuilderModal();
+            document.getElementById('formBuilderModal').classList.remove('visible');
         }
 
         // Apply section visibility based on _enabledSections
@@ -22151,18 +22184,21 @@
         // Toggle section visibility in form builder
         function _fbToggleSection(section, enabled) {
             _fbDraftEnabledSections[section] = enabled;
+            _markFBDirty();
             _renderFBPreview();
         }
         
         // Toggle individual step field
         function _fbToggleStepField(field, enabled) {
             _fbDraftStepFields[field] = enabled;
+            _markFBDirty();
             _renderFBPreview();
         }
         
         // Toggle individual issue field
         function _fbToggleIssueField(field, enabled) {
             _fbDraftIssueFields[field] = enabled;
+            _markFBDirty();
             _renderFBPreview();
         }
 
@@ -22183,6 +22219,7 @@
                     questions: ['Is this area impacted?', 'What is the impact level? (Low/Medium/High)', 'Notes/Details']
                 });
                 input.value = '';
+                _markFBDirty();
                 _fbRenderCustomImpactAreas();
             }
         }
@@ -22200,12 +22237,14 @@
                 type: typeEl.value
             });
             labelEl.value = '';
+            _markFBDirty();
             _renderFBStepCustomFields();
             _renderFBPreview();
         }
 
         function _fbRemoveStepCustomField(idx) {
             _fbDraftStepCustomFields.splice(idx, 1);
+            _markFBDirty();
             _renderFBStepCustomFields();
             _renderFBPreview();
         }
@@ -22232,6 +22271,7 @@
         function _fbRemoveCustomArea(section, idx) {
             if (section === 'impact') {
                 _fbDraftImpactAreas.splice(idx, 1);
+                _markFBDirty();
                 _fbRenderCustomImpactAreas();
             }
         }
@@ -22342,12 +22382,14 @@
             _fbSyncDOM();
             fbDraftSchema[idx].icon = icon;
             document.querySelectorAll('.fb-icon-picker,.fb-color-picker').forEach(function(p){p.style.display='none';});
+            _markFBDirty();
             renderFBCustoms();
         }
         function fbPickColor(idx, colorIdx) {
             _fbSyncDOM();
             fbDraftSchema[idx].colorIdx = colorIdx;
             document.querySelectorAll('.fb-icon-picker,.fb-color-picker').forEach(function(p){p.style.display='none';});
+            _markFBDirty();
             renderFBCustoms();
         }
         function fbToggleIconPicker(idx) {
@@ -22458,6 +22500,7 @@
             if (labelInp) fbDraftSchema[i].label = labelInp.value;
             fbDraftSchema[i].type = newType;
             if (newType === 'select' && !fbDraftSchema[i].options) fbDraftSchema[i].options = [];
+            _markFBDirty();
             renderFBCustoms();
         }
 
@@ -22469,6 +22512,7 @@
                 delete _fbDraftSectionAreas[removed.id];
             }
             fbDraftSchema.splice(i, 1);
+            _markFBDirty();
             renderFBCustoms();
             renderFBPrebuiltPanel();
         }
@@ -22483,12 +22527,14 @@
                 fbDraftSchema.push({ type: 'section', label: label || 'New Section', id: secId, options: [] });
                 _fbDraftSectionAreas[secId] = [];
                 labelEl.value = '';
+                _markFBDirty();
                 renderFBCustoms();
                 return;
             }
             if (!label) { showToast('Enter a field label'); labelEl.focus(); return; }
             fbDraftSchema.push({ type: typeEl.value, label: label, required: false, id: 'custom_' + Date.now(), options: [] });
             labelEl.value = '';
+            _markFBDirty();
             renderFBCustoms();
         }
 
@@ -22514,6 +22560,7 @@
             var moved = fbDraftSchema.splice(fbDragSrcIdx, 1)[0];
             fbDraftSchema.splice(i, 0, moved);
             fbDragSrcIdx = null;
+            _markFBDirty();
             renderFBCustoms();
         }
 
@@ -23483,6 +23530,7 @@
         // ============================================================
         var _modalIsDirty        = false;
         var _unsavedPendingAction = null;
+        var _unsavedSaveCallback  = null;
 
         function _resetModalDirty() {
             _modalIsDirty = false;
@@ -23508,24 +23556,43 @@
             });
         }
 
+        // ---- Form Builder dirty tracking ----
+        var _fbIsDirty = false;
+
+        function _resetFBDirty() {
+            _fbIsDirty = false;
+            var btn = document.querySelector('#formBuilderModal .modal-top-save-btn');
+            if (btn) btn.classList.remove('dirty');
+        }
+
+        function _markFBDirty() {
+            _fbIsDirty = true;
+            var btn = document.querySelector('#formBuilderModal .modal-top-save-btn');
+            if (btn) btn.classList.add('dirty');
+        }
+
         function unsavedDiscard() {
             document.getElementById('unsavedOverlay').classList.remove('visible');
             _modalIsDirty = false;
+            _fbIsDirty = false;
+            _unsavedSaveCallback = null;
             if (_unsavedPendingAction) { _unsavedPendingAction(); _unsavedPendingAction = null; }
         }
 
         function unsavedSaveAndGo() {
             document.getElementById('unsavedOverlay').classList.remove('visible');
             var action = _unsavedPendingAction;
+            var saveFn = _unsavedSaveCallback;
             _unsavedPendingAction = null;
-            _resetModalDirty();
-            saveTask();
+            _unsavedSaveCallback = null;
+            if (saveFn) { saveFn(); } else { _resetModalDirty(); saveTask(); }
             if (action) action();
         }
 
         function unsavedCancel() {
             document.getElementById('unsavedOverlay').classList.remove('visible');
             _unsavedPendingAction = null;
+            _unsavedSaveCallback = null;
         }
 
         // ============================================================
