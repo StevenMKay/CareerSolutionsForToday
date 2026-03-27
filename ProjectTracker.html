@@ -19819,7 +19819,7 @@
             // ── AI Summaries (only for executive & detailed templates) ──────────────────────
             var aiSummaries = {};
             var tmplConfig = templateConfigs[selectedSlideTemplate] || templateConfigs.executive;
-            if (aiApiKey && (selectedSlideTemplate === 'executive' || selectedSlideTemplate === 'detailed')) {
+            if (aiApiKey && !condensedDeckMode && (selectedSlideTemplate === 'executive' || selectedSlideTemplate === 'detailed')) {
                 for (var ai = 0; ai < selectedTasks.length; ai++) {
                     var at = selectedTasks[ai];
                     genBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI Summary ' + (ai + 1) + ' / ' + selectedTasks.length + '...';
@@ -19986,7 +19986,151 @@
                 s1.addText('Career Solutions for Today', { x: 0.5, y: 7.05, w: 6, h: 0.35, fontSize: 9, color: pC(theme.sub), fontFace: 'Calibri', italic: true });
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // TEMPLATE-SPECIFIC SLIDES
+                // CONDENSED vs FULL DECK BRANCH
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                if (condensedDeckMode) {
+                    // ── CONDENSED DECK: summary table slides instead of individual project slides ──
+                    var rowsPerSlide = 7;
+                    var totalPages = Math.ceil(selectedTasks.length / rowsPerSlide);
+                    for (var pg = 0; pg < totalPages; pg++) {
+                        var sSumm = pptx.addSlide();
+                        sSumm.background = { color: 'FFFFFF' };
+                        // Header band
+                        sSumm.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.33, h: 1.0, fill: { color: theme.bg } });
+                        sSumm.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.06, h: 1.0, fill: { color: theme.accent } });
+                        sSumm.addShape(pptx.ShapeType.rect, { x: 0, y: 1.0, w: 13.33, h: 0.03, fill: { color: theme.accent } });
+                        var pgLabel = totalPages > 1 ? ' (' + (pg + 1) + ' of ' + totalPages + ')' : '';
+                        sSumm.addText('PROJECT SUMMARY' + pgLabel, { x: 0.5, y: 0.2, w: 8, h: 0.5, fontSize: 18, bold: true, color: 'FFFFFF', fontFace: 'Calibri Light', charSpacing: 2 });
+                        sSumm.addText(selectedTasks.length + ' Projects  ·  ' + dateStr, { x: 0.5, y: 0.62, w: 10, h: 0.25, fontSize: 10, color: theme.sub, fontFace: 'Calibri' });
+
+                        // Table header row
+                        var colW = [0.5, 3.6, 1.4, 1.2, 2.2, 1.5, 1.6];  // total ~12
+                        var colX = 0.5;
+                        var tblY = 1.3;
+                        var hdrH = 0.4;
+                        var rowH = 0.65;
+                        var headers = ['#', 'Project', 'Status', 'Priority', 'Assigned To', 'Due Date', 'Progress'];
+                        var cx = colX;
+                        headers.forEach(function(h, ci) {
+                            sSumm.addShape(pptx.ShapeType.rect, { x: cx, y: tblY, w: colW[ci], h: hdrH, fill: { color: theme.bg } });
+                            sSumm.addText(h, { x: cx + 0.08, y: tblY, w: colW[ci] - 0.16, h: hdrH, fontSize: 9, bold: true, color: 'FFFFFF', fontFace: 'Calibri', valign: 'middle' });
+                            cx += colW[ci];
+                        });
+
+                        // Data rows
+                        var pageItems = selectedTasks.slice(pg * rowsPerSlide, (pg + 1) * rowsPerSlide);
+                        pageItems.forEach(function(t, ri) {
+                            var ry = tblY + hdrH + ri * rowH;
+                            var bgFill = ri % 2 === 0 ? 'FFFFFF' : 'F8FAFC';
+                            var scLocal = statusColors[t.status] || '94A3B8';
+                            var pcLocal = priorityColors[t.priority] || '94A3B8';
+                            var rowNum = pg * rowsPerSlide + ri + 1;
+                            // Row background
+                            var rx = colX;
+                            colW.forEach(function(w) {
+                                sSumm.addShape(pptx.ShapeType.rect, { x: rx, y: ry, w: w, h: rowH, fill: { color: bgFill }, line: { color: 'E2E8F0', width: 0.5 } });
+                                rx += w;
+                            });
+                            // Column values
+                            var cxr = colX;
+                            // #
+                            sSumm.addText(String(rowNum), { x: cxr + 0.08, y: ry, w: colW[0] - 0.16, h: rowH, fontSize: 9, color: '94A3B8', fontFace: 'Calibri', valign: 'middle', align: 'center' });
+                            cxr += colW[0];
+                            // Project title
+                            sSumm.addText(t.title, { x: cxr + 0.08, y: ry, w: colW[1] - 0.16, h: rowH, fontSize: 10, bold: true, color: '1E293B', fontFace: 'Calibri', valign: 'middle' });
+                            cxr += colW[1];
+                            // Status badge
+                            sSumm.addShape(pptx.ShapeType.roundRect, { x: cxr + 0.1, y: ry + 0.18, w: colW[2] - 0.2, h: 0.28, fill: { color: scLocal, transparency: 80 }, rectRadius: 0.14, line: { color: scLocal, width: 1 } });
+                            sSumm.addText((statusLabels[t.status] || t.status).toUpperCase(), { x: cxr + 0.1, y: ry + 0.18, w: colW[2] - 0.2, h: 0.28, fontSize: 7, bold: true, color: scLocal, fontFace: 'Calibri', align: 'center', valign: 'middle' });
+                            cxr += colW[2];
+                            // Priority
+                            sSumm.addText((t.priority || '—').toUpperCase(), { x: cxr + 0.08, y: ry, w: colW[3] - 0.16, h: rowH, fontSize: 8, bold: true, color: pcLocal, fontFace: 'Calibri', valign: 'middle', align: 'center' });
+                            cxr += colW[3];
+                            // Assigned To
+                            sSumm.addText(t.assignedTo || '—', { x: cxr + 0.08, y: ry, w: colW[4] - 0.16, h: rowH, fontSize: 9, color: '475569', fontFace: 'Calibri', valign: 'middle' });
+                            cxr += colW[4];
+                            // Due Date
+                            var dueTxt = t.dueDate ? new Date(t.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+                            var dueColor = '475569';
+                            if (t.dueDate && t.status !== 'completed' && t.status !== 'cancelled') {
+                                var dueD = new Date(t.dueDate);
+                                if (dueD < today) dueColor = 'EF4444';
+                            }
+                            sSumm.addText(dueTxt, { x: cxr + 0.08, y: ry, w: colW[5] - 0.16, h: rowH, fontSize: 9, color: dueColor, fontFace: 'Calibri', valign: 'middle', align: 'center' });
+                            cxr += colW[5];
+                            // Progress bar
+                            var prog = t.status === 'completed' ? 100 : t.status === 'in-progress' ? 50 : t.status === 'on-hold' ? 25 : 0;
+                            var barW = colW[6] - 0.4;
+                            var barX = cxr + 0.2;
+                            var barY = ry + (rowH / 2) - 0.06;
+                            sSumm.addShape(pptx.ShapeType.roundRect, { x: barX, y: barY, w: barW, h: 0.12, fill: { color: 'E2E8F0' }, rectRadius: 0.06 });
+                            if (prog > 0) sSumm.addShape(pptx.ShapeType.roundRect, { x: barX, y: barY, w: Math.max(barW * (prog / 100), 0.12), h: 0.12, fill: { color: scLocal }, rectRadius: 0.06 });
+                            sSumm.addText(prog + '%', { x: cxr + 0.02, y: ry + (rowH / 2) + 0.08, w: colW[6] - 0.04, h: 0.18, fontSize: 7, color: '64748B', fontFace: 'Calibri', align: 'center' });
+                        });
+                        addSlideFooter(sSumm, pg + 2, totalPages + 2);
+                    }
+
+                    // If user selected charts, include up to 2 in condensed mode
+                    var condensedCharts = getSelectedSlideCharts();
+                    if (condensedCharts.length > 0) {
+                        condensedCharts = condensedCharts.slice(0, 2);
+                        condensedCharts.forEach(function(sc) {
+                            if (sc.key === 'status') {
+                                var sData = Object.keys(statusColors).filter(function(k) { return sCounts[k]; }).map(function(k) {
+                                    return { name: (statusLabels[k] || k), labels: [(statusLabels[k] || k)], values: [sCounts[k]] };
+                                });
+                                if (sData.length) {
+                                    var sChart = pptx.addSlide();
+                                    sChart.background = { color: 'FFFFFF' };
+                                    addSectionHeader(sChart, 'STATUS DISTRIBUTION', completedCount + ' of ' + selectedTasks.length + ' completed (' + overallProgress + '%)');
+                                    sChart.addChart(pptx.charts.DOUGHNUT, sData, {
+                                        x: 3.0, y: 1.5, w: 7, h: 5.2,
+                                        showLegend: true, legendPos: 'r', legendFontSize: 12,
+                                        showPercent: true, dataLabelFontSize: 12, dataLabelColor: '000000',
+                                        chartColors: Object.keys(statusColors).filter(function(k) { return sCounts[k]; }).map(function(k) { return statusColors[k]; })
+                                    });
+                                    addSlideFooter(sChart);
+                                }
+                            } else if (sc.key === 'priority') {
+                                var pData = Object.keys(priorityColors).filter(function(k) { return pCounts[k]; }).map(function(k) {
+                                    return { name: k.charAt(0).toUpperCase() + k.slice(1), labels: [k.charAt(0).toUpperCase() + k.slice(1)], values: [pCounts[k]] };
+                                });
+                                if (pData.length) {
+                                    var pChart = pptx.addSlide();
+                                    pChart.background = { color: 'FFFFFF' };
+                                    addSectionHeader(pChart, 'PRIORITY BREAKDOWN', 'Distribution across ' + selectedTasks.length + ' projects');
+                                    pChart.addChart(pptx.charts.DOUGHNUT, pData, {
+                                        x: 3.0, y: 1.5, w: 7, h: 5.2,
+                                        showLegend: true, legendPos: 'r', legendFontSize: 12,
+                                        showPercent: true, dataLabelFontSize: 12, dataLabelColor: '000000',
+                                        chartColors: Object.keys(priorityColors).filter(function(k) { return pCounts[k]; }).map(function(k) { return priorityColors[k]; })
+                                    });
+                                    addSlideFooter(pChart);
+                                }
+                            } else if (sc.key === 'department') {
+                                var dLabels = Object.keys(deptCounts);
+                                var dValues = dLabels.map(function(l) { return deptCounts[l]; });
+                                if (dLabels.length) {
+                                    var dChart = pptx.addSlide();
+                                    dChart.background = { color: 'FFFFFF' };
+                                    addSectionHeader(dChart, 'DEPARTMENT DISTRIBUTION', 'Projects by department');
+                                    dChart.addChart(pptx.charts.BAR, [{ name: 'Projects', labels: dLabels, values: dValues }], {
+                                        x: 1.0, y: 1.5, w: 11, h: 5.2,
+                                        showLegend: false, showValue: true,
+                                        chartColors: [theme.accent],
+                                        catAxisLabelFontSize: 11, valAxisLabelFontSize: 10,
+                                        dataLabelFontSize: 11, dataLabelColor: '000000'
+                                    });
+                                    addSlideFooter(dChart);
+                                }
+                            }
+                        });
+                    }
+
+                } else {
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // TEMPLATE-SPECIFIC SLIDES (full deck)
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
                 if (selectedSlideTemplate === 'executive') {
@@ -20889,6 +21033,8 @@
                     }); // end selectedCharts.forEach
                 }
 
+                } // end condensedDeckMode else (full deck)
+
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 // CLOSING SLIDE — clean and professional (all templates)
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -20924,7 +21070,8 @@
                     'portfolio': 'ProjectPortfolio',
                     'detailed': 'DetailedReview'
                 };
-                pptx.writeFile({ fileName: (filePrefix[selectedSlideTemplate] || 'ProjectPortfolio') + '_' + now.toISOString().split('T')[0] + '.pptx' })
+                var fName = (condensedDeckMode ? 'Condensed_' : '') + (filePrefix[selectedSlideTemplate] || 'ProjectPortfolio') + '_' + now.toISOString().split('T')[0] + '.pptx';
+                pptx.writeFile({ fileName: fName })
                     .then(function() { showToast('Presentation downloaded!'); closeSlidesModal(); });
             } catch(e) {
                 showToast('Error generating presentation: ' + (e.message || 'Unknown'));
