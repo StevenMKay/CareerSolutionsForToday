@@ -5807,6 +5807,9 @@
         .fb-field-row:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
         .fb-field-row.fb-dragging { opacity: 0.4; }
         .fb-field-row.fb-drag-over { border-color: #3b82f6; background: #eff6ff; }
+        .fb-basic-section { border: 2px solid #bfdbfe; border-radius: 12px; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); padding: 0 10px 10px; margin-bottom: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
+        .fb-basic-section-header { padding: 12px 4px 8px; border-bottom: 1px solid #dbeafe; margin-bottom: 8px; }
+        .fb-basic-section.fb-basic-drop-active { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); }
         .fb-default-row { display: grid; grid-template-columns: 18px 28px 1fr 110px 140px 26px; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
         .fb-grip { color: #cbd5e1; cursor: grab; font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
         .fb-grip:active { cursor: grabbing; }
@@ -7050,6 +7053,13 @@
                     <span>Assigned To</span>
                     <span class="toggle-switch">
                         <input type="checkbox" id="opt-assignedTo" onchange="applyCardOption('assignedTo', this.checked)">
+                        <span class="toggle-track"></span>
+                    </span>
+                </label>
+                <label class="toggle-row">
+                    <span>Assignee Photo</span>
+                    <span class="toggle-switch">
+                        <input type="checkbox" id="opt-assigneePhoto" onchange="applyCardOption('assigneePhoto', this.checked)">
                         <span class="toggle-track"></span>
                     </span>
                 </label>
@@ -8765,6 +8775,14 @@
                         </button>
                     </div>
                     <div id="templateDescription" style="margin-top:8px;padding:8px 12px;background:#f1f5f9;border-radius:6px;font-size:11px;color:#64748b;display:none;"></div>
+                    <!-- Condensed Deck Toggle -->
+                    <label style="display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:background 0.15s;" onmouseenter="this.style.background='#f1f5f9'" onmouseleave="this.style.background='#f8fafc'">
+                        <input type="checkbox" id="slideCondensedToggle" onchange="toggleCondensedMode(this.checked)" style="accent-color:#6366f1;width:16px;height:16px;flex-shrink:0;">
+                        <div>
+                            <span style="font-size:13px;font-weight:600;color:#334155;"><i class="fas fa-compress-alt" style="color:#6366f1;margin-right:4px;font-size:11px;"></i>Condensed Deck</span>
+                            <span style="display:block;font-size:10px;color:#94a3b8;margin-top:1px;">Fewer slides — projects shown in summary tables instead of individual slides</span>
+                        </div>
+                    </label>
                 </div>
                 <!-- Color Theme -->
                 <div style="margin-bottom:18px;">
@@ -10605,7 +10623,9 @@
                     var di = getDueDateInfo(task.dueDate);
                     return '<span class="due-date ' + di.class + '"><i class="fas fa-calendar"></i> ' + di.text + '</span>';
                 case 'assignedTo':
-                    return escapeHtml(task.assignedTo || '-');
+                    if (!task.assignedTo) return '-';
+                    var _listAva = (cardDisplayOptions.assigneePhoto ? _assigneeAvatarHtml(task.assignedTo, 18) : '');
+                    return '<span style="display:inline-flex;align-items:center;">' + (_listAva || '') + escapeHtml(task.assignedTo) + '</span>';
                 case 'department':
                     return escapeHtml(task.department || '-');
                 case 'hours':
@@ -10934,10 +10954,27 @@
             dueDate:      true,
             overdueLabel: true,
             assignedTo:   true,
+            assigneePhoto: true,
             startDate:    true,
             department:   false,
             projectId:    false
         };
+
+        // Look up a team member's photo by assignee name/email
+        function _getAssigneePhoto(assignedTo) {
+            if (!assignedTo || !teamMembers || !teamMembers.length) return null;
+            var match = teamMembers.find(function(m) {
+                return _personMatch('', assignedTo, m.email, m.displayName);
+            });
+            return (match && match.photoURL) ? match.photoURL : null;
+        }
+
+        function _assigneeAvatarHtml(assignedTo, sizePx) {
+            var sz = sizePx || 20;
+            var photo = _getAssigneePhoto(assignedTo);
+            if (!photo) return '';
+            return '<img src="' + escapeHtml(photo) + '" alt="" style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:3px;border:1px solid rgba(255,255,255,0.3);" onerror="this.style.display=\'none\'">';
+        }
 
         function loadCardDisplayOptions() {
             var saved = localStorage.getItem('pt_card_display_options');
@@ -11086,7 +11123,10 @@
             if (opts.status)    metaHtml += '<span class="status-badge ' + statusClasses[task.status] + '" onclick="event.stopPropagation(); cycleStatus(\'' + task.id + '\')">' + statusLabels[task.status] + '</span>';
             if (opts.priority)  metaHtml += '<span class="priority-badge priority-' + task.priority + '">' + task.priority.toUpperCase() + '</span>';
             if (opts.category)  metaHtml += '<span class="category-tag">' + task.category + '</span>';
-            if (opts.assignedTo && task.assignedTo) metaHtml += '<span class="category-tag" style="background:rgba(49,130,206,0.1);color:#3182ce;"><i class="fas fa-user" style="margin-right:3px;"></i>' + escapeHtml(task.assignedTo) + '</span>';
+            if (opts.assignedTo && task.assignedTo) {
+                var _assignAva = (opts.assigneePhoto ? _assigneeAvatarHtml(task.assignedTo, 20) : '');
+                metaHtml += '<span class="category-tag" style="background:rgba(49,130,206,0.1);color:#3182ce;display:inline-flex;align-items:center;">' + (_assignAva || '<i class="fas fa-user" style="margin-right:3px;"></i>') + escapeHtml(task.assignedTo) + '</span>';
+            }
             if (opts.department && task.owningDepartment) metaHtml += '<span class="category-tag" style="background:rgba(128,90,213,0.1);color:#805ad5;"><i class="fas fa-building" style="margin-right:3px;"></i>' + escapeHtml(task.owningDepartment) + '</span>';
             if (opts.projectId && task.projectId) metaHtml += '<span class="category-tag" style="background:rgba(113,128,150,0.1);color:#718096;"><i class="fas fa-hashtag" style="margin-right:3px;"></i>' + escapeHtml(task.projectId) + '</span>';
 
@@ -17362,10 +17402,10 @@
             var rowsHtml = contacts.map(function(c, idx) {
                 var initials = (c.name || '?').split(' ').map(function(w){ return w[0] || ''; }).slice(0,2).join('').toUpperCase();
                 var bg = avatarColors[idx % avatarColors.length];
-                // Try to find a photo from team members
+                // Try to find a photo from team members (case-insensitive email + name fallback)
                 var photoUrl = null;
-                if (c.email && teamMembers && teamMembers.length) {
-                    var match = teamMembers.find(function(m) { return m.email === c.email; });
+                if (teamMembers && teamMembers.length) {
+                    var match = teamMembers.find(function(m) { return _personMatch(c.email, c.name, m.email, m.displayName); });
                     if (match && match.photoURL) photoUrl = match.photoURL;
                 }
                 var avatarHtml = photoUrl
@@ -19519,6 +19559,11 @@
         // ============================================================
         var selectedSlideTemplate = 'executive';
         var selectedSlideColor = 'blue';
+        var condensedDeckMode = false;
+
+        function toggleCondensedMode(checked) {
+            condensedDeckMode = checked;
+        }
 
         var slideThemes = {
             blue:   { bg: '0F172A', bg2: '1E3A5F', title: 'FFFFFF', sub: '94A3B8', accent: '3B82F6', accent2: '60A5FA', gradStart: '1E3A5F', gradEnd: '0F172A', card: '1E293B', cardBorder: '334155', badge: '1E40AF', light: 'DBEAFE', success: '22C55E', warning: 'F59E0B', danger: 'EF4444' },
@@ -22010,6 +22055,141 @@
                     { type: 'select',   label: 'Phase',              id: 'mkt_adv_5', options: ['Initiation','Planning','Execution','Monitoring','Closing'], chartEnabled: true },
                     { type: 'textarea', label: 'Status Notes',       id: 'mkt_adv_6', options: [] }
                 ]
+            },
+            // --- Alert-Wired Section Templates ---
+            {
+                id: 'risk_assessment_alerts',
+                title: 'Risk Assessment (with Alerts)',
+                icon: 'fa-exclamation-triangle',
+                color: '#dc2626',
+                desc: 'Track risk level, mitigation, and owners — auto-notifies when risk is High or Critical.',
+                alertWired: true,
+                fields: [
+                    { type: 'section',  label: 'Risk Assessment',   id: 'mkt_ra_0' },
+                    { type: 'select',   label: 'Risk Level',        id: 'mkt_ra_1', options: ['Low','Medium','High','Critical'], chartEnabled: true },
+                    { type: 'textarea', label: 'Mitigation Plan',   id: 'mkt_ra_2', options: [] },
+                    { type: 'members',  label: 'Risk Owner',        id: 'mkt_ra_3', options: [] },
+                    { type: 'date',     label: 'Review Date',       id: 'mkt_ra_4', options: [] }
+                ],
+                alertRules: [
+                    {
+                        name: 'Risk Level High/Critical Alert',
+                        desc: 'Notifies when Risk Level changes to High or Critical',
+                        icon: 'fa-exclamation-triangle',
+                        color: '#dc2626',
+                        enabled: true,
+                        sourceSection: 'mkt_ra_0',
+                        trigger: { type: 'field_change', field: 'cf:mkt_ra_1' },
+                        conditions: [
+                            { field: 'cf:mkt_ra_1', operator: 'equals', value: 'High' },
+                            { field: 'cf:mkt_ra_1', operator: 'equals', value: 'Critical' }
+                        ],
+                        conditionLogic: 'OR',
+                        actions: [
+                            { type: 'notify', message: '⚠️ Risk Level elevated — review mitigation plan' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'budget_financials_alerts',
+                title: 'Budget & Financials (with Alerts)',
+                icon: 'fa-dollar-sign',
+                color: '#059669',
+                desc: 'Track budget, spend, variance, and status — alerts when over budget or at risk.',
+                alertWired: true,
+                fields: [
+                    { type: 'section',  label: 'Budget & Financials', id: 'mkt_bf_0' },
+                    { type: 'number',   label: 'Approved Budget',     id: 'mkt_bf_1', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'Actual Spend',        id: 'mkt_bf_2', options: [], chartEnabled: true },
+                    { type: 'number',   label: 'Variance',            id: 'mkt_bf_3', options: [], chartEnabled: true },
+                    { type: 'select',   label: 'Budget Status',       id: 'mkt_bf_4', options: ['On Track','At Risk','Over Budget'], chartEnabled: true }
+                ],
+                alertRules: [
+                    {
+                        name: 'Budget At Risk / Over Budget Alert',
+                        desc: 'Notifies when Budget Status changes to At Risk or Over Budget',
+                        icon: 'fa-dollar-sign',
+                        color: '#059669',
+                        enabled: true,
+                        sourceSection: 'mkt_bf_0',
+                        trigger: { type: 'field_change', field: 'cf:mkt_bf_4' },
+                        conditions: [
+                            { field: 'cf:mkt_bf_4', operator: 'equals', value: 'At Risk' },
+                            { field: 'cf:mkt_bf_4', operator: 'equals', value: 'Over Budget' }
+                        ],
+                        conditionLogic: 'OR',
+                        actions: [
+                            { type: 'notify', message: '💰 Budget status changed — review spending' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'approval_workflow_alerts',
+                title: 'Approval Workflow (with Alerts)',
+                icon: 'fa-check-circle',
+                color: '#6366f1',
+                desc: 'Track approval status, approver, and notes — alerts on pending, approved, or rejected.',
+                alertWired: true,
+                fields: [
+                    { type: 'section',  label: 'Approval Workflow',   id: 'mkt_aw_0' },
+                    { type: 'select',   label: 'Approval Status',     id: 'mkt_aw_1', options: ['Not Required','Pending','Approved','Rejected'], chartEnabled: true },
+                    { type: 'members',  label: 'Approver',            id: 'mkt_aw_2', options: [] },
+                    { type: 'date',     label: 'Approval Date',       id: 'mkt_aw_3', options: [] },
+                    { type: 'textarea', label: 'Approval Notes',      id: 'mkt_aw_4', options: [] }
+                ],
+                alertRules: [
+                    {
+                        name: 'Approval Status Changed Alert',
+                        desc: 'Notifies when Approval Status changes to Pending, Approved, or Rejected',
+                        icon: 'fa-check-circle',
+                        color: '#6366f1',
+                        enabled: true,
+                        sourceSection: 'mkt_aw_0',
+                        trigger: { type: 'field_change', field: 'cf:mkt_aw_1' },
+                        conditions: [
+                            { field: 'cf:mkt_aw_1', operator: 'equals', value: 'Pending' },
+                            { field: 'cf:mkt_aw_1', operator: 'equals', value: 'Approved' },
+                            { field: 'cf:mkt_aw_1', operator: 'equals', value: 'Rejected' }
+                        ],
+                        conditionLogic: 'OR',
+                        actions: [
+                            { type: 'notify', message: '✅ Approval status updated — review required' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'stakeholder_updates_alerts',
+                title: 'Stakeholder Updates (with Alerts)',
+                icon: 'fa-bullhorn',
+                color: '#f59e0b',
+                desc: 'Track update schedule and frequency — alerts when next update is overdue.',
+                alertWired: true,
+                fields: [
+                    { type: 'section',  label: 'Stakeholder Updates', id: 'mkt_su_0' },
+                    { type: 'date',     label: 'Last Update Sent',    id: 'mkt_su_1', options: [] },
+                    { type: 'date',     label: 'Next Update Due',     id: 'mkt_su_2', options: [] },
+                    { type: 'select',   label: 'Update Frequency',    id: 'mkt_su_3', options: ['Weekly','Biweekly','Monthly','Quarterly'], chartEnabled: true },
+                    { type: 'textarea', label: 'Stakeholder Notes',   id: 'mkt_su_4', options: [] }
+                ],
+                alertRules: [
+                    {
+                        name: 'Stakeholder Update Frequency Changed',
+                        desc: 'Notifies when Update Frequency changes so the team can adjust schedules',
+                        icon: 'fa-bullhorn',
+                        color: '#f59e0b',
+                        enabled: true,
+                        sourceSection: 'mkt_su_0',
+                        trigger: { type: 'field_change', field: 'cf:mkt_su_3' },
+                        conditions: [],
+                        conditionLogic: 'AND',
+                        actions: [
+                            { type: 'notify', message: '📢 Stakeholder update frequency changed — review schedule' }
+                        ]
+                    }
+                ]
             }
         ];
 
@@ -22395,6 +22575,7 @@
                         '<div class="fb-prebuilt-card-title">' + escapeHtml(tpl.title) + '</div>' +
                     '</div>' +
                     '<div class="fb-prebuilt-card-desc">' + escapeHtml(tpl.desc) + '</div>' +
+                    (tpl.alertWired ? '<div style="display:flex;align-items:center;gap:4px;margin:4px 0 2px;padding:3px 8px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:5px;font-size:10px;font-weight:600;color:#dc2626;"><i class="fas fa-bell" style="font-size:9px;"></i> Includes automation alerts</div>' : '') +
                     _buildPrebuiltPreview(tpl) +
                     '<div class="fb-prebuilt-card-fields">' + fieldCount + ' field' + (fieldCount !== 1 ? 's' : '') + '</div>' +
                     (added
@@ -22452,10 +22633,18 @@
                     fbDraftSchema.push(Object.assign({}, f, { options: (f.options || []).slice() }));
                 }
             });
+            // Auto-create automation rules for alert-wired templates
+            if (tpl.alertRules && tpl.alertRules.length) {
+                _fbPendingAlertRules = (_fbPendingAlertRules || []).concat(tpl.alertRules.map(function(r) { return JSON.parse(JSON.stringify(r)); }));
+            }
             renderFBCustoms();
             renderFBPrebuiltPanel();
-            showToast('Added \u201c' + tpl.title + '\u201d to your form.');
+            var alertMsg = (tpl.alertWired ? ' (includes automation alerts)' : '');
+            showToast('Added \u201c' + tpl.title + '\u201d to your form.' + alertMsg);
         }
+
+        // Pending alert rules to be created when form is saved
+        var _fbPendingAlertRules = [];
 
         var _fbDefaults = [
             { key: 'title',       storageKey: 'title',       defaultLabel: 'Title' },
@@ -22580,6 +22769,19 @@
             _applyStepFieldVisibility();
             _applyIssueFieldVisibility();
             _resetFBDirty();
+            // Apply pending automation rules from alert-wired templates
+            if (_fbPendingAlertRules && _fbPendingAlertRules.length) {
+                var existingNames = _automationRules.map(function(r) { return r.name; });
+                _fbPendingAlertRules.forEach(function(rule) {
+                    // Don't add duplicates by name
+                    if (existingNames.indexOf(rule.name) === -1) {
+                        _automationRules.push(rule);
+                        existingNames.push(rule.name);
+                    }
+                });
+                _saveAutomationRules();
+                _fbPendingAlertRules = [];
+            }
             showToast('Form Builder saved');
             document.getElementById('formBuilderModal').classList.remove('visible');
         }
@@ -22905,10 +23107,43 @@
                 return;
             }
             var html = '<div class="fb-header-row"><span></span><span></span><span>Field Label</span><span>Type</span><span style="text-align:right;">Options</span><span></span></div>';
+
+            // --- Basic Information section grouping ---
+            var _basicFields = fbDraftSchema.filter(function(f) { return f.builtIn || f.section === 'basic'; });
+            var _basicFieldNames = _basicFields.map(function(f) { return f.label; });
+            var _inBasicSection = false;
+            var _basicSectionOpened = false;
+
             var _prevRowGroup = null;
             fbDraftSchema.forEach(function(f, i) {
                 // Skip legacy flat Impact Assessment fields — managed by area editor
                 if (f.id && f.id.match(/^mkt_ia_[1-9]/)) return;
+                var _isBasic = !!(f.builtIn || f.section === 'basic');
+
+                // Open Basic Information section wrapper before first basic field
+                if (_isBasic && !_basicSectionOpened) {
+                    _basicSectionOpened = true;
+                    _inBasicSection = true;
+                    var _tagHtml = _basicFields.map(function(bf) {
+                        var ic = bf.icon || (bf.builtIn ? 'fa-cube' : 'fa-plus-circle');
+                        return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.15);border-radius:4px;font-size:10px;color:#3b82f6;font-weight:500;white-space:nowrap;"><i class="fas ' + ic + '" style="font-size:8px;"></i>' + escapeHtml(bf.label) + '</span>';
+                    }).join(' ');
+                    html += '<div class="fb-basic-section" id="fbBasicSection" ondragover="fbBasicDragOver(event)" ondrop="fbBasicDrop(event)" ondragleave="fbBasicDragLeave(event)">' +
+                        '<div class="fb-basic-section-header">' +
+                            '<div style="display:flex;align-items:center;gap:8px;">' +
+                                '<i class="fas fa-th-large" style="font-size:14px;color:#3b82f6;"></i>' +
+                                '<span style="font-size:13px;font-weight:700;color:#1e293b;">Basic Information</span>' +
+                                '<span style="font-size:10px;color:#94a3b8;font-weight:500;">' + _basicFields.length + ' field' + (_basicFields.length !== 1 ? 's' : '') + '</span>' +
+                            '</div>' +
+                            '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">' + _tagHtml + '</div>' +
+                        '</div>';
+                }
+                // Close Basic Information section wrapper when transitioning from basic to non-basic
+                if (!_isBasic && _inBasicSection) {
+                    _inBasicSection = false;
+                    html += '</div>'; // close fb-basic-section
+                }
+
                 var _curRowGroup = f.rowGroup || null;
                 var isBuiltIn = !!f.builtIn;
                 var secColor = (f.colorIdx !== undefined && _fbColorChoices[f.colorIdx]) ? _fbColorChoices[f.colorIdx] : _fbColorChoices[0];
@@ -22971,6 +23206,8 @@
             });
             // Close any open group at end
             if (_prevRowGroup) html += '</div>';
+            // Close basic section if still open
+            if (_inBasicSection) html += '</div>';
             el.innerHTML = html;
             _renderFBPreview();
             // Render area editors for all sections that have them
@@ -23006,6 +23243,13 @@
             // Clean up section areas when deleting a section
             if (removed && removed.type === 'section' && removed.id) {
                 delete _fbDraftSectionAreas[removed.id];
+                // Remove pending alert rules for this section
+                if (_fbPendingAlertRules && _fbPendingAlertRules.length) {
+                    _fbPendingAlertRules = _fbPendingAlertRules.filter(function(r) { return r.sourceSection !== removed.id; });
+                }
+                // Also schedule cleanup of saved automation rules with this sourceSection
+                _automationRules = _automationRules.filter(function(r) { return r.sourceSection !== removed.id; });
+                _saveAutomationRules();
             }
             fbDraftSchema.splice(i, 1);
             _markFBDirty();
@@ -23188,7 +23432,67 @@
 
         function fbDragEnd(e) {
             document.querySelectorAll('.fb-field-row').forEach(function(r) { r.classList.remove('fb-dragging', 'fb-drag-over'); });
+            var bsEl = document.getElementById('fbBasicSection');
+            if (bsEl) bsEl.classList.remove('fb-basic-drop-active');
             fbDragSrcIdx = null;
+        }
+
+        // --- Basic Information section drop zone handlers ---
+        function fbBasicDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+            var bsEl = document.getElementById('fbBasicSection');
+            if (bsEl) bsEl.classList.add('fb-basic-drop-active');
+        }
+        function fbBasicDragLeave(e) {
+            var bsEl = document.getElementById('fbBasicSection');
+            if (bsEl && !bsEl.contains(e.relatedTarget)) bsEl.classList.remove('fb-basic-drop-active');
+        }
+        function fbBasicDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var bsEl = document.getElementById('fbBasicSection');
+            if (bsEl) bsEl.classList.remove('fb-basic-drop-active');
+            // Catalog drop into Basic Information
+            var catId = e.dataTransfer.getData('text/catalog');
+            if (catId) {
+                var catField = _fbFieldCatalog.find(function(f) { return f.id === catId; });
+                if (!catField || catField.type === 'section') return; // don't allow sections inside basic
+                _fbSyncDOM();
+                // Find insertion point: after last basic field
+                var lastBasicIdx = -1;
+                fbDraftSchema.forEach(function(f, i) { if (f.builtIn || f.section === 'basic') lastBasicIdx = i; });
+                var newField = {
+                    type: catField.type,
+                    label: catField.label,
+                    required: false,
+                    id: catId + '_' + Date.now(),
+                    options: (catField.options || []).slice(),
+                    icon: catField.icon,
+                    section: 'basic'
+                };
+                fbDraftSchema.splice(lastBasicIdx + 1, 0, newField);
+                _markFBDirty();
+                renderFBCustoms();
+                return;
+            }
+            // Reorder drop: move existing field into basic section
+            if (fbDragSrcIdx !== null) {
+                _fbSyncDOM();
+                var moved = fbDraftSchema[fbDragSrcIdx];
+                if (moved && !moved.builtIn && moved.type !== 'section') {
+                    moved.section = 'basic';
+                    var removed = fbDraftSchema.splice(fbDragSrcIdx, 1)[0];
+                    // Insert after last basic field
+                    var lastIdx = -1;
+                    fbDraftSchema.forEach(function(f, i) { if (f.builtIn || f.section === 'basic') lastIdx = i; });
+                    fbDraftSchema.splice(lastIdx + 1, 0, removed);
+                }
+                fbDragSrcIdx = null;
+                _markFBDirty();
+                renderFBCustoms();
+            }
         }
 
         function _fbSyncDOM() {
@@ -23215,6 +23519,7 @@
                 if (f.builtIn) out.builtIn = true;
                 if (f.chartEnabled) out.chartEnabled = true;
                 if (f.rowGroup) out.rowGroup = f.rowGroup;
+                if (f.section) out.section = f.section;
                 return out;
             });
         }
