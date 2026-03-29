@@ -8754,16 +8754,39 @@
                 <!-- ===== IMPACT ANALYSIS TAB ===== -->
                 <div id="aiImpactTab" style="display:none;flex-direction:column;gap:18px;">
                     <div class="ai-section-label"><i class="fas fa-robot" style="margin-right:6px;color:#7c3aed;"></i>AI Portfolio Impact Analysis</div>
-                    <p style="color:#64748b;font-size:12px;margin:-10px 0 4px;">Analyzes all active projects for risks, dependencies, resource conflicts, and strategic recommendations.</p>
-                    <div id="aiImpactContent">
-                        <div style="text-align:center;padding:30px;color:#94a3b8;">
-                            <i class="fas fa-brain" style="font-size:32px;color:#7c3aed;margin-bottom:12px;display:block;"></i>
-                            <p style="margin:0 0 16px;font-size:14px;color:#64748b;">Click the button below to run a full portfolio impact analysis.</p>
-                            <button onclick="runAIImpactAnalysis()" class="ai-run-btn" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);max-width:300px;margin:0 auto;">
-                                <i class="fas fa-robot"></i> Run Impact Analysis
-                            </button>
+                    <p style="color:#64748b;font-size:12px;margin:-10px 0 4px;">Analyzes projects for risks, dependencies, resource conflicts, and strategic recommendations. Choose a scope below.</p>
+
+                    <!-- Scope Filter Chips -->
+                    <div>
+                        <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Analysis Scope</div>
+                        <div id="impactScopeChips" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;"></div>
+                    </div>
+
+                    <!-- Insights Library -->
+                    <div style="border-top:1px solid #e2e8f0;padding-top:14px;">
+                        <div class="ai-section-label" style="display:flex;align-items:center;justify-content:space-between;">
+                            <span><i class="fas fa-lightbulb" style="margin-right:5px;color:#f59e0b;"></i>Insights Library</span>
+                            <button onclick="addImpactInsight()" style="background:rgba(245,158,11,0.1);border:1px solid #fcd34d;color:#b45309;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add</button>
+                        </div>
+                        <p style="color:#64748b;font-size:11px;margin:4px 0 8px;">Store lessons learned &amp; project impact notes. Check items to include in the analysis.</p>
+                        <div id="impactInsightsList"></div>
+                        <div id="impactInsightEditor" style="display:none;margin-top:8px;">
+                            <input type="text" id="impactInsightTitle" placeholder="Title (e.g. CRM Migration Lessons Learned)" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;color:#1a202c;font-size:12px;font-family:inherit;outline:none;">
+                            <textarea id="impactInsightBody" placeholder="Describe the lesson learned, impact observation, or upcoming change..." style="width:100%;box-sizing:border-box;min-height:80px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;color:#1a202c;font-size:12px;font-family:inherit;outline:none;resize:vertical;"></textarea>
+                            <div style="display:flex;gap:6px;margin-top:6px;">
+                                <button onclick="saveImpactInsight()" style="padding:6px 14px;border-radius:6px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Save</button>
+                                <button onclick="cancelImpactInsight()" style="padding:6px 14px;border-radius:6px;background:#f1f5f9;border:none;color:#64748b;font-size:11px;cursor:pointer;font-family:inherit;">Cancel</button>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Run Button + Results -->
+                    <div style="text-align:center;">
+                        <button onclick="runAIImpactAnalysis()" class="ai-run-btn" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);max-width:340px;margin:0 auto;">
+                            <i class="fas fa-robot"></i> Run Impact Analysis
+                        </button>
+                    </div>
+                    <div id="aiImpactContent"></div>
                 </div><!-- /aiImpactTab -->
             </div>
         </div>
@@ -15959,6 +15982,9 @@
         var aiModel = 'gpt-4o';
         var formSchema = [];
         var aiContextLibrary = [];
+        var impactInsightsLibrary = [];
+        var _impactScopeType = 'overall';
+        var _impactScopeValue = '';
         var _enabledSections = { impact: true, steps: true, issues: true };
         var currentlyEditingSystems = [];
         var auditEntries = [];
@@ -15982,6 +16008,7 @@
                         if (d.aiModel) aiModel = d.aiModel;
                         if (Array.isArray(d.formSchema)) formSchema = d.formSchema;
                         if (Array.isArray(d.aiContextLibrary)) aiContextLibrary = d.aiContextLibrary;
+                        if (Array.isArray(d.impactInsightsLibrary)) impactInsightsLibrary = d.impactInsightsLibrary;
                         if (Array.isArray(d.impactAreas)) _impactAreas = d.impactAreas;
                         if (d.enabledSections) _enabledSections = Object.assign({ impact: true, steps: true, issues: true }, d.enabledSections);
                         if (d.customSectionAreas && typeof d.customSectionAreas === 'object') _customSectionAreas = d.customSectionAreas;
@@ -16017,6 +16044,7 @@
                 aiModel: aiModel || 'gpt-4o', 
                 formSchema: formSchema || [], 
                 aiContextLibrary: aiContextLibrary || [], 
+                impactInsightsLibrary: impactInsightsLibrary || [], 
                 impactAreas: _impactAreas || [], 
                 enabledSections: _enabledSections || {}, 
                 customSectionAreas: _customSectionAreas || {}, 
@@ -19133,7 +19161,22 @@
         function runAIImpactAnalysis() {
             if (!aiApiKey) { showToast('No API key configured. Go to Admin \u2192 AI Settings.'); return; }
             var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
-            if (activeTasks.length === 0) { showToast('No projects to analyze'); return; }
+
+            // Apply scope filtering
+            var scopeLabel = 'all projects';
+            if (_impactScopeType === 'department' && _impactScopeValue) {
+                activeTasks = activeTasks.filter(function(t) { return t.owningDepartment === _impactScopeValue; });
+                scopeLabel = _impactScopeValue + ' department projects';
+            } else if (_impactScopeType === 'system' && _impactScopeValue) {
+                activeTasks = activeTasks.filter(function(t) { return t.affectedSystems && t.affectedSystems.indexOf(_impactScopeValue) !== -1; });
+                scopeLabel = 'projects affecting ' + _impactScopeValue;
+            } else if (_impactScopeType === 'project' && _impactScopeValue) {
+                activeTasks = activeTasks.filter(function(t) { return t.id === _impactScopeValue; });
+                var projName = activeTasks.length ? activeTasks[0].title : 'selected project';
+                scopeLabel = 'project: ' + projName;
+            }
+
+            if (activeTasks.length === 0) { showToast('No projects match the selected scope'); return; }
 
             // Build rich context with all available data
             var today = new Date(); today.setHours(0,0,0,0);
@@ -19187,6 +19230,19 @@
                 '  "department_insights": [{"department": "name", "insight": "observation"}]\n' +
                 '}\n\nProvide 3-5 items per array. Be specific and reference actual project names.\nToday\'s date: ' + today.toISOString().split('T')[0] + '\n\nProject Data:\n' + lines.join('\n\n');
 
+            // Append scope focus instruction
+            if (_impactScopeType === 'department') userPrompt += '\n\nFOCUS: Analyze specifically from the perspective of the ' + _impactScopeValue + ' department. Highlight risks, dependencies, and recommendations most relevant to this department.';
+            else if (_impactScopeType === 'system') userPrompt += '\n\nFOCUS: Analyze specifically the impact on the ' + _impactScopeValue + ' system. Highlight integration risks, change impacts, and recommendations related to this system.';
+            else if (_impactScopeType === 'project') userPrompt += '\n\nFOCUS: Provide a deep-dive analysis of this single project. Go deeper on risks, dependencies with other initiatives, resource needs, and tactical recommendations.';
+
+            // Append selected insights (lessons learned / impact notes)
+            var insightsText = getSelectedImpactInsights();
+            if (insightsText) userPrompt += '\n\nPrevious Lessons Learned & Impact Notes:\n' + insightsText;
+
+            // Append active context library entries
+            var ctxText = getActiveAIContext();
+            if (ctxText) userPrompt += '\n\nAdditional Reference Context:\n' + ctxText;
+
             // Show results inside the AI modal impact tab
             var container = document.getElementById('aiImpactContent');
             if (!container) return;
@@ -19199,7 +19255,7 @@
                 '<div id="aiImpactResultContent" style="color:#1e293b;font-size:13px;">' +
                 '<div style="display:flex;align-items:center;gap:8px;padding:20px;justify-content:center;">' +
                 '<i class="fas fa-spinner fa-spin" style="color:#7c3aed;font-size:18px;"></i>' +
-                '<span style="color:#64748b;">Analyzing ' + activeTasks.length + ' projects with AI...</span></div></div></div>';
+                '<span style="color:#64748b;">Analyzing ' + activeTasks.length + ' ' + escapeHtml(scopeLabel) + ' with AI...</span></div></div></div>';
 
             callOpenAI(systemPrompt, userPrompt)
                 .then(function(result) {
@@ -19473,6 +19529,139 @@
             }).join('\n\n');
         }
 
+        // ── IMPACT ANALYSIS SCOPE CHIPS ──────────────────────
+        function renderImpactScopeChips() {
+            var container = document.getElementById('impactScopeChips');
+            if (!container) return;
+            var html = '';
+            // Overall chip
+            html += '<div class="ai-field-chip' + (_impactScopeType === 'overall' ? ' selected' : '') + '" onclick="selectImpactScope(\'overall\',\'\')" style="cursor:pointer;">Overall</div>';
+            // Department chips
+            departments.forEach(function(d) {
+                var sel = (_impactScopeType === 'department' && _impactScopeValue === d) ? ' selected' : '';
+                html += '<div class="ai-field-chip' + sel + '" onclick="selectImpactScope(\'department\',\'' + escapeHtml(d).replace(/'/g, "\\'") + '\')" style="cursor:pointer;"><i class="fas fa-building" style="margin-right:4px;font-size:9px;opacity:0.6;"></i>' + escapeHtml(d) + '</div>';
+            });
+            // System chips
+            systemsList.forEach(function(s) {
+                var sel = (_impactScopeType === 'system' && _impactScopeValue === s) ? ' selected' : '';
+                html += '<div class="ai-field-chip' + sel + '" onclick="selectImpactScope(\'system\',\'' + escapeHtml(s).replace(/'/g, "\\'") + '\')" style="cursor:pointer;"><i class="fas fa-server" style="margin-right:4px;font-size:9px;opacity:0.6;"></i>' + escapeHtml(s) + '</div>';
+            });
+            // Project dropdown
+            var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
+            html += '<select id="impactScopeProject" onchange="selectImpactScopeProject(this.value)" style="padding:6px 10px;border-radius:8px;border:1.5px solid ' + (_impactScopeType === 'project' ? '#6366f1' : '#e2e8f0') + ';background:' + (_impactScopeType === 'project' ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08))' : '#ffffff') + ';color:' + (_impactScopeType === 'project' ? '#4f46e5' : '#64748b') + ';font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;outline:none;">';
+            html += '<option value="">By Project...</option>';
+            activeTasks.forEach(function(t) {
+                html += '<option value="' + t.id + '"' + (_impactScopeType === 'project' && _impactScopeValue === t.id ? ' selected' : '') + '>' + escapeHtml(t.title) + '</option>';
+            });
+            html += '</select>';
+            container.innerHTML = html;
+        }
+
+        function selectImpactScope(type, value) {
+            _impactScopeType = type;
+            _impactScopeValue = value;
+            // Reset project dropdown if not selecting by project
+            var projSel = document.getElementById('impactScopeProject');
+            if (projSel && type !== 'project') projSel.value = '';
+            renderImpactScopeChips();
+        }
+
+        function selectImpactScopeProject(val) {
+            if (val) {
+                _impactScopeType = 'project';
+                _impactScopeValue = val;
+            } else {
+                _impactScopeType = 'overall';
+                _impactScopeValue = '';
+            }
+            renderImpactScopeChips();
+        }
+
+        // ── IMPACT INSIGHTS LIBRARY ──────────────────────────
+        var _editingInsightIdx = -1;
+
+        function renderImpactInsightsList() {
+            var el = document.getElementById('impactInsightsList');
+            if (!el) return;
+            if (!impactInsightsLibrary.length) {
+                el.innerHTML = '<p style="color:#475569;font-size:11px;font-style:italic;">No insights yet. Add lessons learned or impact notes.</p>';
+                return;
+            }
+            el.innerHTML = impactInsightsLibrary.map(function(c, i) {
+                return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;">' +
+                    '<input type="checkbox" class="impactInsightCheck" data-idx="' + i + '" style="accent-color:#f59e0b;">' +
+                    '<div style="flex:1;min-width:0;">' +
+                        '<div style="color:#1e293b;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(c.title) + '</div>' +
+                        '<div style="color:#92400e;font-size:10px;">' + (c.body || '').length + ' chars</div>' +
+                    '</div>' +
+                    '<button onclick="editImpactInsight(' + i + ')" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:11px;" title="Edit"><i class="fas fa-pen"></i></button>' +
+                    '<button onclick="deleteImpactInsight(' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;" title="Delete"><i class="fas fa-trash"></i></button>' +
+                '</div>';
+            }).join('');
+        }
+
+        function addImpactInsight() {
+            _editingInsightIdx = -1;
+            var titleEl = document.getElementById('impactInsightTitle');
+            var bodyEl = document.getElementById('impactInsightBody');
+            if (titleEl) titleEl.value = '';
+            if (bodyEl) bodyEl.value = '';
+            var ed = document.getElementById('impactInsightEditor');
+            if (ed) ed.style.display = 'block';
+        }
+
+        function editImpactInsight(i) {
+            _editingInsightIdx = i;
+            var c = impactInsightsLibrary[i];
+            if (!c) return;
+            var titleEl = document.getElementById('impactInsightTitle');
+            var bodyEl = document.getElementById('impactInsightBody');
+            if (titleEl) titleEl.value = c.title || '';
+            if (bodyEl) bodyEl.value = c.body || '';
+            var ed = document.getElementById('impactInsightEditor');
+            if (ed) ed.style.display = 'block';
+        }
+
+        function saveImpactInsight() {
+            var title = (document.getElementById('impactInsightTitle').value || '').trim();
+            var body = (document.getElementById('impactInsightBody').value || '').trim();
+            if (!title) { showToast('Enter a title'); return; }
+            if (!body) { showToast('Enter content'); return; }
+            if (_editingInsightIdx >= 0 && _editingInsightIdx < impactInsightsLibrary.length) {
+                impactInsightsLibrary[_editingInsightIdx].title = title;
+                impactInsightsLibrary[_editingInsightIdx].body = body;
+            } else {
+                impactInsightsLibrary.push({ title: title, body: body });
+            }
+            cancelImpactInsight();
+            renderImpactInsightsList();
+            saveExtendedSettings();
+            showToast('Insight saved');
+        }
+
+        function cancelImpactInsight() {
+            _editingInsightIdx = -1;
+            var ed = document.getElementById('impactInsightEditor');
+            if (ed) ed.style.display = 'none';
+        }
+
+        function deleteImpactInsight(i) {
+            impactInsightsLibrary.splice(i, 1);
+            renderImpactInsightsList();
+            saveExtendedSettings();
+        }
+
+        function getSelectedImpactInsights() {
+            var texts = [];
+            document.querySelectorAll('.impactInsightCheck:checked').forEach(function(cb) {
+                var idx = parseInt(cb.getAttribute('data-idx'), 10);
+                if (impactInsightsLibrary[idx] && impactInsightsLibrary[idx].body) {
+                    texts.push('--- ' + (impactInsightsLibrary[idx].title || 'Insight') + ' ---\n' + impactInsightsLibrary[idx].body);
+                }
+            });
+            return texts.join('\n\n');
+        }
+
         // ============================================================
         // AI MODAL TAB SWITCHING
         // ============================================================
@@ -19495,6 +19684,11 @@
             if (iBtn)   iBtn.classList.toggle('active', tab === 'impact');
             var emailKeyNote = document.getElementById('aiEmailNoKeyNote');
             if (emailKeyNote) emailKeyNote.style.display = (!aiApiKey && tab === 'email') ? 'flex' : 'none';
+            // Populate impact tab scope chips & insights list when switching to it
+            if (tab === 'impact') {
+                renderImpactScopeChips();
+                renderImpactInsightsList();
+            }
         }
         
         // Set query question from example button
