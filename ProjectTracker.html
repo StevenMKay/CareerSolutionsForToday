@@ -10685,7 +10685,9 @@
             { id: 'dueDate',    label: 'Due Date',    width: '120px', sortable: true },
             { id: 'assignedTo', label: 'Assigned To', width: '120px', sortable: true },
             { id: 'department', label: 'Department',  width: '100px', sortable: true },
-            { id: 'hours',      label: 'Hours',       width: '80px',  sortable: true }
+            { id: 'hours',      label: 'Hours',       width: '80px',  sortable: true },
+            { id: 'issues',     label: 'Issues',      width: '90px',  sortable: true },
+            { id: 'confidential', label: 'Confidential', width: '110px', sortable: true }
         ];
         var _defaultListPrefs = { visibleColumns: ['status','priority','category','startDate','dueDate'], columnOrder: null };
         function _getListPrefs() {
@@ -10810,6 +10812,13 @@
                     return escapeHtml(task.department || '-');
                 case 'hours':
                     return task.hours ? String(task.hours) + 'h' : '-';
+                case 'issues':
+                    var _liOpenIss = (task.issues || []).filter(function(iss) { return iss.status !== 'resolved' && iss.status !== 'wont-fix'; }).length;
+                    var _liTotalIss = (task.issues || []).length;
+                    if (!_liTotalIss) return '<span style="color:#cbd5e1;">—</span>';
+                    return '<span class="category-tag" style="background:rgba(229,62,62,0.12);color:#9b2c2c;border:1px solid rgba(229,62,62,0.18);font-size:11px;">' + _liOpenIss + '/' + _liTotalIss + '</span>';
+                case 'confidential':
+                    return task.confidential ? '<span class="confidential-badge"><i class="fas fa-lock" style="margin-right:3px;"></i>Yes</span>' : '<span style="color:#cbd5e1;">—</span>';
                 default:
                     return '-';
             }
@@ -11309,6 +11318,9 @@
             }
             if (opts.department && task.owningDepartment) metaHtml += '<span class="category-tag" style="background:rgba(128,90,213,0.1);color:#805ad5;"><i class="fas fa-building" style="margin-right:3px;"></i>' + escapeHtml(task.owningDepartment) + '</span>';
             if (opts.projectId && task.projectId) metaHtml += '<span class="category-tag" style="background:rgba(113,128,150,0.1);color:#718096;"><i class="fas fa-hashtag" style="margin-right:3px;"></i>' + escapeHtml(task.projectId) + '</span>';
+            if (task.confidential) metaHtml += '<span class="confidential-badge"><i class="fas fa-lock" style="margin-right:3px;"></i>Confidential</span>';
+            var _cardOpenIssues = (task.issues || []).filter(function(iss) { return iss.status !== 'resolved' && iss.status !== 'wont-fix'; }).length;
+            if (_cardOpenIssues > 0) metaHtml += '<span class="category-tag" style="background:rgba(229,62,62,0.12);color:#9b2c2c;border:1px solid rgba(229,62,62,0.18);"><i class="fas fa-exclamation-triangle" style="margin-right:3px;"></i>' + _cardOpenIssues + ' Open Issue' + (_cardOpenIssues > 1 ? 's' : '') + '</span>';
 
             return '<div class="' + cardClass + '" data-id="' + task.id + '" draggable="true" ' +
                 'ondragstart="handleDragStart(event, \'' + task.id + '\')" ' +
@@ -15985,6 +15997,8 @@
         var impactInsightsLibrary = [];
         var _impactScopeType = 'overall';
         var _impactScopeValue = '';
+        var _impactScopeDepts = [];
+        var _impactScopeProjects = [];
         var _enabledSections = { impact: true, steps: true, issues: true };
         var currentlyEditingSystems = [];
         var auditEntries = [];
@@ -17204,6 +17218,7 @@
             var allSteps = [];
             var allNotes = [];
             var allApprovals = [];
+            var allIssues = [];
             var projectMap = {};
 
             tasks.forEach(function(task) {
@@ -17259,6 +17274,22 @@
                         attachments: appr.attachments || []
                     });
                 });
+
+                (task.issues || []).forEach(function(iss, iIdx) {
+                    allIssues.push({
+                        projectTitle: pTitle,
+                        projectId: pId,
+                        issueIndex: iIdx,
+                        id: iss.id || '',
+                        title: iss.title || '',
+                        priority: iss.priority || 'medium',
+                        status: iss.status || 'open',
+                        notes: iss.notes || '',
+                        dateRaised: iss.dateRaised || '',
+                        owner: iss.owner || '',
+                        steps: iss.steps || []
+                    });
+                });
             });
 
             // Sort notes newest first
@@ -17277,6 +17308,7 @@
             // Count badges
             var stepsNotCompleted = allSteps.filter(function(s) { return s.status !== 'completed'; }).length;
             var pendingApprovalsCount = allApprovals.length;
+            var openIssuesCount = allIssues.filter(function(i) { return i.status !== 'resolved' && i.status !== 'wont-fix'; }).length;
 
             // ── Header with sub-tabs ──
             var html = '<div class="tasks-view-header">' +
@@ -17285,12 +17317,15 @@
 
             html += '<div class="tasks-sub-tabs">';
             html += '<button class="tasks-sub-tab' + (_tasksViewSubTab === 'steps' ? ' active' : '') + '" onclick="_switchTasksSubTab(\'steps\')"><i class="fas fa-shoe-prints"></i> Steps <span class="tasks-sub-badge">' + stepsNotCompleted + '</span></button>';
+            html += '<button class="tasks-sub-tab' + (_tasksViewSubTab === 'issues' ? ' active' : '') + '" onclick="_switchTasksSubTab(\'issues\')"><i class="fas fa-exclamation-triangle"></i> Issues <span class="tasks-sub-badge">' + openIssuesCount + '</span></button>';
             html += '<button class="tasks-sub-tab' + (_tasksViewSubTab === 'notes' ? ' active' : '') + '" onclick="_switchTasksSubTab(\'notes\')"><i class="fas fa-sticky-note"></i> Notes <span class="tasks-sub-badge">' + allNotes.length + '</span></button>';
             html += '<button class="tasks-sub-tab' + (_tasksViewSubTab === 'approvals' ? ' active' : '') + '" onclick="_switchTasksSubTab(\'approvals\')"><i class="fas fa-check-circle"></i> Approvals <span class="tasks-sub-badge">' + pendingApprovalsCount + '</span></button>';
             html += '</div>';
 
             if (_tasksViewSubTab === 'steps') {
                 html += _renderTasksSteps(allSteps, projectNames, myEmail);
+            } else if (_tasksViewSubTab === 'issues') {
+                html += _renderTasksIssues(allIssues, projectNames, myEmail);
             } else if (_tasksViewSubTab === 'notes') {
                 html += _renderTasksNotes(allNotes, projectNames, myEmail);
             } else if (_tasksViewSubTab === 'approvals') {
@@ -17401,6 +17436,135 @@
                     '<td>' + (s.owner ? '<div class="tasks-owner-cell"><span class="tasks-owner-avatar">' + ownerInitials + '</span> ' + escapeHtml(ownerDisplay) + '</div>' : '<span style="color:#94a3b8;">—</span>') + '</td>' +
                     '<td>' + (s.startDate || '<span style="color:#cbd5e1;">—</span>') + '</td>' +
                     '<td>' + (s.endDate || '<span style="color:#cbd5e1;">—</span>') + '</td>' +
+                '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            return html;
+        }
+
+        // ── Issues sub-tab ──
+        var _issuesViewStatusFilter = 'not-resolved';
+        var _issuesViewSort = { col: 'project', asc: true };
+
+        function _issuesViewToggleSort(col) {
+            if (_issuesViewSort.col === col) { _issuesViewSort.asc = !_issuesViewSort.asc; }
+            else { _issuesViewSort = { col: col, asc: true }; }
+            renderTasksView();
+        }
+
+        function _renderTasksIssues(allIssues, projectNames, myEmail) {
+            // Apply filters
+            var filtered = allIssues.filter(function(iss) {
+                if (_issuesViewStatusFilter === 'not-resolved' && (iss.status === 'resolved' || iss.status === 'wont-fix')) return false;
+                if (_issuesViewStatusFilter && _issuesViewStatusFilter !== 'not-resolved' && _issuesViewStatusFilter !== 'all' && iss.status !== _issuesViewStatusFilter) return false;
+                if (_tasksViewProjectFilter && iss.projectId !== _tasksViewProjectFilter) return false;
+                if (_tasksViewMyItems && myEmail) {
+                    if ((iss.owner || '').toLowerCase() !== myEmail) return false;
+                }
+                if (_tasksViewSearch) {
+                    var q = _tasksViewSearch.toLowerCase();
+                    if (!(iss.title.toLowerCase().includes(q) || iss.projectTitle.toLowerCase().includes(q) || (iss.owner || '').toLowerCase().includes(q))) return false;
+                }
+                return true;
+            });
+
+            // Sort
+            var sCol = _issuesViewSort.col;
+            var sAsc = _issuesViewSort.asc;
+            filtered.sort(function(a, b) {
+                var va, vb;
+                switch(sCol) {
+                    case 'project':  va = a.projectTitle; vb = b.projectTitle; break;
+                    case 'issue':    va = a.title; vb = b.title; break;
+                    case 'priority':
+                        var po = { high: 0, medium: 1, low: 2 };
+                        va = po[a.priority] !== undefined ? po[a.priority] : 9;
+                        vb = po[b.priority] !== undefined ? po[b.priority] : 9;
+                        return sAsc ? va - vb : vb - va;
+                    case 'status':   va = a.status; vb = b.status; break;
+                    case 'owner':    va = a.owner; vb = b.owner; break;
+                    case 'date':     va = a.dateRaised; vb = b.dateRaised; break;
+                    default:         va = a.projectTitle; vb = b.projectTitle;
+                }
+                return sAsc ? String(va || '').localeCompare(String(vb || '')) : String(vb || '').localeCompare(String(va || ''));
+            });
+
+            // Filter bar
+            var html = '<div style="padding:12px 24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+                '<button class="tasks-my-items-btn' + (_tasksViewMyItems ? ' active' : '') + '" onclick="_toggleTasksMyItems()"><i class="fas fa-user"></i> My Items</button>' +
+                '<select class="tasks-filter-select" onchange="_issuesViewStatusFilter=this.value;renderTasksView()">' +
+                    '<option value="not-resolved"' + (_issuesViewStatusFilter === 'not-resolved' ? ' selected' : '') + '>Active Issues</option>' +
+                    '<option value="all"' + (_issuesViewStatusFilter === 'all' ? ' selected' : '') + '>All Statuses</option>' +
+                    '<option value="open"' + (_issuesViewStatusFilter === 'open' ? ' selected' : '') + '>Open</option>' +
+                    '<option value="in-review"' + (_issuesViewStatusFilter === 'in-review' ? ' selected' : '') + '>In Review</option>' +
+                    '<option value="resolved"' + (_issuesViewStatusFilter === 'resolved' ? ' selected' : '') + '>Resolved</option>' +
+                    '<option value="wont-fix"' + (_issuesViewStatusFilter === 'wont-fix' ? ' selected' : '') + '>Won\'t Fix</option>' +
+                '</select>' +
+                '<select class="tasks-filter-select" onchange="_tasksViewProjectFilter=this.value;renderTasksView()">' +
+                    '<option value=""' + (!_tasksViewProjectFilter ? ' selected' : '') + '>All Projects</option>' +
+                    projectNames.map(function(p) {
+                        return '<option value="' + escapeHtml(p.id) + '"' + (_tasksViewProjectFilter === p.id ? ' selected' : '') + '>' + escapeHtml(p.title) + '</option>';
+                    }).join('') +
+                '</select>' +
+                '<div style="position:relative;">' +
+                    '<i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:11px;"></i>' +
+                    '<input class="tasks-filter-search" type="text" placeholder="Search issues..." value="' + escapeHtml(_tasksViewSearch) + '" oninput="_tasksViewSearch=this.value;renderTasksView()">' +
+                '</div>' +
+                '<span class="tasks-view-count">' + filtered.length + ' of ' + allIssues.length + '</span>' +
+            '</div>';
+
+            if (!filtered.length) {
+                html += '<div class="tasks-view-empty"><i class="fas fa-exclamation-triangle"></i><p>' + (allIssues.length ? 'No issues match your filters' : 'No issues logged across projects yet.') + '</p></div>';
+                return html;
+            }
+
+            function sortArrow(col) {
+                if (_issuesViewSort.col !== col) return '';
+                return ' <i class="fas fa-caret-' + (_issuesViewSort.asc ? 'up' : 'down') + '" style="margin-left:3px;font-size:10px;"></i>';
+            }
+
+            var issueStatusLabels = { 'open': 'Open', 'in-review': 'In Review', 'resolved': 'Resolved', 'wont-fix': "Won't Fix" };
+            var issueStatusColors = { 'open': 'background:#fef3c7;color:#92400e;', 'in-review': 'background:#e0e7ff;color:#3730a3;', 'resolved': 'background:#d1fae5;color:#065f46;', 'wont-fix': 'background:#f1f5f9;color:#475569;' };
+
+            html += '<div style="overflow-x:auto;">' +
+                '<table class="tasks-view-table">' +
+                '<thead><tr>' +
+                    '<th onclick="_issuesViewToggleSort(\'project\')">Project' + sortArrow('project') + '</th>' +
+                    '<th onclick="_issuesViewToggleSort(\'issue\')">Issue' + sortArrow('issue') + '</th>' +
+                    '<th onclick="_issuesViewToggleSort(\'priority\')">Priority' + sortArrow('priority') + '</th>' +
+                    '<th onclick="_issuesViewToggleSort(\'status\')">Status' + sortArrow('status') + '</th>' +
+                    '<th onclick="_issuesViewToggleSort(\'owner\')">Owner' + sortArrow('owner') + '</th>' +
+                    '<th onclick="_issuesViewToggleSort(\'date\')">Date Raised' + sortArrow('date') + '</th>' +
+                '</tr></thead><tbody>';
+
+            filtered.forEach(function(iss) {
+                var ownerDisplay = iss.owner || '—';
+                var ownerInitials = '';
+                if (iss.owner) {
+                    var people = _getAllPeople();
+                    people.forEach(function(p) {
+                        if (p.email && p.email.toLowerCase() === iss.owner.toLowerCase() && p.name) {
+                            ownerDisplay = p.name;
+                        }
+                    });
+                    ownerInitials = ownerDisplay.split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
+                }
+
+                var dateStr = iss.dateRaised ? new Date(iss.dateRaised).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+                var sLabel = issueStatusLabels[iss.status] || iss.status;
+                var sStyle = issueStatusColors[iss.status] || '';
+                var stepsCount = (iss.steps || []).length;
+                var stepsCompleted = (iss.steps || []).filter(function(s) { return s.status === 'completed'; }).length;
+                var stepsHtml = stepsCount ? ' <span style="font-size:10px;color:#64748b;margin-left:4px;">(' + stepsCompleted + '/' + stepsCount + ' steps)</span>' : '';
+
+                html += '<tr onclick="openEditModal(\'' + iss.projectId + '\')">' +
+                    '<td><span class="task-project-name">' + escapeHtml(iss.projectTitle) + '</span></td>' +
+                    '<td><span class="task-step-title">' + escapeHtml(iss.title || '(untitled issue)') + stepsHtml + '</span></td>' +
+                    '<td><span class="priority-badge priority-' + iss.priority + '">' + iss.priority.toUpperCase() + '</span></td>' +
+                    '<td><span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:11px;font-weight:600;' + sStyle + '">' + sLabel + '</span></td>' +
+                    '<td>' + (iss.owner ? '<div class="tasks-owner-cell"><span class="tasks-owner-avatar">' + ownerInitials + '</span> ' + escapeHtml(ownerDisplay) + '</div>' : '<span style="color:#94a3b8;">—</span>') + '</td>' +
+                    '<td>' + (dateStr || '<span style="color:#cbd5e1;">—</span>') + '</td>' +
                 '</tr>';
             });
 
@@ -19164,16 +19328,23 @@
 
             // Apply scope filtering
             var scopeLabel = 'all projects';
-            if (_impactScopeType === 'department' && _impactScopeValue) {
-                activeTasks = activeTasks.filter(function(t) { return t.owningDepartment === _impactScopeValue; });
-                scopeLabel = _impactScopeValue + ' department projects';
-            } else if (_impactScopeType === 'system' && _impactScopeValue) {
+            var scopeFocusParts = [];
+            if (_impactScopeDepts.length) {
+                activeTasks = activeTasks.filter(function(t) { return _impactScopeDepts.indexOf(t.owningDepartment) !== -1; });
+                scopeLabel = _impactScopeDepts.join(', ') + ' projects';
+                scopeFocusParts.push('Analyze from the perspective of the ' + _impactScopeDepts.join(', ') + ' department(s). Highlight risks, dependencies, and recommendations most relevant to these departments.');
+            }
+            if (_impactScopeType === 'system' && _impactScopeValue) {
                 activeTasks = activeTasks.filter(function(t) { return t.affectedSystems && t.affectedSystems.indexOf(_impactScopeValue) !== -1; });
                 scopeLabel = 'projects affecting ' + _impactScopeValue;
-            } else if (_impactScopeType === 'project' && _impactScopeValue) {
-                activeTasks = activeTasks.filter(function(t) { return t.id === _impactScopeValue; });
-                var projName = activeTasks.length ? activeTasks[0].title : 'selected project';
-                scopeLabel = 'project: ' + projName;
+                scopeFocusParts.push('Analyze the impact on the ' + _impactScopeValue + ' system. Highlight integration risks, change impacts, and recommendations related to this system.');
+            }
+            if (_impactScopeProjects.length) {
+                activeTasks = activeTasks.filter(function(t) { return _impactScopeProjects.indexOf(t.id) !== -1; });
+                var projNames = activeTasks.map(function(t) { return t.title; });
+                scopeLabel = projNames.length === 1 ? 'project: ' + projNames[0] : projNames.length + ' selected projects';
+                if (projNames.length === 1) scopeFocusParts.push('Provide a deep-dive analysis of this single project. Go deeper on risks, dependencies with other initiatives, resource needs, and tactical recommendations.');
+                else scopeFocusParts.push('Focus your analysis on these specific projects: ' + projNames.join(', ') + '. Highlight cross-project risks, shared dependencies, and combined recommendations.');
             }
 
             if (activeTasks.length === 0) { showToast('No projects match the selected scope'); return; }
@@ -19231,9 +19402,7 @@
                 '}\n\nProvide 3-5 items per array. Be specific and reference actual project names.\nToday\'s date: ' + today.toISOString().split('T')[0] + '\n\nProject Data:\n' + lines.join('\n\n');
 
             // Append scope focus instruction
-            if (_impactScopeType === 'department') userPrompt += '\n\nFOCUS: Analyze specifically from the perspective of the ' + _impactScopeValue + ' department. Highlight risks, dependencies, and recommendations most relevant to this department.';
-            else if (_impactScopeType === 'system') userPrompt += '\n\nFOCUS: Analyze specifically the impact on the ' + _impactScopeValue + ' system. Highlight integration risks, change impacts, and recommendations related to this system.';
-            else if (_impactScopeType === 'project') userPrompt += '\n\nFOCUS: Provide a deep-dive analysis of this single project. Go deeper on risks, dependencies with other initiatives, resource needs, and tactical recommendations.';
+            if (scopeFocusParts.length) userPrompt += '\n\nFOCUS: ' + scopeFocusParts.join(' Also, ');
 
             // Append selected insights (lessons learned / impact notes)
             var insightsText = getSelectedImpactInsights();
@@ -19534,46 +19703,67 @@
             var container = document.getElementById('impactScopeChips');
             if (!container) return;
             var html = '';
-            // Overall chip
-            html += '<div class="ai-field-chip' + (_impactScopeType === 'overall' ? ' selected' : '') + '" onclick="selectImpactScope(\'overall\',\'\')" style="cursor:pointer;">Overall</div>';
-            // Department chips
+            // Overall chip — active when nothing else selected
+            var isOverall = !_impactScopeDepts.length && _impactScopeType !== 'system' && !_impactScopeProjects.length;
+            html += '<div class="ai-field-chip' + (isOverall ? ' selected' : '') + '" onclick="selectImpactScopeOverall()" style="cursor:pointer;">Overall</div>';
+            // Department chips (multi-select)
             departments.forEach(function(d) {
-                var sel = (_impactScopeType === 'department' && _impactScopeValue === d) ? ' selected' : '';
-                html += '<div class="ai-field-chip' + sel + '" onclick="selectImpactScope(\'department\',\'' + escapeHtml(d).replace(/'/g, "\\'") + '\')" style="cursor:pointer;"><i class="fas fa-building" style="margin-right:4px;font-size:9px;opacity:0.6;"></i>' + escapeHtml(d) + '</div>';
+                var sel = _impactScopeDepts.indexOf(d) !== -1 ? ' selected' : '';
+                html += '<div class="ai-field-chip' + sel + '" onclick="toggleImpactScopeDept(\'' + escapeHtml(d).replace(/'/g, "\\'") + '\')" style="cursor:pointer;"><i class="fas fa-building" style="margin-right:4px;font-size:9px;opacity:0.6;"></i>' + escapeHtml(d) + '</div>';
             });
-            // System chips
+            // System chips (single-select)
             systemsList.forEach(function(s) {
                 var sel = (_impactScopeType === 'system' && _impactScopeValue === s) ? ' selected' : '';
                 html += '<div class="ai-field-chip' + sel + '" onclick="selectImpactScope(\'system\',\'' + escapeHtml(s).replace(/'/g, "\\'") + '\')" style="cursor:pointer;"><i class="fas fa-server" style="margin-right:4px;font-size:9px;opacity:0.6;"></i>' + escapeHtml(s) + '</div>';
             });
-            // Project dropdown
+            // Project multi-select list
             var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
-            html += '<select id="impactScopeProject" onchange="selectImpactScopeProject(this.value)" style="padding:6px 10px;border-radius:8px;border:1.5px solid ' + (_impactScopeType === 'project' ? '#6366f1' : '#e2e8f0') + ';background:' + (_impactScopeType === 'project' ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08))' : '#ffffff') + ';color:' + (_impactScopeType === 'project' ? '#4f46e5' : '#64748b') + ';font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;outline:none;">';
-            html += '<option value="">By Project...</option>';
+            var hasProj = _impactScopeProjects.length > 0;
+            html += '<select id="impactScopeProject" multiple onchange="onImpactScopeProjectChange()" style="padding:6px 10px;border-radius:8px;border:1.5px solid ' + (hasProj ? '#6366f1' : '#e2e8f0') + ';background:' + (hasProj ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08))' : '#ffffff') + ';color:' + (hasProj ? '#4f46e5' : '#64748b') + ';font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;outline:none;min-width:160px;max-height:80px;">';
             activeTasks.forEach(function(t) {
-                html += '<option value="' + t.id + '"' + (_impactScopeType === 'project' && _impactScopeValue === t.id ? ' selected' : '') + '>' + escapeHtml(t.title) + '</option>';
+                html += '<option value="' + t.id + '"' + (_impactScopeProjects.indexOf(t.id) !== -1 ? ' selected' : '') + '>' + escapeHtml(t.title) + '</option>';
             });
             html += '</select>';
             container.innerHTML = html;
         }
 
-        function selectImpactScope(type, value) {
-            _impactScopeType = type;
-            _impactScopeValue = value;
-            // Reset project dropdown if not selecting by project
-            var projSel = document.getElementById('impactScopeProject');
-            if (projSel && type !== 'project') projSel.value = '';
+        function selectImpactScopeOverall() {
+            _impactScopeType = 'overall';
+            _impactScopeValue = '';
+            _impactScopeDepts = [];
+            _impactScopeProjects = [];
             renderImpactScopeChips();
         }
 
-        function selectImpactScopeProject(val) {
-            if (val) {
-                _impactScopeType = 'project';
-                _impactScopeValue = val;
+        function toggleImpactScopeDept(dept) {
+            var idx = _impactScopeDepts.indexOf(dept);
+            if (idx !== -1) { _impactScopeDepts.splice(idx, 1); } else { _impactScopeDepts.push(dept); }
+            // Clear system scope when selecting departments
+            if (_impactScopeDepts.length) { _impactScopeType = 'department'; _impactScopeValue = ''; }
+            else if (!_impactScopeProjects.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
+            renderImpactScopeChips();
+        }
+
+        function selectImpactScope(type, value) {
+            // For system: single-select toggle
+            if (_impactScopeType === type && _impactScopeValue === value) {
+                _impactScopeType = 'overall'; _impactScopeValue = '';
             } else {
-                _impactScopeType = 'overall';
-                _impactScopeValue = '';
+                _impactScopeType = type; _impactScopeValue = value;
+                _impactScopeDepts = []; _impactScopeProjects = [];
             }
+            renderImpactScopeChips();
+        }
+
+        function onImpactScopeProjectChange() {
+            var sel = document.getElementById('impactScopeProject');
+            if (!sel) return;
+            _impactScopeProjects = [];
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].selected) _impactScopeProjects.push(sel.options[i].value);
+            }
+            if (_impactScopeProjects.length) { _impactScopeType = 'project'; _impactScopeValue = ''; }
+            else if (!_impactScopeDepts.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
             renderImpactScopeChips();
         }
 
