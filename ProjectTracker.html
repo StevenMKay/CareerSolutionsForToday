@@ -5920,7 +5920,10 @@
         .fb-field-row.fb-dragging { opacity: 0.4; }
         .fb-field-row.fb-drag-over { border-color: #3b82f6; background: #eff6ff; }
         .fb-basic-section { border: 2px solid #bfdbfe; border-radius: 12px; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); padding: 0 10px 10px; margin-bottom: 14px; transition: border-color 0.2s, box-shadow 0.2s; }
-        .fb-basic-section-header { padding: 12px 4px 8px; border-bottom: 1px solid #dbeafe; margin-bottom: 8px; }
+        .fb-basic-section-header { padding: 12px 4px 8px; border-bottom: 1px solid #dbeafe; margin-bottom: 8px; cursor: pointer; }
+        .fb-basic-section.fb-collapsed > *:not(.fb-basic-section-header) { display: none !important; }
+        .fb-basic-section.fb-collapsed { padding-bottom: 0; }
+        .fb-basic-section.fb-collapsed .fb-basic-section-header { border-bottom: none; margin-bottom: 0; }
         .fb-basic-section.fb-basic-drop-active { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%); }
         .fb-default-row { display: grid; grid-template-columns: 18px 28px 1fr 110px 140px 26px; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
         .fb-grip { color: #cbd5e1; cursor: grab; font-size: 13px; flex-shrink: 0; width: 18px; text-align: center; }
@@ -16651,6 +16654,7 @@
                         if (d.stepFieldsConfig) _stepFieldsConfig = Object.assign({ status: true, startDate: true, endDate: true, assignee: true, notes: true }, d.stepFieldsConfig);
                         if (d.issueFieldsConfig) _issueFieldsConfig = Object.assign({ priority: true, status: true, notes: true, date: true, owner: true }, d.issueFieldsConfig);
                         if (Array.isArray(d.stepCustomFields)) _stepCustomFields = d.stepCustomFields;
+                        if (Array.isArray(d.issueCustomFields)) _issueCustomFields = d.issueCustomFields;
                         if (d.siteTitle) applySiteTitle(d.siteTitle);
                         if (d.logoUrl) applySiteLogo(d.logoUrl);
                         // Populate admin general inputs if already open
@@ -16688,7 +16692,9 @@
                 logoUrl: _logoUrl || '',
                 stepFieldsConfig: _stepFieldsConfig || {},
                 issueFieldsConfig: _issueFieldsConfig || {},
-                stepCustomFields: _stepCustomFields || []
+                stepCustomFields: _stepCustomFields || [],
+                issueCustomFields: _issueCustomFields || [],
+                categories: categories || []
             };
             // Deep-clean: replace any remaining undefined with null
             var clean = JSON.parse(JSON.stringify(payload));
@@ -18972,31 +18978,37 @@
         function renderEmployeeImpactChart(activeTasks) {
             var ctx = document.getElementById('chartEmployeeImpact');
             if (!ctx || typeof Chart === 'undefined') return;
-            // Count impact assessment areas completed per employee
-            var empCounts = {};
+            // Count projects with/without completed impact assessments per employee
+            var empData = {};
             activeTasks.forEach(function(t) {
                 var emp = t.assignedTo || 'Unassigned';
-                if (!t.impactAssessment) return;
-                var areasCompleted = 0;
-                _impactAreas.forEach(function(area) {
-                    if (t.impactAssessment[area.key]) {
-                        var filled = Object.values(t.impactAssessment[area.key]).some(function(v) { return v && v.length > 0; });
-                        if (filled) areasCompleted++;
-                    }
+                if (!empData[emp]) empData[emp] = { completed: 0, notCompleted: 0 };
+                if (!t.impactAssessment || !_impactAreas.length) {
+                    empData[emp].notCompleted++;
+                    return;
+                }
+                var anyFilled = _impactAreas.some(function(area) {
+                    if (!t.impactAssessment[area.key]) return false;
+                    return Object.values(t.impactAssessment[area.key]).some(function(v) { return v && v.length > 0; });
                 });
-                if (areasCompleted > 0) empCounts[emp] = (empCounts[emp] || 0) + areasCompleted;
+                if (anyFilled) empData[emp].completed++;
+                else empData[emp].notCompleted++;
             });
-            var sorted = Object.entries(empCounts).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 15);
+            var sorted = Object.entries(empData).sort(function(a, b) { return (b[1].completed + b[1].notCompleted) - (a[1].completed + a[1].notCompleted); }).slice(0, 15);
             if (!sorted.length) { ctx.parentElement.innerHTML = '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:24px;">No impact assessment data yet.</p>'; return; }
             var labels = sorted.map(function(e) { return e[0]; });
-            var data = sorted.map(function(e) { return e[1]; });
+            var completedData = sorted.map(function(e) { return e[1].completed; });
+            var notCompletedData = sorted.map(function(e) { return e[1].notCompleted; });
             if (analyticsChartsMap['employeeImpact']) analyticsChartsMap['employeeImpact'].destroy();
             analyticsChartsMap['employeeImpact'] = new Chart(ctx, {
                 type: 'bar',
-                data: { labels: labels, datasets: [{ label: 'Areas Completed', data: data, backgroundColor: '#10b981', borderRadius: 6, borderWidth: 0 }] },
+                data: { labels: labels, datasets: [
+                    { label: 'Completed', data: completedData, backgroundColor: '#22c55e', borderRadius: 6, borderWidth: 0 },
+                    { label: 'Not Completed', data: notCompletedData, backgroundColor: '#ef4444', borderRadius: 6, borderWidth: 0 }
+                ]},
                 options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { beginAtZero: true, ticks: { stepSize: 1, color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } }, y: { ticks: { color: '#475569', font: { size: 11 } }, grid: { display: false } } }
+                    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 10, font: { size: 10 } } } },
+                    scales: { x: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } }, y: { stacked: true, ticks: { color: '#475569', font: { size: 11 } }, grid: { display: false } } }
                 }
             });
         }
@@ -24593,6 +24605,7 @@
             _stepFieldsConfig = Object.assign({}, _fbDraftStepFields);
             _issueFieldsConfig = Object.assign({}, _fbDraftIssueFields);
             _stepCustomFields = _fbDraftStepCustomFields.map(function(f) { return Object.assign({}, f); });
+            _issueCustomFields = _fbDraftIssueCustomFields.map(function(f) { return Object.assign({}, f); });
             // Extract all other section areas
             _customSectionAreas = {};
             Object.keys(_fbDraftSectionAreas).forEach(function(sid) {
@@ -24805,6 +24818,49 @@
             }).join('');
         }
 
+        // === Issue Custom Fields ===
+        function _fbAddIssueCustomField() {
+            var labelEl = document.getElementById('fbNewIssueFieldLabel');
+            var typeEl = document.getElementById('fbNewIssueFieldType');
+            if (!labelEl || !typeEl) return;
+            var label = (labelEl.value || '').trim();
+            if (!label) { showToast('Enter a field label'); labelEl.focus(); return; }
+            _fbDraftIssueCustomFields.push({
+                key: 'icf_' + Date.now(),
+                label: label,
+                type: typeEl.value
+            });
+            labelEl.value = '';
+            _markFBDirty();
+            _renderFBIssueCustomFields();
+            _renderFBPreview();
+        }
+
+        function _fbRemoveIssueCustomField(idx) {
+            _fbDraftIssueCustomFields.splice(idx, 1);
+            _markFBDirty();
+            _renderFBIssueCustomFields();
+            _renderFBPreview();
+        }
+
+        function _renderFBIssueCustomFields() {
+            var container = document.getElementById('fbIssueCustomFieldsList');
+            if (!container) return;
+            if (!_fbDraftIssueCustomFields.length) {
+                container.innerHTML = '<div style="font-size:11px;color:#94a3b8;padding:4px 0;">No custom issue fields added yet.</div>';
+                return;
+            }
+            var typeLabels = { text:'Text', number:'Number', date:'Date', members:'People Picker', select:'Dropdown', checkbox:'Checkbox' };
+            container.innerHTML = _fbDraftIssueCustomFields.map(function(f, i) {
+                return '<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;margin-bottom:4px;">' +
+                    '<i class="fas fa-grip-vertical" style="color:#fed7aa;font-size:9px;"></i>' +
+                    '<span style="flex:1;font-size:12px;font-weight:600;color:#1e293b;">' + escapeHtml(f.label) + '</span>' +
+                    '<span style="font-size:10px;color:#64748b;background:#e2e8f0;padding:2px 6px;border-radius:4px;">' + (typeLabels[f.type] || f.type) + '</span>' +
+                    '<button onclick="_fbRemoveIssueCustomField(' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>' +
+                '</div>';
+            }).join('');
+        }
+
         // Remove custom area
         function _fbRemoveCustomArea(section, idx) {
             if (section === 'impact') {
@@ -24995,6 +25051,9 @@
             _fbDraftIssueFields = Object.assign({}, _issueFieldsConfig);
             _fbDraftStepCustomFields = _stepCustomFields.map(function(f) { return Object.assign({}, f); });
             _renderFBStepCustomFields();
+            // Issues custom fields
+            _fbDraftIssueCustomFields = _issueCustomFields.map(function(f) { return Object.assign({}, f); });
+            _renderFBIssueCustomFields();
         }
 
         // Draft enabled sections for form builder
@@ -25006,6 +25065,8 @@
         // Custom fields added to Project Steps (persisted in extendedSettings)
         var _stepCustomFields = [];
         var _fbDraftStepCustomFields = [];
+        var _issueCustomFields = [];
+        var _fbDraftIssueCustomFields = [];
 
         var _fbIconChoices = ['fa-clipboard-list','fa-cog','fa-folder','fa-star','fa-flag','fa-bolt','fa-chart-bar','fa-shield-alt','fa-users','fa-calendar-alt','fa-building','fa-server','fa-lock','fa-tag','fa-link','fa-bell','fa-file-alt','fa-search','fa-check-circle','fa-exclamation-triangle'];
         var _fbColorChoices = [
@@ -25118,9 +25179,10 @@
                         var ic = bf.icon || (bf.builtIn ? 'fa-cube' : 'fa-plus-circle');
                         return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.15);border-radius:4px;font-size:10px;color:#3b82f6;font-weight:500;white-space:nowrap;"><i class="fas ' + ic + '" style="font-size:8px;"></i>' + escapeHtml(bf.label) + '</span>';
                     }).join(' ');
-                    html += '<div class="fb-basic-section" id="fbBasicSection" ondragover="fbBasicDragOver(event)" ondrop="fbBasicDrop(event)" ondragleave="fbBasicDragLeave(event)">' +
-                        '<div class="fb-basic-section-header">' +
+                    html += '<div class="fb-basic-section fb-collapsed" id="fbBasicSection" ondragover="fbBasicDragOver(event)" ondrop="fbBasicDrop(event)" ondragleave="fbBasicDragLeave(event)">' +
+                        '<div class="fb-basic-section-header" onclick="_toggleFBSection(\'fbBasicSection\')">' +
                             '<div style="display:flex;align-items:center;gap:8px;">' +
+                                '<i class="fas fa-chevron-right fb-sec-chevron" style="font-size:10px;color:#3b82f6;transition:transform 0.2s;"></i>' +
                                 '<i class="fas fa-th-large" style="font-size:14px;color:#3b82f6;"></i>' +
                                 '<span style="font-size:13px;font-weight:700;color:#1e293b;">Basic Information</span>' +
                                 '<span style="font-size:10px;color:#94a3b8;font-weight:500;">' + _basicFields.length + ' field' + (_basicFields.length !== 1 ? 's' : '') + '</span>' +
@@ -25162,9 +25224,11 @@
                         _fbBuildIconPicker(i) +
                         _fbBuildColorPicker(i) +
                     '</div>';
-                    // Inject area/question editor after EVERY section header
+                    // Inject area/question editor after section headers (skip RACI/Gantt — no custom areas)
                     var _secEdId = 'fbSecEditor_' + f.id.replace(/[^a-zA-Z0-9_]/g, '_');
-                    html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
+                    if (!/^mkt_raci_|^mkt_gantt_/.test(f.id)) {
+                        html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
+                    }
                     return;
                 }
                 var typeOpts = ['text','textarea','number','date','select','checkbox','members'].map(function(v) {
@@ -25200,9 +25264,10 @@
             if (_inBasicSection) html += '</div>';
             el.innerHTML = html;
             _renderFBPreview();
-            // Render area editors for all sections that have them
+            // Render area editors for sections that have them (skip RACI/Gantt)
             fbDraftSchema.forEach(function(f) {
                 if (f.type !== 'section') return;
+                if (/^mkt_raci_|^mkt_gantt_/.test(f.id)) return;
                 var _secEdId = 'fbSecEditor_' + f.id.replace(/[^a-zA-Z0-9_]/g, '_');
                 if (document.getElementById(_secEdId)) {
                     _fbRenderSectionEditor(f.id);
@@ -25428,6 +25493,15 @@
         }
 
         // --- Basic Information section drop zone handlers ---
+
+        function _toggleFBSection(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            el.classList.toggle('fb-collapsed');
+            var chevron = el.querySelector('.fb-sec-chevron');
+            if (chevron) chevron.style.transform = el.classList.contains('fb-collapsed') ? '' : 'rotate(90deg)';
+        }
+
         function fbBasicDragOver(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -27209,10 +27283,19 @@
                                         <input type="checkbox" id="fbIssueOwner" checked onchange="_fbToggleIssueField('owner',this.checked)" style="accent-color:#ea580c;"><span>Owner</span>
                                     </label>
                                 </div>
+                                <!-- Custom Issue Fields -->
+                                <div style="margin-top:12px;padding-top:10px;border-top:1px solid #fed7aa;">
+                                    <div style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:6px;">Custom Issue Fields:</div>
+                                    <div id="fbIssueCustomFieldsList" style="margin-bottom:8px;"><div style="font-size:11px;color:#94a3b8;padding:4px 0;">No custom issue fields added yet.</div></div>
+                                    <div style="display:flex;gap:6px;align-items:center;">
+                                        <input type="text" id="fbNewIssueFieldLabel" placeholder="Field label..." style="flex:1;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:inherit;" onkeypress="if(event.key==='Enter') _fbAddIssueCustomField()">
+                                        <select id="fbNewIssueFieldType" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:inherit;">
+                                            <option value="text">Text</option><option value="number">Number</option><option value="date">Date</option><option value="select">Dropdown</option><option value="members">People</option><option value="checkbox">Checkbox</option>
+                                        </select>
+                                        <button onclick="_fbAddIssueCustomField()" style="background:#ea580c;color:white;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;"><i class="fas fa-plus" style="margin-right:3px;"></i>Add</button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <!-- Editable Fields -->
                         <div class="fb-section-label" style="margin-top:28px;"><i class="fas fa-sliders-h" style="font-size:10px;"></i> Editable Fields</div>
                         <p class="fb-section-desc">Drag <i class="fas fa-grip-vertical" style="font-size:9px;color:#cbd5e1;"></i> to reorder. Rename labels freely. Add fields from the left panel.</p>
                         <div id="fbCustomFields"></div>
