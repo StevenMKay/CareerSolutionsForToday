@@ -9123,15 +9123,16 @@
 
                 <!-- TAB: Rules -->
                 <div id="adminTabDepts" style="display:none;">
-                    <div style="text-align:center;padding:40px 20px;">
-                        <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;color:white;font-size:24px;margin:0 auto 16px;">
-                            <i class="fas fa-bolt"></i>
+                    <!-- Automation Rules (auto-archive) -->
+                    <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #e9ecef;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                            <i class="fas fa-archive" style="color:#805ad5;font-size:14px;"></i>
+                            <h4 style="margin:0; font-size:14px; font-weight:700; color:#2c3e50; text-transform:uppercase; letter-spacing:0.5px;">Automation Rules</h4>
                         </div>
-                        <h4 style="margin:0 0 8px;font-size:15px;font-weight:700;color:#1e293b;">Automations</h4>
-                        <p style="margin:0 0 20px;font-size:13px;color:#64748b;line-height:1.5;max-width:360px;margin-left:auto;margin-right:auto;">All automation rules — including auto-archive and workflow rules — are managed from the <strong>Automations</strong> panel in the sidebar menu.</p>
-                        <button data-testid="open-automations-from-rules" onclick="closeAdminPanel(); setTimeout(function(){ openAutomationsPanel(); }, 150);" style="padding:10px 22px;background:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;"><i class="fas fa-external-link-alt" style="margin-right:6px;"></i>Open Automations</button>
+                        <p style="margin:0 0 14px; font-size:12px; color:#7f8c8d; line-height:1.5;">Time-based rules that automatically archive completed projects after a set number of days.</p>
+                        <div id="adminRulesList"></div>
                     </div>
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-top:10px;">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
                             <i class="fas fa-info-circle" style="color:#3b82f6;font-size:13px;"></i>
                             <span style="font-size:12px;font-weight:600;color:#475569;">Departments & Systems</span>
@@ -15822,17 +15823,21 @@
                         var cached = localStorage.getItem('ptOrgChart_' + currentTenantId);
                         orgChartData = cached ? JSON.parse(cached) : { teams: [] };
                     }
-                    // Deduplicate all teams on load
+                    // Deduplicate + repair misplaced branches on load
                     (orgChartData.teams || []).forEach(function(team) { _deduplicateOrgChartTeam(team); });
+                    var repaired = _repairOrgChartPlacements();
                     renderOrgTeamTabs();
                     renderOrgChart();
+                    if (repaired) saveOrgChart(); // Persist the fix
                 })
                 .catch(function() {
                     var cached = localStorage.getItem('ptOrgChart_' + currentTenantId);
                     orgChartData = cached ? JSON.parse(cached) : { teams: [] };
                     (orgChartData.teams || []).forEach(function(team) { _deduplicateOrgChartTeam(team); });
+                    var repaired2 = _repairOrgChartPlacements();
                     renderOrgTeamTabs();
                     renderOrgChart();
+                    if (repaired2) saveOrgChart();
                 });
         }
 
@@ -15879,7 +15884,6 @@
                 var seen = {};
                 var unique = [];
                 branch.members.forEach(function(m) {
-                    // Key by email (case-insensitive) if available, else by name
                     var key = (m.email ? m.email.trim().toLowerCase() : '') || (m.name ? m.name.trim().toLowerCase() : '');
                     if (!key || seen[key]) return;
                     seen[key] = true;
@@ -15887,17 +15891,65 @@
                 });
                 branch.members = unique;
             });
-            // Also deduplicate: ensure leader isn't also listed as a branch manager or member
             if (team.leader && team.leader.name) {
                 var leaderKey = (team.leader.email ? team.leader.email.trim().toLowerCase() : '') || team.leader.name.trim().toLowerCase();
                 (team.branches || []).forEach(function(branch) {
-                    // Remove leader from members list
                     branch.members = (branch.members || []).filter(function(m) {
                         var mKey = (m.email ? m.email.trim().toLowerCase() : '') || (m.name ? m.name.trim().toLowerCase() : '');
                         return mKey !== leaderKey;
                     });
                 });
             }
+        }
+
+        // ── Repair misplaced org chart branches ──
+        // If a branch's department name matches a DIFFERENT team's name,
+        // move the entire branch (manager + members) to the correct team.
+        function _repairOrgChartPlacements() {
+            if (!orgChartData.teams || orgChartData.teams.length < 2) return false;
+            // Build name→index map
+            var teamNameMap = {};
+            orgChartData.teams.forEach(function(t, i) {
+                if (t.name) teamNameMap[t.name.trim().toLowerCase()] = i;
+            });
+            var moved = 0;
+            // Iterate in reverse so splice doesn't break indices
+            for (var ti = orgChartData.teams.length - 1; ti >= 0; ti--) {
+                var team = orgChartData.teams[ti];
+                if (!team.branches) continue;
+                for (var bi = team.branches.length - 1; bi >= 0; bi--) {
+                    var branch = team.branches[bi];
+                    if (!branch.department) continue;
+                    var branchDeptKey = branch.department.trim().toLowerCase();
+                    // Does this branch department match a different team's name?
+                    var correctTeamIdx = teamNameMap[branchDeptKey];
+                    if (correctTeamIdx !== undefined && correctTeamIdx !== ti) {
+                        // Move the branch to the correct team
+                        var correctTeam = orgChartData.teams[correctTeamIdx];
+                        if (!correctTeam.branches) correctTeam.branches = [];
+                        // Check if the correct team already has a branch with same dept
+                        var existingBranch = correctTeam.branches.find(function(b) {
+                            return b.department && b.department.trim().toLowerCase() === branchDeptKey;
+                        });
+                        if (existingBranch) {
+                            // Merge members into existing branch
+                            existingBranch.members = (existingBranch.members || []).concat(branch.members || []);
+                            if (!existingBranch.manager && branch.manager) existingBranch.manager = branch.manager;
+                        } else {
+                            correctTeam.branches.push(branch);
+                        }
+                        // Remove from wrong team
+                        team.branches.splice(bi, 1);
+                        moved++;
+                    }
+                }
+            }
+            if (moved > 0) {
+                console.log('[OrgChart] Repaired ' + moved + ' misplaced branch(es)');
+                // Re-deduplicate after moves
+                orgChartData.teams.forEach(function(t) { _deduplicateOrgChartTeam(t); });
+            }
+            return moved > 0;
         }
 
         function renderOrgTeamTabs() {
