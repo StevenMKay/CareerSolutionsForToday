@@ -9180,16 +9180,11 @@
                         <input type="file" id="adminLogoFile" accept="image/*" style="display:none;" onchange="handleLogoUpload(this)">
                         <button id="adminLogoRemoveBtn" onclick="removeSiteLogo()" style="display:none;margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;"><i class="fas fa-trash" style="margin-right:5px;"></i>Remove Logo</button>
                     </div>
-                    <!-- Categories Section -->
+                    <!-- Categories: Managed in Form Builder -->
                     <div style="margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid #e9ecef;">
                         <h4 style="margin:0 0 4px; font-size:13px; font-weight:700; color:#2c3e50; text-transform:uppercase; letter-spacing:0.5px;">Category Options</h4>
-                        <p style="margin:0 0 12px; font-size:12px; color:#7f8c8d;">Add, remove, or reorder the categories available in task forms and filters.</p>
-                        <div id="adminCategoryList" style="border:1px solid #e9ecef; border-radius:6px; overflow:hidden; margin-bottom:10px;"></div>
-                        <div style="display:flex; gap:8px;">
-                            <input id="adminNewCategory" type="text" placeholder="New category name..." onkeypress="if(event.key==='Enter') addAdminCategory();"
-                                style="flex:1; border:1px solid #ddd; border-radius:4px; padding:7px 10px; font-size:13px; font-family:inherit; color:#2c3e50;">
-                            <button onclick="addAdminCategory()" style="background:#27ae60; color:white; border:none; border-radius:4px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer;"><i class="fas fa-plus" style="margin-right:5px;"></i>Add</button>
-                        </div>
+                        <p style="margin:0 0 10px; font-size:12px; color:#7f8c8d;">Categories are now managed in the <strong>Form Builder</strong>. Click the Category field's "Options" button to add, remove, or reorder categories.</p>
+                        <button onclick="switchAdminTab('formBuilder')" style="background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;color:white;font-size:12px;font-weight:600;padding:8px 16px;border-radius:7px;cursor:pointer;font-family:inherit;"><i class="fas fa-pencil-ruler" style="margin-right:5px;"></i>Open Form Builder</button>
                     </div>
                     <!-- Status Labels Section -->
                     <div>
@@ -24509,24 +24504,23 @@
             // Initialize section toggles from saved state
             _fbDraftEnabledSections = Object.assign({ impact: true, steps: true, issues: true }, _enabledSections);
             
+            // Populate Category field options from current admin categories BEFORE rendering
+            _builtInEditableFields.forEach(function(f) {
+                if (f.id === 'builtin_category') {
+                    f.options = (typeof categories !== 'undefined' && Array.isArray(categories)) ? categories.slice() : [];
+                }
+            });
+            fbDraftSchema.forEach(function(f) {
+                if (f.id === 'builtin_category') {
+                    f.options = (typeof categories !== 'undefined' && Array.isArray(categories)) ? categories.slice() : [];
+                }
+            });
             renderFBDefaults();
             renderFBCustoms();
             _renderFBPreview();
             renderFBPrebuiltPanel();
             // Initialize section toggle UI
             _fbInitSectionToggles();
-            // Populate Category field options from current admin categories
-            _builtInEditableFields.forEach(function(f) {
-                if (f.id === 'builtin_category') {
-                    f.options = (typeof categories !== 'undefined' && Array.isArray(categories)) ? categories.slice() : [];
-                }
-            });
-            // Also update in fbDraftSchema
-            fbDraftSchema.forEach(function(f) {
-                if (f.id === 'builtin_category') {
-                    f.options = (typeof categories !== 'undefined' && Array.isArray(categories)) ? categories.slice() : [];
-                }
-            });
             _resetFBDirty();
             // Wire input/change listeners for inline edits to mark dirty
             var fbModal = document.getElementById('formBuilderModal');
@@ -24569,6 +24563,13 @@
             });
             try { localStorage.setItem('ptStdFieldLabels', JSON.stringify(stored)); } catch(e) {}
             formSchema = _collectFBSchema();
+            // Sync category options from Form Builder to app categories
+            var catField = formSchema.find(function(f) { return f.id === 'builtin_category'; });
+            if (catField && catField.options && catField.options.length > 0) {
+                categories = catField.options.slice();
+                // Update filter UI dropdowns
+                if (typeof renderFilters === 'function') renderFilters();
+            }
             // Persist all section area edits
             _fbSyncAllSectionAreas();
             // Extract Impact Assessment areas (backward compat)
@@ -24813,7 +24814,10 @@
             }
         }
 
-        // Render custom impact areas in form builder
+        // Render custom impact areas in form builder (with icon picker & question editor)
+        var _fbImpactIcons = ['fa-folder','fa-shield-alt','fa-chart-line','fa-graduation-cap','fa-file-alt','fa-cogs','fa-users','fa-dollar-sign','fa-heartbeat','fa-globe','fa-lock','fa-balance-scale','fa-lightbulb','fa-building','fa-handshake','fa-bullhorn','fa-database','fa-code','fa-leaf','fa-rocket'];
+        var _fbExpandedAreaIdx = -1;
+
         function _fbRenderCustomImpactAreas() {
             var container = document.getElementById('fbImpactCustomAreas');
             if (!container) return;
@@ -24822,13 +24826,84 @@
                 return;
             }
             container.innerHTML = _fbDraftImpactAreas.map(function(area, i) {
-                return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;margin-bottom:4px;">' +
-                    '<i class="fas ' + area.icon + '" style="color:' + area.color + ';font-size:11px;"></i>' +
-                    '<span style="flex:1;font-size:12px;font-weight:500;color:#1e293b;">' + escapeHtml(area.label) + '</span>' +
-                    '<span style="font-size:10px;color:#64748b;">' + (area.questions || []).length + ' questions</span>' +
-                    '<button onclick="_fbRemoveCustomArea(\'impact\',' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>' +
+                var isExpanded = _fbExpandedAreaIdx === i;
+                var questionsHtml = '';
+                if (isExpanded) {
+                    // Icon picker
+                    questionsHtml += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #ede9fe;">' +
+                        '<div style="font-size:10px;font-weight:600;color:#64748b;margin-bottom:5px;">Icon:</div>' +
+                        '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">';
+                    _fbImpactIcons.forEach(function(ic) {
+                        var sel = (area.icon === ic) ? 'background:#7c3aed;color:white;' : 'background:#f5f3ff;color:#6d28d9;';
+                        questionsHtml += '<button onclick="_fbSetAreaIcon(' + i + ',\'' + ic + '\')" style="width:28px;height:28px;border:1px solid #ddd6fe;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;' + sel + '" title="' + ic + '"><i class="fas ' + ic + '"></i></button>';
+                    });
+                    questionsHtml += '</div>';
+                    // Questions editor
+                    questionsHtml += '<div style="font-size:10px;font-weight:600;color:#64748b;margin-bottom:5px;">Questions:</div>';
+                    (area.questions || []).forEach(function(q, qi) {
+                        questionsHtml += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+                            '<span style="font-size:10px;color:#94a3b8;width:16px;text-align:right;">' + (qi + 1) + '.</span>' +
+                            '<input type="text" value="' + escapeHtml(q) + '" onchange="_fbUpdateAreaQuestion(' + i + ',' + qi + ',this.value)" style="flex:1;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:inherit;">' +
+                            '<button onclick="_fbRemoveAreaQuestion(' + i + ',' + qi + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:10px;padding:2px;" title="Remove"><i class="fas fa-times"></i></button>' +
+                        '</div>';
+                    });
+                    questionsHtml += '<button onclick="_fbAddAreaQuestion(' + i + ')" style="margin-top:4px;padding:4px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#7c3aed;font-size:10px;font-weight:600;cursor:pointer;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add Question</button>';
+                    questionsHtml += '</div>';
+                }
+                return '<div style="border:1px solid #ddd6fe;border-radius:8px;margin-bottom:6px;overflow:hidden;background:#faf5ff;">' +
+                    '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;" onclick="_fbToggleAreaExpand(' + i + ')">' +
+                    '<i class="fas fa-chevron-' + (isExpanded ? 'down' : 'right') + '" style="color:#a78bfa;font-size:9px;width:10px;"></i>' +
+                    '<i class="fas ' + area.icon + '" style="color:' + area.color + ';font-size:12px;"></i>' +
+                    '<span style="flex:1;font-size:12px;font-weight:600;color:#1e293b;">' + escapeHtml(area.label) + '</span>' +
+                    '<span style="font-size:10px;color:#64748b;">' + (area.questions || []).length + ' Q</span>' +
+                    '<button onclick="event.stopPropagation();_fbRemoveCustomArea(\'impact\',' + i + ')" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:11px;padding:2px 4px;" title="Remove"><i class="fas fa-times"></i></button>' +
+                    '</div>' +
+                    (isExpanded ? '<div style="padding:0 10px 10px;">' + questionsHtml + '</div>' : '') +
                 '</div>';
             }).join('');
+        }
+
+        function _fbToggleAreaExpand(idx) {
+            _fbExpandedAreaIdx = (_fbExpandedAreaIdx === idx) ? -1 : idx;
+            _fbRenderCustomImpactAreas();
+        }
+
+        function _fbSetAreaIcon(idx, icon) {
+            if (_fbDraftImpactAreas[idx]) {
+                _fbDraftImpactAreas[idx].icon = icon;
+                _markFBDirty();
+                _fbRenderCustomImpactAreas();
+                _renderFBPreview();
+            }
+        }
+
+        function _fbUpdateAreaQuestion(areaIdx, qIdx, val) {
+            if (_fbDraftImpactAreas[areaIdx] && _fbDraftImpactAreas[areaIdx].questions) {
+                _fbDraftImpactAreas[areaIdx].questions[qIdx] = val;
+                _markFBDirty();
+            }
+        }
+
+        function _fbRemoveAreaQuestion(areaIdx, qIdx) {
+            if (_fbDraftImpactAreas[areaIdx] && _fbDraftImpactAreas[areaIdx].questions) {
+                _fbDraftImpactAreas[areaIdx].questions.splice(qIdx, 1);
+                _markFBDirty();
+                _fbRenderCustomImpactAreas();
+            }
+        }
+
+        function _fbAddAreaQuestion(areaIdx) {
+            if (_fbDraftImpactAreas[areaIdx]) {
+                if (!_fbDraftImpactAreas[areaIdx].questions) _fbDraftImpactAreas[areaIdx].questions = [];
+                _fbDraftImpactAreas[areaIdx].questions.push('');
+                _markFBDirty();
+                _fbRenderCustomImpactAreas();
+                // Focus the new input
+                setTimeout(function() {
+                    var inputs = document.querySelectorAll('#fbImpactCustomAreas input[type="text"]');
+                    if (inputs.length) inputs[inputs.length - 1].focus();
+                }, 50);
+            }
         }
 
         // Render default impact areas with remove buttons in form builder
@@ -25106,7 +25181,7 @@
                     '<span class="fb-actions-cell">' +
                     (f.chartEnabled ? '<span class="fb-chart-badge" title="This field powers charts &amp; analytics"><i class="fas fa-chart-bar" style="font-size:9px;margin-right:3px;"></i>Chart</span>' : '') +
                     (isLocked ? '<span class="fb-locked-badge" style="background:rgba(239,68,68,0.08);color:#ef4444;"><i class="fas fa-lock" style="font-size:9px;margin-right:3px;"></i>Locked</span>' : (isBuiltIn ? '<span class="fb-locked-badge" style="background:rgba(59,130,246,0.08);color:#3b82f6;"><i class="fas fa-cube" style="font-size:9px;margin-right:3px;"></i>Built-in</span>' : '')) +
-                    (f.type === 'select' && !isLocked ? '<button class="fb-options-btn" onclick="fbToggleOptions(' + i + ')"><i class="fas fa-list" style="margin-right:4px;"></i>Options</button>' : '') +
+                    (f.type === 'select' ? '<button class="fb-options-btn" onclick="fbToggleOptions(' + i + ')"><i class="fas fa-list" style="margin-right:4px;"></i>Options</button>' : '') +
                     (f.type === 'members' ? '<span style="font-size:10px;color:#8b5cf6;font-weight:600;white-space:nowrap;"><i class="fas fa-users" style="margin-right:3px;"></i>Auto-populated</span>' : '') +
                     '</span>' +
                     (isLocked ? '<span style="width:24px;flex-shrink:0;"></span>' : '<button class="fb-delete-btn" onclick="fbDeleteField(' + i + ')"><i class="fas fa-times"></i></button>') +
