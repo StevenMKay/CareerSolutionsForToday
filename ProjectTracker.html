@@ -15903,51 +15903,83 @@
         }
 
         // ── Repair misplaced org chart branches ──
-        // If a branch's department name matches a DIFFERENT team's name,
-        // move the entire branch (manager + members) to the correct team.
+        // If a branch's department name doesn't match its parent team name,
+        // find or CREATE the correct team and move the branch there.
         function _repairOrgChartPlacements() {
-            if (!orgChartData.teams || orgChartData.teams.length < 2) return false;
-            // Build name→index map
+            if (!orgChartData.teams || orgChartData.teams.length === 0) return false;
+
+            // Build name→index map (case-insensitive)
             var teamNameMap = {};
             orgChartData.teams.forEach(function(t, i) {
                 if (t.name) teamNameMap[t.name.trim().toLowerCase()] = i;
             });
+
             var moved = 0;
-            // Iterate in reverse so splice doesn't break indices
+            // Iterate teams in reverse (so splicing doesn't break outer indices)
             for (var ti = orgChartData.teams.length - 1; ti >= 0; ti--) {
                 var team = orgChartData.teams[ti];
-                if (!team.branches) continue;
+                if (!team.branches || !team.name) continue;
+                var teamKey = team.name.trim().toLowerCase();
+
                 for (var bi = team.branches.length - 1; bi >= 0; bi--) {
                     var branch = team.branches[bi];
                     if (!branch.department) continue;
                     var branchDeptKey = branch.department.trim().toLowerCase();
-                    // Does this branch department match a different team's name?
+
+                    // Skip if department matches the parent team name
+                    if (branchDeptKey === teamKey) continue;
+
+                    // Find or create the correct team for this department
                     var correctTeamIdx = teamNameMap[branchDeptKey];
-                    if (correctTeamIdx !== undefined && correctTeamIdx !== ti) {
-                        // Move the branch to the correct team
-                        var correctTeam = orgChartData.teams[correctTeamIdx];
-                        if (!correctTeam.branches) correctTeam.branches = [];
-                        // Check if the correct team already has a branch with same dept
-                        var existingBranch = correctTeam.branches.find(function(b) {
-                            return b.department && b.department.trim().toLowerCase() === branchDeptKey;
-                        });
-                        if (existingBranch) {
-                            // Merge members into existing branch
-                            existingBranch.members = (existingBranch.members || []).concat(branch.members || []);
-                            if (!existingBranch.manager && branch.manager) existingBranch.manager = branch.manager;
-                        } else {
-                            correctTeam.branches.push(branch);
-                        }
-                        // Remove from wrong team
-                        team.branches.splice(bi, 1);
-                        moved++;
+                    if (correctTeamIdx === undefined) {
+                        // No team exists for this department — create one
+                        // Normalize name to Title Case
+                        var deptName = branch.department.trim();
+                        var normalizedName = deptName.charAt(0).toUpperCase() + deptName.slice(1).toLowerCase();
+                        var newTeam = {
+                            name: normalizedName,
+                            leader: null,
+                            branches: []
+                        };
+                        orgChartData.teams.push(newTeam);
+                        correctTeamIdx = orgChartData.teams.length - 1;
+                        teamNameMap[branchDeptKey] = correctTeamIdx;
+                        console.log('[OrgChart] Created new team: ' + normalizedName);
                     }
+
+                    // Move the branch to the correct team
+                    var correctTeam = orgChartData.teams[correctTeamIdx];
+                    if (!correctTeam.branches) correctTeam.branches = [];
+
+                    // Normalize branch department name to match team name
+                    branch.department = correctTeam.name;
+
+                    // Check if the correct team already has a branch with same dept
+                    var existingBranch = correctTeam.branches.find(function(b) {
+                        return b.department && b.department.trim().toLowerCase() === branchDeptKey;
+                    });
+                    if (existingBranch) {
+                        // Merge members into existing branch
+                        existingBranch.members = (existingBranch.members || []).concat(branch.members || []);
+                        if (!existingBranch.manager && branch.manager) existingBranch.manager = branch.manager;
+                    } else {
+                        correctTeam.branches.push(branch);
+                    }
+
+                    // Remove from wrong team
+                    team.branches.splice(bi, 1);
+                    moved++;
                 }
             }
+
             if (moved > 0) {
                 console.log('[OrgChart] Repaired ' + moved + ' misplaced branch(es)');
                 // Re-deduplicate after moves
                 orgChartData.teams.forEach(function(t) { _deduplicateOrgChartTeam(t); });
+                // Clean up empty teams (no leader, no branches)
+                orgChartData.teams = orgChartData.teams.filter(function(t) {
+                    return (t.leader && t.leader.name) || (t.branches && t.branches.length > 0);
+                });
             }
             return moved > 0;
         }
