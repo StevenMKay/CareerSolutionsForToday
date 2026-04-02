@@ -22333,7 +22333,7 @@
             if (secIssues) secIssues.style.display = _hasIssuesFields ? '' : 'none';
             // RACI and Gantt visibility from formSchema chart templates
             var _hasRaciFields = formSchema.some(function(f) { return f.id && /^mkt_raci_/.test(f.id); });
-            var _hasGanttFields = _hasStepsFields; // Gantt chart uses project steps data
+            var _hasGanttFields = formSchema.some(function(f) { return f.id && /^mkt_gantt_/.test(f.id); });
             if (secRaci)  secRaci.style.display  = _hasRaciFields ? '' : 'none';
             if (secGantt) secGantt.style.display = _hasGanttFields ? '' : 'none';
             var bi = document.getElementById('sectionBasicInfo');
@@ -23921,12 +23921,21 @@
             if (!tpl) tpl = _fbChartTemplates.find(function(t) { return t.id === templateId; });
             if (!tpl) return;
             _fbSyncDOM();
-            var existingIds = fbDraftSchema.map(function(f) { return f.id; });
+            // Use a map for O(1) lookup and prevent any duplicates
+            var existingIds = {};
+            fbDraftSchema.forEach(function(f) { if (f.id) existingIds[f.id] = true; });
+            var added = 0;
             tpl.fields.forEach(function(f) {
-                if (existingIds.indexOf(f.id) === -1) {
+                if (!existingIds[f.id]) {
                     fbDraftSchema.push(Object.assign({}, f, { options: (f.options || []).slice() }));
+                    existingIds[f.id] = true;
+                    added++;
                 }
             });
+            if (added === 0) {
+                showToast('\u201c' + tpl.title + '\u201d is already in your form.');
+                return;
+            }
             // Auto-create automation rules for alert-wired templates
             if (tpl.alertRules && tpl.alertRules.length) {
                 _fbPendingAlertRules = (_fbPendingAlertRules || []).concat(tpl.alertRules.map(function(r) { return JSON.parse(JSON.stringify(r)); }));
@@ -23952,6 +23961,14 @@
 
         function openFormBuilderModal() {
             fbDraftSchema = formSchema.map(function(f) { return Object.assign({}, f, { options: f.options ? f.options.slice() : [] }); });
+            // Deduplicate by ID on load
+            var _seenFbIds = {};
+            fbDraftSchema = fbDraftSchema.filter(function(f) {
+                if (!f.id) return true;
+                if (_seenFbIds[f.id]) return false;
+                _seenFbIds[f.id] = true;
+                return true;
+            });
             // Seed built-in editable fields only on first-time setup (empty formSchema)
             // On subsequent opens, respect what the user has saved (don't re-add deleted fields)
             if (formSchema.length === 0) {
@@ -24407,6 +24424,14 @@
         function renderFBCustoms() {
             var el = document.getElementById('fbCustomFields');
             if (!el) return;
+            // Deduplicate fbDraftSchema by ID before rendering
+            var _seenIds = {};
+            fbDraftSchema = fbDraftSchema.filter(function(f) {
+                if (!f.id) return true; // keep fields without IDs
+                if (_seenIds[f.id]) return false; // remove duplicate
+                _seenIds[f.id] = true;
+                return true;
+            });
             if (!fbDraftSchema.length) {
                 el.innerHTML = '<p style="font-size:12px;color:#94a3b8;padding:12px 0;text-align:center;"><i class="fas fa-th-large" style="margin-right:5px;"></i>No fields yet — select from the Fields panel on the left.</p>';
                 _renderFBPreview();
