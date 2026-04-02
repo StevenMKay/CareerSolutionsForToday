@@ -1442,6 +1442,25 @@
             color: #60a5fa;
         }
 
+        /* ── Calendar Week/Day View ── */
+        .cal-week-grid {
+            display: grid;
+            gap: 8px;
+        }
+        .cal-week-cols-7 { grid-template-columns: repeat(7, 1fr); }
+        .cal-week-cols-5 { grid-template-columns: repeat(5, 1fr); }
+        .cal-week-day {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            min-height: 200px;
+        }
+
+        body.dark-mode .cal-week-day {
+            background: rgba(15, 23, 42, 0.6) !important;
+            border-color: rgba(255,255,255,0.08) !important;
+        }
+
         /* ===== AI INSIGHTS PANEL ===== */
         /* Dead insights toggle/panel styles removed — insights now in right-panel tab */
 
@@ -4196,9 +4215,10 @@
             .calendar-container { padding: 0 4px; }
             .calendar-header { flex-direction: column; gap: 8px; padding: 10px; }
             .calendar-nav { width: 100%; justify-content: space-between; }
-            .calendar-month { font-size: 16px; }
+            .calendar-month { font-size: 14px; }
             .calendar-controls { width: 100%; justify-content: center; flex-wrap: wrap; gap: 4px; }
-            .calendar-view-toggle button { padding: 5px 8px; font-size: 11px; }
+            .calendar-view-toggle { width: 100%; display: flex; justify-content: center; }
+            .calendar-view-toggle button { padding: 5px 8px; font-size: 10px; flex: 1; }
             .calendar-filter-btn { padding: 4px 8px; font-size: 10px; }
             .calendar-grid { gap: 2px; }
             .calendar-day-header { font-size: 9px; padding: 6px 2px; }
@@ -4206,6 +4226,10 @@
             .calendar-day-number { font-size: 10px; }
             .cal-event { font-size: 8px !important; padding: 1px 3px !important; margin-bottom: 1px !important; }
             .calendar-day.today .calendar-day-number { width: 18px; height: 18px; font-size: 9px; }
+            /* Week/Work Week view: stack columns vertically on mobile */
+            .cal-week-grid { gap: 6px !important; }
+            .cal-week-cols-7, .cal-week-cols-5 { grid-template-columns: 1fr !important; }
+            .cal-week-day { min-height: auto !important; padding: 10px !important; }
 
             /* ── Contacts (mobile) ── */
             .contacts-grid-header { display: none; }
@@ -9832,6 +9856,8 @@
         var currentView = 'kanban';
         var currentEditIndex = null;
         var currentMonth = new Date();
+        var calViewMode = 'month'; // 'month', 'week', 'workweek', 'day'
+        var calSelectedDate = new Date(); // tracks the focused date for week/day views
         var currentRole = 'member'; // 'admin' for owners, creator mode, or role:admin users
         var categories = ['General', 'Project', 'Issue', 'Task', 'Meeting'];
         var adminDraftCategories = [];
@@ -11008,90 +11034,146 @@
         // ============================================================
         function renderCalendar() {
             var container = document.getElementById('calendarView');
+            if (!container) return;
+
+            // Shared header with view mode toggle
+            var monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                             'July', 'August', 'September', 'October', 'November', 'December'];
+            var dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            var shortDays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+            // Navigation label depends on view mode
+            var navLabel = '';
+            if (calViewMode === 'month') {
+                navLabel = monthNames[currentMonth.getMonth()] + ' ' + currentMonth.getFullYear();
+            } else if (calViewMode === 'week' || calViewMode === 'workweek') {
+                var wStart = _calWeekStart(calSelectedDate, calViewMode === 'workweek');
+                var wEnd = new Date(wStart);
+                wEnd.setDate(wEnd.getDate() + (calViewMode === 'workweek' ? 4 : 6));
+                navLabel = _calFmtShort(wStart) + ' – ' + _calFmtShort(wEnd);
+            } else {
+                navLabel = dayNames[calSelectedDate.getDay()] + ', ' + _calFmtShort(calSelectedDate);
+            }
+
+            var headerHtml = '<div class="calendar-header">' +
+                '<div class="calendar-nav">' +
+                    '<button class="calendar-nav-btn" onclick="calNavigate(-1)"><i class="fas fa-chevron-left"></i></button>' +
+                    '<span class="calendar-month">' + navLabel + '</span>' +
+                    '<button class="calendar-nav-btn" onclick="calNavigate(1)"><i class="fas fa-chevron-right"></i></button>' +
+                    '<button class="calendar-nav-btn" onclick="calGoToday()" style="margin-left:6px;width:auto;padding:0 10px;font-size:11px;font-weight:600;">Today</button>' +
+                '</div>' +
+                '<div class="calendar-view-toggle" data-testid="calendar-view-toggle">' +
+                    '<button onclick="calSwitchView(\'month\')" class="' + (calViewMode === 'month' ? 'active' : '') + '">Month</button>' +
+                    '<button onclick="calSwitchView(\'week\')" class="' + (calViewMode === 'week' ? 'active' : '') + '">Week</button>' +
+                    '<button onclick="calSwitchView(\'workweek\')" class="' + (calViewMode === 'workweek' ? 'active' : '') + '">Work Week</button>' +
+                    '<button onclick="calSwitchView(\'day\')" class="' + (calViewMode === 'day' ? 'active' : '') + '">Day</button>' +
+                '</div>' +
+            '</div>';
+
+            // Color palette for duration bars
+            var barColors = [
+                'rgba(49,130,206,0.8)','rgba(56,161,105,0.8)','rgba(196,144,22,0.8)','rgba(213,63,63,0.8)',
+                'rgba(107,70,193,0.8)','rgba(221,117,34,0.8)','rgba(44,160,156,0.8)','rgba(190,52,126,0.8)'
+            ];
+
+            if (calViewMode === 'month') {
+                container.innerHTML = headerHtml + _calRenderMonth(barColors, shortDays);
+            } else if (calViewMode === 'week' || calViewMode === 'workweek') {
+                container.innerHTML = headerHtml + _calRenderWeek(barColors, calViewMode === 'workweek');
+            } else {
+                container.innerHTML = headerHtml + _calRenderDay(barColors);
+            }
+        }
+
+        // ── Calendar helper functions ──
+        function _calFmtShort(d) {
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+        }
+        function _calDateStr(d) { return d.toISOString().split('T')[0]; }
+        function _calWeekStart(d, workWeek) {
+            var s = new Date(d);
+            s.setHours(0,0,0,0);
+            var day = s.getDay();
+            if (workWeek) {
+                s.setDate(s.getDate() - (day === 0 ? 6 : day - 1)); // Monday
+            } else {
+                s.setDate(s.getDate() - day); // Sunday
+            }
+            return s;
+        }
+        function _calTasksForDate(dateStr) {
+            return filteredTasks.filter(function(t) {
+                if (!t.startDate && !t.dueDate) return false;
+                var s = t.startDate || t.dueDate;
+                var e = t.dueDate || t.startDate;
+                return dateStr >= s && dateStr <= e;
+            });
+        }
+        function calSwitchView(mode) {
+            calViewMode = mode;
+            renderCalendar();
+        }
+        function calGoToday() {
+            calSelectedDate = new Date();
+            currentMonth = new Date();
+            renderCalendar();
+        }
+        function calNavigate(delta) {
+            if (calViewMode === 'month') {
+                currentMonth.setMonth(currentMonth.getMonth() + delta);
+            } else if (calViewMode === 'week' || calViewMode === 'workweek') {
+                calSelectedDate.setDate(calSelectedDate.getDate() + delta * 7);
+            } else {
+                calSelectedDate.setDate(calSelectedDate.getDate() + delta);
+            }
+            renderCalendar();
+        }
+
+        // ── Month View ──
+        function _calRenderMonth(barColors, shortDays) {
             var year = currentMonth.getFullYear();
             var month = currentMonth.getMonth();
-            
             var firstDay = new Date(year, month, 1);
-            var lastDay = new Date(year, month + 1, 0);
             var startDate = new Date(firstDay);
             startDate.setDate(startDate.getDate() - firstDay.getDay());
 
-            var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                             'July', 'August', 'September', 'October', 'November', 'December'];
-
-            // Build array of 42 date strings for the grid
             var gridDates = [];
             for (var g = 0; g < 42; g++) {
-                var d = new Date(startDate);
-                d.setDate(startDate.getDate() + g);
+                var d = new Date(startDate); d.setDate(startDate.getDate() + g);
                 gridDates.push(d.toISOString().split('T')[0]);
             }
 
-            // Color palette for duration bars — solid, high-contrast
-            var barColors = [
-                'rgba(49, 130, 206, 0.8)',
-                'rgba(56, 161, 105, 0.8)',
-                'rgba(196, 144, 22, 0.8)',
-                'rgba(213, 63, 63, 0.8)',
-                'rgba(107, 70, 193, 0.8)',
-                'rgba(221, 117, 34, 0.8)',
-                'rgba(44, 160, 156, 0.8)',
-                'rgba(190, 52, 126, 0.8)'
-            ];
-
-            // Determine which tasks span across visible dates
             var durationTasks = [];
             filteredTasks.forEach(function(task, idx) {
                 if (!task.startDate && !task.dueDate) return;
                 var tStart = task.startDate || task.dueDate;
                 var tEnd = task.dueDate || task.startDate;
-                // Only include if range overlaps with grid
                 if (tEnd >= gridDates[0] && tStart <= gridDates[41]) {
-                    durationTasks.push({
-                        task: task,
-                        start: tStart,
-                        end: tEnd,
-                        color: barColors[idx % barColors.length]
-                    });
+                    durationTasks.push({ task: task, start: tStart, end: tEnd, color: barColors[idx % barColors.length] });
                 }
             });
 
-            var html = '<div class="calendar-header">' +
-                '<div class="calendar-nav">' +
-                    '<button class="calendar-nav-btn" onclick="changeMonth(-1)"><i class="fas fa-chevron-left"></i></button>' +
-                    '<span class="calendar-month">' + monthNames[month] + ' ' + year + '</span>' +
-                    '<button class="calendar-nav-btn" onclick="changeMonth(1)"><i class="fas fa-chevron-right"></i></button>' +
-                '</div>' +
-            '</div>';
+            var html = '<div class="calendar-grid">';
+            shortDays.forEach(function(day) { html += '<div class="calendar-day-header">' + day + '</div>'; });
 
-            html += '<div class="calendar-grid">';
-            
-            // Day headers
-            ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach(function(day) {
-                html += '<div class="calendar-day-header">' + day + '</div>';
-            });
+            var today = new Date(); today.setHours(0,0,0,0);
+            var MAX_ITEMS = 3;
 
-            // Calendar days
-            var today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
             for (var i = 0; i < 42; i++) {
-                var currentDate = new Date(startDate);
-                currentDate.setDate(startDate.getDate() + i);
-                
+                var currentDate = new Date(startDate); currentDate.setDate(startDate.getDate() + i);
                 var isOtherMonth = currentDate.getMonth() !== month;
                 var isToday = currentDate.getTime() === today.getTime();
                 var dateStr = currentDate.toISOString().split('T')[0];
-                
-                // Tasks that have their due date on this day (point events)
-                var dayTasks = filteredTasks.filter(function(t) { return t.dueDate === dateStr && !t.startDate; });
 
-                html += '<div class="calendar-day' + (isOtherMonth ? ' other-month' : '') + (isToday ? ' today' : '') + '">' +
-                    '<div class="calendar-day-number">' + currentDate.getDate() + '</div>';
+                html += '<div class="calendar-day' + (isOtherMonth ? ' other-month' : '') + (isToday ? ' today' : '') + '" onclick="calSelectedDate=new Date(\'' + dateStr + '\');calSwitchView(\'day\')">';
+                html += '<div class="calendar-day-number">' + currentDate.getDate() + '</div>';
 
-                // Render duration bars for tasks that span this date
+                var itemCount = 0;
                 durationTasks.forEach(function(dt) {
                     if (dateStr >= dt.start && dateStr <= dt.end) {
+                        itemCount++;
+                        if (itemCount > MAX_ITEMS) return;
                         var isStart = dateStr === dt.start;
                         var isEnd = dateStr === dt.end;
                         var barClass = 'calendar-duration-bar';
@@ -11099,52 +11181,129 @@
                         else if (isStart) barClass += ' bar-start';
                         else if (isEnd) barClass += ' bar-end';
                         else barClass += ' bar-mid';
-
                         var showLabel = isStart || (isStart && isEnd);
-                        var endLabel = isEnd && !isStart ? '<span class="bar-end-label">End</span>' : '';
-                        var dtOwnerLabel = dt.task.title + (dt.task.assignedTo ? ' | ' + dt.task.assignedTo : '');
-                        html += '<div class="' + barClass + '" style="background:' + dt.color + ';" ' +
-                            'onclick="openEditModal(\'' + dt.task.id + '\')">' +
-                            (showLabel ? '<span class="bar-label">' + escapeHtml(dtOwnerLabel) + '</span>' : '') +
-                            endLabel +
-                            '<span class="bar-tooltip">' + escapeHtml(dtOwnerLabel) +
-                            '  |  ' + dt.start + ' to ' + dt.end + '</span>' +
-                            '</div>';
+                        var dtLabel = dt.task.title + (dt.task.assignedTo ? ' | ' + dt.task.assignedTo : '');
+                        html += '<div class="' + barClass + '" style="background:' + dt.color + ';" onclick="event.stopPropagation();openEditModal(\'' + dt.task.id + '\')">' +
+                            (showLabel ? '<span class="bar-label">' + escapeHtml(dtLabel) + '</span>' : '') +
+                            '<span class="bar-tooltip">' + escapeHtml(dtLabel) + ' | ' + dt.start + ' to ' + dt.end + '</span></div>';
                     }
                 });
-                
-                // Point events (tasks with only due date, no start date)
-                dayTasks.slice(0, 2).forEach(function(task) {
-                    var ptOwnerLabel = task.title + (task.assignedTo ? ' | ' + task.assignedTo : '');
-                    html += '<div class="calendar-item" onclick="openEditModal(\'' + task.id + '\')" title="' + escapeHtml(ptOwnerLabel) + '">' + 
-                            escapeHtml(ptOwnerLabel) + '</div>';
+
+                // Point events
+                var dayTasks = filteredTasks.filter(function(t) { return t.dueDate === dateStr && !t.startDate; });
+                dayTasks.forEach(function(task) {
+                    itemCount++;
+                    if (itemCount > MAX_ITEMS) return;
+                    var ptLabel = task.title + (task.assignedTo ? ' | ' + task.assignedTo : '');
+                    html += '<div class="calendar-item" onclick="event.stopPropagation();openEditModal(\'' + task.id + '\')" title="' + escapeHtml(ptLabel) + '">' + escapeHtml(ptLabel) + '</div>';
                 });
+
+                // Overflow indicator
+                var totalOnDay = _calTasksForDate(dateStr).length;
+                if (totalOnDay > MAX_ITEMS) {
+                    html += '<div style="font-size:9px;color:#3b82f6;font-weight:700;text-align:center;cursor:pointer;padding:1px 0;" onclick="event.stopPropagation();calSelectedDate=new Date(\'' + dateStr + '\');calSwitchView(\'day\')">+' + (totalOnDay - MAX_ITEMS) + ' more</div>';
+                }
 
                 html += '</div>';
             }
-
             html += '</div>';
 
-            // Legend showing which color = which task
+            // Legend
             if (durationTasks.length > 0) {
                 html += '<div class="calendar-legend">';
                 durationTasks.forEach(function(dt) {
-                    var lgOwnerLabel = dt.task.title + (dt.task.assignedTo ? ' | ' + dt.task.assignedTo : '');
-                    html += '<div class="legend-item">' +
-                        '<span class="legend-color" style="background:' + dt.color + ';"></span>' +
-                        '<span>' + escapeHtml(lgOwnerLabel) + '</span>' +
-                    '</div>';
+                    var lgLabel = dt.task.title + (dt.task.assignedTo ? ' | ' + dt.task.assignedTo : '');
+                    html += '<div class="legend-item"><span class="legend-color" style="background:' + dt.color + ';"></span><span>' + escapeHtml(lgLabel) + '</span></div>';
                 });
                 html += '</div>';
             }
-
-            container.innerHTML = html;
+            return html;
         }
 
-        function changeMonth(delta) {
-            currentMonth.setMonth(currentMonth.getMonth() + delta);
-            renderCalendar();
+        // ── Week / Work Week View ──
+        function _calRenderWeek(barColors, workWeekOnly) {
+            var wStart = _calWeekStart(calSelectedDate, workWeekOnly);
+            var numDays = workWeekOnly ? 5 : 7;
+            var dayNames = workWeekOnly ? ['Mon','Tue','Wed','Thu','Fri'] : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            var today = new Date(); today.setHours(0,0,0,0);
+
+            var html = '<div class="cal-week-grid cal-week-cols-' + numDays + '" style="margin-top:8px;">';
+
+            for (var di = 0; di < numDays; di++) {
+                var d = new Date(wStart); d.setDate(wStart.getDate() + di);
+                var dateStr = _calDateStr(d);
+                var isToday = d.getTime() === today.getTime();
+                var dayTasks = _calTasksForDate(dateStr);
+
+                html += '<div class="cal-week-day" style="background:' + (isToday ? 'rgba(34,197,94,0.05)' : '#fafbfc') + ';border-color:' + (isToday ? '#22c55e' : '#e2e8f0') + ';">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+                html += '<span style="font-size:12px;font-weight:700;color:' + (isToday ? '#22c55e' : '#475569') + ';">' + dayNames[di] + '</span>';
+                html += '<span style="font-size:18px;font-weight:800;color:' + (isToday ? '#22c55e' : '#1e293b') + ';">' + d.getDate() + '</span>';
+                html += '</div>';
+
+                if (dayTasks.length === 0) {
+                    html += '<div style="color:#cbd5e1;font-size:11px;text-align:center;padding:20px 0;">No projects</div>';
+                } else {
+                    dayTasks.forEach(function(task) {
+                        var statusColors = { 'not-started':'#94a3b8','in-progress':'#3b82f6','completed':'#22c55e','on-hold':'#f59e0b','cancelled':'#ef4444' };
+                        var sc = statusColors[task.status] || '#94a3b8';
+                        html += '<div data-testid="cal-week-task-' + task.id + '" onclick="openEditModal(\'' + task.id + '\')" style="background:white;border:1px solid #e2e8f0;border-left:3px solid ' + sc + ';border-radius:6px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow=\'0 2px 8px rgba(0,0,0,0.08)\'" onmouseout="this.style.boxShadow=\'none\'">' +
+                            '<div style="font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(task.title) + '</div>' +
+                            '<div style="font-size:10px;color:#64748b;margin-top:2px;display:flex;gap:6px;align-items:center;">' +
+                            (task.assignedTo ? '<span><i class="fas fa-user" style="font-size:8px;margin-right:2px;"></i>' + escapeHtml(task.assignedTo) + '</span>' : '') +
+                            '<span style="background:' + sc + '22;color:' + sc + ';padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;">' + escapeHtml(task.status) + '</span>' +
+                            '</div></div>';
+                    });
+                }
+                html += '</div>';
+            }
+            html += '</div>';
+            return html;
         }
+
+        // ── Day View ──
+        function _calRenderDay(barColors) {
+            var dateStr = _calDateStr(calSelectedDate);
+            var dayTasks = _calTasksForDate(dateStr);
+            var today = new Date(); today.setHours(0,0,0,0);
+            var isToday = calSelectedDate.getTime() === today.getTime();
+
+            var html = '<div style="margin-top:12px;">';
+            html += '<div style="text-align:center;margin-bottom:16px;">';
+            html += '<div style="font-size:48px;font-weight:800;color:' + (isToday ? '#22c55e' : '#1e293b') + ';">' + calSelectedDate.getDate() + '</div>';
+            html += '<div style="font-size:13px;color:#64748b;font-weight:600;">' + dayTasks.length + ' project' + (dayTasks.length !== 1 ? 's' : '') + '</div>';
+            html += '</div>';
+
+            if (dayTasks.length === 0) {
+                html += '<div style="text-align:center;padding:40px 0;color:#94a3b8;"><i class="fas fa-calendar-day" style="font-size:28px;display:block;margin-bottom:10px;"></i>No projects scheduled for this day.</div>';
+            } else {
+                html += '<div style="display:flex;flex-direction:column;gap:8px;max-width:700px;margin:0 auto;">';
+                dayTasks.forEach(function(task, idx) {
+                    var statusColors = { 'not-started':'#94a3b8','in-progress':'#3b82f6','completed':'#22c55e','on-hold':'#f59e0b','cancelled':'#ef4444' };
+                    var sc = statusColors[task.status] || '#94a3b8';
+                    var priorityColors = { high: '#ef4444', medium: '#f59e0b', low: '#22c55e' };
+                    var pc = priorityColors[task.priority] || '#94a3b8';
+                    html += '<div data-testid="cal-day-task-' + task.id + '" onclick="openEditModal(\'' + task.id + '\')" style="background:white;border:1px solid #e2e8f0;border-left:4px solid ' + sc + ';border-radius:10px;padding:14px 18px;cursor:pointer;transition:box-shadow 0.15s;" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\'" onmouseout="this.style.boxShadow=\'none\'">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:flex-start;">' +
+                        '<div style="flex:1;min-width:0;">' +
+                        '<div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px;">' + escapeHtml(task.title) + '</div>' +
+                        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+                        (task.assignedTo ? '<span style="font-size:11px;color:#64748b;"><i class="fas fa-user" style="font-size:9px;margin-right:3px;"></i>' + escapeHtml(task.assignedTo) + '</span>' : '') +
+                        (task.owningDepartment ? '<span style="font-size:11px;color:#64748b;"><i class="fas fa-building" style="font-size:9px;margin-right:3px;"></i>' + escapeHtml(task.owningDepartment) + '</span>' : '') +
+                        '<span style="background:' + sc + '22;color:' + sc + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">' + escapeHtml(task.status) + '</span>' +
+                        '<span style="background:' + pc + '22;color:' + pc + ';padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">' + escapeHtml(task.priority) + '</span>' +
+                        '</div></div>' +
+                        '<div style="font-size:10px;color:#94a3b8;white-space:nowrap;margin-left:12px;">' +
+                        (task.startDate ? task.startDate : '') + (task.startDate && task.dueDate ? ' → ' : '') + (task.dueDate ? task.dueDate : '') +
+                        '</div></div></div>';
+                });
+                html += '</div>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        // Remove old changeMonth — replaced by calNavigate
 
         // ============================================================
         // PRIORITY VIEW
@@ -18242,13 +18401,14 @@
         // ANALYTICS VIEW — Chart Defs & Preferences
         // ============================================================
         var _analyticsBuiltInCharts = [
-            { id: 'status',      title: 'Projects by Status',                    icon: 'fa-circle-notch' },
-            { id: 'priority',    title: 'Projects by Priority',                  icon: 'fa-flag' },
-            { id: 'dept',        title: 'By Owning Department',                  icon: 'fa-building' },
-            { id: 'timeline',    title: 'Created Over Time (last 12 months)',     icon: 'fa-chart-line' },
-            { id: 'forecast',    title: 'Due Date Forecast (next 12 months)',     icon: 'fa-calendar-alt' },
-            { id: 'capacity',    title: 'Capacity by Assignee (Estimated Hours)', icon: 'fa-users' },
-            { id: 'hoursStatus', title: 'Hours by Status',                        icon: 'fa-clock' }
+            { id: 'status',          title: 'Projects by Status',                    icon: 'fa-circle-notch' },
+            { id: 'priority',        title: 'Projects by Priority',                  icon: 'fa-flag' },
+            { id: 'dept',            title: 'By Owning Department',                  icon: 'fa-building' },
+            { id: 'timeline',        title: 'Created Over Time (last 12 months)',     icon: 'fa-chart-line' },
+            { id: 'forecast',        title: 'Due Date Forecast (next 12 months)',     icon: 'fa-calendar-alt' },
+            { id: 'capacity',        title: 'Capacity by Assignee (Estimated Hours)', icon: 'fa-users' },
+            { id: 'hoursStatus',     title: 'Hours by Status',                        icon: 'fa-clock' },
+            { id: 'impactAnalysis',  title: 'Impact Assessment Breakdown',            icon: 'fa-shield-alt' }
         ];
 
         function _getAnalyticsPrefs() {
@@ -18478,7 +18638,7 @@
             _analyticsBuiltInCharts.forEach(function(d) { if (_aOrder.indexOf(d.id) === -1) _aOrder.push(d.id); });
             (_aPrefs.customCharts || []).forEach(function(cc) { if (_aOrder.indexOf(cc.id) === -1) _aOrder.push(cc.id); });
 
-            var _builtInCanvasMap = { status: 'chartStatus', priority: 'chartPriority', dept: 'chartDept', timeline: 'chartTimeline', forecast: 'chartForecast', capacity: 'chartCapacity', hoursStatus: 'chartHoursStatus' };
+            var _builtInCanvasMap = { status: 'chartStatus', priority: 'chartPriority', dept: 'chartDept', timeline: 'chartTimeline', forecast: 'chartForecast', capacity: 'chartCapacity', hoursStatus: 'chartHoursStatus', impactAnalysis: 'chartImpactAnalysis' };
             var chartsHtml = '';
             _aOrder.forEach(function(chartId) {
                 if (_aPrefs.hidden.indexOf(chartId) !== -1) return;
@@ -18537,12 +18697,78 @@
                 if (_aPrefs.hidden.indexOf('forecast') === -1) renderForecastChart(activeTasks);
                 if (_aPrefs.hidden.indexOf('capacity') === -1) renderCapacityChart(activeTasks);
                 if (_aPrefs.hidden.indexOf('hoursStatus') === -1) renderHoursStatusChart(activeTasks);
+                if (_aPrefs.hidden.indexOf('impactAnalysis') === -1) renderImpactAnalysisChart(impactTotals);
                 // Render custom field charts
                 (_aPrefs.customCharts || []).forEach(function(cc) {
                     if (_aPrefs.hidden.indexOf(cc.id) !== -1) return;
                     _renderCustomFieldChart(cc, activeTasks);
                 });
             }, 50);
+        }
+
+        function renderImpactAnalysisChart(impactTotals) {
+            var ctx = document.getElementById('chartImpactAnalysis');
+            if (!ctx || typeof Chart === 'undefined') return;
+            var labels = [];
+            var yesData = [];
+            var noData = [];
+            var bgColors = [];
+            var noBgColors = [];
+            Object.keys(impactTotals).forEach(function(key) {
+                var d = impactTotals[key];
+                labels.push(d.label);
+                yesData.push(d.yes);
+                noData.push(d.total - d.yes);
+                bgColors.push(d.color);
+                noBgColors.push('#e2e8f0');
+            });
+            if (yesData.every(function(v) { return v === 0; }) && noData.every(function(v) { return v === 0; })) {
+                ctx.parentElement.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:30px 0;">No impact assessments recorded yet.</div>';
+                return;
+            }
+            analyticsChartsMap['impactAnalysis'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Impacted (Yes)',
+                            data: yesData,
+                            backgroundColor: bgColors,
+                            borderRadius: 6,
+                            borderSkipped: false
+                        },
+                        {
+                            label: 'Not Impacted (No)',
+                            data: noData,
+                            backgroundColor: noBgColors,
+                            borderRadius: 6,
+                            borderSkipped: false
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14, font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(ctx2) {
+                                    var total = yesData[ctx2.dataIndex] + noData[ctx2.dataIndex];
+                                    var pct = total > 0 ? Math.round((yesData[ctx2.dataIndex] / total) * 100) : 0;
+                                    return 'Coverage: ' + pct + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true, grid: { display: false }, ticks: { stepSize: 1, font: { size: 11 } } },
+                        y: { stacked: true, grid: { display: false }, ticks: { font: { size: 12, weight: '600' } } }
+                    }
+                }
+            });
         }
 
         function _renderCustomFieldChart(cc, activeTasks) {
