@@ -10,6 +10,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Firebase SDK (compat v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+  <!-- SheetJS for CSV/Excel import -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg-primary: #f8fafc;
@@ -622,6 +629,181 @@
 
     html, body, .container, .main-grid, .card { max-width: 100vw; box-sizing: border-box; }
     * { word-wrap: break-word; overflow-wrap: break-word; }
+
+    /* ===== Auth Overlay ===== */
+    .auth-bar { display:flex; align-items:center; gap:8px; }
+    .auth-bar .user-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; border:2px solid var(--accent); }
+    .auth-bar .user-name { font-size:0.78rem; font-weight:600; color:var(--text-secondary); max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .auth-overlay {
+      position:fixed; inset:0; z-index:9999;
+      background:rgba(0,0,0,0.6); backdrop-filter:blur(8px);
+      display:none; align-items:center; justify-content:center;
+    }
+    .auth-overlay.active { display:flex; }
+    .auth-box {
+      background:#fff; border-radius:20px; padding:36px; max-width:400px; width:92%;
+      box-shadow:0 20px 60px rgba(0,0,0,0.3); animation:modalIn 0.25s ease;
+    }
+    .auth-box h2 { font-size:1.3rem; font-weight:800; margin-bottom:6px; color:var(--text-primary); display:flex; align-items:center; gap:8px; }
+    .auth-box p { font-size:0.82rem; color:var(--text-muted); margin-bottom:20px; }
+    .auth-box input[type="email"], .auth-box input[type="password"] {
+      width:100%; padding:11px 14px; border:1.5px solid var(--border-primary); border-radius:10px;
+      font-size:0.88rem; font-family:inherit; margin-bottom:10px; background:var(--bg-input); color:var(--text-primary);
+    }
+    .auth-box input:focus { border-color:var(--accent); outline:none; box-shadow:0 0 0 3px rgba(11,79,108,0.08); }
+    .auth-divider { text-align:center; margin:16px 0; font-size:0.78rem; color:var(--text-muted); position:relative; }
+    .auth-divider::before, .auth-divider::after { content:''; position:absolute; top:50%; width:40%; height:1px; background:var(--border-primary); }
+    .auth-divider::before { left:0; }
+    .auth-divider::after { right:0; }
+    .btn-google { width:100%; padding:11px; border:1.5px solid var(--border-primary); border-radius:10px; background:#fff; cursor:pointer; font-family:inherit; font-size:0.85rem; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; transition:all var(--transition); color:var(--text-primary); }
+    .btn-google:hover { background:var(--bg-section); border-color:var(--border-hover); }
+    .auth-toggle { text-align:center; margin-top:14px; font-size:0.78rem; color:var(--text-muted); }
+    .auth-toggle a { color:var(--accent); cursor:pointer; text-decoration:none; font-weight:600; }
+    .dark .auth-box { background:#1e293b; }
+    .dark .auth-box h2 { color:#f1f5f9; }
+    .dark .auth-box input { background:#0f172a; color:#f1f5f9; border-color:#334155; }
+    .dark .btn-google { background:#0f172a; color:#f1f5f9; border-color:#334155; }
+
+    /* ===== CTA / Banner Module ===== */
+    .cta-section { margin-top:0; }
+    .cta-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .cta-row input { flex:1; }
+    .color-picker-wrap { position:relative; display:inline-block; }
+    .color-picker-wrap input[type="color"] { width:32px; height:32px; border:1.5px solid var(--border-primary); border-radius:6px; cursor:pointer; padding:2px; }
+    .banner-upload-area {
+      border:2px dashed var(--border-primary); border-radius:8px; padding:12px; text-align:center;
+      cursor:pointer; transition:all var(--transition); background:#fafbfc; font-size:0.78rem; color:var(--text-muted);
+    }
+    .banner-upload-area:hover { border-color:var(--accent); }
+    .banner-upload-area.has-banner { border-color:var(--success); background:rgba(16,185,129,0.04); }
+    .banner-preview { max-width:100%; max-height:60px; border-radius:6px; margin-top:6px; }
+
+    /* ===== Validation Notices ===== */
+    .validation-panel { border:1px solid var(--border-primary); border-radius:10px; overflow:hidden; }
+    .validation-header { background:var(--bg-section); padding:10px 14px; font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px; border-bottom:1px solid var(--border-primary); cursor:pointer; }
+    .validation-body { padding:8px 12px; }
+    .val-item { display:flex; align-items:flex-start; gap:8px; padding:6px 0; font-size:0.78rem; line-height:1.4; }
+    .val-item i { flex-shrink:0; margin-top:2px; }
+    .val-item.warn i { color:var(--warning); }
+    .val-item.error i { color:var(--danger); }
+    .val-item.ok i { color:var(--success); }
+    .val-item.info i { color:var(--accent-light); }
+    .dark .validation-panel { border-color:#334155; }
+    .dark .validation-header { background:#0f172a; color:#64748b; border-bottom-color:#334155; }
+
+    /* ===== Admin / Team Panel ===== */
+    .admin-overlay {
+      position:fixed; inset:0; z-index:9000;
+      background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);
+      display:none; align-items:flex-start; justify-content:flex-end;
+    }
+    .admin-overlay.active { display:flex; }
+    .admin-panel {
+      width:480px; max-width:95vw; height:100vh; background:#fff;
+      box-shadow:-8px 0 40px rgba(0,0,0,0.15); overflow-y:auto;
+      animation:slideInRight 0.25s ease;
+    }
+    @keyframes slideInRight { from { transform:translateX(100%); } to { transform:translateX(0); } }
+    .admin-panel-header {
+      position:sticky; top:0; z-index:10; background:var(--accent-gradient);
+      padding:20px 24px; color:#fff;
+    }
+    .admin-panel-header h2 { font-size:1.1rem; font-weight:800; display:flex; align-items:center; gap:8px; }
+    .admin-panel-close { position:absolute; top:16px; right:16px; background:rgba(255,255,255,0.2); border:none; color:#fff; width:32px; height:32px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+    .admin-panel-close:hover { background:rgba(255,255,255,0.3); }
+    .admin-panel-body { padding:20px 24px; }
+    .admin-tabs { display:flex; border-bottom:2px solid var(--border-primary); margin-bottom:16px; }
+    .admin-tab { padding:10px 16px; border:none; background:none; cursor:pointer; font-family:inherit; font-size:0.82rem; font-weight:600; color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-2px; }
+    .admin-tab:hover { color:var(--text-secondary); }
+    .admin-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .admin-pane { display:none; }
+    .admin-pane.active { display:block; }
+    .brand-field { margin-bottom:14px; }
+    .brand-field label { margin-bottom:4px; }
+    .brand-lock-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .brand-lock-icon { color:var(--accent); font-size:0.8rem; }
+    .team-member-card { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border-primary); border-radius:10px; margin-bottom:8px; }
+    .team-member-avatar { width:36px; height:36px; border-radius:50%; object-fit:cover; background:var(--accent-gradient); display:flex; align-items:center; justify-content:center; color:#fff; font-size:0.8rem; font-weight:700; flex-shrink:0; }
+    .team-member-info { flex:1; min-width:0; }
+    .team-member-name { font-size:0.85rem; font-weight:600; color:var(--text-primary); }
+    .team-member-email { font-size:0.72rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; }
+    .team-member-actions { display:flex; gap:4px; }
+    .csv-drop-zone { border:2px dashed var(--border-primary); border-radius:10px; padding:24px; text-align:center; margin:12px 0; cursor:pointer; transition:all var(--transition); }
+    .csv-drop-zone:hover { border-color:var(--accent); background:rgba(11,79,108,0.03); }
+    .csv-drop-zone i { font-size:1.5rem; color:var(--text-muted); margin-bottom:8px; display:block; }
+    .bulk-preview-table { width:100%; border-collapse:collapse; font-size:0.78rem; margin-top:12px; }
+    .bulk-preview-table th { background:var(--bg-section); padding:8px 10px; text-align:left; font-weight:700; color:var(--text-muted); text-transform:uppercase; font-size:0.68rem; border-bottom:1px solid var(--border-primary); }
+    .bulk-preview-table td { padding:6px 10px; border-bottom:1px solid #f1f5f9; }
+    .dark .admin-panel { background:#1e293b; }
+    .dark .admin-tabs { border-bottom-color:#334155; }
+    .dark .admin-tab { color:#64748b; }
+    .dark .admin-tab.active { color:#60a5fa; border-bottom-color:#60a5fa; }
+    .dark .team-member-card { border-color:#334155; }
+    .dark .team-member-name { color:#f1f5f9; }
+    .dark .csv-drop-zone { border-color:#334155; }
+
+    /* ===== Analytics Dashboard ===== */
+    .analytics-overlay {
+      position:fixed; inset:0; z-index:8500;
+      background:rgba(0,0,0,0.5); backdrop-filter:blur(4px);
+      display:none; align-items:center; justify-content:center;
+    }
+    .analytics-overlay.active { display:flex; }
+    .analytics-modal {
+      background:#fff; border-radius:20px; max-width:800px; width:95%;
+      max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.25);
+      animation:modalIn 0.25s ease;
+    }
+    .analytics-header {
+      position:sticky; top:0; z-index:10; background:var(--accent-gradient);
+      padding:20px 24px; color:#fff; border-radius:20px 20px 0 0;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .analytics-header h2 { font-size:1.1rem; font-weight:800; display:flex; align-items:center; gap:8px; }
+    .analytics-body { padding:24px; }
+    .analytics-stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+    .analytics-stat-card { background:var(--bg-section); border-radius:12px; padding:16px; text-align:center; }
+    .analytics-stat-value { font-size:1.8rem; font-weight:800; color:var(--accent); }
+    .analytics-stat-label { font-size:0.72rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.3px; margin-top:4px; }
+    .analytics-chart-area { background:var(--bg-section); border-radius:12px; padding:20px; margin-bottom:20px; min-height:200px; }
+    .analytics-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+    .analytics-table th { background:var(--bg-section); padding:10px 12px; text-align:left; font-weight:700; color:var(--text-muted); text-transform:uppercase; font-size:0.68rem; }
+    .analytics-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; }
+    .analytics-table tr:hover td { background:rgba(11,79,108,0.02); }
+    .alert-settings { margin-top:16px; padding:14px; border:1px solid var(--border-primary); border-radius:10px; }
+    .alert-row { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:0.82rem; }
+    .dark .analytics-modal { background:#1e293b; }
+    .dark .analytics-stat-card { background:#0f172a; }
+    .dark .analytics-stat-value { color:#60a5fa; }
+    .dark .analytics-table th { background:#0f172a; }
+    .dark .analytics-table td { border-bottom-color:#334155; }
+
+    /* ===== AI Suggestions ===== */
+    .ai-suggestions-panel { margin-top:12px; }
+    .ai-suggestion-item {
+      display:flex; align-items:center; gap:8px; padding:8px 12px;
+      border:1px solid var(--border-primary); border-radius:8px; margin-bottom:6px;
+      cursor:pointer; transition:all var(--transition); font-size:0.82rem;
+    }
+    .ai-suggestion-item:hover { border-color:var(--accent); background:rgba(11,79,108,0.03); }
+    .ai-suggestion-item i { color:var(--accent); flex-shrink:0; }
+    .ai-loading { text-align:center; padding:16px; color:var(--text-muted); font-size:0.82rem; }
+    .ai-loading i { color:var(--accent); margin-right:6px; }
+
+    /* ===== Hosted Image Badge ===== */
+    .hosted-badge { display:inline-flex; align-items:center; gap:4px; font-size:0.65rem; font-weight:700; padding:2px 7px; border-radius:4px; background:linear-gradient(135deg,#059669,#34d399); color:#fff; vertical-align:middle; margin-left:4px; }
+    .hosted-badge.pending { background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#7c2d12; }
+    .hosted-badge.local { background:#e2e8f0; color:#64748b; }
+
+    /* ===== Tracking Toggle ===== */
+    .tracking-toggle-row { display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--bg-section); border-radius:8px; margin-top:10px; font-size:0.78rem; }
+    .tracking-toggle-row label { font-size:0.78rem; font-weight:600; color:var(--text-secondary); margin:0; text-transform:none; letter-spacing:0; }
+    .toggle-switch { position:relative; width:40px; height:22px; flex-shrink:0; }
+    .toggle-switch input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:var(--border-primary); border-radius:11px; cursor:pointer; transition:all var(--transition); }
+    .toggle-slider::before { content:''; position:absolute; width:16px; height:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:all var(--transition); }
+    .toggle-switch input:checked + .toggle-slider { background:var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform:translateX(18px); }
   </style>
 </head>
 <body>
@@ -632,11 +814,19 @@
       Signature Builder
     </a>
     <div class="top-bar-actions">
+      <div class="auth-bar" id="authBar" style="display:none;">
+        <span class="user-name" id="authUserName"></span>
+        <button class="btn btn-ghost btn-sm" id="btnSignOut" onclick="signOutUser()"><i class="fas fa-sign-out-alt"></i></button>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btnSignIn" onclick="openAuthOverlay()"><i class="fas fa-sign-in-alt"></i> <span>Sign In</span></button>
       <button class="btn btn-ghost btn-sm" data-testid="btn-save-config" onclick="saveConfig()"><i class="fas fa-save"></i> <span>Save</span></button>
+      <button class="btn btn-ghost btn-sm" onclick="saveConfigToCloud()" id="btnCloudSave" style="display:none;" title="Save to cloud"><i class="fas fa-cloud-upload-alt"></i> <span>Cloud</span></button>
       <button class="btn btn-ghost btn-sm" data-testid="btn-load-config" onclick="document.getElementById('loadConfigInput').click()"><i class="fas fa-folder-open"></i> <span>Load</span></button>
       <input type="file" id="loadConfigInput" accept=".json" hidden />
       <button class="btn btn-ghost btn-sm" data-testid="btn-export-config" onclick="exportConfig()"><i class="fas fa-download"></i> <span>Export</span></button>
       <button class="btn btn-ghost btn-sm" data-testid="btn-install-guide" onclick="openGuideModal()"><i class="fas fa-envelope-open-text"></i> <span>Install Guide</span></button>
+      <button class="btn btn-ghost btn-sm" id="btnAnalytics" onclick="openAnalytics()" style="display:none;" title="Signature Analytics"><i class="fas fa-chart-bar"></i> <span>Analytics</span></button>
+      <button class="btn btn-ghost btn-sm" id="btnAdmin" onclick="openAdminPanel()" style="display:none;" title="Team & Admin"><i class="fas fa-users-cog"></i> <span>Team</span></button>
       <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-size:0.78rem; color:var(--text-secondary);">
         <input type="checkbox" id="chkDark" style="width:16px;height:16px;" /> <i class="fas fa-moon" style="font-size:0.75rem;"></i>
       </label>
@@ -787,6 +977,65 @@
             </div>
           </div>
         </div>
+
+        <!-- CTA / Banner Module -->
+        <div class="card cta-section" style="padding:16px;">
+          <div class="card-title" style="margin-bottom:10px;">
+            <h2><i class="fas fa-bullhorn"></i> CTA &amp; Banner</h2>
+            <button class="btn btn-ghost btn-sm" onclick="toggleCTASection()" id="ctaToggleBtn"><i class="fas fa-chevron-down" id="ctaChevron"></i></button>
+          </div>
+          <div id="ctaSectionBody">
+            <div style="margin-bottom:10px;">
+              <label>CTA Button</label>
+              <div class="cta-row">
+                <input type="text" id="ctaButtonText" placeholder="Book a Meeting" oninput="updatePreview()">
+                <input type="url" id="ctaButtonUrl" placeholder="https://calendly.com/you" oninput="updatePreview()">
+              </div>
+              <div class="cta-row" style="margin-top:4px;">
+                <div class="color-picker-wrap"><label style="font-size:0.65rem;">BG</label><input type="color" id="ctaBgColor" value="#0b4f6c" oninput="updatePreview()"></div>
+                <div class="color-picker-wrap"><label style="font-size:0.65rem;">Text</label><input type="color" id="ctaTextColor" value="#ffffff" oninput="updatePreview()"></div>
+                <div style="flex:1;"></div>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label>Banner Image</label>
+              <div class="banner-upload-area" id="bannerUploadArea" onclick="document.getElementById('bannerFileInput').click()">
+                <div id="bannerPreview"><i class="fas fa-image"></i><br>Upload a promotional banner</div>
+              </div>
+              <input type="file" id="bannerFileInput" accept="image/*" hidden>
+              <input type="url" id="bannerLinkUrl" placeholder="Banner click-through URL" style="margin-top:6px; width:100%; padding:7px 10px; border:1.5px solid var(--border-primary); border-radius:6px; font-size:0.82rem;" oninput="updatePreview()">
+            </div>
+            <div style="margin-bottom:10px;">
+              <label>Disclaimer / Legal</label>
+              <input type="text" id="disclaimerText" placeholder="This email may contain confidential information..." oninput="updatePreview()">
+            </div>
+            <!-- Tracking toggle -->
+            <div class="tracking-toggle-row">
+              <label class="toggle-switch"><input type="checkbox" id="chkTracking" onchange="toggleTracking(this.checked)"><span class="toggle-slider"></span></label>
+              <label style="flex:1;">Enable click tracking on signature links</label>
+              <i class="fas fa-info-circle" style="color:var(--text-muted); cursor:help;" title="Wraps links through a redirect endpoint that logs clicks. Requires sign-in."></i>
+            </div>
+            <!-- AI Suggestions -->
+            <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" onclick="getAISuggestion('tagline')"><i class="fas fa-magic"></i> AI Tagline</button>
+              <button class="btn btn-ghost btn-sm" onclick="getAISuggestion('cta')"><i class="fas fa-magic"></i> AI CTA Ideas</button>
+              <button class="btn btn-ghost btn-sm" onclick="getAISuggestion('optimize')"><i class="fas fa-magic"></i> Optimize</button>
+            </div>
+            <div id="aiSuggestionsContainer" class="ai-suggestions-panel" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Validation Warnings -->
+        <div class="card" style="padding:0;" id="validationCard">
+          <div class="validation-panel">
+            <div class="validation-header" onclick="toggleValidation()">
+              <i class="fas fa-shield-alt"></i> <span>Signature Health Check</span>
+              <span style="margin-left:auto;" id="validationBadge"></span>
+              <i class="fas fa-chevron-down" id="valChevron" style="font-size:0.65rem; transition:transform 0.2s;"></i>
+            </div>
+            <div class="validation-body" id="validationBody" style="display:none;"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Preview Panel -->
@@ -914,7 +1163,796 @@
     </div>
   </div>
 
+  <!-- Auth Overlay -->
+  <div id="authOverlay" class="auth-overlay">
+    <div class="auth-box">
+      <h2><i class="fas fa-user-shield"></i> <span id="authTitle">Sign In</span></h2>
+      <p id="authSubtitle">Sign in to unlock cloud save, image hosting, team features &amp; analytics.</p>
+      <div id="authEmailForm">
+        <input type="email" id="authEmail" placeholder="Email address">
+        <input type="password" id="authPassword" placeholder="Password">
+        <button class="btn btn-primary" style="width:100%; margin-top:4px;" onclick="emailSignIn()"><i class="fas fa-sign-in-alt"></i> <span id="authActionBtn">Sign In</span></button>
+      </div>
+      <div class="auth-divider">or</div>
+      <button class="btn-google" onclick="googleSignIn()">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Continue with Google
+      </button>
+      <div class="auth-toggle">
+        <span id="authToggleText">Don't have an account?</span> <a id="authToggleLink" onclick="toggleAuthMode()">Create one</a>
+      </div>
+      <div style="text-align:center; margin-top:8px;">
+        <a style="font-size:0.72rem; color:var(--text-muted); cursor:pointer;" onclick="closeAuthOverlay()">Skip for now</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin / Team Panel (slides from right) -->
+  <div id="adminOverlay" class="admin-overlay" onclick="if(event.target===this)closeAdminPanel()">
+    <div class="admin-panel">
+      <div class="admin-panel-header">
+        <h2><i class="fas fa-users-cog"></i> Team &amp; Admin</h2>
+        <button class="admin-panel-close" onclick="closeAdminPanel()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="admin-panel-body">
+        <div class="admin-tabs">
+          <button class="admin-tab active" onclick="switchAdminTab('brand')">Brand Lock</button>
+          <button class="admin-tab" onclick="switchAdminTab('members')">Team Members</button>
+          <button class="admin-tab" onclick="switchAdminTab('bulk')">Bulk Generate</button>
+        </div>
+        <!-- Brand Settings Tab -->
+        <div class="admin-pane active" id="adminPane-brand">
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:14px;">Lock brand settings so team members can only edit their personal info.</p>
+          <div class="brand-field">
+            <div class="brand-lock-row"><input type="checkbox" id="lockLogo" style="width:16px;height:16px;"><label style="margin:0;font-size:0.82rem;">Lock company logo</label></div>
+          </div>
+          <div class="brand-field">
+            <div class="brand-lock-row"><input type="checkbox" id="lockColors" style="width:16px;height:16px;"><label style="margin:0;font-size:0.82rem;">Lock brand colors</label></div>
+          </div>
+          <div class="brand-field">
+            <div class="brand-lock-row"><input type="checkbox" id="lockIconStyle" style="width:16px;height:16px;"><label style="margin:0;font-size:0.82rem;">Lock icon style &amp; position</label></div>
+          </div>
+          <div class="brand-field">
+            <div class="brand-lock-row"><input type="checkbox" id="lockDisclaimer" style="width:16px;height:16px;"><label style="margin:0;font-size:0.82rem;">Lock disclaimer text</label></div>
+          </div>
+          <div class="brand-field">
+            <div class="brand-lock-row"><input type="checkbox" id="lockCTA" style="width:16px;height:16px;"><label style="margin:0;font-size:0.82rem;">Lock CTA button</label></div>
+          </div>
+          <div class="brand-field">
+            <label>Editable fields for team members:</label>
+            <div style="font-size:0.78rem; color:var(--text-secondary); line-height:1.8; margin-top:4px;">
+              <label style="display:inline-flex;gap:4px;margin-right:12px;"><input type="checkbox" id="editName" checked style="width:14px;height:14px;">Name</label>
+              <label style="display:inline-flex;gap:4px;margin-right:12px;"><input type="checkbox" id="editTitle" checked style="width:14px;height:14px;">Title</label>
+              <label style="display:inline-flex;gap:4px;margin-right:12px;"><input type="checkbox" id="editPhone" checked style="width:14px;height:14px;">Phone</label>
+              <label style="display:inline-flex;gap:4px;margin-right:12px;"><input type="checkbox" id="editEmail" checked style="width:14px;height:14px;">Email</label>
+              <label style="display:inline-flex;gap:4px;margin-right:12px;"><input type="checkbox" id="editPhoto" checked style="width:14px;height:14px;">Photo</label>
+              <label style="display:inline-flex;gap:4px;margin-right:12px;"><input type="checkbox" id="editSocial" checked style="width:14px;height:14px;">Social Links</label>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="saveBrandSettings()"><i class="fas fa-save"></i> Save Brand Settings</button>
+        </div>
+        <!-- Team Members Tab -->
+        <div class="admin-pane" id="adminPane-members">
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Manage team members who can generate signatures with your brand settings.</p>
+          <div style="display:flex; gap:6px; margin-bottom:12px;">
+            <input type="email" id="addMemberEmail" placeholder="team@company.com" style="flex:1;">
+            <button class="btn btn-primary btn-sm" onclick="addTeamMember()"><i class="fas fa-plus"></i> Add</button>
+          </div>
+          <div id="teamMembersList"></div>
+        </div>
+        <!-- Bulk Generate Tab -->
+        <div class="admin-pane" id="adminPane-bulk">
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:12px;">Upload a CSV or Excel file to generate signatures for your entire team.</p>
+          <div class="csv-drop-zone" id="csvDropZone" onclick="document.getElementById('csvFileInput').click()">
+            <i class="fas fa-file-csv"></i>
+            <div style="font-size:0.82rem; font-weight:600; color:var(--text-secondary);">Drop CSV / XLSX here or click to upload</div>
+            <div style="font-size:0.72rem; color:var(--text-muted); margin-top:4px;">Columns: Name, Title, Email, Phone, LinkedIn, etc.</div>
+          </div>
+          <input type="file" id="csvFileInput" accept=".csv,.xlsx,.xls" hidden>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="downloadCSVTemplate()"><i class="fas fa-download"></i> Download Template CSV</button>
+          <div id="bulkPreviewArea" style="margin-top:12px;"></div>
+          <button class="btn btn-success" style="width:100%;margin-top:12px;display:none;" id="btnBulkGenerate" onclick="bulkGenerateSignatures()"><i class="fas fa-magic"></i> Generate All Signatures</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analytics Dashboard Modal -->
+  <div id="analyticsOverlay" class="analytics-overlay" onclick="if(event.target===this)closeAnalytics()">
+    <div class="analytics-modal">
+      <div class="analytics-header">
+        <h2><i class="fas fa-chart-bar"></i> Signature Analytics</h2>
+        <button class="admin-panel-close" onclick="closeAnalytics()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="analytics-body">
+        <div class="analytics-stats" id="analyticsStats">
+          <div class="analytics-stat-card"><div class="analytics-stat-value" id="statTotalClicks">0</div><div class="analytics-stat-label">Total Clicks</div></div>
+          <div class="analytics-stat-card"><div class="analytics-stat-value" id="statToday">0</div><div class="analytics-stat-label">Today</div></div>
+          <div class="analytics-stat-card"><div class="analytics-stat-value" id="statTopLink">—</div><div class="analytics-stat-label">Top Link</div></div>
+          <div class="analytics-stat-card"><div class="analytics-stat-value" id="statSignatures">0</div><div class="analytics-stat-label">Active Signatures</div></div>
+        </div>
+        <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:12px;"><i class="fas fa-mouse-pointer" style="color:var(--accent);margin-right:6px;"></i> Recent Clicks</h3>
+        <div style="overflow-x:auto;">
+          <table class="analytics-table" id="analyticsTable">
+            <thead><tr><th>Time</th><th>Link Type</th><th>Signature</th><th>Destination</th></tr></thead>
+            <tbody id="analyticsTableBody"><tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No click data yet. Enable tracking and share your signature.</td></tr></tbody>
+          </table>
+        </div>
+        <div class="alert-settings" id="alertSettings">
+          <h4 style="font-size:0.85rem; font-weight:700; margin-bottom:8px;"><i class="fas fa-bell" style="color:var(--accent);margin-right:6px;"></i> Alert Settings</h4>
+          <div class="alert-row">
+            <label class="toggle-switch"><input type="checkbox" id="alertDaily"><span class="toggle-slider"></span></label>
+            <span>Daily click summary email</span>
+          </div>
+          <div class="alert-row">
+            <label class="toggle-switch"><input type="checkbox" id="alertMilestone"><span class="toggle-slider"></span></label>
+            <span>Milestone alerts (every 100 clicks)</span>
+          </div>
+          <input type="email" id="alertEmail" placeholder="Alert email address" style="width:100%; margin-top:8px; padding:8px 12px; border:1.5px solid var(--border-primary); border-radius:8px; font-size:0.82rem;">
+          <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="saveAlertSettings()"><i class="fas fa-save"></i> Save Alerts</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // ===================================================================
+    // FIREBASE INIT + AUTH + CLOUD STORAGE
+    // ===================================================================
+    const firebaseConfig = {
+      apiKey: 'AIzaSyBupprzs7nXLXXa29T9z3aJcq_7kjm03-U',
+      authDomain: 'career-solutions-project-tool.firebaseapp.com',
+      projectId: 'career-solutions-project-tool',
+      storageBucket: 'career-solutions-project-tool.firebasestorage.app',
+      messagingSenderId: '834959161768',
+      appId: '1:834959161768:web:d9b653a7039e865c1e859d'
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    const SITE_BASE = 'https://www.careersolutionsfortoday.com';
+    const API_BASE = SITE_BASE + '/api';
+
+    let currentUser = null;
+    let currentTenantId = null;
+    let currentRole = 'viewer';
+    let isAuthMode = 'signin'; // signin | signup
+    let trackingEnabled = false;
+    let brandSettings = null;
+    let teamMembers = [];
+    let bulkData = [];
+
+    // ── Auth State Listener ──
+    auth.onAuthStateChanged(function(user) {
+      currentUser = user;
+      if (user) {
+        // Look up tenant from users collection
+        db.collection('users').doc(user.uid).get().then(function(doc) {
+          if (doc.exists) {
+            currentTenantId = doc.data().tenantId || 'default';
+            currentRole = doc.data().role || 'member';
+          } else {
+            // First time — create user doc with default tenant
+            currentTenantId = 'sig-' + user.uid.substring(0, 8);
+            currentRole = 'admin';
+            db.collection('users').doc(user.uid).set({
+              tenantId: currentTenantId,
+              role: 'admin',
+              displayName: user.displayName || '',
+              email: user.email || '',
+              photoURL: user.photoURL || '',
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(function(){});
+          }
+          onAuthReady();
+        }).catch(function() {
+          currentTenantId = 'sig-' + user.uid.substring(0, 8);
+          currentRole = 'admin';
+          onAuthReady();
+        });
+      } else {
+        onAuthSignedOut();
+      }
+    });
+
+    function onAuthReady() {
+      document.getElementById('btnSignIn').style.display = 'none';
+      document.getElementById('authBar').style.display = 'flex';
+      document.getElementById('authUserName').textContent = currentUser.displayName || currentUser.email || 'User';
+      document.getElementById('btnCloudSave').style.display = '';
+      document.getElementById('btnAnalytics').style.display = '';
+      if (currentRole === 'admin') document.getElementById('btnAdmin').style.display = '';
+      closeAuthOverlay();
+      loadCloudConfig();
+      loadBrandSettings();
+      loadTeamMembers();
+    }
+
+    function onAuthSignedOut() {
+      document.getElementById('btnSignIn').style.display = '';
+      document.getElementById('authBar').style.display = 'none';
+      document.getElementById('btnCloudSave').style.display = 'none';
+      document.getElementById('btnAnalytics').style.display = 'none';
+      document.getElementById('btnAdmin').style.display = 'none';
+      currentUser = null;
+      currentTenantId = null;
+      currentRole = 'viewer';
+    }
+
+    function openAuthOverlay() { document.getElementById('authOverlay').classList.add('active'); }
+    function closeAuthOverlay() { document.getElementById('authOverlay').classList.remove('active'); }
+
+    function toggleAuthMode() {
+      isAuthMode = isAuthMode === 'signin' ? 'signup' : 'signin';
+      document.getElementById('authTitle').textContent = isAuthMode === 'signin' ? 'Sign In' : 'Create Account';
+      document.getElementById('authActionBtn').textContent = isAuthMode === 'signin' ? 'Sign In' : 'Create Account';
+      document.getElementById('authToggleText').textContent = isAuthMode === 'signin' ? "Don't have an account?" : 'Already have an account?';
+      document.getElementById('authToggleLink').textContent = isAuthMode === 'signin' ? 'Create one' : 'Sign in';
+    }
+
+    function emailSignIn() {
+      var email = document.getElementById('authEmail').value.trim();
+      var password = document.getElementById('authPassword').value;
+      if (!email || !password) return toast('Enter email and password');
+      if (isAuthMode === 'signup') {
+        auth.createUserWithEmailAndPassword(email, password).then(function() { toast('Account created!'); }).catch(function(e) { toast(e.message); });
+      } else {
+        auth.signInWithEmailAndPassword(email, password).then(function() { toast('Signed in!'); }).catch(function(e) { toast(e.message); });
+      }
+    }
+
+    function googleSignIn() {
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(function() { toast('Signed in with Google!'); }).catch(function(e) { toast(e.message); });
+    }
+
+    function signOutUser() {
+      auth.signOut().then(function() { toast('Signed out'); });
+    }
+
+    // ── Cloud Save / Load ──
+    function saveConfigToCloud() {
+      if (!currentUser || !currentTenantId) return openAuthOverlay();
+      var data = getConfigData();
+      // Remove base64 images from cloud save (use hosted URLs instead)
+      var cloudData = Object.assign({}, data);
+      if (cloudData.images) {
+        cloudData.images = { profile: hostedImages.profile || data.images.profile, logo: hostedImages.logo || data.images.logo };
+      }
+      cloudData.ctaConfig = getCTAConfig();
+      cloudData.trackingEnabled = trackingEnabled;
+      cloudData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      db.collection('tenants').doc(currentTenantId).collection('signatureConfigs').doc('default').set(cloudData)
+        .then(function() { toast('Saved to cloud'); })
+        .catch(function(e) { toast('Cloud save failed: ' + e.message); });
+    }
+
+    function loadCloudConfig() {
+      if (!currentTenantId) return;
+      db.collection('tenants').doc(currentTenantId).collection('signatureConfigs').doc('default').get()
+        .then(function(doc) {
+          if (doc.exists) {
+            var data = doc.data();
+            applyConfigData(data);
+            if (data.ctaConfig) applyCTAConfig(data.ctaConfig);
+            if (data.trackingEnabled) {
+              trackingEnabled = true;
+              var chk = document.getElementById('chkTracking');
+              if (chk) chk.checked = true;
+            }
+            toast('Loaded from cloud');
+          }
+        }).catch(function(){});
+    }
+
+    // ── Firebase Storage Upload (Image Hosting) ──
+    var hostedImages = { profile: null, logo: null };
+
+    function uploadImageToStorage(dataUrl, imageKey) {
+      if (!currentUser) return Promise.resolve(dataUrl); // Not signed in — keep base64
+      return new Promise(function(resolve) {
+        try {
+          var byteString = atob(dataUrl.split(',')[1]);
+          var mimeMatch = dataUrl.match(/data:([^;]+)/);
+          var mime = mimeMatch ? mimeMatch[1] : 'image/png';
+          var ext = mime.split('/')[1] || 'png';
+          var ab = new ArrayBuffer(byteString.length);
+          var ia = new Uint8Array(ab);
+          for (var i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+          var blob = new Blob([ab], { type: mime });
+          var path = 'signature-images/' + (currentTenantId || currentUser.uid) + '/' + currentUser.uid + '/' + Date.now() + '_' + imageKey + '.' + ext;
+          var ref = storage.ref(path);
+          ref.put(blob).then(function(snap) {
+            return snap.ref.getDownloadURL();
+          }).then(function(url) {
+            hostedImages[imageKey] = url;
+            updateImageBadge(imageKey, 'hosted');
+            resolve(url);
+          }).catch(function(e) {
+            console.error('Upload failed:', e);
+            updateImageBadge(imageKey, 'local');
+            resolve(dataUrl);
+          });
+        } catch (e) {
+          console.error('Upload encode error:', e);
+          resolve(dataUrl);
+        }
+      });
+    }
+
+    function updateImageBadge(key, status) {
+      var areaId = key === 'profile' ? 'uaProfile' : 'uaLogo';
+      var area = document.getElementById(areaId);
+      var existing = area.querySelector('.hosted-badge');
+      if (existing) existing.remove();
+      if (status === 'hosted') {
+        var badge = document.createElement('span');
+        badge.className = 'hosted-badge';
+        badge.innerHTML = '<i class="fas fa-cloud"></i> Hosted';
+        area.appendChild(badge);
+      } else if (status === 'local') {
+        var badge = document.createElement('span');
+        badge.className = 'hosted-badge local';
+        badge.innerHTML = '<i class="fas fa-desktop"></i> Local';
+        area.appendChild(badge);
+      }
+    }
+
+    // ── Brand Settings ──
+    function saveBrandSettings() {
+      if (!currentUser || !currentTenantId || currentRole !== 'admin') return toast('Admin access required');
+      brandSettings = {
+        lockLogo: document.getElementById('lockLogo').checked,
+        lockColors: document.getElementById('lockColors').checked,
+        lockIconStyle: document.getElementById('lockIconStyle').checked,
+        lockDisclaimer: document.getElementById('lockDisclaimer').checked,
+        lockCTA: document.getElementById('lockCTA').checked,
+        editableFields: {
+          name: document.getElementById('editName').checked,
+          title: document.getElementById('editTitle').checked,
+          phone: document.getElementById('editPhone').checked,
+          email: document.getElementById('editEmail').checked,
+          photo: document.getElementById('editPhoto').checked,
+          social: document.getElementById('editSocial').checked
+        }
+      };
+      db.collection('tenants').doc(currentTenantId).collection('settings').doc('signatureBrand').set(brandSettings)
+        .then(function() { toast('Brand settings saved'); })
+        .catch(function(e) { toast('Save failed: ' + e.message); });
+    }
+
+    function loadBrandSettings() {
+      if (!currentTenantId) return;
+      db.collection('tenants').doc(currentTenantId).collection('settings').doc('signatureBrand').get()
+        .then(function(doc) {
+          if (!doc.exists) return;
+          brandSettings = doc.data();
+          if (brandSettings.lockLogo) document.getElementById('lockLogo').checked = true;
+          if (brandSettings.lockColors) document.getElementById('lockColors').checked = true;
+          if (brandSettings.lockIconStyle) document.getElementById('lockIconStyle').checked = true;
+          if (brandSettings.lockDisclaimer) document.getElementById('lockDisclaimer').checked = true;
+          if (brandSettings.lockCTA) document.getElementById('lockCTA').checked = true;
+          if (brandSettings.editableFields) {
+            var ef = brandSettings.editableFields;
+            document.getElementById('editName').checked = ef.name !== false;
+            document.getElementById('editTitle').checked = ef.title !== false;
+            document.getElementById('editPhone').checked = ef.phone !== false;
+            document.getElementById('editEmail').checked = ef.email !== false;
+            document.getElementById('editPhoto').checked = ef.photo !== false;
+            document.getElementById('editSocial').checked = ef.social !== false;
+          }
+        }).catch(function(){});
+    }
+
+    // ── Team Members ──
+    function addTeamMember() {
+      var email = document.getElementById('addMemberEmail').value.trim();
+      if (!email || !currentTenantId) return toast('Enter an email');
+      if (!currentUser || currentRole !== 'admin') return toast('Admin access required');
+      db.collection('tenants').doc(currentTenantId).collection('signatureTeam').add({
+        email: email,
+        addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        addedBy: currentUser.uid
+      }).then(function() {
+        document.getElementById('addMemberEmail').value = '';
+        loadTeamMembers();
+        toast('Member added');
+      }).catch(function(e) { toast('Failed: ' + e.message); });
+    }
+
+    function removeTeamMember(docId) {
+      if (!currentTenantId || currentRole !== 'admin') return;
+      db.collection('tenants').doc(currentTenantId).collection('signatureTeam').doc(docId).delete()
+        .then(function() { loadTeamMembers(); toast('Member removed'); })
+        .catch(function(e) { toast('Failed: ' + e.message); });
+    }
+
+    function loadTeamMembers() {
+      if (!currentTenantId) return;
+      db.collection('tenants').doc(currentTenantId).collection('signatureTeam').orderBy('addedAt', 'desc').get()
+        .then(function(snap) {
+          teamMembers = [];
+          var container = document.getElementById('teamMembersList');
+          container.innerHTML = '';
+          snap.forEach(function(doc) {
+            var d = doc.data();
+            teamMembers.push({ id: doc.id, email: d.email });
+            var initials = d.email.substring(0, 2).toUpperCase();
+            container.innerHTML += '<div class="team-member-card"><div class="team-member-avatar">' + initials + '</div><div class="team-member-info"><div class="team-member-name">' + escHTML(d.email) + '</div></div><div class="team-member-actions"><button class="btn btn-ghost btn-sm" onclick="removeTeamMember(\'' + doc.id + '\')"><i class="fas fa-trash"></i></button></div></div>';
+          });
+          if (snap.empty) container.innerHTML = '<p style="font-size:0.78rem;color:var(--text-muted);text-align:center;padding:12px;">No team members yet.</p>';
+        }).catch(function(){});
+    }
+
+    // ── Admin Panel ──
+    function openAdminPanel() { document.getElementById('adminOverlay').classList.add('active'); }
+    function closeAdminPanel() { document.getElementById('adminOverlay').classList.remove('active'); }
+    function switchAdminTab(tab) {
+      document.querySelectorAll('.admin-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.admin-pane').forEach(function(p) { p.classList.remove('active'); });
+      event.currentTarget.classList.add('active');
+      document.getElementById('adminPane-' + tab).classList.add('active');
+    }
+
+    // ── CSV / Bulk Import ──
+    function downloadCSVTemplate() {
+      var csv = 'Full Name,Job Title,Email,Phone,LinkedIn,Department\nJohn Doe,Senior Developer,john@company.com,+1 555-0100,https://linkedin.com/in/john,Engineering\nJane Smith,Product Manager,jane@company.com,+1 555-0200,https://linkedin.com/in/jane,Product';
+      var blob = new Blob([csv], { type: 'text/csv' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'signature-team-template.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('Template downloaded');
+    }
+
+    function handleBulkFile(e) {
+      var file = e.target.files[0]; if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        try {
+          var workbook = XLSX.read(ev.target.result, { type: 'binary' });
+          var sheet = workbook.Sheets[workbook.SheetNames[0]];
+          bulkData = XLSX.utils.sheet_to_json(sheet);
+          renderBulkPreview();
+        } catch (err) { toast('Failed to parse file'); }
+      };
+      reader.readAsBinaryString(file);
+    }
+
+    function renderBulkPreview() {
+      if (!bulkData.length) return;
+      var area = document.getElementById('bulkPreviewArea');
+      var cols = Object.keys(bulkData[0]);
+      var html = '<div style="font-size:0.78rem;font-weight:600;margin-bottom:6px;">' + bulkData.length + ' records found</div>';
+      html += '<div style="overflow-x:auto;"><table class="bulk-preview-table"><thead><tr>' + cols.map(function(c) { return '<th>' + escHTML(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+      bulkData.slice(0, 10).forEach(function(row) {
+        html += '<tr>' + cols.map(function(c) { return '<td>' + escHTML(String(row[c] || '')) + '</td>'; }).join('') + '</tr>';
+      });
+      if (bulkData.length > 10) html += '<tr><td colspan="' + cols.length + '" style="text-align:center;color:var(--text-muted);">... and ' + (bulkData.length - 10) + ' more</td></tr>';
+      html += '</tbody></table></div>';
+      area.innerHTML = html;
+      document.getElementById('btnBulkGenerate').style.display = 'block';
+    }
+
+    function bulkGenerateSignatures() {
+      if (!bulkData.length) return;
+      var results = [];
+      var columnMap = guessColumnMapping(bulkData[0]);
+      bulkData.forEach(function(row) {
+        var fields = [];
+        if (columnMap.name) fields.push({ id: '1', label: 'Full Name', value: String(row[columnMap.name] || ''), type: 'text' });
+        if (columnMap.title) fields.push({ id: '2', label: 'Job Title', value: String(row[columnMap.title] || ''), type: 'text' });
+        if (columnMap.email) fields.push({ id: '3', label: 'Email', value: String(row[columnMap.email] || ''), type: 'email' });
+        if (columnMap.phone) fields.push({ id: '4', label: 'Phone', value: String(row[columnMap.phone] || ''), type: 'tel' });
+        if (columnMap.dept) fields.push({ id: '5', label: 'Department', value: String(row[columnMap.dept] || ''), type: 'text' });
+        var socials = { instagram:'', facebook:'', linkedin:'', website:'', youtube:'', github:'', tiktok:'' };
+        if (columnMap.linkedin) socials.linkedin = String(row[columnMap.linkedin] || '');
+        if (columnMap.website) socials.website = String(row[columnMap.website] || '');
+        // Build signature HTML using this person's fields
+        var origFields = textFields;
+        var origSocials = socialLinks;
+        textFields = fields;
+        socialLinks = socials;
+        var html = buildTables();
+        results.push({ name: row[columnMap.name] || 'Unknown', html: html });
+        textFields = origFields;
+        socialLinks = origSocials;
+      });
+      // Download as a zip-like HTML bundle
+      var fullHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Bulk Signatures</title><style>body{font-family:Arial,sans-serif;padding:20px;}.sig-block{border:1px solid #ddd;padding:20px;margin:20px 0;border-radius:8px;} .sig-name{font-weight:bold;margin-bottom:8px;font-size:16px;} .copy-btn{background:#0b4f6c;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px;} .copy-btn:hover{background:#0ea5e9;}</style></head><body><h1>Team Signatures</h1><p>Generated ' + results.length + ' signatures</p>';
+      results.forEach(function(r, i) {
+        fullHtml += '<div class="sig-block"><div class="sig-name">' + escHTML(r.name) + '</div><div id="sig' + i + '">' + r.html + '</div><button class="copy-btn" onclick="var t=document.getElementById(\'sig' + i + '\').innerHTML;navigator.clipboard.writeText(t);this.textContent=\'Copied!\';">Copy HTML</button></div>';
+      });
+      fullHtml += '</body></html>';
+      var blob = new Blob([fullHtml], { type: 'text/html' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'team-signatures.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('Generated ' + results.length + ' signatures');
+    }
+
+    function guessColumnMapping(firstRow) {
+      var map = {};
+      var keys = Object.keys(firstRow);
+      keys.forEach(function(k) {
+        var kl = k.toLowerCase();
+        if (kl.includes('name') && !map.name) map.name = k;
+        else if ((kl.includes('title') || kl.includes('position') || kl.includes('role')) && !map.title) map.title = k;
+        else if (kl.includes('email') && !map.email) map.email = k;
+        else if ((kl.includes('phone') || kl.includes('mobile') || kl.includes('tel')) && !map.phone) map.phone = k;
+        else if ((kl.includes('dept') || kl.includes('department')) && !map.dept) map.dept = k;
+        else if (kl.includes('linkedin') && !map.linkedin) map.linkedin = k;
+        else if ((kl.includes('website') || kl.includes('web') || kl.includes('url')) && !map.website) map.website = k;
+      });
+      return map;
+    }
+
+    // ── Analytics ──
+    function openAnalytics() {
+      document.getElementById('analyticsOverlay').classList.add('active');
+      loadAnalyticsData();
+    }
+    function closeAnalytics() { document.getElementById('analyticsOverlay').classList.remove('active'); }
+
+    function loadAnalyticsData() {
+      if (!currentUser) return;
+      var sigId = currentTenantId || currentUser.uid;
+      db.collection('signatureClicks').where('signatureId', '==', sigId).orderBy('timestamp', 'desc').limit(200).get()
+        .then(function(snap) {
+          var total = snap.size;
+          var today = 0;
+          var typeCounts = {};
+          var now = new Date();
+          var startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          var rows = [];
+          snap.forEach(function(doc) {
+            var d = doc.data();
+            var ts = d.timestamp ? d.timestamp.toDate() : new Date();
+            if (ts.getTime() >= startOfDay) today++;
+            var lt = d.linkType || 'unknown';
+            typeCounts[lt] = (typeCounts[lt] || 0) + 1;
+            rows.push({ time: ts, type: lt, sig: d.signatureId, dest: d.redirectUrl || '' });
+          });
+          document.getElementById('statTotalClicks').textContent = total;
+          document.getElementById('statToday').textContent = today;
+          var topLink = '—';
+          var topCount = 0;
+          Object.keys(typeCounts).forEach(function(k) { if (typeCounts[k] > topCount) { topCount = typeCounts[k]; topLink = k; } });
+          document.getElementById('statTopLink').textContent = topLink;
+          // Count active signatures
+          if (currentTenantId) {
+            db.collection('tenants').doc(currentTenantId).collection('signatureConfigs').get()
+              .then(function(s) { document.getElementById('statSignatures').textContent = s.size; })
+              .catch(function(){});
+          }
+          // Render table
+          var tbody = document.getElementById('analyticsTableBody');
+          if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No click data yet. Enable tracking and share your signature.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = rows.slice(0, 50).map(function(r) {
+            var timeStr = r.time.toLocaleDateString() + ' ' + r.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            var destShort = r.dest.length > 40 ? r.dest.substring(0, 40) + '...' : r.dest;
+            return '<tr><td>' + timeStr + '</td><td><span class="status-badge" style="background:rgba(11,79,108,0.1);color:var(--accent);">' + escHTML(r.type) + '</span></td><td>' + escHTML(r.sig).substring(0, 12) + '</td><td><a href="' + escHTML(r.dest) + '" target="_blank" rel="noopener" style="color:var(--accent);">' + escHTML(destShort) + '</a></td></tr>';
+          }).join('');
+        }).catch(function(e) { console.error('Analytics load error:', e); });
+    }
+
+    function saveAlertSettings() {
+      if (!currentUser || !currentTenantId) return toast('Sign in required');
+      var settings = {
+        dailySummary: document.getElementById('alertDaily').checked,
+        milestoneAlerts: document.getElementById('alertMilestone').checked,
+        alertEmail: document.getElementById('alertEmail').value.trim() || currentUser.email
+      };
+      db.collection('tenants').doc(currentTenantId).collection('settings').doc('signatureAlerts').set(settings)
+        .then(function() { toast('Alert settings saved'); })
+        .catch(function(e) { toast('Save failed: ' + e.message); });
+    }
+
+    // ── CTA / Banner ──
+    var ctaConfig = { buttonText: '', buttonUrl: '', bgColor: '#0b4f6c', textColor: '#ffffff', bannerImage: null, bannerLink: '', disclaimer: '' };
+
+    function getCTAConfig() {
+      return {
+        buttonText: document.getElementById('ctaButtonText').value,
+        buttonUrl: document.getElementById('ctaButtonUrl').value,
+        bgColor: document.getElementById('ctaBgColor').value,
+        textColor: document.getElementById('ctaTextColor').value,
+        bannerImage: ctaConfig.bannerImage,
+        bannerLink: document.getElementById('bannerLinkUrl').value,
+        disclaimer: document.getElementById('disclaimerText').value
+      };
+    }
+
+    function applyCTAConfig(cfg) {
+      if (!cfg) return;
+      ctaConfig = cfg;
+      document.getElementById('ctaButtonText').value = cfg.buttonText || '';
+      document.getElementById('ctaButtonUrl').value = cfg.buttonUrl || '';
+      document.getElementById('ctaBgColor').value = cfg.bgColor || '#0b4f6c';
+      document.getElementById('ctaTextColor').value = cfg.textColor || '#ffffff';
+      document.getElementById('bannerLinkUrl').value = cfg.bannerLink || '';
+      document.getElementById('disclaimerText').value = cfg.disclaimer || '';
+      if (cfg.bannerImage) {
+        ctaConfig.bannerImage = cfg.bannerImage;
+        document.getElementById('bannerPreview').innerHTML = '<img src="' + cfg.bannerImage + '" class="banner-preview" alt="" />';
+        document.getElementById('bannerUploadArea').classList.add('has-banner');
+      }
+    }
+
+    function toggleCTASection() {
+      var body = document.getElementById('ctaSectionBody');
+      var chevron = document.getElementById('ctaChevron');
+      var isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? '' : 'none';
+      chevron.style.transform = isHidden ? '' : 'rotate(-90deg)';
+    }
+
+    // Banner upload handling
+    document.getElementById('bannerFileInput').addEventListener('change', function(e) {
+      var file = e.target.files[0]; if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(ev) {
+        ctaConfig.bannerImage = ev.target.result;
+        document.getElementById('bannerPreview').innerHTML = '<img src="' + ev.target.result + '" class="banner-preview" alt="" />';
+        document.getElementById('bannerUploadArea').classList.add('has-banner');
+        // Upload to storage if signed in
+        if (currentUser) {
+          uploadImageToStorage(ev.target.result, 'banner').then(function(url) {
+            ctaConfig.bannerImage = url;
+            updatePreview();
+          });
+        }
+        updatePreview();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // ── Tracking Toggle ──
+    function toggleTracking(enabled) {
+      if (enabled && !currentUser) {
+        document.getElementById('chkTracking').checked = false;
+        openAuthOverlay();
+        toast('Sign in to enable tracking');
+        return;
+      }
+      trackingEnabled = enabled;
+      updatePreview();
+      toast(enabled ? 'Click tracking enabled' : 'Click tracking disabled');
+    }
+
+    function wrapTrackingUrl(originalUrl, linkType) {
+      if (!trackingEnabled || !currentTenantId) return originalUrl;
+      var sigId = currentTenantId;
+      return API_BASE + '/signature-track?sig=' + encodeURIComponent(sigId) + '&type=' + encodeURIComponent(linkType) + '&redirect=' + encodeURIComponent(originalUrl);
+    }
+
+    // ── AI Suggestions ──
+    function getAISuggestion(mode) {
+      if (!currentUser) { openAuthOverlay(); toast('Sign in to use AI features'); return; }
+      var container = document.getElementById('aiSuggestionsContainer');
+      container.style.display = 'block';
+      container.innerHTML = '<div class="ai-loading"><i class="fas fa-spinner fa-spin"></i> Generating suggestions...</div>';
+      var reqBody = { fields: textFields, socialLinks: socialLinks, mode: mode };
+      fetch(API_BASE + '/signature-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reqBody)
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (!data.success || !data.suggestions) {
+          container.innerHTML = '<div class="ai-loading" style="color:var(--danger);">Failed to get suggestions. Try again.</div>';
+          return;
+        }
+        var html = '';
+        data.suggestions.forEach(function(s) {
+          if (typeof s === 'string') {
+            html += '<div class="ai-suggestion-item" onclick="applyAISuggestion(this)"><i class="fas fa-magic"></i><span>' + escHTML(s) + '</span></div>';
+          } else if (s.text) {
+            html += '<div class="ai-suggestion-item" onclick="applyAISuggestion(this, \'cta\', \'' + escHTML(s.text) + '\')"><i class="fas fa-magic"></i><span><strong>' + escHTML(s.text) + '</strong> — ' + escHTML(s.description || '') + '</span></div>';
+          } else if (s.tip) {
+            html += '<div class="ai-suggestion-item"><i class="fas fa-lightbulb"></i><span><strong>' + escHTML(s.tip) + '</strong> — ' + escHTML(s.detail || '') + '</span></div>';
+          }
+        });
+        container.innerHTML = html || '<div class="ai-loading">No suggestions returned.</div>';
+      }).catch(function(e) {
+        container.innerHTML = '<div class="ai-loading" style="color:var(--danger);">Error: ' + escHTML(e.message) + '</div>';
+      });
+    }
+
+    function applyAISuggestion(el, type, value) {
+      if (type === 'cta' && value) {
+        document.getElementById('ctaButtonText').value = value;
+        updatePreview();
+        toast('CTA applied: ' + value);
+      } else {
+        var text = el.querySelector('span').textContent;
+        // Add as a tagline field if it doesn't exist
+        var hasTagline = textFields.some(function(f) { return f.label.toLowerCase().includes('tagline'); });
+        if (hasTagline) {
+          textFields.forEach(function(f) { if (f.label.toLowerCase().includes('tagline')) f.value = text; });
+        } else {
+          textFields.push({ id: Date.now().toString(), label: 'Tagline', value: text, type: 'text' });
+        }
+        renderTextFields();
+        updatePreview();
+        toast('Applied');
+      }
+    }
+
+    // ── Validation / Health Check ──
+    function toggleValidation() {
+      var body = document.getElementById('validationBody');
+      var chevron = document.getElementById('valChevron');
+      var isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? 'block' : 'none';
+      chevron.style.transform = isHidden ? 'rotate(180deg)' : '';
+      if (isHidden) runValidation();
+    }
+
+    function runValidation() {
+      var issues = [];
+      // Check image sizes
+      if (images.profile) {
+        var img = new Image();
+        img.src = images.profile;
+        if (images.profile.length > 200000) issues.push({ type: 'warn', msg: 'Profile photo is large (' + Math.round(images.profile.length / 1024) + 'KB). Consider using hosted images (sign in) for smaller signatures.' });
+      }
+      if (images.logo) {
+        if (images.logo.length > 200000) issues.push({ type: 'warn', msg: 'Logo is large (' + Math.round(images.logo.length / 1024) + 'KB). Consider using hosted images.' });
+      }
+      // Check too many icons
+      var activeIcons = socialOrder.filter(function(k) { return socialLinks[k] && socialLinks[k].trim(); });
+      if (activeIcons.length > 5) issues.push({ type: 'warn', msg: 'You have ' + activeIcons.length + ' social icons. More than 5 can look cluttered in some email clients.' });
+      // Check field text length
+      textFields.forEach(function(f) {
+        if (f.value.length > 100) issues.push({ type: 'warn', msg: '"' + f.label + '" is very long (' + f.value.length + ' chars). Consider shortening for cleaner display.' });
+      });
+      // Validate URLs
+      socialOrder.forEach(function(k) {
+        var url = socialLinks[k];
+        if (url && url.trim() && !url.match(/^https?:\/\//i)) issues.push({ type: 'error', msg: k.charAt(0).toUpperCase() + k.slice(1) + ' URL should start with https://' });
+      });
+      // Validate email fields
+      textFields.forEach(function(f) {
+        if ((f.type === 'email' || f.label.toLowerCase().includes('email')) && f.value.trim()) {
+          if (!f.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) issues.push({ type: 'error', msg: '"' + f.label + '" doesn\'t look like a valid email address.' });
+        }
+      });
+      // Validate phone
+      textFields.forEach(function(f) {
+        if ((f.type === 'tel' || f.label.toLowerCase().includes('phone')) && f.value.trim()) {
+          if (!f.value.match(/^[+\d\s()./-]+$/) || f.value.replace(/\D/g, '').length < 7) issues.push({ type: 'warn', msg: '"' + f.label + '" may not be a valid phone number.' });
+        }
+      });
+      // Check base64 vs hosted
+      if (images.profile && !hostedImages.profile) issues.push({ type: 'info', msg: 'Profile photo uses base64 encoding. Sign in to upload to cloud for better email delivery.' });
+      if (images.logo && !hostedImages.logo) issues.push({ type: 'info', msg: 'Logo uses base64 encoding. Sign in to upload to cloud for lighter signatures.' });
+      // Gmail vs Outlook notes
+      issues.push({ type: 'info', msg: 'Gmail may strip some formatting. Outlook desktop has best table rendering. Test in both clients.' });
+      if (!issues.some(function(i) { return i.type === 'error' || i.type === 'warn'; })) {
+        issues.unshift({ type: 'ok', msg: 'Your signature looks healthy! No critical issues found.' });
+      }
+      // Render
+      var body = document.getElementById('validationBody');
+      var iconMap = { error: 'fa-circle-xmark', warn: 'fa-triangle-exclamation', ok: 'fa-circle-check', info: 'fa-circle-info' };
+      body.innerHTML = issues.map(function(i) {
+        return '<div class="val-item ' + i.type + '"><i class="fas ' + iconMap[i.type] + '"></i><span>' + i.msg + '</span></div>';
+      }).join('');
+      // Badge
+      var errors = issues.filter(function(i) { return i.type === 'error'; }).length;
+      var warnings = issues.filter(function(i) { return i.type === 'warn'; }).length;
+      var badge = document.getElementById('validationBadge');
+      if (errors) badge.innerHTML = '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">' + errors + ' error' + (errors > 1 ? 's' : '') + '</span>';
+      else if (warnings) badge.innerHTML = '<span style="background:#fef3c7;color:#d97706;padding:2px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">' + warnings + ' warning' + (warnings > 1 ? 's' : '') + '</span>';
+      else badge.innerHTML = '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:10px;font-size:0.68rem;font-weight:700;">All good</span>';
+    }
+
     // ===== Hosted Icon URLs =====
     const ICON_BASE = 'https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/Signature%20Icons/';
 
@@ -1105,7 +2143,7 @@
 
     // ===== Save / Load / Export =====
     function getConfigData() {
-      return { textFields, socialLinks, socialOrder, iconStyle, iconPosition, photoSize, showIconBorders, showPhotoBorder, removeBorders, images, currentIconAnim };
+      return { textFields, socialLinks, socialOrder, iconStyle, iconPosition, photoSize, showIconBorders, showPhotoBorder, removeBorders, images, currentIconAnim, ctaConfig: getCTAConfig(), trackingEnabled: typeof trackingEnabled !== 'undefined' ? trackingEnabled : false };
     }
 
     function applyConfigData(data) {
@@ -1130,6 +2168,12 @@
           $('#logoPreview').innerHTML = '<img src="' + images.logo + '" class="image-preview" alt="" />';
           $('#uaLogo').classList.add('has-image');
         }
+      }
+      if (data.ctaConfig) applyCTAConfig(data.ctaConfig);
+      if (typeof data.trackingEnabled === 'boolean') {
+        trackingEnabled = data.trackingEnabled;
+        var toggle = document.getElementById('trackingToggle');
+        if (toggle) toggle.checked = trackingEnabled;
       }
       renderTextFields(); renderSocialFields(); updatePreview();
     }
@@ -1319,6 +2363,19 @@
             if(imagesKey === 'profile') $('#photoSizeControl').style.display = 'block';
             updatePreview();
             toast('Animated GIF loaded');
+            // Upload GIF to Firebase Storage if signed in
+            if (currentUser) {
+              updateImageBadge(imagesKey, 'pending');
+              uploadImageToStorage(ev.target.result, imagesKey).then(function(url) {
+                if (url !== ev.target.result) {
+                  images[imagesKey] = url;
+                  updatePreview();
+                  toast(imagesKey + ' hosted on cloud');
+                }
+              });
+            } else {
+              updateImageBadge(imagesKey, 'local');
+            }
           } else {
             const img = new Image();
             img.onload = function() { openCropModal(img, imagesKey, previewId, boxId); };
@@ -1408,11 +2465,28 @@
     function applyCrop() {
       const oc = document.createElement('canvas'); const os = 800; oc.width = os; oc.height = os;
       oc.getContext('2d', {alpha:true}).drawImage(cropState.image, cropState.cropX/cropState.scale, cropState.cropY/cropState.scale, cropState.cropSize/cropState.scale, cropState.cropSize/cropState.scale, 0,0,os,os);
-      images[cropState.currentKey] = oc.toDataURL('image/png', 1.0);
-      $(cropState.previewId).innerHTML = '<img src="'+images[cropState.currentKey]+'" class="image-preview" alt=""/>';
-      $(cropState.boxId).classList.add('has-image');
-      if(cropState.currentKey === 'profile') $('#photoSizeControl').style.display = 'block';
+      var dataUrl = oc.toDataURL('image/png', 1.0);
+      var imgKey = cropState.currentKey;
+      var previewId = cropState.previewId;
+      var boxId = cropState.boxId;
+      images[imgKey] = dataUrl;
+      $(previewId).innerHTML = '<img src="'+dataUrl+'" class="image-preview" alt=""/>';
+      $(boxId).classList.add('has-image');
+      if(imgKey === 'profile') $('#photoSizeControl').style.display = 'block';
       updatePreview(); closeCropModal();
+      // Upload to Firebase Storage if signed in
+      if (currentUser) {
+        updateImageBadge(imgKey, 'pending');
+        uploadImageToStorage(dataUrl, imgKey).then(function(hostedUrl) {
+          if (hostedUrl !== dataUrl) {
+            images[imgKey] = hostedUrl;
+            updatePreview();
+            toast(imgKey.charAt(0).toUpperCase() + imgKey.slice(1) + ' hosted on cloud');
+          }
+        });
+      } else {
+        updateImageBadge(imgKey, 'local');
+      }
     }
     function cancelCrop(){closeCropModal();}
     function closeCropModal(){$('#cropModal').classList.remove('active');cropState={image:null,canvas:null,ctx:null,cropX:0,cropY:0,cropSize:0,scale:1,isDragging:false,isResizing:false,resizeEdge:null,dragStartX:0,dragStartY:0,currentKey:null,previewId:null,boxId:null,minSize:50,maxSize:0};}
@@ -1450,6 +2524,26 @@
         else content += '<div class="signature-contact"><strong>'+f.label+':</strong> '+f.value+'</div>';
       });
       if (socialBottomHTML) content += socialBottomHTML;
+      // CTA Button
+      var ctaBtnText = document.getElementById('ctaButtonText') ? document.getElementById('ctaButtonText').value : '';
+      var ctaBtnUrl = document.getElementById('ctaButtonUrl') ? document.getElementById('ctaButtonUrl').value : '';
+      var ctaBgC = document.getElementById('ctaBgColor') ? document.getElementById('ctaBgColor').value : '#0b4f6c';
+      var ctaTxtC = document.getElementById('ctaTextColor') ? document.getElementById('ctaTextColor').value : '#ffffff';
+      if (ctaBtnText && ctaBtnUrl) {
+        content += '<div style="margin-top:8px;"><a href="'+ctaBtnUrl+'" target="_blank" rel="noopener noreferrer" style="display:inline-block; padding:8px 18px; background:'+ctaBgC+'; color:'+ctaTxtC+'; border-radius:6px; font-size:0.78rem; font-weight:700; text-decoration:none; font-family:Arial,sans-serif;">'+escHTML(ctaBtnText)+'</a></div>';
+      }
+      // Banner
+      if (ctaConfig.bannerImage) {
+        var bannerUrl = document.getElementById('bannerLinkUrl') ? document.getElementById('bannerLinkUrl').value : '';
+        var bannerHtml = '<img src="'+ctaConfig.bannerImage+'" alt="" style="max-width:100%;border-radius:6px;margin-top:8px;max-height:60px;" />';
+        if (bannerUrl) bannerHtml = '<a href="'+bannerUrl+'" target="_blank" rel="noopener noreferrer">'+bannerHtml+'</a>';
+        content += '<div>' + bannerHtml + '</div>';
+      }
+      // Disclaimer
+      var disclaimerVal = document.getElementById('disclaimerText') ? document.getElementById('disclaimerText').value : '';
+      if (disclaimerVal.trim()) {
+        content += '<div style="margin-top:8px;font-size:0.62rem;color:#9ca3af;line-height:1.4;max-width:350px;">'+escHTML(disclaimerVal)+'</div>';
+      }
       content += '</div>';
       const photoBorderClass = showPhotoBorder ? 'signature-photo with-border' : 'signature-photo';
       const photoBorderStyle = showPhotoBorder ? 'border-color:'+borderColor+';' : '';
@@ -1474,12 +2568,12 @@
       let socialCol = '';
       if (activeSocial.length && iconPosition === 'side') {
         socialCol = '<td style="vertical-align:middle; padding-right:15px; width:60px; font-size:0; line-height:0;"><table cellpadding="0" cellspacing="0" border="0" style="background:'+sidebarBg+'; border:'+sidebarBorder+'; border-collapse:collapse;">'
-          + activeSocial.map(([p,u]) => '<tr><td style="padding:3px 0; text-align:center; font-size:0; line-height:0;"><a href="'+u+'" target="_blank" rel="noopener" style="display:inline-block; width:32px; height:32px; background:'+itemBg+'; border:'+itemBorder+'; border-radius:4px; text-decoration:none; line-height:0; font-size:0;"><img src="'+icons[p]+'" alt="" border="0" role="presentation" aria-hidden="true" style="width:18px; height:18px; display:block; margin:7px auto 0;" /></a></td></tr>').join('') + '</table></td>';
+          + activeSocial.map(([p,u]) => { var href = wrapTrackingUrl(u, p); return '<tr><td style="padding:3px 0; text-align:center; font-size:0; line-height:0;"><a href="'+href+'" target="_blank" rel="noopener" style="display:inline-block; width:32px; height:32px; background:'+itemBg+'; border:'+itemBorder+'; border-radius:4px; text-decoration:none; line-height:0; font-size:0;"><img src="'+icons[p]+'" alt="" border="0" role="presentation" aria-hidden="true" style="width:18px; height:18px; display:block; margin:7px auto 0;" /></a></td></tr>'; }).join('') + '</table></td>';
       }
       let socialBottomRow = '';
       if (activeSocial.length && iconPosition === 'bottom') {
         socialBottomRow = '<tr><td style="padding-top:12px; font-size:0; line-height:0;">'
-          + activeSocial.map(([p,u]) => '<a href="'+u+'" target="_blank" rel="noopener" style="display:inline-block; width:32px; height:32px; background:'+itemBg+'; border:'+itemBorder+'; border-radius:4px; text-decoration:none; line-height:0; font-size:0; margin-right:8px;"><img src="'+icons[p]+'" alt="" border="0" role="presentation" aria-hidden="true" style="width:18px; height:18px; display:block; margin:7px auto 0;" /></a>').join('') + '</td></tr>';
+          + activeSocial.map(([p,u]) => { var href = wrapTrackingUrl(u, p); return '<a href="'+href+'" target="_blank" rel="noopener" style="display:inline-block; width:32px; height:32px; background:'+itemBg+'; border:'+itemBorder+'; border-radius:4px; text-decoration:none; line-height:0; font-size:0; margin-right:8px;"><img src="'+icons[p]+'" alt="" border="0" role="presentation" aria-hidden="true" style="width:18px; height:18px; display:block; margin:7px auto 0;" /></a>'; }).join('') + '</td></tr>';
       }
       let content = '';
       if (images.logo) content += '<tr><td style="padding-bottom:10px;"><img src="'+images.logo+'" alt="" border="0" style="height:50px; display:block; max-width:200px;"></td></tr>';
@@ -1494,6 +2588,25 @@
         else content += '<tr><td style="font-family:Arial, sans-serif; font-size:12px; color:#333333; padding-bottom:1px;"><strong>'+f.label+':</strong> '+f.value+'</td></tr>';
       });
       content += socialBottomRow;
+
+      // CTA Button row
+      const cta = getCTAConfig();
+      if (cta.text && cta.url) {
+        var ctaHref = wrapTrackingUrl(cta.url, 'cta');
+        content += '<tr><td style="padding-top:12px;"><table cellpadding="0" cellspacing="0" border="0"><tr><td style="background:' + (cta.bgColor || '#2563eb') + '; border-radius:6px; padding:10px 22px;"><a href="' + ctaHref + '" target="_blank" rel="noopener" style="font-family:Arial,sans-serif; font-size:14px; font-weight:bold; color:' + (cta.textColor || '#ffffff') + '; text-decoration:none; display:inline-block;">' + cta.text + '</a></td></tr></table></td></tr>';
+      }
+      // Banner row
+      if (cta.bannerUrl) {
+        var bannerHref = cta.bannerLink ? wrapTrackingUrl(cta.bannerLink, 'banner') : '';
+        var bannerImg = '<img src="' + cta.bannerUrl + '" alt="" border="0" style="max-width:100%; height:auto; display:block; border-radius:4px;" />';
+        if (bannerHref) bannerImg = '<a href="' + bannerHref + '" target="_blank" rel="noopener">' + bannerImg + '</a>';
+        content += '<tr><td style="padding-top:10px;">' + bannerImg + '</td></tr>';
+      }
+      // Disclaimer row
+      if (cta.disclaimer) {
+        content += '<tr><td style="padding-top:8px; font-family:Arial,sans-serif; font-size:10px; color:#888888; line-height:1.3;">' + cta.disclaimer + '</td></tr>';
+      }
+
       const photoBorderStyle = showPhotoBorder ? 'border:2px solid '+borderColor+';' : 'border:none;';
       const photo = images.profile ? '<td style="vertical-align:middle; text-align:center; width:'+(photoSize+20)+'px;"><img src="'+images.profile+'" alt="" border="0" style="width:'+photoSize+'px; height:'+photoSize+'px; border-radius:6px; '+photoBorderStyle+' display:block;"></td>' : '';
       const totalWidth = 550;
@@ -1542,6 +2655,16 @@
     });
     document.getElementById('photoSizeSlider').addEventListener('input', e => { updatePhotoSize(e.target.value); });
     document.getElementById('loadConfigInput').addEventListener('change', loadConfigFromFile);
+
+    // CSV / Bulk file input wiring
+    var csvFileInput = document.getElementById('csvFileInput');
+    if (csvFileInput) csvFileInput.addEventListener('change', function(e) { handleBulkFile(e); });
+    var csvDropZone = document.getElementById('csvDropZone');
+    if (csvDropZone) {
+      csvDropZone.addEventListener('dragover', function(e) { e.preventDefault(); csvDropZone.classList.add('drag-over'); });
+      csvDropZone.addEventListener('dragleave', function() { csvDropZone.classList.remove('drag-over'); });
+      csvDropZone.addEventListener('drop', function(e) { e.preventDefault(); csvDropZone.classList.remove('drag-over'); if (e.dataTransfer.files.length) { csvFileInput.files = e.dataTransfer.files; handleBulkFile({ target: { files: e.dataTransfer.files } }); } });
+    }
 
     // ===== Init =====
     function init() {
