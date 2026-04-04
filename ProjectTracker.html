@@ -6653,6 +6653,7 @@
         .fb-field-group .fb-field-row { margin-bottom: 4px; }
         .fb-field-group .fb-field-row:last-child { margin-bottom: 0; }
         .fb-section-row .fb-label-input { font-weight: 700; color: #1e293b; }
+        .fb-section-group { border-left: 3px solid var(--fb-sec-color, #3b82f6); margin-left: 14px; padding-left: 10px; margin-bottom: 10px; padding-bottom: 4px; }
         .fb-section-badge { font-size: 10px; font-weight: 700; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 8px; padding: 2px 8px; flex-shrink: 0; }
 
         /* ===== FORM BUILDER — MARKETPLACE ===== */
@@ -11930,6 +11931,7 @@
             
             _applyBuiltinFieldVisibility();
             _applyBuiltinFieldLabels();
+            _reorderBasicInfoFields();
             _resetModalDirty();
             // Wire all editable inputs to mark dirty
             setTimeout(function() { _wireModalDirtyListeners(); }, 0);
@@ -25275,10 +25277,17 @@
             var _basicSectionOpened = false;
 
             var _prevRowGroup = null;
+            var _sectionGroupOpen = false;
             fbDraftSchema.forEach(function(f, i) {
                 // Skip legacy flat Impact Assessment fields — managed by area editor
                 if (f.id && f.id.match(/^mkt_ia_[1-9]/)) return;
                 var _isBasic = !!(f.builtIn || f.section === 'basic');
+
+                // Close section group when entering basic or new section
+                if (_sectionGroupOpen && (_isBasic || f.type === 'section')) {
+                    html += '</div>'; // close fb-section-group
+                    _sectionGroupOpen = false;
+                }
 
                 // Open Basic Information section wrapper before first basic field
                 if (_isBasic && !_basicSectionOpened) {
@@ -25338,6 +25347,9 @@
                     if (f.id === 'mkt_ia_0') {
                         html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
                     }
+                    // Open section group wrapper for child fields
+                    html += '<div class="fb-section-group" style="border-left-color:' + secColor.accent + ';">';
+                    _sectionGroupOpen = true;
                     return;
                 }
                 var typeOpts = ['text','textarea','number','date','select','checkbox','members'].map(function(v) {
@@ -25367,6 +25379,8 @@
                     '</div>';
                 }
             });
+            // Close any open section group at end
+            if (_sectionGroupOpen) html += '</div>';
             // Close any open group at end
             if (_prevRowGroup) html += '</div>';
             // Close basic section if still open
@@ -25605,13 +25619,16 @@
             // Regular reorder drop
             if (fbDragSrcIdx === null || fbDragSrcIdx === i) return;
             var moved = fbDraftSchema.splice(fbDragSrcIdx, 1)[0];
+            // After splice, adjust insertion index if source was before target
+            var insertIdx = fbDragSrcIdx < i ? i - 1 : i;
             // If dropping onto a field inside Basic Information, tag moved field as basic
-            if (fbDraftSchema[Math.min(i, fbDraftSchema.length - 1)] && (fbDraftSchema[Math.min(i, fbDraftSchema.length - 1)].builtIn || fbDraftSchema[Math.min(i, fbDraftSchema.length - 1)].section === 'basic')) {
+            var _neighbor = fbDraftSchema[Math.min(insertIdx, fbDraftSchema.length - 1)];
+            if (_neighbor && (_neighbor.builtIn || _neighbor.section === 'basic')) {
                 if (!moved.builtIn) moved.section = 'basic';
             } else {
                 if (!moved.builtIn && moved.section === 'basic') delete moved.section;
             }
-            fbDraftSchema.splice(i, 0, moved);
+            fbDraftSchema.splice(insertIdx, 0, moved);
             fbDragSrcIdx = null;
             _markFBDirty();
             renderFBCustoms();
@@ -25766,6 +25783,46 @@
             if (confRow && viewRow && confRow.style.display === 'none') {
                 viewRow.style.display = 'none';
             }
+        }
+
+        // Re-sort DOM elements in Basic Information section body to match formSchema order
+        function _reorderBasicInfoFields() {
+            var sectionBody = document.querySelector('#sectionBasicInfo .modal-section-body');
+            if (!sectionBody || !formSchema || !formSchema.length) return;
+            // Build map: builtin field ID → its top-level form-row element (direct child of section body)
+            var _builtinToRow = {};
+            Object.keys(_builtinRowIds).forEach(function(bid) {
+                var elId = _builtinRowIds[bid];
+                var el = document.getElementById(elId);
+                if (!el) return;
+                var node = el;
+                while (node && node.parentElement !== sectionBody) node = node.parentElement;
+                if (node) _builtinToRow[bid] = node;
+            });
+            // Walk basic fields in formSchema order
+            var basicFields = formSchema.filter(function(f) {
+                return (f.builtIn || f.section === 'basic') && f.type !== 'section';
+            });
+            var seen = [];
+            var orderedEls = [];
+            basicFields.forEach(function(f) {
+                var el;
+                if (f.builtIn && _builtinToRow[f.id]) {
+                    el = _builtinToRow[f.id];
+                } else if (!f.builtIn) {
+                    el = document.getElementById('basicCF_' + f.id);
+                }
+                if (!el || seen.indexOf(el) !== -1) return;
+                seen.push(el);
+                orderedEls.push(el);
+            });
+            // Re-append in schema order (Title & ProjectID stay first — not in formSchema)
+            orderedEls.forEach(function(el) { sectionBody.appendChild(el); });
+            // Keep utility elements at the end
+            var cvRow = document.getElementById('confidentialViewersRow');
+            var bcf = document.getElementById('modalBasicCustomFields');
+            if (cvRow) sectionBody.appendChild(cvRow);
+            if (bcf) sectionBody.appendChild(bcf);
         }
 
         // Map builtin field IDs to the modal input element IDs for label sync
@@ -26007,18 +26064,24 @@
 
             // --- Render basic-section custom fields into the Basic Information section ---
             var basicFields = allCustoms.filter(function(f) { return f.section === 'basic' && f.type !== 'section'; });
-            if (basicContainer) {
-                if (basicFields.length) {
-                    var basicHtml = '';
-                    basicFields.forEach(function(f) {
-                        var val = vals[f.id] !== undefined ? vals[f.id] : '';
-                        basicHtml += _renderCustomFieldHTML(f, val);
-                    });
-                    basicContainer.innerHTML = basicHtml;
-                } else {
-                    basicContainer.innerHTML = '';
-                }
+            // Render each basic custom field as its own identifiable form-row in the section body
+            // (not nested inside modalBasicCustomFields) so _reorderBasicInfoFields can find them
+            var sectionBody = basicContainer ? basicContainer.parentElement : null;
+            // Remove previously rendered basic custom field wrappers
+            if (sectionBody) {
+                sectionBody.querySelectorAll('.basic-cf-wrapper').forEach(function(el) { el.remove(); });
             }
+            if (sectionBody && basicFields.length) {
+                basicFields.forEach(function(f) {
+                    var val = vals[f.id] !== undefined ? vals[f.id] : '';
+                    var wrapper = document.createElement('div');
+                    wrapper.className = 'basic-cf-wrapper';
+                    wrapper.id = 'basicCF_' + f.id;
+                    wrapper.innerHTML = _renderCustomFieldHTML(f, val);
+                    sectionBody.insertBefore(wrapper, basicContainer);
+                });
+            }
+            if (basicContainer) basicContainer.innerHTML = '';
 
             // --- Render remaining custom fields (non-basic) into modalCustomFieldsContainer ---
             var customs = allCustoms.filter(function(f) { return !f.section || f.section !== 'basic'; });
