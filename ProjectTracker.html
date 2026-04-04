@@ -23473,7 +23473,7 @@
                         var assigned = t.assignedTo || '\u2014';
                         var dept = t.department || '\u2014';
                         var dueDate = t.dueDate || '\u2014';
-                        var pct = t.progress || 0;
+                        // var pct = t.progress || 0; // Commented out — progress field is not meaningfully populated
                         return '<div class="related-project-card" data-testid="related-card-' + tid + '" onclick="_openRelatedProject(\'' + tid + '\')" title="Click to open this project">' +
                             '<div class="related-card-header">' +
                                 '<span style="width:8px;height:8px;border-radius:50%;background:' + sc + ';flex-shrink:0;"></span>' +
@@ -23486,6 +23486,7 @@
                                 '<div class="related-card-row"><span class="related-card-label">Assigned</span><span class="related-card-value">' + escapeHtml(assigned) + '</span></div>' +
                                 '<div class="related-card-row"><span class="related-card-label">Dept</span><span class="related-card-value">' + escapeHtml(dept) + '</span></div>' +
                                 '<div class="related-card-row"><span class="related-card-label">Due</span><span class="related-card-value">' + escapeHtml(dueDate) + '</span></div>' +
+                                /* Progress bar commented out — t.progress is never meaningfully set
                                 '<div style="margin-top:6px;">' +
                                     '<div style="display:flex;align-items:center;gap:6px;">' +
                                         '<div style="flex:1;height:5px;background:#e2e8f0;border-radius:3px;overflow:hidden;">' +
@@ -23494,6 +23495,7 @@
                                         '<span style="font-size:9px;font-weight:700;color:' + sc + ';">' + pct + '%</span>' +
                                     '</div>' +
                                 '</div>' +
+                                */
                             '</div>' +
                         '</div>';
                     }).join('');
@@ -24256,6 +24258,10 @@
         }
 
         function _isTemplateAdded(tpl) {
+            // Hardcoded sections: check enabled toggles instead of fbDraftSchema
+            var _secMap = { 'impact_assessment': 'impact', 'project_steps': 'steps', 'issues_log': 'issues' };
+            if (_secMap[tpl.id] && _fbDraftEnabledSections && _fbDraftEnabledSections[_secMap[tpl.id]] !== false) return true;
+            // All others: check fbDraftSchema for field IDs
             var ids = fbDraftSchema.map(function(f) { return f.id; });
             return tpl.fields.every(function(f) { return ids.indexOf(f.id) !== -1; });
         }
@@ -25388,10 +25394,22 @@
         function fbTypeChange(i, newType) {
             var labelInp = document.getElementById('fbLabel_' + i);
             if (labelInp) fbDraftSchema[i].label = labelInp.value;
+            var fieldId = fbDraftSchema[i].id;
             fbDraftSchema[i].type = newType;
             if (newType === 'select' && !fbDraftSchema[i].options) fbDraftSchema[i].options = [];
             _markFBDirty();
             renderFBCustoms();
+            // After re-render, auto-show options row if type changed to 'select'
+            if (newType === 'select' && fieldId) {
+                var newIdx = -1;
+                for (var _fi = 0; _fi < fbDraftSchema.length; _fi++) {
+                    if (fbDraftSchema[_fi].id === fieldId) { newIdx = _fi; break; }
+                }
+                if (newIdx !== -1) {
+                    var optRow = document.getElementById('fbOptRow_' + newIdx);
+                    if (optRow) optRow.style.display = 'block';
+                }
+            }
         }
 
         function fbDeleteField(i) {
@@ -25552,6 +25570,7 @@
 
         function fbDrop(e, i) {
             e.preventDefault();
+            e.stopPropagation(); // Prevent bubbling to fbBasicDrop (avoids field duplication)
             // Check for catalog drop first
             var catId = e.dataTransfer.getData('text/catalog');
             if (catId) {
@@ -25572,6 +25591,10 @@
                         options: (catField.options || []).slice(),
                         icon: catField.icon
                     };
+                    // If dropping onto a field inside Basic Information, tag new field as basic
+                    if (fbDraftSchema[i] && (fbDraftSchema[i].builtIn || fbDraftSchema[i].section === 'basic')) {
+                        newField.section = 'basic';
+                    }
                 }
                 fbDraftSchema.splice(i, 0, newField);
                 _markFBDirty();
@@ -25581,6 +25604,12 @@
             // Regular reorder drop
             if (fbDragSrcIdx === null || fbDragSrcIdx === i) return;
             var moved = fbDraftSchema.splice(fbDragSrcIdx, 1)[0];
+            // If dropping onto a field inside Basic Information, tag moved field as basic
+            if (fbDraftSchema[Math.min(i, fbDraftSchema.length - 1)] && (fbDraftSchema[Math.min(i, fbDraftSchema.length - 1)].builtIn || fbDraftSchema[Math.min(i, fbDraftSchema.length - 1)].section === 'basic')) {
+                if (!moved.builtIn) moved.section = 'basic';
+            } else {
+                if (!moved.builtIn && moved.section === 'basic') delete moved.section;
+            }
             fbDraftSchema.splice(i, 0, moved);
             fbDragSrcIdx = null;
             _markFBDirty();
@@ -25956,8 +25985,9 @@
                     if (_secOpen) html += '</div></div></div>';
                     var sc = (f.colorIdx !== undefined && typeof _fbColorChoices !== 'undefined' && _fbColorChoices[f.colorIdx]) ? _fbColorChoices[f.colorIdx] : { bg: '#f1f5f9', border: '#e2e8f0', accent: '#3b82f6' };
                     var si = f.icon || 'fa-minus';
-                    html += '<div class="modal-section" style="border-color:' + sc.border + ';">' +
-                        '<div class="modal-section-header" style="background:linear-gradient(135deg,' + sc.bg + ',' + sc.border + '22);" onclick="toggleModalSection(this.parentElement.id)" id="cfSec_' + fid + '">' +
+                    var _modalSecId = 'modalSec_' + fid.replace(/[^a-zA-Z0-9_]/g, '_');
+                    html += '<div class="modal-section" id="' + _modalSecId + '" style="border-color:' + sc.border + ';">' +
+                        '<div class="modal-section-header" style="background:linear-gradient(135deg,' + sc.bg + ',' + sc.border + '22);" onclick="toggleModalSection(\'' + _modalSecId + '\')" id="cfSec_' + fid + '">' +
                         '<span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>' +
                         '<i class="fas ' + si + '" style="color:' + sc.accent + ';font-size:12px;"></i>' +
                         '<span class="modal-section-title">' + escapeHtml(label) + '</span>' +
