@@ -22998,12 +22998,27 @@
             if (currentTenantId) {
                 try { var local = localStorage.getItem('pt_retention_' + currentTenantId); if (local) settings = JSON.parse(local); } catch(e) {}
             }
-            var archiveEl = document.getElementById('retAutoArchiveDays');
-            var deleteEl = document.getElementById('retAutoDeleteDays');
-            var auditEl = document.getElementById('retAuditLogDays');
-            if (archiveEl) archiveEl.value = settings.autoArchiveDays || '0';
-            if (deleteEl) deleteEl.value = settings.autoDeleteDays || '0';
-            if (auditEl) auditEl.value = settings.auditLogDays || '0';
+            var _applyRetSettings = function(s) {
+                var archiveEl = document.getElementById('retAutoArchiveDays');
+                var deleteEl = document.getElementById('retAutoDeleteDays');
+                var auditEl = document.getElementById('retAuditLogDays');
+                if (archiveEl) archiveEl.value = s.autoArchiveDays || '0';
+                if (deleteEl) deleteEl.value = s.autoDeleteDays || '0';
+                if (auditEl) auditEl.value = s.auditLogDays || '0';
+            };
+            // Apply local cache immediately
+            _applyRetSettings(settings);
+            // Then fetch from Firestore to get the latest (and backfill localStorage)
+            if (currentTenantId && typeof db !== 'undefined' && db) {
+                db.collection('tenants').doc(currentTenantId).collection('settings').doc('retention')
+                    .get().then(function(doc) {
+                        if (doc.exists) {
+                            var cloud = doc.data();
+                            localStorage.setItem('pt_retention_' + currentTenantId, JSON.stringify(cloud));
+                            _applyRetSettings(cloud);
+                        }
+                    }).catch(function() {});
+            }
         }
 
         function _saveRetentionSettings() {
