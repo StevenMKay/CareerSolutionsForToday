@@ -8252,6 +8252,7 @@
                     </div>
                 </div>
             </div>
+              <div id="modalBasicCustomFields"></div>
               </div><!-- /modal-section-body -->
             </div><!-- /sectionBasicInfo -->
 
@@ -25332,9 +25333,9 @@
                         _fbBuildIconPicker(i) +
                         _fbBuildColorPicker(i) +
                     '</div>';
-                    // Inject area/question editor after section headers (skip RACI/Gantt — no custom areas)
+                    // Inject area/question editor only for Impact Assessment section
                     var _secEdId = 'fbSecEditor_' + f.id.replace(/[^a-zA-Z0-9_]/g, '_');
-                    if (!/^mkt_raci_|^mkt_gantt_/.test(f.id)) {
+                    if (f.id === 'mkt_ia_0') {
                         html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
                     }
                     return;
@@ -25372,10 +25373,10 @@
             if (_inBasicSection) html += '</div>';
             el.innerHTML = html;
             _renderFBPreview();
-            // Render area editors for sections that have them (skip RACI/Gantt)
+            // Render area editor only for Impact Assessment section
             fbDraftSchema.forEach(function(f) {
                 if (f.type !== 'section') return;
-                if (/^mkt_raci_|^mkt_gantt_/.test(f.id)) return;
+                if (f.id !== 'mkt_ia_0') return;
                 var _secEdId = 'fbSecEditor_' + f.id.replace(/[^a-zA-Z0-9_]/g, '_');
                 if (document.getElementById(_secEdId)) {
                     _fbRenderSectionEditor(f.id);
@@ -25961,20 +25962,67 @@
         }
 
         // Render custom (non-builtin) fields from formSchema into the edit modal
+        // Shared helper: render a single custom field's HTML
+        function _renderCustomFieldHTML(f, val) {
+            var fid = f.id || '';
+            var label = f.label || 'Untitled';
+            var html = '<div class="form-row full" style="margin-bottom:10px;">' +
+                '<div class="form-group">' +
+                '<label class="form-label">' + escapeHtml(label) + (f.required ? ' <span style="color:#ef4444;">*</span>' : '') + '</label>';
+            if (f.type === 'textarea') {
+                html += '<textarea class="form-textarea" id="cf_' + fid + '" placeholder="' + escapeHtml(label) + '...">' + escapeHtml(val) + '</textarea>';
+            } else if (f.type === 'members') {
+                html += '<select class="form-select" id="cf_' + fid + '">' + _buildMembersOptions(val) + '</select>';
+            } else if (f.type === 'select') {
+                html += '<select class="form-select" id="cf_' + fid + '"><option value="">\u2014 Select ' + escapeHtml(label) + ' \u2014</option>';
+                (f.options || []).forEach(function(o) { html += '<option value="' + escapeHtml(o) + '"' + (val === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
+                html += '</select>';
+            } else if (f.type === 'checkbox') {
+                html += '<label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" id="cf_' + fid + '"' + (val ? ' checked' : '') + '> ' + escapeHtml(label) + '</label>';
+            } else if (f.type === 'date') {
+                html += '<input type="date" class="form-input" id="cf_' + fid + '" value="' + escapeHtml(val) + '">';
+            } else if (f.type === 'number') {
+                html += '<input type="number" class="form-input" id="cf_' + fid + '" placeholder="0" value="' + escapeHtml(String(val)) + '">';
+            } else {
+                html += '<input type="text" class="form-input" id="cf_' + fid + '" placeholder="' + escapeHtml(label) + '..." value="' + escapeHtml(val) + '">';
+            }
+            html += '</div></div>';
+            return html;
+        }
+
         function _renderModalCustomFields(customValues) {
             var container = document.getElementById('modalCustomFieldsContainer');
+            var basicContainer = document.getElementById('modalBasicCustomFields');
             if (!container) return;
             // Skip mkt_ps_* and mkt_is_* fields — those are handled by the
             // dedicated Project Steps / Issues sections with dynamic add/remove.
-            var customs = formSchema.filter(function(f) {
+            var allCustoms = formSchema.filter(function(f) {
                 if (f.builtIn) return false;
                 var fid = f.id || '';
                 if (/^mkt_ps_/.test(fid) || /^mkt_is_/.test(fid)) return false;
                 if (/^mkt_raci_/.test(fid) || /^mkt_gantt_/.test(fid)) return false;
                 return true;
             });
-            if (!customs.length) { container.innerHTML = ''; return; }
             var vals = customValues || {};
+
+            // --- Render basic-section custom fields into the Basic Information section ---
+            var basicFields = allCustoms.filter(function(f) { return f.section === 'basic' && f.type !== 'section'; });
+            if (basicContainer) {
+                if (basicFields.length) {
+                    var basicHtml = '';
+                    basicFields.forEach(function(f) {
+                        var val = vals[f.id] !== undefined ? vals[f.id] : '';
+                        basicHtml += _renderCustomFieldHTML(f, val);
+                    });
+                    basicContainer.innerHTML = basicHtml;
+                } else {
+                    basicContainer.innerHTML = '';
+                }
+            }
+
+            // --- Render remaining custom fields (non-basic) into modalCustomFieldsContainer ---
+            var customs = allCustoms.filter(function(f) { return !f.section || f.section !== 'basic'; });
+            if (!customs.length) { container.innerHTML = ''; return; }
             var html = '';
             var _secOpen = false;
             customs.forEach(function(f) {
@@ -25996,27 +26044,7 @@
                     _secOpen = true;
                     return;
                 }
-                html += '<div class="form-row full" style="margin-bottom:10px;">' +
-                    '<div class="form-group">' +
-                    '<label class="form-label">' + escapeHtml(label) + (f.required ? ' <span style="color:#ef4444;">*</span>' : '') + '</label>';
-                if (f.type === 'textarea') {
-                    html += '<textarea class="form-textarea" id="cf_' + fid + '" placeholder="' + escapeHtml(label) + '...">' + escapeHtml(val) + '</textarea>';
-                } else if (f.type === 'members') {
-                    html += '<select class="form-select" id="cf_' + fid + '">' + _buildMembersOptions(val) + '</select>';
-                } else if (f.type === 'select') {
-                    html += '<select class="form-select" id="cf_' + fid + '"><option value="">\u2014 Select ' + escapeHtml(label) + ' \u2014</option>';
-                    (f.options || []).forEach(function(o) { html += '<option value="' + escapeHtml(o) + '"' + (val === o ? ' selected' : '') + '>' + escapeHtml(o) + '</option>'; });
-                    html += '</select>';
-                } else if (f.type === 'checkbox') {
-                    html += '<label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="checkbox" id="cf_' + fid + '"' + (val ? ' checked' : '') + '> ' + escapeHtml(label) + '</label>';
-                } else if (f.type === 'date') {
-                    html += '<input type="date" class="form-input" id="cf_' + fid + '" value="' + escapeHtml(val) + '">';
-                } else if (f.type === 'number') {
-                    html += '<input type="number" class="form-input" id="cf_' + fid + '" placeholder="0" value="' + escapeHtml(String(val)) + '">';
-                } else {
-                    html += '<input type="text" class="form-input" id="cf_' + fid + '" placeholder="' + escapeHtml(label) + '..." value="' + escapeHtml(val) + '">';
-                }
-                html += '</div></div>';
+                html += _renderCustomFieldHTML(f, val);
             });
             if (_secOpen) html += '</div></div></div>';
             container.innerHTML = html;
