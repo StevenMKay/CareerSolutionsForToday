@@ -6648,9 +6648,10 @@
         .iss-add-step-btn:hover { background: #dbeafe; border-color: #93c5fd; }
 
         /* ===== FORM BUILDER — SECTION ROW ===== */
-        .fb-section-row { display: flex; align-items: center; gap: 8px; padding: 12px 14px; margin-bottom: 0; border-radius: 10px 10px 0 0; cursor: grab; transition: box-shadow 0.15s; }
-        .fb-section-row.fb-section-standalone { border-radius: 10px; margin-bottom: 14px; }
+        .fb-section-row { display: flex; align-items: center; gap: 8px; padding: 12px 14px; cursor: grab; transition: box-shadow 0.15s; }
         .fb-section-row:active { cursor: grabbing; }
+        .fb-section-wrapper { border-radius: 10px; overflow: hidden; margin-bottom: 14px; border: 1.5px solid #e2e8f0; }
+        .fb-section-wrapper.fb-section-standalone { }
         .fb-section-row .fb-section-icon { font-size: 14px; flex-shrink: 0; }
         .fb-section-row .fb-label-input { font-weight: 700; color: #1e293b; font-size: 13px; background: transparent; }
         .fb-section-row .fb-label-input:focus { background: rgba(255,255,255,0.7); }
@@ -6663,9 +6664,9 @@
         .fb-field-group .fb-field-row { margin-bottom: 4px; }
         .fb-field-group .fb-field-row:last-child { margin-bottom: 0; }
         .fb-section-row .fb-label-input { font-weight: 700; color: #1e293b; }
-        .fb-section-group { border: 1.5px solid var(--fb-sec-border, #e2e8f0); border-top: none; border-radius: 0 0 10px 10px; padding: 8px 10px 10px; margin-bottom: 14px; background: #fff; }
+        .fb-section-group { padding: 6px 10px 10px; background: #fff; }
         .fb-section-group:empty { display: none; }
-        .fb-section-group .fb-field-row { margin-bottom: 6px; }
+        .fb-section-group .fb-field-row { margin-bottom: 4px; }
         .fb-section-group .fb-field-row:last-child { margin-bottom: 0; }
         .fb-section-badge { font-size: 9px; font-weight: 700; background: rgba(255,255,255,0.5); color: inherit; border: none; border-radius: 6px; padding: 2px 7px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.3px; pointer-events: none; }
 
@@ -7081,10 +7082,11 @@
         body.dark-mode .fb-add-label                     { background: #1e293b; border-color: rgba(255,255,255,0.15); color: #e2e8f0; }
         body.dark-mode .fb-label-input                   { color: #e2e8f0; }
         body.dark-mode .fb-label-input:focus             { background: #253347; }
-        body.dark-mode .fb-section-row                   { background: rgba(30,41,59,0.9); border-color: rgba(255,255,255,0.1); }
+        body.dark-mode .fb-section-row                   { background: rgba(30,41,59,0.9); }
         body.dark-mode .fb-section-row .fb-label-input   { color: #f1f5f9; }
         body.dark-mode .fb-section-row .fb-label-input:focus { background: rgba(255,255,255,0.06); }
-        body.dark-mode .fb-section-group                 { background: #1e293b; border-color: rgba(255,255,255,0.08); }
+        body.dark-mode .fb-section-wrapper               { border-color: rgba(255,255,255,0.1); }
+        body.dark-mode .fb-section-group                 { background: #1e293b; }
         /* Locked sections */
         body.dark-mode .fb-locked-section                { border-color: rgba(255,255,255,0.1); }
         body.dark-mode .fb-locked-hdr                    { background: rgba(30,41,59,0.9) !important; }
@@ -25438,15 +25440,16 @@
 
             var _prevRowGroup = null;
             var _sectionGroupOpen = false;
+            var _sectionWrapperOpen = false;
             fbDraftSchema.forEach(function(f, i) {
                 // Skip legacy flat Impact Assessment fields — managed by area editor
                 if (f.id && f.id.match(/^mkt_ia_[1-9]/)) return;
                 var _isBasic = !!(f.builtIn || f.section === 'basic');
 
-                // Close section group when entering basic or new section
-                if (_sectionGroupOpen && (_isBasic || f.type === 'section')) {
-                    html += '</div>'; // close fb-section-group
-                    _sectionGroupOpen = false;
+                // Close section group + wrapper when entering basic or new section
+                if ((_sectionGroupOpen || _sectionWrapperOpen) && (_isBasic || f.type === 'section')) {
+                    if (_sectionGroupOpen) { html += '</div>'; _sectionGroupOpen = false; }
+                    if (_sectionWrapperOpen) { html += '</div>'; _sectionWrapperOpen = false; }
                 }
 
                 // Open Basic Information section wrapper before first basic field
@@ -25495,7 +25498,18 @@
                     var _secBg = secColor.bg;
                     var _secBorder = secColor.border;
                     var _secAccent = secColor.accent;
-                    html += '<div class="fb-section-row' + (_hasChildren ? '' : ' fb-section-standalone') + '" id="fbRow_' + i + '" draggable="true" ondragstart="fbDragStart(event,' + i + ')" ondragover="fbDragOver(event,' + i + ')" ondrop="fbDrop(event,' + i + ')" ondragend="fbDragEnd(event)" style="position:relative;background:linear-gradient(135deg,' + _secBg + ',' + _secBorder + '20);border:1.5px solid ' + _secBorder + ';' + (_hasChildren ? 'border-bottom:none;' : '') + '">' +
+                    // Check if next field is another section or end of array (empty group)
+                    var _hasChildren = false;
+                    for (var _ci = i + 1; _ci < fbDraftSchema.length; _ci++) {
+                        if (fbDraftSchema[_ci].type === 'section' || fbDraftSchema[_ci].builtIn || fbDraftSchema[_ci].section === 'basic') break;
+                        if (fbDraftSchema[_ci].id && fbDraftSchema[_ci].id.match(/^mkt_ia_[1-9]/)) continue;
+                        _hasChildren = true;
+                        break;
+                    }
+                    // Open wrapper that contains both header and group
+                    html += '<div class="fb-section-wrapper" style="border-color:' + _secBorder + ';">';
+                    _sectionWrapperOpen = true;
+                    html += '<div class="fb-section-row" id="fbRow_' + i + '" draggable="true" ondragstart="fbDragStart(event,' + i + ')" ondragover="fbDragOver(event,' + i + ')" ondrop="fbDrop(event,' + i + ')" ondragend="fbDragEnd(event)" style="position:relative;background:linear-gradient(135deg,' + _secBg + ',' + _secBorder + '20);">' +
                         '<span class="fb-grip"><i class="fas fa-grip-vertical" style="color:' + _secAccent + '50;"></i></span>' +
                         '<i class="fas ' + secIcon + ' fb-section-icon" style="color:' + _secAccent + ';"></i>' +
                         '<input type="text" class="fb-label-input" id="fbLabel_' + i + '" value="' + escapeHtml(f.label) + '" placeholder="Section name..." oninput="_renderFBPreview()">' +
@@ -25513,18 +25527,13 @@
                     if (f.id === 'mkt_ia_0') {
                         html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
                     }
-                    // Open section group wrapper for child fields
-                    // Check if next field is another section or end of array (empty group)
-                    var _hasChildren = false;
-                    for (var _ci = i + 1; _ci < fbDraftSchema.length; _ci++) {
-                        if (fbDraftSchema[_ci].type === 'section' || fbDraftSchema[_ci].builtIn || fbDraftSchema[_ci].section === 'basic') break;
-                        if (fbDraftSchema[_ci].id && fbDraftSchema[_ci].id.match(/^mkt_ia_[1-9]/)) continue;
-                        _hasChildren = true;
-                        break;
-                    }
                     if (_hasChildren) {
-                        html += '<div class="fb-section-group" style="--fb-sec-border:' + _secBorder + ';border-color:' + _secBorder + ';">';
+                        html += '<div class="fb-section-group">';
                         _sectionGroupOpen = true;
+                    } else {
+                        // No children — close wrapper immediately
+                        html += '</div>';
+                        _sectionWrapperOpen = false;
                     }
                     return;
                 }
@@ -25555,8 +25564,9 @@
                     '</div>';
                 }
             });
-            // Close any open section group at end
+            // Close any open section group + wrapper at end
             if (_sectionGroupOpen) html += '</div>';
+            if (_sectionWrapperOpen) html += '</div>';
             // Close any open group at end
             if (_prevRowGroup) html += '</div>';
             // Close basic section if still open
