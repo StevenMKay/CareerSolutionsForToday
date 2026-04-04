@@ -6649,6 +6649,7 @@
 
         /* ===== FORM BUILDER — SECTION ROW ===== */
         .fb-section-row { display: flex; align-items: center; gap: 8px; padding: 12px 14px; margin-bottom: 0; border-radius: 10px 10px 0 0; cursor: grab; transition: box-shadow 0.15s; }
+        .fb-section-row.fb-section-standalone { border-radius: 10px; margin-bottom: 14px; }
         .fb-section-row:active { cursor: grabbing; }
         .fb-section-row .fb-section-icon { font-size: 14px; flex-shrink: 0; }
         .fb-section-row .fb-label-input { font-weight: 700; color: #1e293b; font-size: 13px; background: transparent; }
@@ -6663,6 +6664,7 @@
         .fb-field-group .fb-field-row:last-child { margin-bottom: 0; }
         .fb-section-row .fb-label-input { font-weight: 700; color: #1e293b; }
         .fb-section-group { border: 1.5px solid var(--fb-sec-border, #e2e8f0); border-top: none; border-radius: 0 0 10px 10px; padding: 8px 10px 10px; margin-bottom: 14px; background: #fff; }
+        .fb-section-group:empty { display: none; }
         .fb-section-group .fb-field-row { margin-bottom: 6px; }
         .fb-section-group .fb-field-row:last-child { margin-bottom: 0; }
         .fb-section-badge { font-size: 9px; font-weight: 700; background: rgba(255,255,255,0.5); color: inherit; border: none; border-radius: 6px; padding: 2px 7px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.3px; pointer-events: none; }
@@ -25365,6 +25367,20 @@
             _markFBDirty();
             renderFBCustoms();
         }
+        function _fbLookupTemplateIcon(fieldId) {
+            if (!fieldId) return null;
+            var allTemplates = _fbMarketplaceTemplates.concat(_fbChartTemplates || []);
+            for (var t = 0; t < allTemplates.length; t++) {
+                var tpl = allTemplates[t];
+                for (var fi = 0; fi < tpl.fields.length; fi++) {
+                    if (tpl.fields[fi].id === fieldId && tpl.fields[fi].icon) return tpl.fields[fi].icon;
+                }
+                // Also check if the template itself matches
+                if (tpl.id && fieldId.indexOf(tpl.id.replace(/_/g, '')) > -1 && tpl.icon) return tpl.icon;
+            }
+            return null;
+        }
+
         function fbToggleIconPicker(idx) {
             var el = document.getElementById('fbIconPicker_' + idx);
             document.querySelectorAll('.fb-icon-picker,.fb-color-picker').forEach(function(p){if(p!==el)p.style.display='none';});
@@ -25461,7 +25477,7 @@
                 var _curRowGroup = f.rowGroup || null;
                 var isBuiltIn = !!f.builtIn;
                 var secColor = (f.colorIdx !== undefined && _fbColorChoices[f.colorIdx]) ? _fbColorChoices[f.colorIdx] : _fbColorChoices[0];
-                var secIcon = f.icon || 'fa-minus';
+                var secIcon = f.icon || _fbLookupTemplateIcon(f.id) || 'fa-layer-group';
                 // Handle row-group boundaries
                 if (_curRowGroup !== _prevRowGroup) {
                     if (_prevRowGroup) html += '</div>'; // close previous group
@@ -25479,7 +25495,7 @@
                     var _secBg = secColor.bg;
                     var _secBorder = secColor.border;
                     var _secAccent = secColor.accent;
-                    html += '<div class="fb-section-row" id="fbRow_' + i + '" draggable="true" ondragstart="fbDragStart(event,' + i + ')" ondragover="fbDragOver(event,' + i + ')" ondrop="fbDrop(event,' + i + ')" ondragend="fbDragEnd(event)" style="position:relative;background:linear-gradient(135deg,' + _secBg + ',' + _secBorder + '20);border:1.5px solid ' + _secBorder + ';border-bottom:none;">' +
+                    html += '<div class="fb-section-row' + (_hasChildren ? '' : ' fb-section-standalone') + '" id="fbRow_' + i + '" draggable="true" ondragstart="fbDragStart(event,' + i + ')" ondragover="fbDragOver(event,' + i + ')" ondrop="fbDrop(event,' + i + ')" ondragend="fbDragEnd(event)" style="position:relative;background:linear-gradient(135deg,' + _secBg + ',' + _secBorder + '20);border:1.5px solid ' + _secBorder + ';' + (_hasChildren ? 'border-bottom:none;' : '') + '">' +
                         '<span class="fb-grip"><i class="fas fa-grip-vertical" style="color:' + _secAccent + '50;"></i></span>' +
                         '<i class="fas ' + secIcon + ' fb-section-icon" style="color:' + _secAccent + ';"></i>' +
                         '<input type="text" class="fb-label-input" id="fbLabel_' + i + '" value="' + escapeHtml(f.label) + '" placeholder="Section name..." oninput="_renderFBPreview()">' +
@@ -25498,8 +25514,18 @@
                         html += '<div class="fb-ia-editor" id="' + _secEdId + '"></div>';
                     }
                     // Open section group wrapper for child fields
-                    html += '<div class="fb-section-group" style="--fb-sec-border:' + _secBorder + ';border-color:' + _secBorder + ';">';
-                    _sectionGroupOpen = true;
+                    // Check if next field is another section or end of array (empty group)
+                    var _hasChildren = false;
+                    for (var _ci = i + 1; _ci < fbDraftSchema.length; _ci++) {
+                        if (fbDraftSchema[_ci].type === 'section' || fbDraftSchema[_ci].builtIn || fbDraftSchema[_ci].section === 'basic') break;
+                        if (fbDraftSchema[_ci].id && fbDraftSchema[_ci].id.match(/^mkt_ia_[1-9]/)) continue;
+                        _hasChildren = true;
+                        break;
+                    }
+                    if (_hasChildren) {
+                        html += '<div class="fb-section-group" style="--fb-sec-border:' + _secBorder + ';border-color:' + _secBorder + ';">';
+                        _sectionGroupOpen = true;
+                    }
                     return;
                 }
                 var typeOpts = ['text','textarea','number','date','select','checkbox','members'].map(function(v) {
@@ -25590,8 +25616,17 @@
                 // Also schedule cleanup of saved automation rules with this sourceSection
                 _automationRules = _automationRules.filter(function(r) { return r.sourceSection !== removed.id; });
                 _saveAutomationRules();
+                // Remove all child fields under this section (up to next section or end)
+                var childCount = 0;
+                for (var j = i + 1; j < fbDraftSchema.length; j++) {
+                    if (fbDraftSchema[j].type === 'section') break;
+                    childCount++;
+                }
+                // Remove section header + all its children in one splice
+                fbDraftSchema.splice(i, 1 + childCount);
+            } else {
+                fbDraftSchema.splice(i, 1);
             }
-            fbDraftSchema.splice(i, 1);
             _markFBDirty();
             renderFBCustoms();
             renderFBPrebuiltPanel();
