@@ -2774,40 +2774,68 @@
       }
     }
 
+    function isBase64(str) { return str && str.indexOf('data:') === 0; }
+
     function publishSignature() {
       if (!currentUser || !currentTenantId) { openAuthOverlay(); return; }
       var sigId = currentTenantId;
       var nameField = textFields.find(function(f) { return f.label.toLowerCase().includes('name'); });
       var titleField = textFields.find(function(f) { var l = f.label.toLowerCase(); return l.includes('title') || l.includes('position'); });
-      var sigHtml = buildTables();
-      var pubData = {
-        published: true,
-        signatureHtml: sigHtml,
-        textFields: textFields,
-        socialLinks: socialLinks,
-        socialOrder: socialOrder,
-        iconStyle: iconStyle,
-        iconPosition: iconPosition,
-        images: {
-          profile: hostedImages.profile || images.profile || null,
-          logo: hostedImages.logo || images.logo || null
-        },
-        photoSize: photoSize,
-        showIconBorders: showIconBorders,
-        showPhotoBorder: showPhotoBorder,
-        removeBorders: removeBorders,
-        ctaConfig: getCTAConfig(),
-        displayName: nameField ? nameField.value : '',
-        displayTitle: titleField ? titleField.value : '',
-        ownerUid: currentUser.uid,
-        ownerEmail: currentUser.email || '',
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
+
+      // Only store hosted URLs — never base64 (which would exceed Firestore's 1MB limit)
+      var profileUrl = hostedImages.profile || null;
+      var logoUrl = hostedImages.logo || null;
+      var profileSrc = images.profile || null;
+      var logoSrc = images.logo || null;
+
+      // If images exist but aren't hosted yet, try uploading first
+      var uploadPromises = [];
+      if (profileSrc && !profileUrl && isBase64(profileSrc)) {
+        uploadPromises.push(uploadImageToStorage(profileSrc, 'profile').then(function(url) {
+          if (!isBase64(url)) profileUrl = url;
+        }).catch(function() {}));
+      }
+      if (logoSrc && !logoUrl && isBase64(logoSrc)) {
+        uploadPromises.push(uploadImageToStorage(logoSrc, 'logo').then(function(url) {
+          if (!isBase64(url)) logoUrl = url;
+        }).catch(function() {}));
+      }
+
       toast('Publishing...');
-      db.collection('publishedSignatures').doc(sigId).set(pubData).then(function() {
+      Promise.all(uploadPromises).then(function() {
+        // Strip base64 from CTA config too
+        var cta = getCTAConfig();
+        if (cta.bannerImage && isBase64(cta.bannerImage)) cta.bannerImage = null;
+
+        var pubData = {
+          published: true,
+          textFields: textFields,
+          socialLinks: socialLinks,
+          socialOrder: socialOrder,
+          iconStyle: iconStyle,
+          iconPosition: iconPosition,
+          images: { profile: profileUrl, logo: logoUrl },
+          photoSize: photoSize,
+          showIconBorders: showIconBorders,
+          showPhotoBorder: showPhotoBorder,
+          removeBorders: removeBorders,
+          ctaConfig: cta,
+          displayName: nameField ? nameField.value : '',
+          displayTitle: titleField ? titleField.value : '',
+          ownerUid: currentUser.uid,
+          ownerEmail: currentUser.email || '',
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        return db.collection('publishedSignatures').doc(sigId).set(pubData);
+      }).then(function() {
         publishedSigId = sigId;
         updateShareUI(true, sigId);
-        toast('Signature published!');
+        var hasUnhostedImages = (profileSrc && !profileUrl) || (logoSrc && !logoUrl);
+        if (hasUnhostedImages) {
+          toast('Published! Note: images could not be uploaded — fix Storage permissions to show photos on your public page.');
+        } else {
+          toast('Signature published!');
+        }
       }).catch(function(e) { toast('Publish failed: ' + e.message); });
     }
 
