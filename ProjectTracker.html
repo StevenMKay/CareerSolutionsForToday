@@ -8994,12 +8994,7 @@
                                             <button class="insights-impact-btn" id="runImpactAssessmentBtn" onclick="runProjectImpactAssessment()">
                                                 <i class="fas fa-chart-line"></i> Run Impact Assessment
                                             </button>
-                                            <div id="aiImpactAssessmentResult" class="insights-impact-result" style="display:none;">
-                                                <div class="insights-impact-result-header">
-                                                    <i class="fas fa-chart-line"></i> Impact Assessment
-                                                </div>
-                                                <div class="insights-impact-result-body" id="aiImpactAssessmentText"></div>
-                                            </div>
+                                            <div id="aiImpactAssessmentResult" style="display:none;margin-top:16px;"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -9280,11 +9275,16 @@
 
                     <!-- Insights Library -->
                     <div style="border-top:1px solid #e2e8f0;padding-top:14px;">
-                        <div class="ai-section-label" style="display:flex;align-items:center;justify-content:space-between;">
-                            <span><i class="fas fa-lightbulb" style="margin-right:5px;color:#f59e0b;"></i>Insights Library</span>
-                            <button onclick="addImpactInsight()" style="background:rgba(245,158,11,0.1);border:1px solid #fcd34d;color:#b45309;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add</button>
+                        <div class="ai-section-label" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="_toggleInsightsLibrary()">
+                            <span style="display:flex;align-items:center;gap:6px;"><i class="fas fa-lightbulb" style="color:#f59e0b;"></i>Insights Library <i class="fas fa-chevron-right" id="insightsLibChevron" style="font-size:9px;color:#94a3b8;transition:transform 0.2s;"></i></span>
+                            <button onclick="event.stopPropagation();addImpactInsight();_openInsightsLibraryIfClosed();" style="background:rgba(245,158,11,0.1);border:1px solid #fcd34d;color:#b45309;padding:3px 10px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-plus" style="margin-right:4px;"></i>Add</button>
                         </div>
+                        <div id="insightsLibraryBody" style="display:none;">
                         <p style="color:#64748b;font-size:11px;margin:4px 0 8px;">Store lessons learned &amp; project impact notes. Check items to include in the analysis.</p>
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                            <input type="text" id="insightsLibrarySearch" placeholder="Search insights..." oninput="renderImpactInsightsList()" style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;font-family:inherit;background:#f8fafc;outline:none;">
+                            <button onclick="toggleSelectAllInsights()" id="insightsSelectAllBtn" style="background:rgba(245,158,11,0.08);border:1px solid #fde68a;color:#92400e;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;">Select All</button>
+                        </div>
                         <div id="impactInsightsList"></div>
                         <div id="impactInsightEditor" style="display:none;margin-top:8px;">
                             <input type="text" id="impactInsightTitle" placeholder="Title (e.g. CRM Migration Lessons Learned)" style="width:100%;box-sizing:border-box;padding:7px 10px;margin-bottom:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;color:#1a202c;font-size:12px;font-family:inherit;outline:none;">
@@ -9294,6 +9294,7 @@
                                 <button onclick="cancelImpactInsight()" style="padding:6px 14px;border-radius:6px;background:#f1f5f9;border:none;color:#64748b;font-size:11px;cursor:pointer;font-family:inherit;">Cancel</button>
                             </div>
                         </div>
+                        </div><!-- /insightsLibraryBody -->
                     </div>
 
                     <!-- Run Button + Results -->
@@ -12693,27 +12694,87 @@
                     prompt += '\n=== INSIGHTS LIBRARY NOTES ===\n' + insightsText + '\n';
                 }
 
-                // Impact Assessment request
+                // Impact Assessment request — structured JSON
                 prompt += '\n=== ASSESSMENT REQUEST ===\n';
-                prompt += 'Provide a comprehensive impact assessment covering:\n';
-                prompt += '1. BUSINESS IMPACT — How does this project affect business operations, revenue, and strategic goals?\n';
-                prompt += '2. OPERATIONAL IMPACT — What changes to workflows, processes, or daily operations will result?\n';
-                prompt += '3. SYSTEM & TECHNICAL IMPACT — What are the risks to affected systems and integrations?\n';
-                prompt += '4. RESOURCE & TIMELINE IMPACT — Are there resource conflicts, bottlenecks, or timeline risks?\n';
-                prompt += '5. RISK ASSESSMENT — Key risks ranked by likelihood and severity, with mitigations\n';
-                prompt += '6. LESSONS APPLIED — Based on past lessons learned, what should this project watch out for?\n';
-                prompt += '7. RECOMMENDATIONS — Specific, prioritized actions to maximize success and minimize risk\n';
-                prompt += '\nFormat with clear section headers using bullet points (•). No markdown formatting (no ###, **).\n';
+                prompt += 'Analyze this project and return a JSON object with EXACTLY these keys:\n';
+                prompt += '{\n';
+                prompt += '  "executive_summary": "2-3 sentence executive overview of this project\'s impact and health",\n';
+                prompt += '  "overall_risk_score": number from 1-10 (10 = highest risk),\n';
+                prompt += '  "project_health": "healthy" | "at_risk" | "critical",\n';
+                prompt += '  "business_impact": [{"text": "specific impact", "severity": "high|medium|low"}],\n';
+                prompt += '  "operational_impact": [{"text": "specific impact", "severity": "high|medium|low"}],\n';
+                prompt += '  "system_impact": [{"text": "specific risk to systems/integrations", "severity": "high|medium|low"}],\n';
+                prompt += '  "resource_timeline": [{"text": "resource or timeline risk", "severity": "high|medium|low"}],\n';
+                prompt += '  "risk_assessment": [{"text": "key risk with mitigation", "severity": "high|medium|low"}],\n';
+                prompt += '  "lessons_applied": [{"text": "lesson and how it applies here", "severity": "high|medium|low"}],\n';
+                prompt += '  "recommendations": ["specific prioritized recommendation 1", "recommendation 2"]\n';
+                prompt += '}\n';
+                prompt += 'Provide 3-5 items per array. Be specific, reference actual project data and lessons. Today\'s date: ' + new Date().toISOString().split('T')[0] + '\n';
 
                 var systemPrompt = 'You are a senior project management consultant performing an AI-assisted impact assessment. ' +
                     'Analyze the project data, cross-impacts, and historical lessons learned to provide a thorough, specific assessment. ' +
-                    'Reference specific data points and lessons. Do not use markdown formatting — use plain text with bullet points (•) and numbered lists only. ' +
+                    'Reference specific data points and lessons. Always respond in valid JSON format. ' +
                     'Be specific to THIS project, not generic advice.';
 
                 var response = await callOpenAI(systemPrompt, prompt);
-                response = response.replace(/###\s*/g, '').replace(/\*\*/g, '').replace(/\n\n\n+/g, '\n\n');
 
-                textDiv.innerHTML = formatAIResponse(response);
+                // Parse structured JSON response
+                var data;
+                try {
+                    var jsonStr = response.replace(/```json\s*/g, '').replace(/```/g, '').trim();
+                    data = JSON.parse(jsonStr);
+                } catch(parseErr) {
+                    // Fallback to plain text rendering
+                    response = response.replace(/###\s*/g, '').replace(/\*\*/g, '').replace(/\n\n\n+/g, '\n\n');
+                    resultDiv.innerHTML = '<div style="padding:14px;background:linear-gradient(135deg,rgba(124,58,237,0.08),rgba(109,40,217,0.05));border:1px solid rgba(124,58,237,0.2);border-radius:10px;">' +
+                        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;font-weight:700;color:#7c3aed;"><i class="fas fa-chart-line"></i> Impact Assessment</div>' +
+                        '<div style="font-size:12px;color:#475569;line-height:1.6;white-space:pre-wrap;">' + formatAIResponse(response) + '</div></div>';
+                    resultDiv.style.display = 'block';
+                    return;
+                }
+
+                // Build card-based results
+                var riskScore = parseInt(data.overall_risk_score) || 5;
+                var health = (data.project_health || 'at_risk').toLowerCase();
+                var healthColor = health === 'healthy' ? '#22c55e' : health === 'critical' ? '#ef4444' : '#f59e0b';
+                var healthIcon = health === 'healthy' ? 'fa-check-circle' : health === 'critical' ? 'fa-exclamation-circle' : 'fa-exclamation-triangle';
+                var healthLabel = health === 'healthy' ? 'Healthy' : health === 'critical' ? 'Critical' : 'At Risk';
+
+                var html = '<div style="padding:18px;border-radius:14px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,0.06);">';
+                // Header
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">';
+                html += '<span style="font-weight:700;color:#1e293b;font-size:14px;display:flex;align-items:center;gap:8px;"><i class="fas fa-chart-line" style="color:#7c3aed;"></i>Impact Assessment</span>';
+                html += '</div>';
+
+                // Executive summary + score badges
+                html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">';
+                html += '<div style="flex:1;min-width:200px;background:#f8fafc;border-radius:10px;padding:12px 14px;border:1px solid #e2e8f0;">' +
+                    '<div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Executive Summary</div>' +
+                    '<p style="color:#1e293b;font-size:12px;line-height:1.6;margin:0;">' + escapeHtml(data.executive_summary || 'N/A') + '</p></div>';
+                html += '<div style="display:flex;gap:10px;flex-shrink:0;">';
+                html += '<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;border:1px solid #e2e8f0;text-align:center;min-width:80px;">' +
+                    '<div style="font-size:24px;font-weight:800;color:' + (riskScore >= 7 ? '#ef4444' : riskScore >= 4 ? '#f59e0b' : '#22c55e') + ';">' + riskScore + '<span style="font-size:12px;color:#64748b;">/10</span></div>' +
+                    '<div style="font-size:9px;font-weight:600;color:#64748b;text-transform:uppercase;">Risk Score</div></div>';
+                html += '<div style="background:#f8fafc;border-radius:10px;padding:12px 16px;border:1px solid ' + healthColor + '33;text-align:center;min-width:80px;">' +
+                    '<div style="font-size:20px;color:' + healthColor + ';margin-bottom:2px;"><i class="fas ' + healthIcon + '"></i></div>' +
+                    '<div style="font-size:10px;font-weight:700;color:' + healthColor + ';">' + healthLabel + '</div></div>';
+                html += '</div></div>';
+
+                // Cards grid
+                html += '<div style="display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;">';
+                html += _renderImpactCard('fa-briefcase', '#3b82f6', 'Business Impact', data.business_impact);
+                html += _renderImpactCard('fa-cogs', '#f59e0b', 'Operational Impact', data.operational_impact);
+                html += _renderImpactCard('fa-server', '#06b6d4', 'System & Technical Impact', data.system_impact);
+                html += _renderImpactCard('fa-clock', '#8b5cf6', 'Resource & Timeline', data.resource_timeline);
+                html += '</div>';
+                html += '<div style="display:grid;grid-template-columns:1fr;gap:10px;">';
+                html += _renderImpactCard('fa-shield-alt', '#ef4444', 'Risk Assessment', data.risk_assessment);
+                html += _renderImpactCard('fa-graduation-cap', '#f59e0b', 'Lessons Applied', data.lessons_applied);
+                html += _renderImpactCard('fa-lightbulb', '#22c55e', 'Recommendations', data.recommendations);
+                html += '</div>';
+
+                html += '</div>';
+                resultDiv.innerHTML = html;
                 resultDiv.style.display = 'block';
 
             } catch(e) {
@@ -21318,6 +21379,12 @@
         }
 
         // ── IMPACT ANALYSIS SCOPE CHIPS ──────────────────────
+        function _formatProjectDate(t) {
+            if (!t.dueDate) return '';
+            try { var d = new Date(t.dueDate); return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear(); }
+            catch(e) { return ''; }
+        }
+
         function renderImpactScopeChips() {
             var isOverall = !_impactScopeDepts.length && _impactScopeType !== 'system' && !_impactScopeProjects.length && !_impactScopeSystems.length;
             // Overall button
@@ -21326,43 +21393,54 @@
                 if (isOverall) overallBtn.classList.add('selected');
                 else overallBtn.classList.remove('selected');
             }
-            // Departments dropdown
+            // Departments dropdown (alphabetical + Select All)
             var deptDisplay = document.getElementById('impactScopeDeptDisplay');
             var deptDrop = document.getElementById('impactScopeDeptDropdown');
             if (deptDisplay && deptDrop) {
                 if (_impactScopeDepts.length) {
-                    deptDisplay.innerHTML = _impactScopeDepts.map(function(d) {
+                    deptDisplay.innerHTML = _impactScopeDepts.slice().sort(function(a,b){return a.localeCompare(b);}).map(function(d) {
                         return '<span style="background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;">' + escapeHtml(d) + ' <i class="fas fa-times" style="cursor:pointer;font-size:8px;" onclick="event.stopPropagation();toggleImpactScopeDept(\'' + escapeHtml(d).replace(/'/g, "\\'") + '\')"></i></span>';
                     }).join('');
                 } else {
                     deptDisplay.innerHTML = '<span style="opacity:0.6;">Select departments...</span>';
                 }
-                deptDrop.innerHTML = departments.map(function(d) {
+                var sortedDepts = departments.slice().sort(function(a,b){return a.localeCompare(b);});
+                var allDeptsSelected = sortedDepts.length > 0 && sortedDepts.every(function(d){ return _impactScopeDepts.indexOf(d) !== -1; });
+                var selectAllDeptLabel = allDeptsSelected ? 'Deselect All' : 'Select All';
+                var deptHtml = '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#4338ca;font-weight:700;border-bottom:2px solid #e0e7ff;background:#f5f3ff;" onmouseenter="this.style.background=\'#ede9fe\'" onmouseleave="this.style.background=\'#f5f3ff\'" onclick="event.preventDefault();selectAllImpactDepts()"><i class="fas ' + (allDeptsSelected ? 'fa-check-square' : 'fa-square') + '" style="color:#6366f1;"></i> ' + selectAllDeptLabel + '</label>';
+                deptHtml += sortedDepts.map(function(d) {
                     var checked = _impactScopeDepts.indexOf(d) !== -1 ? ' checked' : '';
                     return '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'\'"><input type="checkbox"' + checked + ' onchange="toggleImpactScopeDept(\'' + escapeHtml(d).replace(/'/g, "\\'") + '\')" style="accent-color:#6366f1;"> ' + escapeHtml(d) + '</label>';
                 }).join('');
+                deptDrop.innerHTML = deptHtml;
             }
-            // Systems dropdown
+            // Systems dropdown (alphabetical + Select All)
             var sysDisplay = document.getElementById('impactScopeSystemDisplay');
             var sysDrop = document.getElementById('impactScopeSystemDropdown');
             if (sysDisplay && sysDrop) {
                 if (_impactScopeSystems.length) {
-                    sysDisplay.innerHTML = _impactScopeSystems.map(function(s) {
+                    sysDisplay.innerHTML = _impactScopeSystems.slice().sort(function(a,b){return a.localeCompare(b);}).map(function(s) {
                         return '<span style="background:#ecfeff;border:1px solid #a5f3fc;color:#0e7490;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;">' + escapeHtml(s) + ' <i class="fas fa-times" style="cursor:pointer;font-size:8px;" onclick="event.stopPropagation();toggleImpactScopeSystem(\'' + escapeHtml(s).replace(/'/g, "\\'") + '\')"></i></span>';
                     }).join('');
                 } else {
                     sysDisplay.innerHTML = '<span style="opacity:0.6;">Select systems...</span>';
                 }
-                sysDrop.innerHTML = systemsList.map(function(s) {
+                var sortedSystems = systemsList.slice().sort(function(a,b){return a.localeCompare(b);});
+                var allSysSelected = sortedSystems.length > 0 && sortedSystems.every(function(s){ return _impactScopeSystems.indexOf(s) !== -1; });
+                var selectAllSysLabel = allSysSelected ? 'Deselect All' : 'Select All';
+                var sysHtml = '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#0e7490;font-weight:700;border-bottom:2px solid #cffafe;background:#ecfeff;" onmouseenter="this.style.background=\'#cffafe\'" onmouseleave="this.style.background=\'#ecfeff\'" onclick="event.preventDefault();selectAllImpactSystems()"><i class="fas ' + (allSysSelected ? 'fa-check-square' : 'fa-square') + '" style="color:#0ea5e9;"></i> ' + selectAllSysLabel + '</label>';
+                sysHtml += sortedSystems.map(function(s) {
                     var checked = _impactScopeSystems.indexOf(s) !== -1 ? ' checked' : '';
                     return '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'\'"><input type="checkbox"' + checked + ' onchange="toggleImpactScopeSystem(\'' + escapeHtml(s).replace(/'/g, "\\'") + '\')" style="accent-color:#0ea5e9;"> ' + escapeHtml(s) + '</label>';
                 }).join('');
+                sysDrop.innerHTML = sysHtml;
             }
-            // Projects dropdown
+            // Projects dropdown (alphabetical + Select All + Title | Owner | Date)
             var projDisplay = document.getElementById('impactScopeProjectDisplay');
             var projDrop = document.getElementById('impactScopeProjectDropdown');
             if (projDisplay && projDrop) {
                 var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
+                activeTasks.sort(function(a,b){ return (a.title||'').localeCompare(b.title||''); });
                 if (_impactScopeProjects.length) {
                     var selTasks = activeTasks.filter(function(t) { return _impactScopeProjects.indexOf(t.id) !== -1; });
                     projDisplay.innerHTML = selTasks.map(function(t) {
@@ -21371,10 +21449,20 @@
                 } else {
                     projDisplay.innerHTML = '<span style="opacity:0.6;">Select projects...</span>';
                 }
-                projDrop.innerHTML = activeTasks.map(function(t) {
+                var allProjSelected = activeTasks.length > 0 && activeTasks.every(function(t){ return _impactScopeProjects.indexOf(t.id) !== -1; });
+                var selectAllProjLabel = allProjSelected ? 'Deselect All' : 'Select All';
+                var projHtml = '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#92400e;font-weight:700;border-bottom:2px solid #fef3c7;background:#fffbeb;" onmouseenter="this.style.background=\'#fef3c7\'" onmouseleave="this.style.background=\'#fffbeb\'" onclick="event.preventDefault();selectAllImpactProjects()"><i class="fas ' + (allProjSelected ? 'fa-check-square' : 'fa-square') + '" style="color:#f59e0b;"></i> ' + selectAllProjLabel + '</label>';
+                projHtml += activeTasks.map(function(t) {
                     var checked = _impactScopeProjects.indexOf(t.id) !== -1 ? ' checked' : '';
-                    return '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'\'"><input type="checkbox"' + checked + ' onchange="toggleImpactScopeProject(\'' + t.id + '\')" style="accent-color:#f59e0b;"> ' + escapeHtml(t.title) + '</label>';
+                    var owner = t.assignedTo || t.owner || '';
+                    var datePart = _formatProjectDate(t);
+                    var label = escapeHtml(t.title);
+                    if (owner || datePart) {
+                        label += ' <span style="opacity:0.5;font-size:11px;">| ' + (owner ? escapeHtml(owner) : '') + (owner && datePart ? ' | ' : '') + (datePart ? datePart : '') + '</span>';
+                    }
+                    return '<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:12px;color:#1e293b;border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" onmouseenter="this.style.background=\'#f8fafc\'" onmouseleave="this.style.background=\'\'"><input type="checkbox"' + checked + ' onchange="toggleImpactScopeProject(\'' + t.id + '\')" style="accent-color:#f59e0b;"> ' + label + '</label>';
                 }).join('');
+                projDrop.innerHTML = projHtml;
             }
         }
 
@@ -21435,17 +21523,80 @@
             renderImpactScopeChips();
         }
 
+        function selectAllImpactDepts() {
+            var sortedDepts = departments.slice().sort(function(a,b){return a.localeCompare(b);});
+            var allSelected = sortedDepts.length > 0 && sortedDepts.every(function(d){ return _impactScopeDepts.indexOf(d) !== -1; });
+            if (allSelected) { _impactScopeDepts = []; } else { _impactScopeDepts = sortedDepts.slice(); }
+            if (!_impactScopeDepts.length && !_impactScopeProjects.length && !_impactScopeSystems.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
+            else { _impactScopeType = 'multi'; _impactScopeValue = ''; }
+            renderImpactScopeChips();
+        }
+
+        function selectAllImpactSystems() {
+            var sortedSystems = systemsList.slice().sort(function(a,b){return a.localeCompare(b);});
+            var allSelected = sortedSystems.length > 0 && sortedSystems.every(function(s){ return _impactScopeSystems.indexOf(s) !== -1; });
+            if (allSelected) { _impactScopeSystems = []; } else { _impactScopeSystems = sortedSystems.slice(); }
+            if (!_impactScopeDepts.length && !_impactScopeProjects.length && !_impactScopeSystems.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
+            else { _impactScopeType = 'multi'; _impactScopeValue = ''; }
+            renderImpactScopeChips();
+        }
+
+        function selectAllImpactProjects() {
+            var activeTasks = tasks.filter(function(t) { return !t.archived && canViewProject(t); });
+            var allSelected = activeTasks.length > 0 && activeTasks.every(function(t){ return _impactScopeProjects.indexOf(t.id) !== -1; });
+            if (allSelected) { _impactScopeProjects = []; } else { _impactScopeProjects = activeTasks.map(function(t){ return t.id; }); }
+            if (!_impactScopeDepts.length && !_impactScopeProjects.length && !_impactScopeSystems.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
+            else { _impactScopeType = 'multi'; _impactScopeValue = ''; }
+            renderImpactScopeChips();
+        }
+
         // ── IMPACT INSIGHTS LIBRARY ──────────────────────────
         var _editingInsightIdx = -1;
+
+        function _toggleInsightsLibrary() {
+            var body = document.getElementById('insightsLibraryBody');
+            var chevron = document.getElementById('insightsLibChevron');
+            if (!body) return;
+            var isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : 'block';
+            if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(90deg)';
+        }
+
+        function _openInsightsLibraryIfClosed() {
+            var body = document.getElementById('insightsLibraryBody');
+            var chevron = document.getElementById('insightsLibChevron');
+            if (body && body.style.display === 'none') {
+                body.style.display = 'block';
+                if (chevron) chevron.style.transform = 'rotate(90deg)';
+            }
+        }
+
+        function toggleSelectAllInsights() {
+            var checks = document.querySelectorAll('.impactInsightCheck');
+            var allChecked = checks.length > 0 && Array.from(checks).every(function(c) { return c.checked; });
+            checks.forEach(function(c) { c.checked = !allChecked; });
+            var btn = document.getElementById('insightsSelectAllBtn');
+            if (btn) btn.textContent = allChecked ? 'Select All' : 'Deselect All';
+        }
 
         function renderImpactInsightsList() {
             var el = document.getElementById('impactInsightsList');
             if (!el) return;
-            if (!impactInsightsLibrary.length) {
-                el.innerHTML = '<p style="color:#475569;font-size:11px;font-style:italic;">No insights yet. Add lessons learned or impact notes.</p>';
+            var searchEl = document.getElementById('insightsLibrarySearch');
+            var query = searchEl ? searchEl.value.trim().toLowerCase() : '';
+            var filtered = impactInsightsLibrary.map(function(c, i) { return { item: c, idx: i }; });
+            if (query) {
+                filtered = filtered.filter(function(f) {
+                    return (f.item.title || '').toLowerCase().indexOf(query) !== -1 ||
+                           (f.item.body || '').toLowerCase().indexOf(query) !== -1;
+                });
+            }
+            if (!filtered.length) {
+                el.innerHTML = '<p style="color:#475569;font-size:11px;font-style:italic;">' + (query ? 'No insights matching "' + escapeHtml(query) + '".' : 'No insights yet. Add lessons learned or impact notes.') + '</p>';
                 return;
             }
-            el.innerHTML = impactInsightsLibrary.map(function(c, i) {
+            el.innerHTML = filtered.map(function(f) {
+                var c = f.item; var i = f.idx;
                 return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:4px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;">' +
                     '<input type="checkbox" class="impactInsightCheck" data-idx="' + i + '" style="accent-color:#f59e0b;">' +
                     '<div style="flex:1;min-width:0;">' +
