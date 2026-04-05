@@ -4417,20 +4417,18 @@
       var downloadBtn = document.getElementById('gifDownloadBtn');
       var pngBtn = document.getElementById('gifPngBtn');
       var actionBtns = document.getElementById('gifActionBtns');
-      preview.innerHTML = '<span style="color:#94a3b8;font-size:0.82rem;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Loading libraries...</span>';
+      preview.innerHTML = '<span style="color:#94a3b8;font-size:0.82rem;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Generating animated signature...</span>';
       progress.style.display = 'none';
       if (actionBtns) actionBtns.style.display = 'none';
       document.getElementById('gifHostedUrl').style.display = 'none';
       pngBtn.style.display = '';
       modal.classList.add('active');
 
-      // Lazy-load html2canvas
-      loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').then(function() {
-        return loadScript('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js');
-      }).then(function() {
+      // Only need gif.js (no html2canvas needed — using canvas renderer)
+      loadScript('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js').then(function() {
         captureGifFrames(preview, progress, progressFill, progressText, downloadBtn, pngBtn);
       }).catch(function() {
-        preview.innerHTML = '<span style="color:#ef4444;font-size:0.82rem;"><i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i> Could not load libraries. Try Export PNG instead.</span>';
+        preview.innerHTML = '<span style="color:#ef4444;font-size:0.82rem;"><i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i> Could not load GIF library. Try Export PNG instead.</span>';
         pngBtn.style.display = '';
       });
     }
@@ -4486,54 +4484,282 @@
       var sigEl = document.getElementById('signaturePreview');
       if (!sigEl) { previewArea.innerHTML = '<span style="color:#ef4444;">No signature to capture.</span>'; return; }
       progress.style.display = 'block';
-      progressText.textContent = 'Preparing images...';
+      progressText.textContent = 'Preparing canvas render...';
       progressFill.style.width = '5%';
 
-      // Pre-convert images to data URIs, then capture
-      preloadSignatureImages(sigEl).then(function() {
-        progressText.textContent = 'Capturing frames...';
-        progressFill.style.width = '10%';
+      // Canvas-based renderer - draws the signature directly for reliable output
+      var canvasW = 600, canvasH = 260;
+      var totalFrames = 24;
+      var frames = [];
 
-        // Capture a series of frames with animated social icons
-        var socialIcons = sigEl.querySelectorAll('.social-item');
-        var totalFrames = Math.max(12, socialIcons.length * 3 + 6);
-        var frames = [];
-        var frameIndex = 0;
-
-        function captureFrame() {
-          if (frameIndex >= totalFrames) {
-            buildGif(frames, previewArea, progress, progressFill, progressText, downloadBtn, pngBtn);
-            return;
-          }
-          var pct = 10 + Math.round((frameIndex / totalFrames) * 50);
-          progressFill.style.width = pct + '%';
-          progressText.textContent = 'Capturing frame ' + (frameIndex + 1) + ' of ' + totalFrames + '...';
-
-          // Apply animation state: highlight one icon at a time
-          socialIcons.forEach(function(icon, i) {
-            var activeFrame = Math.floor((frameIndex - 3) / 2);
-            if (i === activeFrame) {
-              icon.style.transform = 'scale(1.25)';
-              icon.style.filter = 'brightness(1.2)';
-              icon.style.transition = 'none';
-            } else {
-              icon.style.transform = '';
-              icon.style.filter = '';
-              icon.style.transition = 'none';
-            }
-          });
-
-          html2canvas(sigEl, { backgroundColor: '#ffffff', scale: 2, useCORS: true, allowTaint: true }).then(function(canvas) {
-            frames.push(canvas);
-            frameIndex++;
-            setTimeout(captureFrame, 50);
-          }).catch(function() {
-            frameIndex++;
-            setTimeout(captureFrame, 50);
-          });
-        }
-        captureFrame();
+      // Gather signature data
+      var nameVal = '', titleVal = '', fields = [];
+      textFields.forEach(function(f) {
+        if (!f.value) return;
+        var lbl = f.label.toLowerCase();
+        if (lbl.includes('name') || lbl.includes('full')) nameVal = f.value;
+        else if (lbl.includes('title') || lbl.includes('position')) titleVal = f.value;
+        else fields.push(f.value);
       });
+
+      var activeSocial = socialOrder.filter(function(k) { return socialLinks[k] && socialLinks[k].trim(); });
+      var iconUrls = getSocialIcons();
+
+      // Pre-load all images (profile, logo, social icons) as Image objects
+      var imgPromises = [];
+      var profileImg = null, logoImg = null;
+      var socialImgs = {};
+
+      function loadImg(src) {
+        return new Promise(function(resolve) {
+          if (!src) { resolve(null); return; }
+          var img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = function() { resolve(img); };
+          img.onerror = function() {
+            // Try without CORS as fallback
+            var img2 = new Image();
+            img2.onload = function() { resolve(img2); };
+            img2.onerror = function() { resolve(null); };
+            img2.src = src;
+          };
+          img.src = src;
+        });
+      }
+
+      imgPromises.push(loadImg(images.profile).then(function(i) { profileImg = i; }));
+      imgPromises.push(loadImg(images.logo).then(function(i) { logoImg = i; }));
+      activeSocial.forEach(function(key) {
+        if (iconUrls[key]) {
+          imgPromises.push(loadImg(iconUrls[key]).then(function(i) { socialImgs[key] = i; }));
+        }
+      });
+
+      progressText.textContent = 'Loading images...';
+      progressFill.style.width = '10%';
+
+      Promise.all(imgPromises).then(function() {
+        progressText.textContent = 'Rendering frames...';
+
+        // Determine layout
+        var hasSocial = activeSocial.length > 0 && Object.keys(socialImgs).length > 0;
+        var hasPhoto = !!profileImg;
+        var hasLogo = !!logoImg;
+        var iconCol = hasSocial ? 48 : 0;
+        var sepCol = hasSocial ? 12 : 0;
+        var photoCol = hasPhoto ? photoSize + 16 : 0;
+        var textX = iconCol + sepCol + 16;
+        var textWidth = canvasW - textX - photoCol - 16;
+        var photoX = canvasW - photoCol;
+        var cta = getCTAConfig();
+        var hasCTA = cta.buttonText && cta.buttonUrl;
+        var hasBadge = showVerifiedBadge;
+
+        // Calculate tighter height
+        var contentH = 20; // top padding
+        if (hasLogo) contentH += 48;
+        if (nameVal) contentH += 30;
+        if (titleVal) contentH += 20;
+        fields.forEach(function() { contentH += 18; });
+        if (hasCTA) contentH += 36;
+        contentH += 20; // bottom padding
+        canvasH = Math.max(contentH, hasPhoto ? photoSize + 40 : 140, hasSocial ? activeSocial.length * 36 + 40 : 100);
+
+        // Sig background
+        var sigBg = buildSigBgStyle();
+        var bgColor1 = sigBgColor1 || '#f0f4f8';
+
+        for (var fi = 0; fi < totalFrames; fi++) {
+          var c = document.createElement('canvas');
+          c.width = canvasW * 2; c.height = canvasH * 2; // 2x for quality
+          var ctx = c.getContext('2d');
+          ctx.scale(2, 2);
+          var t = fi / totalFrames; // 0 to ~1
+          var entranceT = Math.min(1, t * 4); // 0-1 over first 25% of frames
+          var ease = entranceT < 1 ? 1 - Math.pow(1 - entranceT, 3) : 1; // ease-out
+
+          // Background
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvasW, canvasH);
+          if (sigBgStyle === 'solid') {
+            ctx.fillStyle = bgColor1;
+            ctx.beginPath();
+            roundRect(ctx, 4, 4, canvasW - 8, canvasH - 8, sigBgRadius);
+            ctx.fill();
+          } else if (sigBgStyle === 'gradient') {
+            var grad = ctx.createLinearGradient(0, 0, canvasW, canvasH);
+            grad.addColorStop(0, sigBgColor1); grad.addColorStop(1, sigBgColor2);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            roundRect(ctx, 4, 4, canvasW - 8, canvasH - 8, sigBgRadius);
+            ctx.fill();
+          } else if (sigBgStyle === 'accent') {
+            ctx.fillStyle = sigBgAccentColor;
+            ctx.fillRect(0, 0, sigBgBarWidth, canvasH);
+          }
+
+          // Social icons column (animate entrance: slide in from left)
+          if (hasSocial) {
+            var iconSize = 28;
+            var iconGap = 34;
+            var iconStartY = Math.max(12, (canvasH - activeSocial.length * iconGap) / 2);
+            activeSocial.forEach(function(key, i) {
+              var iconDelay = Math.min(1, Math.max(0, (t * totalFrames - 2 - i * 1.5) / 3));
+              var iconEase = iconDelay < 1 ? 1 - Math.pow(1 - iconDelay, 3) : 1;
+              var ix = 10 - 30 * (1 - iconEase);
+              var iy = iconStartY + i * iconGap;
+              ctx.globalAlpha = iconEase;
+              if (socialImgs[key]) {
+                ctx.save();
+                // Pop effect when icon appears
+                var popScale = iconDelay > 0.5 && iconDelay < 1 ? 1 + 0.15 * Math.sin((iconDelay - 0.5) * Math.PI * 2) : 1;
+                ctx.translate(ix + iconSize/2, iy + iconSize/2);
+                ctx.scale(popScale, popScale);
+                ctx.drawImage(socialImgs[key], -iconSize/2, -iconSize/2, iconSize, iconSize);
+                ctx.restore();
+              }
+              ctx.globalAlpha = 1;
+            });
+
+            // Separator line
+            ctx.globalAlpha = ease;
+            ctx.fillStyle = removeBorders ? 'transparent' : '#d1d5db';
+            ctx.fillRect(iconCol, 16, 2, canvasH - 32);
+            ctx.globalAlpha = 1;
+          }
+
+          // Logo (slide down)
+          var curY = 16;
+          if (hasLogo) {
+            var logoH = 36;
+            var logoW = Math.min(140, logoImg.naturalWidth * (logoH / logoImg.naturalHeight));
+            ctx.globalAlpha = ease;
+            var logoYoff = (1 - ease) * -12;
+            ctx.drawImage(logoImg, textX, curY + logoYoff, logoW, logoH);
+            ctx.globalAlpha = 1;
+            curY += logoH + 8;
+          }
+
+          // Name (fade in + slide up)
+          if (nameVal) {
+            ctx.globalAlpha = ease;
+            var nameYoff = (1 - ease) * 8;
+            ctx.font = 'bold 22px Arial, sans-serif';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(nameVal, textX, curY + 20 + nameYoff);
+            // Badge
+            if (hasBadge) {
+              var nameW = ctx.measureText(nameVal).width;
+              ctx.fillStyle = '#3b82f6';
+              ctx.beginPath();
+              ctx.arc(textX + nameW + 12, curY + 14 + nameYoff, 8, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 11px Arial';
+              ctx.fillText('\u2713', textX + nameW + 8, curY + 18 + nameYoff);
+            }
+            ctx.globalAlpha = 1;
+            curY += 28;
+          }
+
+          // Title
+          if (titleVal) {
+            var titleDelay = Math.min(1, Math.max(0, (t * totalFrames - 1) / 4));
+            var titleEase = titleDelay < 1 ? 1 - Math.pow(1 - titleDelay, 3) : 1;
+            ctx.globalAlpha = titleEase;
+            ctx.font = '15px Arial, sans-serif';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(titleVal, textX, curY + 14 + (1 - titleEase) * 6);
+            ctx.globalAlpha = 1;
+            curY += 20;
+          }
+
+          // Other fields (phone, email, etc.)
+          fields.forEach(function(val, fi2) {
+            var fDelay = Math.min(1, Math.max(0, (t * totalFrames - 2 - fi2 * 0.5) / 4));
+            var fEase = fDelay < 1 ? 1 - Math.pow(1 - fDelay, 3) : 1;
+            ctx.globalAlpha = fEase;
+            ctx.font = '13px Arial, sans-serif';
+            ctx.fillStyle = '#374151';
+            ctx.fillText(val, textX, curY + 13 + (1 - fEase) * 4);
+            ctx.globalAlpha = 1;
+            curY += 18;
+          });
+
+          // CTA Button
+          if (hasCTA) {
+            var ctaDelay = Math.min(1, Math.max(0, (t * totalFrames - 5) / 4));
+            var ctaEase = ctaDelay < 1 ? 1 - Math.pow(1 - ctaDelay, 3) : 1;
+            curY += 8;
+            ctx.globalAlpha = ctaEase;
+            var ctaBg = cta.bgColor || '#2563eb';
+            var ctaTxt = cta.textColor || '#ffffff';
+            ctx.font = 'bold 13px Arial, sans-serif';
+            var ctaW = ctx.measureText(cta.buttonText).width + 32;
+            ctx.fillStyle = ctaBg;
+            ctx.beginPath();
+            roundRect(ctx, textX, curY + (1 - ctaEase) * 8, ctaW, 28, 6);
+            ctx.fill();
+            ctx.fillStyle = ctaTxt;
+            ctx.fillText(cta.buttonText, textX + 16, curY + 18 + (1 - ctaEase) * 8);
+            ctx.globalAlpha = 1;
+          }
+
+          // Profile Photo (pop in from right)
+          if (hasPhoto) {
+            var photoDelay = Math.min(1, Math.max(0, (t * totalFrames - 1) / 5));
+            var photoEase = photoDelay < 1 ? 1 - Math.pow(1 - photoDelay, 3) : 1;
+            var pSize = photoSize;
+            var pY = Math.max(12, (canvasH - pSize) / 2);
+            var pXoff = (1 - photoEase) * 30;
+            ctx.globalAlpha = photoEase;
+            ctx.save();
+            ctx.beginPath();
+            var pxDraw = photoX + pXoff;
+            if (currentPhotoShape === 'circle') {
+              ctx.arc(pxDraw + pSize/2, pY + pSize/2, pSize/2, 0, Math.PI * 2);
+            } else if (currentPhotoShape === 'diamond') {
+              ctx.moveTo(pxDraw + pSize/2, pY);
+              ctx.lineTo(pxDraw + pSize, pY + pSize/2);
+              ctx.lineTo(pxDraw + pSize/2, pY + pSize);
+              ctx.lineTo(pxDraw, pY + pSize/2);
+            } else {
+              roundRect(ctx, pxDraw, pY, pSize, pSize, 8);
+            }
+            ctx.closePath();
+            ctx.clip();
+            // Apply photo filters
+            if (photoFilters.brightness !== 100 || photoFilters.contrast !== 100 || photoFilters.saturate !== 100) {
+              ctx.filter = 'brightness(' + photoFilters.brightness + '%) contrast(' + photoFilters.contrast + '%) saturate(' + photoFilters.saturate + '%)';
+            }
+            ctx.drawImage(profileImg, pxDraw, pY, pSize, pSize);
+            ctx.restore();
+            ctx.globalAlpha = 1;
+          }
+
+          frames.push(c);
+          var pct = 10 + Math.round((fi / totalFrames) * 55);
+          progressFill.style.width = pct + '%';
+          progressText.textContent = 'Rendering frame ' + (fi + 1) + ' of ' + totalFrames + '...';
+        }
+
+        buildGif(frames, previewArea, progress, progressFill, progressText, downloadBtn, pngBtn);
+      }).catch(function(e) {
+        previewArea.innerHTML = '<span style="color:#ef4444;">Image loading failed. Try Export PNG instead.</span>';
+      });
+    }
+
+    // Helper: rounded rectangle on canvas
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
     }
 
     function buildGif(frames, previewArea, progress, progressFill, progressText, downloadBtn, pngBtn) {
