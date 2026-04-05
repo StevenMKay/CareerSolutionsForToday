@@ -1191,6 +1191,22 @@
     .gif-modal .gif-progress { font-size:0.82rem; color:#64748b; margin:10px 0; }
     .gif-modal .gif-progress-bar { width:100%; height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden; margin-top:6px; }
     .gif-modal .gif-progress-bar-fill { height:100%; background:var(--accent-gradient); border-radius:3px; transition:width 0.3s; width:0%; }
+    .gif-copy-mode { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; justify-content:center; }
+    .gif-copy-mode .btn { flex:1; min-width:110px; justify-content:center; }
+    /* Verification Badge */
+    .sig-badge { display:inline-flex; align-items:center; gap:2px; margin-left:3px; vertical-align:middle; }
+    .sig-badge img { width:16px; height:16px; }
+    .badge-toggle { display:flex; align-items:center; gap:6px; margin-top:6px; }
+    .badge-toggle label { font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px; margin:0; }
+    /* Logo Animation Controls */
+    .logo-anim-controls { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+    .logo-anim-btn {
+      padding:3px 8px; border:1.5px solid var(--border-primary); border-radius:5px;
+      font-family:inherit; font-size:0.68rem; font-weight:600; color:var(--text-muted);
+      background:var(--bg-card); cursor:pointer; transition:all var(--transition);
+    }
+    .logo-anim-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .logo-anim-btn.active { border-color:var(--accent); color:#fff; background:var(--accent); }
     .dark .gif-modal { background:#1e293b; }
     .dark .gif-modal h3 { color:#f1f5f9; }
     .dark .gif-modal .gif-preview-area { border-color:#334155; }
@@ -1305,6 +1321,10 @@
           <div class="section-body" id="infoBody">
             <div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:6px;">Double-click a label to rename it</div>
             <div id="textFields" data-testid="text-fields-container"></div>
+            <div class="badge-toggle" data-testid="badge-toggle">
+              <input type="checkbox" id="chkVerifiedBadge" onchange="toggleVerifiedBadge(this.checked)" style="width:14px;height:14px;">
+              <label for="chkVerifiedBadge"><i class="fas fa-check-circle" style="color:#3b82f6;margin-right:2px;"></i> Verification Badge</label>
+            </div>
           </div>
         </div>
 
@@ -1410,6 +1430,18 @@
             </div>
               <div class="upload-area" id="uaLogo" data-testid="upload-logo"><div id="logoPreview"><i class="fas fa-building"></i><span>Upload logo or animated GIF</span></div></div>
               <input type="file" id="companyLogo" accept="image/*" hidden />
+              <div id="logoAnimControls" style="display:none; margin-top:6px;">
+                <label style="font-size:0.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px;">Logo Animation (generates GIF)</label>
+                <div class="logo-anim-controls" data-testid="logo-anim-controls">
+                  <button class="logo-anim-btn active" data-logoanim="none" onclick="setLogoAnim('none')" data-testid="logoanim-none">None</button>
+                  <button class="logo-anim-btn" data-logoanim="pulse" onclick="setLogoAnim('pulse')" data-testid="logoanim-pulse"><i class="fas fa-heartbeat"></i> Pulse</button>
+                  <button class="logo-anim-btn" data-logoanim="spin" onclick="setLogoAnim('spin')" data-testid="logoanim-spin"><i class="fas fa-sync-alt"></i> Spin</button>
+                  <button class="logo-anim-btn" data-logoanim="bounce" onclick="setLogoAnim('bounce')" data-testid="logoanim-bounce"><i class="fas fa-arrow-up"></i> Bounce</button>
+                  <button class="logo-anim-btn" data-logoanim="fadeloop" onclick="setLogoAnim('fadeloop')" data-testid="logoanim-fadeloop"><i class="fas fa-eye"></i> Fade</button>
+                  <button class="logo-anim-btn" data-logoanim="glow" onclick="setLogoAnim('glow')" data-testid="logoanim-glow"><i class="fas fa-sun"></i> Glow</button>
+                </div>
+                <div id="logoAnimProgress" style="display:none; margin-top:4px; font-size:0.72rem; color:var(--accent);"><i class="fas fa-spinner fa-spin"></i> Generating animated logo...</div>
+              </div>
             </div>
           </div>
           </div>
@@ -1749,8 +1781,8 @@
   <!-- GIF Export Modal -->
   <div class="gif-modal-overlay" id="gifModalOverlay" onclick="if(event.target===this)closeGifModal()">
     <div class="gif-modal">
-      <h3><i class="fas fa-film"></i> Export Signature GIF</h3>
-      <p style="font-size:0.78rem;color:#64748b;margin-bottom:4px;">Capture an animated GIF of your signature with social icon effects.</p>
+      <h3><i class="fas fa-film"></i> Animated GIF Signature</h3>
+      <p style="font-size:0.78rem;color:#64748b;margin-bottom:4px;">Generate an animated GIF of your signature that works in real email clients (Gmail, Apple Mail, Yahoo).</p>
       <div class="gif-preview-area" id="gifPreviewArea">
         <span style="color:#94a3b8;font-size:0.82rem;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Generating...</span>
       </div>
@@ -1758,11 +1790,19 @@
         <span id="gifProgressText">Capturing frames...</span>
         <div class="gif-progress-bar"><div class="gif-progress-bar-fill" id="gifProgressFill"></div></div>
       </div>
-      <div style="margin-top:14px; display:flex; gap:8px; justify-content:center;">
-        <button class="btn btn-ghost btn-sm" onclick="closeGifModal()">Close</button>
-        <button class="btn btn-primary btn-sm" id="gifDownloadBtn" style="display:none;" onclick="downloadGif()"><i class="fas fa-download"></i> Download GIF</button>
-        <button class="btn btn-ghost btn-sm" id="gifPngBtn" onclick="exportSignaturePNG()"><i class="fas fa-image"></i> Export PNG Instead</button>
+      <div id="gifHostedUrl" style="display:none; margin-top:8px; padding:8px; background:#f0fdf4; border-radius:8px; font-size:0.75rem; color:#16a34a; word-break:break-all;">
+        <i class="fas fa-check-circle" style="margin-right:4px;"></i> <span id="gifHostedUrlText"></span>
       </div>
+      <div class="gif-copy-mode" id="gifActionBtns" style="display:none;">
+        <button class="btn btn-success btn-sm" onclick="copyAsGifSignature()" data-testid="btn-copy-gif-sig"><i class="fas fa-magic"></i> Copy GIF Signature</button>
+        <button class="btn btn-primary btn-sm" id="gifUploadHostBtn" onclick="uploadGifToHost()" data-testid="btn-upload-gif"><i class="fas fa-cloud-upload-alt"></i> Host & Copy</button>
+        <button class="btn btn-ghost btn-sm" id="gifDownloadBtn" onclick="downloadGif()"><i class="fas fa-download"></i> Download</button>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px; justify-content:center;">
+        <button class="btn btn-ghost btn-sm" onclick="closeGifModal()">Close</button>
+        <button class="btn btn-ghost btn-sm" id="gifPngBtn" onclick="exportSignaturePNG()"><i class="fas fa-image"></i> Export PNG</button>
+      </div>
+      <p style="font-size:0.68rem; color:#94a3b8; margin-top:8px;"><i class="fas fa-info-circle"></i> Gmail, Apple Mail &amp; Yahoo play animated GIFs. Outlook desktop shows the first frame.</p>
     </div>
   </div>
 
@@ -3210,7 +3250,7 @@
 
     // ===== Save / Load / Export =====
     function getConfigData() {
-      return { textFields, socialLinks, socialOrder, iconStyle, iconPosition, photoSize, showIconBorders, showPhotoBorder, removeBorders, images, currentIconAnim, currentPhotoShape, currentPhotoAnim, currentPhotoHover, sigBgStyle, sigBgColor1, sigBgColor2, sigBgAccentColor, sigBgBarWidth, sigBgPadding, sigBgRadius, photoFilters, currentFilterPreset, currentPhotoBgStyle, photoBgColorVal, selectedEmailProvider, ctaConfig: getCTAConfig(), trackingEnabled: typeof trackingEnabled !== 'undefined' ? trackingEnabled : false };
+      return { textFields, socialLinks, socialOrder, iconStyle, iconPosition, photoSize, showIconBorders, showPhotoBorder, removeBorders, images, currentIconAnim, currentPhotoShape, currentPhotoAnim, currentPhotoHover, sigBgStyle, sigBgColor1, sigBgColor2, sigBgAccentColor, sigBgBarWidth, sigBgPadding, sigBgRadius, photoFilters, currentFilterPreset, currentPhotoBgStyle, photoBgColorVal, selectedEmailProvider, showVerifiedBadge, currentLogoAnim, ctaConfig: getCTAConfig(), trackingEnabled: typeof trackingEnabled !== 'undefined' ? trackingEnabled : false };
     }
 
     function applyConfigData(data) {
@@ -3259,6 +3299,8 @@
       if (data.currentFilterPreset) applyFilterPreset(data.currentFilterPreset);
       if (data.currentPhotoBgStyle) { photoBgColorVal = data.photoBgColorVal || '#0b4f6c'; document.getElementById('photoBgColor').value = photoBgColorVal; setPhotoBgStyle(data.currentPhotoBgStyle); }
       if (data.selectedEmailProvider) { selectedEmailProvider = data.selectedEmailProvider; document.getElementById('emailProvider').value = selectedEmailProvider; }
+      if (typeof data.showVerifiedBadge === 'boolean') { showVerifiedBadge = data.showVerifiedBadge; document.getElementById('chkVerifiedBadge').checked = showVerifiedBadge; }
+      if (data.currentLogoAnim) { currentLogoAnim = data.currentLogoAnim; document.querySelectorAll('[data-logoanim]').forEach(function(b) { b.classList.toggle('active', b.dataset.logoanim === currentLogoAnim); }); }
       renderTextFields(); renderSocialFields(); updatePreview();
     }
 
@@ -3622,7 +3664,11 @@
         const l = f.label.toLowerCase();
         const isName = l.includes('name'); const isTitle = l.includes('title') || l.includes('position');
         const isEmail = f.type === 'email' || l.includes('email'); const isPhone = f.type === 'tel' || l.includes('phone');
-        if (isName) content += '<div class="signature-name">'+f.value+'</div>';
+        if (isName) {
+          content += '<div class="signature-name">'+f.value;
+          if (showVerifiedBadge) content += '<span class="sig-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#3b82f6"/><path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+          content += '</div>';
+        }
         else if (isTitle) content += '<div class="signature-title">'+f.value+'</div>';
         else if (isPhone) content += '<div class="signature-contact"><a href="tel:'+f.value+'">'+f.value+'</a></div>';
         else if (isEmail) content += '<div class="signature-contact"><a href="mailto:'+f.value+'">'+f.value+'</a></div>';
@@ -3680,6 +3726,9 @@
       if (animCtrl) animCtrl.style.display = images.profile ? '' : 'none';
       if (hoverCtrl) hoverCtrl.style.display = images.profile ? '' : 'none';
       if (editorCtrl) editorCtrl.style.display = images.profile ? '' : 'none';
+      // Show/hide logo anim controls
+      var logoAnimCtrl = document.getElementById('logoAnimControls');
+      if (logoAnimCtrl) logoAnimCtrl.style.display = images.logo ? '' : 'none';
       // Apply signature background to preview
       var sigBg = buildSigBgStyle();
       if (sigBg.style) wrap.parentElement.style.cssText = sigBg.style;
@@ -3719,7 +3768,10 @@
         if (!f.value.trim()) return;
         const l = f.label.toLowerCase();
         const isName = l.includes('name'), isTitle = l.includes('title') || l.includes('position'), isEmail = f.type === 'email' || l.includes('email'), isPhone = f.type === 'tel' || l.includes('phone');
-        if (isName) content += '<tr><td style="font-family:Arial, sans-serif; font-size:24px; font-weight:bold; color:#000000; padding-bottom:2px; line-height:1.2;">'+f.value+'</td></tr>';
+        if (isName) {
+          var badgeHtml = showVerifiedBadge ? ' <img src="https://img.icons8.com/color/16/verified-badge.png" alt="Verified" width="16" height="16" style="vertical-align:middle; margin-left:2px;" />' : '';
+          content += '<tr><td style="font-family:Arial, sans-serif; font-size:24px; font-weight:bold; color:#000000; padding-bottom:2px; line-height:1.2;">'+f.value+badgeHtml+'</td></tr>';
+        }
         else if (isTitle) content += '<tr><td style="font-family:Arial, sans-serif; font-size:16px; color:#333333; padding-bottom:4px; line-height:1.2;">'+f.value+'</td></tr>';
         else if (isPhone) content += '<tr><td style="font-family:Arial, sans-serif; font-size:14px; color:#333333; padding-bottom:2px; line-height:1.3;"><a href="tel:'+f.value+'" style="color:#333333; text-decoration:none;">'+f.value+'</a></td></tr>';
         else if (isEmail) content += '<tr><td style="font-family:Arial, sans-serif; font-size:14px; color:#333333; padding-bottom:2px; line-height:1.3;"><a href="mailto:'+f.value+'" style="color:#333333; text-decoration:none;">'+f.value+'</a></td></tr>';
@@ -4167,6 +4219,194 @@
 
     // ===== GIF / Image Export (Step 5) =====
     var gifBlobUrl = null;
+    var gifBlob = null;
+    var hostedGifUrl = null;
+    var showVerifiedBadge = false;
+    var currentLogoAnim = 'none';
+    var originalLogoSrc = null;
+
+    // ===== Verification Badge =====
+    function toggleVerifiedBadge(checked) {
+      showVerifiedBadge = checked;
+      updatePreview();
+    }
+
+    // ===== Logo Animation =====
+    function setLogoAnim(anim) {
+      currentLogoAnim = anim;
+      document.querySelectorAll('[data-logoanim]').forEach(function(b) { b.classList.toggle('active', b.dataset.logoanim === anim); });
+      if (anim === 'none') {
+        if (originalLogoSrc && images.logo) { images.logo = originalLogoSrc; }
+        updatePreview();
+        toast('Logo animation: Off');
+        return;
+      }
+      if (!images.logo) { toast('Upload a logo first'); return; }
+      // Save original logo
+      if (!originalLogoSrc) originalLogoSrc = images.logo;
+      // Generate animated GIF from logo
+      generateLogoGif(anim);
+    }
+
+    function generateLogoGif(anim) {
+      var progressEl = document.getElementById('logoAnimProgress');
+      if (progressEl) progressEl.style.display = '';
+      var logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      logoImg.onload = function() {
+        var size = 100;
+        var frames = 16;
+        var canvases = [];
+        for (var i = 0; i < frames; i++) {
+          var c = document.createElement('canvas');
+          c.width = size; c.height = size;
+          var ctx = c.getContext('2d');
+          var t = i / frames;
+          ctx.clearRect(0, 0, size, size);
+          ctx.save();
+          ctx.translate(size / 2, size / 2);
+          if (anim === 'pulse') {
+            var s = 0.85 + 0.15 * Math.sin(t * Math.PI * 2);
+            ctx.scale(s, s);
+          } else if (anim === 'spin') {
+            ctx.rotate(t * Math.PI * 2);
+          } else if (anim === 'bounce') {
+            var yOff = -8 * Math.abs(Math.sin(t * Math.PI * 2));
+            ctx.translate(0, yOff);
+          } else if (anim === 'fadeloop') {
+            ctx.globalAlpha = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2));
+          } else if (anim === 'glow') {
+            var gs = 0.95 + 0.05 * Math.sin(t * Math.PI * 2);
+            ctx.scale(gs, gs);
+            ctx.shadowColor = 'rgba(11,79,108,0.5)';
+            ctx.shadowBlur = 6 + 10 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2));
+          }
+          ctx.drawImage(logoImg, -size / 2, -size / 2, size, size);
+          ctx.restore();
+          canvases.push(c);
+        }
+        // Build GIF
+        Promise.all([
+          loadScript('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js'),
+          getGifWorkerBlobUrl()
+        ]).then(function(results) {
+          var workerUrl = results[1];
+          var gif = new GIF({ workers: 2, quality: 10, width: size, height: size, workerScript: workerUrl, transparent: 0x00FF00 });
+          canvases.forEach(function(c) { gif.addFrame(c, { delay: 80 }); });
+          gif.on('finished', function(blob) {
+            var url = URL.createObjectURL(blob);
+            images.logo = url;
+            document.querySelector('#logoPreview').innerHTML = '<img src="' + url + '" class="image-preview" alt="" />';
+            if (progressEl) progressEl.style.display = 'none';
+            updatePreview();
+            toast('Animated logo generated! Upload to Firebase to use in email.');
+            // If signed in, auto-upload
+            if (currentUser) {
+              uploadGifBlobToStorage(blob, 'logo-anim').then(function(hostedUrl) {
+                images.logo = hostedUrl;
+                updatePreview();
+                toast('Animated logo hosted!');
+              });
+            }
+          });
+          gif.render();
+        }).catch(function() {
+          if (progressEl) progressEl.style.display = 'none';
+          toast('Could not generate logo animation');
+        });
+      };
+      logoImg.onerror = function() {
+        if (progressEl) progressEl.style.display = 'none';
+        toast('Could not load logo image for animation');
+      };
+      logoImg.src = originalLogoSrc || images.logo;
+    }
+
+    function uploadGifBlobToStorage(blob, label) {
+      if (!currentUser) return Promise.resolve(null);
+      var storage = firebase.storage();
+      var sigId = 'sig-' + currentUser.uid.substring(0, 8);
+      var ref = storage.ref('signature-images/' + sigId + '/' + currentUser.uid + '/' + Date.now() + '_' + label + '.gif');
+      return ref.put(blob, { contentType: 'image/gif' }).then(function(snapshot) {
+        return snapshot.ref.getDownloadURL();
+      });
+    }
+
+    // ===== Copy as GIF Signature =====
+    function copyAsGifSignature() {
+      if (!gifBlobUrl) { toast('Generate a GIF first'); return; }
+      var gifUrl = hostedGifUrl || gifBlobUrl;
+      // Build a simple HTML email signature with the GIF as the main visual
+      var nameField = textFields.find(function(f) { return f.label.toLowerCase().includes('name'); });
+      var titleField = textFields.find(function(f) { return f.label.toLowerCase().includes('title') || f.label.toLowerCase().includes('position'); });
+      var emailField = textFields.find(function(f) { return f.label.toLowerCase().includes('email'); });
+      var phoneField = textFields.find(function(f) { return f.label.toLowerCase().includes('phone'); });
+      var name = nameField ? nameField.value : '';
+      var title = titleField ? titleField.value : '';
+      var email = emailField ? emailField.value : '';
+      var phone = phoneField ? phoneField.value : '';
+      var cta = getCTAConfig();
+      var activeSocial = socialOrder.filter(function(k) { return socialLinks[k] && socialLinks[k].trim(); });
+      var iconUrls = getSocialIcons();
+
+      var html = '<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,sans-serif; border-collapse:collapse;">';
+      html += '<tr><td style="padding:0;"><img src="' + gifUrl + '" alt="' + (name || 'Email Signature') + '" border="0" style="display:block; max-width:550px; height:auto;" /></td></tr>';
+      // Fallback text links below the GIF
+      if (name || title || email || phone) {
+        html += '<tr><td style="padding:8px 0 0; font-size:12px; color:#64748b;">';
+        if (name) html += '<strong>' + name + '</strong>';
+        if (title) html += ' - ' + title;
+        if (phone) html += ' | ' + phone;
+        if (email) html += ' | <a href="mailto:' + email + '" style="color:#0b4f6c; text-decoration:none;">' + email + '</a>';
+        html += '</td></tr>';
+      }
+      // Social icon links as text fallback
+      if (activeSocial.length) {
+        html += '<tr><td style="padding:4px 0 0; font-size:11px;">';
+        activeSocial.forEach(function(key, i) {
+          if (i > 0) html += ' &middot; ';
+          html += '<a href="' + socialLinks[key] + '" target="_blank" style="color:#0b4f6c; text-decoration:none;">' + key.charAt(0).toUpperCase() + key.slice(1) + '</a>';
+        });
+        html += '</td></tr>';
+      }
+      // CTA
+      if (cta.buttonText && cta.buttonUrl) {
+        html += '<tr><td style="padding:6px 0 0;"><a href="' + cta.buttonUrl + '" target="_blank" style="background-color:' + (cta.bgColor || '#2563eb') + '; color:' + (cta.textColor || '#fff') + '; padding:6px 16px; border-radius:4px; text-decoration:none; font-size:12px; font-weight:bold; display:inline-block;">' + cta.buttonText + '</a></td></tr>';
+      }
+      html += '</table>';
+
+      var cleanHtml = sanitizeForEmailClient(html, selectedEmailProvider);
+      if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+        var blob = new Blob([cleanHtml], { type: 'text/html' });
+        var item = new ClipboardItem({ 'text/html': blob, 'text/plain': new Blob([cleanHtml], { type: 'text/plain' }) });
+        navigator.clipboard.write([item]).then(function() { toast('GIF signature copied! Paste into your email client.'); }).catch(function() { fallbackCopy(cleanHtml); });
+      } else { fallbackCopy(cleanHtml); }
+    }
+
+    // ===== Upload GIF to Firebase Storage & Copy =====
+    function uploadGifToHost() {
+      if (!gifBlob) { toast('Generate a GIF first'); return; }
+      if (!currentUser) { toast('Sign in to host your GIF on the cloud'); return; }
+      var btn = document.getElementById('gifUploadHostBtn');
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+      btn.disabled = true;
+      uploadGifBlobToStorage(gifBlob, 'signature').then(function(url) {
+        hostedGifUrl = url;
+        var urlDisplay = document.getElementById('gifHostedUrl');
+        var urlText = document.getElementById('gifHostedUrlText');
+        urlDisplay.style.display = '';
+        urlText.textContent = 'Hosted at: ' + url.substring(0, 60) + '...';
+        btn.innerHTML = '<i class="fas fa-check"></i> Hosted!';
+        btn.disabled = false;
+        toast('GIF uploaded! Click "Copy GIF Signature" to use it.');
+        // Auto-copy with the hosted URL
+        copyAsGifSignature();
+      }).catch(function(e) {
+        btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Host & Copy';
+        btn.disabled = false;
+        toast('Upload failed: ' + (e.message || 'Unknown error'));
+      });
+    }
 
     function exportSignatureGIF() {
       var modal = document.getElementById('gifModalOverlay');
@@ -4176,9 +4416,11 @@
       var progressText = document.getElementById('gifProgressText');
       var downloadBtn = document.getElementById('gifDownloadBtn');
       var pngBtn = document.getElementById('gifPngBtn');
+      var actionBtns = document.getElementById('gifActionBtns');
       preview.innerHTML = '<span style="color:#94a3b8;font-size:0.82rem;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i> Loading libraries...</span>';
       progress.style.display = 'none';
-      downloadBtn.style.display = 'none';
+      if (actionBtns) actionBtns.style.display = 'none';
+      document.getElementById('gifHostedUrl').style.display = 'none';
       pngBtn.style.display = '';
       modal.classList.add('active');
 
@@ -4281,7 +4523,7 @@
             }
           });
 
-          html2canvas(sigEl, { backgroundColor: null, scale: 2, useCORS: true, allowTaint: true }).then(function(canvas) {
+          html2canvas(sigEl, { backgroundColor: '#ffffff', scale: 2, useCORS: true, allowTaint: true }).then(function(canvas) {
             frames.push(canvas);
             frameIndex++;
             setTimeout(captureFrame, 50);
@@ -4322,10 +4564,15 @@
           gif.on('finished', function(blob) {
             if (gifBlobUrl) URL.revokeObjectURL(gifBlobUrl);
             gifBlobUrl = URL.createObjectURL(blob);
+            gifBlob = blob;
+            hostedGifUrl = null;
             previewArea.innerHTML = '<img src="' + gifBlobUrl + '" alt="Animated signature" />';
             progressFill.style.width = '100%';
             progressText.textContent = 'Done! (' + Math.round(blob.size / 1024) + ' KB)';
-            downloadBtn.style.display = '';
+            // Show action buttons
+            var actionBtns = document.getElementById('gifActionBtns');
+            if (actionBtns) actionBtns.style.display = '';
+            document.getElementById('gifHostedUrl').style.display = 'none';
             pngBtn.style.display = '';
             // Reset social icon styles
             var sigEl = document.getElementById('signaturePreview');
