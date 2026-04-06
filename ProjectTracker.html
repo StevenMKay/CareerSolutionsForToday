@@ -18,6 +18,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -6216,6 +6217,14 @@
         .faq-chevron { transition: transform 0.2s; color: #94a3b8; font-size: 11px; }
         .faq-answer { display: none; padding: 12px 16px; font-size: 13px; color: #475569; line-height: 1.65; background: #f8fafc; border-top: 1px solid #e2e8f0; }
         .faq-answer.visible { display: block; }
+        .faq-category { margin-bottom: 18px; }
+        .faq-category-hdr { display:flex; align-items:center; gap:8px; padding:8px 0 6px; cursor:pointer; user-select:none; }
+        .faq-category-hdr i.faq-cat-icon { font-size:13px; color:#3b82f6; width:18px; text-align:center; }
+        .faq-category-hdr span { font-size:13px; font-weight:700; color:#1e293b; }
+        .faq-category-hdr .faq-cat-count { font-size:10px; color:#94a3b8; font-weight:600; margin-left:auto; }
+        .faq-category-hdr .faq-cat-chevron { font-size:10px; color:#94a3b8; transition:transform 0.2s; }
+        .faq-category.collapsed .faq-cat-chevron { transform:rotate(-90deg); }
+        .faq-category.collapsed .faq-category-body { display:none; }
         .tour-card { background: linear-gradient(135deg,#1e3a5f,#2563eb); border-radius: 14px; padding: 28px 28px 24px; color: white; text-align: center; }
         .tour-card-icon { font-size: 36px; margin-bottom: 14px; opacity: 0.9; }
         .tour-card-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
@@ -7339,6 +7348,28 @@
         .audit-change-from   { background: rgba(239,68,68,0.15); color: #fca5a5; padding: 1px 7px; border-radius: 4px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .audit-change-arrow  { color: #475569; flex-shrink: 0; }
         .audit-change-to     { background: rgba(34,197,94,0.15);  color: #86efac;  padding: 1px 7px; border-radius: 4px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* ===== MODAL ACTIVITY FEED ===== */
+        .maf-filter-bar { display: flex; gap: 4px; padding: 0 0 10px; flex-wrap: wrap; }
+        .maf-pill { background: rgba(255,255,255,0.06); color: #94a3b8; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 3px 10px; font-size: 10px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+        .maf-pill:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .maf-pill.active { background: rgba(37,99,235,0.15); color: #60a5fa; border-color: rgba(37,99,235,0.35); }
+        .maf-entry { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .maf-entry:last-child { border-bottom: none; }
+        .maf-icon { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; margin-top: 1px; }
+        .maf-body { flex: 1; min-width: 0; }
+        .maf-action { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+        .maf-by { font-size: 11px; color: #64748b; margin-top: 1px; }
+        .maf-time { font-size: 10px; color: #475569; margin-top: 2px; }
+        .maf-detail { font-size: 11px; color: #94a3b8; margin-top: 3px; max-height: 60px; overflow: hidden; line-height: 1.4; }
+        .maf-toggle-changes { font-size: 10px; color: #60a5fa; cursor: pointer; margin-top: 3px; display: inline-block; }
+        .maf-toggle-changes:hover { text-decoration: underline; }
+        .maf-changes { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+        .maf-change-row { display: flex; align-items: center; gap: 4px; font-size: 10px; flex-wrap: wrap; }
+        .maf-change-field { font-weight: 700; color: #94a3b8; min-width: 70px; }
+        .maf-change-from { background: rgba(239,68,68,0.15); color: #fca5a5; padding: 1px 6px; border-radius: 3px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .maf-change-arrow { color: #475569; flex-shrink: 0; }
+        .maf-change-to { background: rgba(34,197,94,0.15); color: #86efac; padding: 1px 6px; border-radius: 3px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* =============================================================
            SPRINT MODE STYLES
@@ -9110,8 +9141,19 @@
                     </div>
                     <!-- ACTIVITY TAB -->
                     <div class="modal-right-tab-pane" id="rpaneActivity">
+                        <div class="maf-filter-bar" id="mafFilterBar" style="display:none;">
+                            <button class="maf-pill active" data-maf="all" onclick="filterModalActivity('all')">All</button>
+                            <button class="maf-pill" data-maf="changes" onclick="filterModalActivity('changes')"><i class="fas fa-edit" style="margin-right:3px;"></i>Changes</button>
+                            <button class="maf-pill" data-maf="notes" onclick="filterModalActivity('notes')"><i class="fas fa-sticky-note" style="margin-right:3px;"></i>Notes</button>
+                            <button class="maf-pill" data-maf="chat" onclick="filterModalActivity('chat')"><i class="fas fa-comment" style="margin-right:3px;"></i>Chat</button>
+                            <button class="maf-pill" data-maf="files" onclick="filterModalActivity('files')"><i class="fas fa-paperclip" style="margin-right:3px;"></i>Files</button>
+                            <button class="maf-pill" data-maf="approvals" onclick="filterModalActivity('approvals')"><i class="fas fa-check-circle" style="margin-right:3px;"></i>Approvals</button>
+                        </div>
                         <div id="modalActivityFeed">
                             <div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;"><i class="fas fa-stream" style="margin-bottom:6px;display:block;font-size:18px;"></i>No activity yet</div>
+                        </div>
+                        <div id="mafLoadMore" style="display:none;text-align:center;padding:8px 0;">
+                            <button onclick="loadMoreModalActivity()" style="background:rgba(37,99,235,0.08);color:#60a5fa;border:1px solid rgba(37,99,235,0.2);border-radius:6px;padding:5px 14px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-history" style="margin-right:4px;"></i>Load older activity</button>
                         </div>
                     </div>
                     <!-- STAKEHOLDERS TAB -->
@@ -10299,6 +10341,65 @@
                 <button onclick="closeIntegrationModal()" style="padding:10px 20px;border-radius:8px;background:#f1f5f9;border:none;color:#475569;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
                 <button onclick="disconnectIntegration()" id="disconnectBtn" style="display:none;padding:10px 20px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Disconnect</button>
                 <button onclick="saveIntegration()" style="padding:10px 20px;border-radius:8px;background:#3b82f6;border:none;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-save" style="margin-right:6px;"></i>Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== OUTLOOK EMAIL CONFIG MODAL ===== -->
+    <div id="outlookConfigOverlay" class="integration-modal" style="display:none;">
+        <div class="integration-modal-content" style="max-width:480px;">
+            <div class="integration-modal-header">
+                <div class="integration-icon outlook"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/icons/2025%20Outlook%20Icon.png" alt="Outlook" style="width:24px;height:24px;"></div>
+                <div>
+                    <div class="integration-title">Microsoft Outlook Email</div>
+                    <div class="integration-desc">Send email notifications via EmailJS</div>
+                </div>
+                <button onclick="closeOutlookConfigModal()" style="margin-left:auto;background:none;border:none;font-size:22px;color:#94a3b8;cursor:pointer;line-height:1;">&times;</button>
+            </div>
+            <div class="integration-modal-body">
+                <!-- Recipient -->
+                <div class="integration-field">
+                    <label class="admin-label"><i class="fas fa-envelope" style="margin-right:5px;color:#3b82f6;"></i>Recipient Email</label>
+                    <input type="email" class="admin-input" id="olEmailTo" placeholder="peregrinerescue19@outlook.com">
+                    <div class="admin-hint">Email address to receive notifications</div>
+                </div>
+
+                <div class="integration-divider" style="margin-top:12px;">EmailJS Configuration</div>
+                <div style="font-size:11px;color:#64748b;margin-bottom:12px;line-height:1.5;">
+                    <strong>Setup:</strong> Register free at <a href="https://www.emailjs.com/" target="_blank" rel="noopener" style="color:#3b82f6;">emailjs.com</a> &rarr; Add an Email Service (Gmail, Outlook, or default) &rarr; Create a Template with variables: <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px;">{{to_email}}</code>, <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px;">{{subject}}</code>, <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px;">{{event_type}}</code>, <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px;">{{project_title}}</code>, <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px;">{{message}}</code>, <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px;">{{timestamp}}</code> &rarr; Copy your IDs below.
+                </div>
+
+                <div class="integration-field">
+                    <label class="admin-label">Service ID</label>
+                    <input type="text" class="admin-input" id="olEmailjsService" placeholder="service_xxxxxxx">
+                </div>
+                <div class="integration-field">
+                    <label class="admin-label">Template ID</label>
+                    <input type="text" class="admin-input" id="olEmailjsTemplate" placeholder="template_xxxxxxx">
+                </div>
+                <div class="integration-field">
+                    <label class="admin-label">Public Key</label>
+                    <input type="text" class="admin-input" id="olEmailjsKey" placeholder="xxxxxxxxxxxxxx">
+                </div>
+
+                <button onclick="testOutlookEmail()" style="width:100%;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;color:#475569;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.15s;margin-top:8px;">
+                    <i class="fas fa-paper-plane"></i> Send Test Email
+                </button>
+                <div id="olTestResult" class="integration-test-result" style="display:none;margin-top:8px;padding:8px 12px;border-radius:6px;font-size:12px;"></div>
+
+                <div class="integration-divider" style="margin-top:16px;">Notification Events</div>
+                <div class="integration-events">
+                    <div class="integration-event-row"><input type="checkbox" id="olEventCreated" checked><div style="flex:1;"><div class="integration-event-label">Project Created</div><div class="integration-event-desc">When a new project is added</div></div></div>
+                    <div class="integration-event-row"><input type="checkbox" id="olEventStatus" checked><div style="flex:1;"><div class="integration-event-label">Status Changed</div><div class="integration-event-desc">When a project status is updated</div></div></div>
+                    <div class="integration-event-row"><input type="checkbox" id="olEventOverdue" checked><div style="flex:1;"><div class="integration-event-label">Project Overdue</div><div class="integration-event-desc">When a project passes its due date</div></div></div>
+                    <div class="integration-event-row"><input type="checkbox" id="olEventCompleted" checked><div style="flex:1;"><div class="integration-event-label">Project Completed</div><div class="integration-event-desc">When a project is marked complete</div></div></div>
+                    <div class="integration-event-row"><input type="checkbox" id="olEventAssigned"><div style="flex:1;"><div class="integration-event-label">Project Assigned</div><div class="integration-event-desc">When a project is assigned to someone</div></div></div>
+                </div>
+            </div>
+            <div class="integration-modal-footer">
+                <button onclick="closeOutlookConfigModal()" style="padding:10px 20px;border-radius:8px;background:#f1f5f9;border:none;color:#475569;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>
+                <button onclick="disconnectOutlook()" id="olDisconnectBtn" style="display:none;padding:10px 20px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Disconnect</button>
+                <button onclick="saveOutlookConfig()" style="padding:10px 20px;border-radius:8px;background:#3b82f6;border:none;color:white;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-save" style="margin-right:6px;"></i>Save</button>
             </div>
         </div>
     </div>
@@ -11954,6 +12055,7 @@
 
         function _onDepCheck(pickerId) {
             _renderDepTags(pickerId);
+            _markModalDirty();
         }
 
         function _renderDepTags(pickerId) {
@@ -11978,6 +12080,7 @@
             var cb = picker.querySelector('.dep-dropdown-item input[value="' + taskId + '"]');
             if (cb) cb.checked = false;
             _renderDepTags(pickerId);
+            _markModalDirty();
         }
 
         function _getDepPickerValues(pickerId) {
@@ -16118,6 +16221,9 @@
             currentIntegrationType = type;
             var config = integrationConfigs[type];
             if (!config) return;
+
+            // Outlook uses a dedicated email config instead of generic webhook
+            if (type === 'outlook') { openOutlookConfigModal(); return; }
             
             // Update modal header
             document.getElementById('integrationModalTitle').textContent = config.name;
@@ -16374,6 +16480,146 @@
                 } catch(e) {
                     console.warn('Failed to send ' + type + ' notification:', e);
                 }
+            }
+
+            // Also send Outlook email if configured
+            var olSettings = integrationSettings.outlook;
+            if (olSettings && olSettings.enabled && olSettings.emailjsPublicKey && olSettings.recipientEmail && olSettings.events && olSettings.events[event]) {
+                sendOutlookEmail(event, data, olSettings).catch(function(e) {
+                    console.warn('Failed to send Outlook email:', e);
+                });
+            }
+        }
+
+        // ============================================================
+        // OUTLOOK EMAIL INTEGRATION (via EmailJS)
+        // ============================================================
+        function openOutlookConfigModal() {
+            var settings = integrationSettings.outlook || {};
+            var overlay = document.getElementById('outlookConfigOverlay');
+            if (!overlay) return;
+            document.getElementById('olEmailTo').value = settings.recipientEmail || '';
+            document.getElementById('olEmailjsService').value = settings.emailjsServiceId || '';
+            document.getElementById('olEmailjsTemplate').value = settings.emailjsTemplateId || '';
+            document.getElementById('olEmailjsKey').value = settings.emailjsPublicKey || '';
+            document.getElementById('olEventCreated').checked = settings.events ? settings.events.projectCreated !== false : true;
+            document.getElementById('olEventStatus').checked = settings.events ? settings.events.statusChanged !== false : true;
+            document.getElementById('olEventOverdue').checked = settings.events ? settings.events.projectOverdue !== false : true;
+            document.getElementById('olEventCompleted').checked = settings.events ? settings.events.projectCompleted !== false : true;
+            document.getElementById('olEventAssigned').checked = settings.events ? settings.events.assigned === true : false;
+            document.getElementById('olDisconnectBtn').style.display = settings.enabled ? 'inline-block' : 'none';
+            document.getElementById('olTestResult').style.display = 'none';
+            overlay.style.display = 'flex';
+        }
+
+        function closeOutlookConfigModal() {
+            document.getElementById('outlookConfigOverlay').style.display = 'none';
+        }
+
+        async function saveOutlookConfig() {
+            var email = document.getElementById('olEmailTo').value.trim();
+            var serviceId = document.getElementById('olEmailjsService').value.trim();
+            var templateId = document.getElementById('olEmailjsTemplate').value.trim();
+            var publicKey = document.getElementById('olEmailjsKey').value.trim();
+
+            if (!email) { showToast('Please enter a recipient email'); return; }
+
+            var settings = {
+                enabled: !!(serviceId && templateId && publicKey),
+                recipientEmail: email,
+                emailjsServiceId: serviceId,
+                emailjsTemplateId: templateId,
+                emailjsPublicKey: publicKey,
+                events: {
+                    projectCreated: document.getElementById('olEventCreated').checked,
+                    statusChanged: document.getElementById('olEventStatus').checked,
+                    projectOverdue: document.getElementById('olEventOverdue').checked,
+                    projectCompleted: document.getElementById('olEventCompleted').checked,
+                    assigned: document.getElementById('olEventAssigned').checked
+                },
+                updatedAt: new Date().toISOString()
+            };
+
+            integrationSettings.outlook = settings;
+
+            if (db && currentUser && currentTenantId) {
+                try {
+                    await db.collection('tenants').doc(currentTenantId).collection('settings').doc('integrations').set(integrationSettings, { merge: true });
+                    showToast('Outlook email settings saved');
+                } catch(e) {
+                    console.error('Failed to save Outlook settings:', e);
+                    showToast('Save failed: ' + e.message);
+                }
+            } else {
+                try { localStorage.setItem('pt_integrations', JSON.stringify(integrationSettings)); showToast('Outlook settings saved (local)'); } catch(e) {}
+            }
+
+            updateIntegrationStatuses();
+            closeOutlookConfigModal();
+        }
+
+        async function disconnectOutlook() {
+            if (!confirm('Disconnect Outlook email integration?')) return;
+            integrationSettings.outlook = { enabled: false, events: {} };
+            if (db && currentUser && currentTenantId) {
+                try { await db.collection('tenants').doc(currentTenantId).collection('settings').doc('integrations').set(integrationSettings, { merge: true }); } catch(e) {}
+            }
+            updateIntegrationStatuses();
+            closeOutlookConfigModal();
+            showToast('Outlook disconnected');
+        }
+
+        async function testOutlookEmail() {
+            var email = document.getElementById('olEmailTo').value.trim();
+            var serviceId = document.getElementById('olEmailjsService').value.trim();
+            var templateId = document.getElementById('olEmailjsTemplate').value.trim();
+            var publicKey = document.getElementById('olEmailjsKey').value.trim();
+            var resultEl = document.getElementById('olTestResult');
+
+            if (!email || !serviceId || !templateId || !publicKey) {
+                showToast('Please fill in all EmailJS fields first');
+                return;
+            }
+
+            resultEl.style.display = 'block';
+            resultEl.style.background = '#f8fafc'; resultEl.style.color = '#64748b'; resultEl.style.border = '1px solid #e2e8f0';
+            resultEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending test email\u2026';
+
+            try {
+                if (typeof emailjs !== 'undefined') emailjs.init(publicKey);
+                await emailjs.send(serviceId, templateId, {
+                    to_email: email,
+                    subject: 'NotebookPM Test Email',
+                    event_type: 'Test Notification',
+                    project_title: 'Test Project',
+                    project_status: 'In Progress',
+                    message: 'This is a test email from NotebookPM. If you received this, your Outlook integration is working correctly!',
+                    timestamp: new Date().toLocaleString()
+                });
+                resultEl.style.background = '#f0fdf4'; resultEl.style.color = '#16a34a'; resultEl.style.border = '1px solid #bbf7d0';
+                resultEl.innerHTML = '<i class="fas fa-check-circle"></i> Test email sent! Check your inbox at ' + escapeHtml(email);
+            } catch(e) {
+                resultEl.style.background = '#fef2f2'; resultEl.style.color = '#dc2626'; resultEl.style.border = '1px solid #fecaca';
+                resultEl.innerHTML = '<i class="fas fa-times-circle"></i> Failed: ' + escapeHtml(e.text || e.message || 'Unknown error');
+            }
+        }
+
+        async function sendOutlookEmail(event, data, settings) {
+            if (!settings || !settings.emailjsPublicKey || !settings.emailjsServiceId || !settings.emailjsTemplateId || !settings.recipientEmail) return;
+            var eventLabel = { projectCreated:'New Project Created', statusChanged:'Status Changed', projectOverdue:'Project Overdue', projectCompleted:'Project Completed', assigned:'Project Assigned' }[event] || event;
+            try {
+                if (typeof emailjs !== 'undefined') emailjs.init(settings.emailjsPublicKey);
+                await emailjs.send(settings.emailjsServiceId, settings.emailjsTemplateId, {
+                    to_email: settings.recipientEmail,
+                    subject: 'NotebookPM: ' + eventLabel + ' — ' + (data.title || 'Project'),
+                    event_type: eventLabel,
+                    project_title: data.title || 'N/A',
+                    project_status: data.status || 'N/A',
+                    message: data.message || eventLabel + ' for project "' + (data.title || '') + '"',
+                    timestamp: new Date().toLocaleString()
+                });
+            } catch(e) {
+                console.warn('[OutlookEmail] Send failed:', e);
             }
         }
 
@@ -19317,6 +19563,7 @@
             if (!confEl || !viewersRow) return;
             viewersRow.style.display = confEl.checked ? '' : 'none';
             if (confEl.checked) populateConfidentialViewersList([]);
+            _markModalDirty();
         }
 
         function populateConfidentialViewersList(selectedViewers) {
@@ -20100,49 +20347,223 @@
             container.innerHTML = html;
         }
 
-        function loadModalActivityFeed() {
+        var _mafEntries = [];
+        var _mafFilter = 'all';
+        var _mafLastDoc = null;
+        var _mafPageSize = 50;
+
+        function loadModalActivityFeed(append) {
             var container = document.getElementById('modalActivityFeed');
+            var filterBar = document.getElementById('mafFilterBar');
+            var loadMoreBtn = document.getElementById('mafLoadMore');
             if (!container) return;
             var task = currentEditIndex !== null && currentEditIndex >= 0 ? tasks[currentEditIndex] : null;
-            if (!task) { container.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No project selected</div>'; return; }
+            if (!task || !task.id) {
+                container.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No project selected</div>';
+                if (filterBar) filterBar.style.display = 'none';
+                if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+                return;
+            }
 
-            // Build activity from notes + audit entries for this task
-            var items = [];
+            if (!append) {
+                _mafEntries = [];
+                _mafLastDoc = null;
+                _mafFilter = 'all';
+                container.innerHTML = '<div style="text-align:center;padding:30px 0;color:#94a3b8;font-size:12px;"><i class="fas fa-spinner fa-spin" style="font-size:16px;display:block;margin-bottom:8px;"></i>Loading activity\u2026</div>';
+                // Reset filter pills
+                if (filterBar) filterBar.querySelectorAll('.maf-pill').forEach(function(p) { p.classList.toggle('active', p.dataset.maf === 'all'); });
+            }
 
-            // Notes as activity
+            if (!currentTenantId) { _renderMafLocal(task, container, filterBar, loadMoreBtn); return; }
+
+            var query = db.collection('tenants').doc(currentTenantId).collection('auditLog')
+                .where('taskId', '==', task.id)
+                .orderBy('timestamp', 'desc')
+                .limit(_mafPageSize);
+            if (append && _mafLastDoc) query = query.startAfter(_mafLastDoc);
+
+            query.get().then(function(snap) {
+                if (!snap.empty) _mafLastDoc = snap.docs[snap.docs.length - 1];
+                snap.forEach(function(doc) { _mafEntries.push(doc.data()); });
+
+                // For first load, supplement with local-only data that may predate audit system
+                if (!append) {
+                    var auditTimes = {};
+                    _mafEntries.forEach(function(e) { if (e.timestamp) auditTimes[e.timestamp] = true; });
+                    // Add local notes not already covered
+                    if (task.notes && task.notes.length) {
+                        task.notes.forEach(function(n) {
+                            if (n.date && !auditTimes[n.date]) {
+                                _mafEntries.push({ action: 'note', taskId: task.id, taskTitle: task.title, performedBy: n.author || 'Unknown', timestamp: n.date, extra: { noteText: n.text ? n.text.substring(0, 120) : '' } });
+                            }
+                        });
+                    }
+                    // Add local attachments not already covered
+                    if (task.attachments && task.attachments.length) {
+                        task.attachments.forEach(function(a) {
+                            if (a.uploadedAt && !auditTimes[a.uploadedAt]) {
+                                _mafEntries.push({ action: 'attachment_added', taskId: task.id, taskTitle: task.title, performedBy: a.uploadedBy || 'Unknown', timestamp: a.uploadedAt, extra: { fileName: a.name || a.url } });
+                            }
+                        });
+                    }
+                    // Add creation if not in audit
+                    var hasCreate = _mafEntries.some(function(e) { return e.action === 'create'; });
+                    if (!hasCreate && task.createdDate) {
+                        _mafEntries.push({ action: 'create', taskId: task.id, taskTitle: task.title, performedBy: task.createdBy || 'System', timestamp: task.createdDate, extra: {} });
+                    }
+                    // Sort everything by time desc
+                    _mafEntries.sort(function(a, b) { return (b.timestamp || '').localeCompare(a.timestamp || ''); });
+                }
+
+                var hasMore = snap.size === _mafPageSize;
+                _renderMafEntries(container, filterBar, loadMoreBtn, hasMore);
+
+            }).catch(function(err) {
+                console.warn('[Activity] Firestore query failed, falling back to local:', err);
+                _renderMafLocal(task, container, filterBar, loadMoreBtn);
+            });
+        }
+
+        function _renderMafLocal(task, container, filterBar, loadMoreBtn) {
+            _mafEntries = [];
             if (task.notes && task.notes.length) {
                 task.notes.forEach(function(n) {
-                    items.push({ type: 'note', icon: 'fas fa-sticky-note', color: '#f59e0b', text: '<strong>' + escapeHtml(n.author || 'Unknown') + '</strong> added a note', time: n.date || '', detail: n.text ? escapeHtml(n.text).substring(0, 80) + (n.text.length > 80 ? '…' : '') : '' });
+                    _mafEntries.push({ action: 'note', taskId: task.id, taskTitle: task.title, performedBy: n.author || 'Unknown', timestamp: n.date || '', extra: { noteText: n.text ? n.text.substring(0, 120) : '' } });
                 });
             }
-
-            // Attachments as activity
             if (task.attachments && task.attachments.length) {
                 task.attachments.forEach(function(a) {
-                    items.push({ type: 'file', icon: 'fas fa-paperclip', color: '#2563eb', text: 'File attached: <strong>' + escapeHtml(a.name) + '</strong>', time: a.uploadedAt || '' });
+                    _mafEntries.push({ action: 'attachment_added', taskId: task.id, taskTitle: task.title, performedBy: a.uploadedBy || 'Unknown', timestamp: a.uploadedAt || '', extra: { fileName: a.name || a.url } });
                 });
             }
+            _mafEntries.push({ action: 'create', taskId: task.id, taskTitle: task.title, performedBy: task.createdBy || 'System', timestamp: task.createdDate || '', extra: {} });
+            _mafEntries.sort(function(a, b) { return (b.timestamp || '').localeCompare(a.timestamp || ''); });
+            _renderMafEntries(container, filterBar, loadMoreBtn, false);
+        }
 
-            // Creation
-            items.push({ type: 'create', icon: 'fas fa-plus-circle', color: '#22c55e', text: 'Project created', time: task.createdDate || '' });
+        function _mafActionCategory(action) {
+            if (action === 'update' || action === 'status') return 'changes';
+            if (action === 'note' || action === 'note_deleted') return 'notes';
+            if (action === 'chat' || action === 'chat_deleted') return 'chat';
+            if (action === 'attachment_added' || action === 'attachment_deleted') return 'files';
+            if (action === 'approval' || action === 'approval_requested' || action === 'approval_granted' || action === 'approval_denied') return 'approvals';
+            return 'changes';
+        }
 
-            // Sort by time descending
-            items.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+        function filterModalActivity(filter) {
+            _mafFilter = filter;
+            var filterBar = document.getElementById('mafFilterBar');
+            if (filterBar) filterBar.querySelectorAll('.maf-pill').forEach(function(p) { p.classList.toggle('active', p.dataset.maf === filter); });
+            var container = document.getElementById('modalActivityFeed');
+            var loadMoreBtn = document.getElementById('mafLoadMore');
+            _renderMafEntries(container, filterBar, loadMoreBtn, _mafLastDoc !== null);
+        }
 
-            if (items.length === 0) {
-                container.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;"><i class="fas fa-stream" style="margin-bottom:6px;display:block;font-size:18px;"></i>No activity yet</div>';
+        function loadMoreModalActivity() {
+            loadModalActivityFeed(true);
+        }
+
+        function _renderMafEntries(container, filterBar, loadMoreBtn, hasMore) {
+            if (!container) return;
+            var iconMap  = { create:'fas fa-plus-circle', update:'fas fa-edit', delete:'fas fa-trash', archive:'fas fa-archive', restore:'fas fa-undo', status:'fas fa-exchange-alt', note:'fas fa-sticky-note', note_deleted:'fas fa-trash-alt', chat:'fas fa-comment', chat_deleted:'fas fa-comment-slash', attachment_added:'fas fa-paperclip', attachment_deleted:'fas fa-paperclip', approval:'fas fa-check-circle', approval_requested:'fas fa-paper-plane', approval_granted:'fas fa-check-double', approval_denied:'fas fa-times-circle', settings:'fas fa-cog' };
+            var labelMap = { create:'Project Created', update:'Updated', delete:'Deleted', archive:'Archived', restore:'Restored', status:'Status Changed', note:'Note Added', note_deleted:'Note Deleted', chat:'Chat Message', chat_deleted:'Chat Deleted', attachment_added:'Attachment Added', attachment_deleted:'Attachment Deleted', approval:'Approval', approval_requested:'Approval Requested', approval_granted:'Approval Granted', approval_denied:'Approval Denied', settings:'Settings Changed' };
+            var colorMap = { create:'#22c55e', update:'#3b82f6', delete:'#ef4444', archive:'#8b5cf6', restore:'#22c55e', status:'#f59e0b', note:'#f59e0b', note_deleted:'#ef4444', chat:'#6366f1', chat_deleted:'#ef4444', attachment_added:'#3b82f6', attachment_deleted:'#ef4444', approval:'#22c55e', approval_requested:'#f59e0b', approval_granted:'#22c55e', approval_denied:'#ef4444', settings:'#64748b' };
+
+            var filtered = _mafFilter === 'all' ? _mafEntries : _mafEntries.filter(function(e) { return _mafActionCategory(e.action) === _mafFilter; });
+
+            if (filterBar) filterBar.style.display = _mafEntries.length > 0 ? 'flex' : 'none';
+            if (loadMoreBtn) loadMoreBtn.style.display = (hasMore && _mafFilter === 'all') ? '' : 'none';
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;"><i class="fas fa-stream" style="margin-bottom:6px;display:block;font-size:18px;"></i>' + (_mafFilter === 'all' ? 'No activity yet' : 'No ' + _mafFilter + ' activity') + '</div>';
                 return;
             }
 
             var html = '';
-            items.forEach(function(it) {
-                var timeStr = it.time ? new Date(it.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-                html += '<div class="activity-item">' +
-                    '<div class="activity-icon" style="background:' + it.color + '22;color:' + it.color + ';"><i class="' + it.icon + '"></i></div>' +
-                    '<div class="activity-text">' + it.text + (it.detail ? '<div style="color:#94a3b8;font-size:11px;margin-top:2px;">' + it.detail + '</div>' : '') +
-                    '<div class="activity-time">' + timeStr + '</div></div></div>';
+            filtered.forEach(function(e, idx) {
+                var action = e.action || 'update';
+                var icon = iconMap[action] || 'fas fa-circle';
+                var label = labelMap[action] || action;
+                var color = colorMap[action] || '#64748b';
+                var by = e.performedBy || 'Unknown';
+                var timeStr = e.timestamp ? new Date(e.timestamp).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+
+                // Build detail/changes HTML
+                var detailHtml = '';
+                var changesHtml = '';
+                var hasChanges = e.extra && Array.isArray(e.extra.changes) && e.extra.changes.length;
+
+                if (hasChanges) {
+                    var changes = e.extra.changes;
+                    var previewCount = Math.min(changes.length, 2);
+                    var moreCount = changes.length - previewCount;
+                    changesHtml = '<div class="maf-changes">';
+                    for (var ci = 0; ci < previewCount; ci++) {
+                        var c = changes[ci];
+                        changesHtml += '<div class="maf-change-row">' +
+                            '<span class="maf-change-field">' + escapeHtml(c.field) + '</span>' +
+                            '<span class="maf-change-from">' + escapeHtml(c.from || '(empty)') + '</span>' +
+                            '<span class="maf-change-arrow">\u2192</span>' +
+                            '<span class="maf-change-to">' + escapeHtml(c.to || '(empty)') + '</span>' +
+                        '</div>';
+                    }
+                    changesHtml += '</div>';
+                    if (moreCount > 0) {
+                        changesHtml += '<span class="maf-toggle-changes" onclick="toggleMafChanges(this,' + idx + ')" data-full=\'' + escapeHtml(JSON.stringify(changes)) + '\'>+ ' + moreCount + ' more change' + (moreCount > 1 ? 's' : '') + '</span>';
+                    }
+                } else if (action === 'status' && e.extra && e.extra.from) {
+                    changesHtml = '<div class="maf-changes"><div class="maf-change-row">' +
+                        '<span class="maf-change-field">Status</span>' +
+                        '<span class="maf-change-from">' + escapeHtml(statusLabels[e.extra.from] || e.extra.from) + '</span>' +
+                        '<span class="maf-change-arrow">\u2192</span>' +
+                        '<span class="maf-change-to">' + escapeHtml(statusLabels[e.extra.to] || e.extra.to) + '</span>' +
+                    '</div></div>';
+                }
+
+                // Detail text for notes, chat, attachments
+                if ((action === 'note' || action === 'note_deleted') && e.extra && e.extra.noteText) {
+                    var nt = e.extra.noteText;
+                    detailHtml = '<div class="maf-detail">' + escapeHtml(nt.length > 100 ? nt.substring(0, 100) + '\u2026' : nt) + '</div>';
+                } else if ((action === 'chat' || action === 'chat_deleted') && e.extra && e.extra.messageText) {
+                    var mt = e.extra.messageText;
+                    detailHtml = '<div class="maf-detail">' + escapeHtml(mt.length > 100 ? mt.substring(0, 100) + '\u2026' : mt) + '</div>';
+                } else if ((action === 'attachment_added' || action === 'attachment_deleted') && e.extra && e.extra.fileName) {
+                    detailHtml = '<div class="maf-detail"><i class="fas fa-file" style="margin-right:3px;font-size:9px;"></i>' + escapeHtml(e.extra.fileName) + '</div>';
+                }
+
+                html += '<div class="maf-entry" data-maf-cat="' + _mafActionCategory(action) + '">' +
+                    '<div class="maf-icon" style="background:' + color + '18;color:' + color + ';"><i class="' + icon + '"></i></div>' +
+                    '<div class="maf-body">' +
+                        '<div class="maf-action">' + label + '</div>' +
+                        '<div class="maf-by">by ' + escapeHtml(by) + '</div>' +
+                        changesHtml + detailHtml +
+                        '<div class="maf-time">' + timeStr + '</div>' +
+                    '</div>' +
+                '</div>';
             });
             container.innerHTML = html;
+        }
+
+        function toggleMafChanges(el, entryIdx) {
+            var entry = _mafEntries.filter(function(e) { return _mafFilter === 'all' || _mafActionCategory(e.action) === _mafFilter; })[entryIdx];
+            if (!entry || !entry.extra || !entry.extra.changes) return;
+            var changes = entry.extra.changes;
+            var parent = el.parentElement;
+            var existing = parent.querySelector('.maf-changes-expanded');
+            if (existing) { existing.remove(); el.textContent = '+ ' + (changes.length - 2) + ' more change' + (changes.length - 2 > 1 ? 's' : ''); return; }
+            var moreHtml = '<div class="maf-changes maf-changes-expanded">';
+            for (var i = 2; i < changes.length; i++) {
+                var c = changes[i];
+                moreHtml += '<div class="maf-change-row">' +
+                    '<span class="maf-change-field">' + escapeHtml(c.field) + '</span>' +
+                    '<span class="maf-change-from">' + escapeHtml(c.from || '(empty)') + '</span>' +
+                    '<span class="maf-change-arrow">\u2192</span>' +
+                    '<span class="maf-change-to">' + escapeHtml(c.to || '(empty)') + '</span>' +
+                '</div>';
+            }
+            moreHtml += '</div>';
+            el.insertAdjacentHTML('afterend', moreHtml);
+            el.textContent = '\u2212 Show less';
         }
 
         function formatFileSize(bytes) {
@@ -23310,6 +23731,7 @@
             if (!_impactScopeDepts.length && !_impactScopeProjects.length && !_impactScopeSystems.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
             else { _impactScopeType = 'multi'; _impactScopeValue = ''; }
             renderImpactScopeChips();
+            _markModalDirty();
         }
 
         function toggleImpactScopeSystem(sys) {
@@ -23318,6 +23740,7 @@
             if (!_impactScopeDepts.length && !_impactScopeProjects.length && !_impactScopeSystems.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
             else { _impactScopeType = 'multi'; _impactScopeValue = ''; }
             renderImpactScopeChips();
+            _markModalDirty();
         }
 
         function toggleImpactScopeProject(projId) {
@@ -23326,6 +23749,7 @@
             if (!_impactScopeDepts.length && !_impactScopeProjects.length && !_impactScopeSystems.length) { _impactScopeType = 'overall'; _impactScopeValue = ''; }
             else { _impactScopeType = 'multi'; _impactScopeValue = ''; }
             renderImpactScopeChips();
+            _markModalDirty();
         }
 
         function selectAllImpactDepts() {
@@ -25817,6 +26241,7 @@
         function impactYesNoChange(sel) {
             var wrap = sel.closest('.impact-question').querySelector('.impact-notes-wrap');
             if (wrap) wrap.style.display = sel.value === 'yes' ? '' : 'none';
+            _markModalDirty();
         }
 
         function impactSetAll(areaKey, value) {
@@ -25826,6 +26251,7 @@
                 if (sel) sel.value = value;
                 if (notesWrap) notesWrap.style.display = value === 'yes' ? '' : 'none';
             });
+            _markModalDirty();
         }
 
         function _updateImpactAssessmentDateBadge(task) {
@@ -29732,6 +30158,7 @@
             if (sel) Array.from(sel.options).forEach(function(opt) { if (opt.value === checkbox.value) opt.selected = checkbox.checked; });
             var selected = Array.from(document.querySelectorAll('#systemsMSDropdown input[type="checkbox"]:checked')).map(function(cb) { return cb.value; });
             _renderSystemsPills(selected);
+            _markModalDirty();
         }
 
         function removeSystemsMS(value) {
@@ -29741,6 +30168,7 @@
             if (sel) Array.from(sel.options).forEach(function(o) { if (o.value === value) o.selected = false; });
             var selected = Array.from(document.querySelectorAll('#systemsMSDropdown input[type="checkbox"]:checked')).map(function(cb) { return cb.value; });
             _renderSystemsPills(selected);
+            _markModalDirty();
         }
 
         document.addEventListener('click', function(e) {
@@ -29992,20 +30420,39 @@
             showFAQTab();
             var _sfInp = document.getElementById('sfSearchInput');
             if (_sfInp) { _sfInp.value = ''; filterSFSearch(''); }
+            // Populate category counts
+            document.querySelectorAll('#sfTabFAQ .faq-category').forEach(function(cat) {
+                var cnt = cat.querySelectorAll('.faq-item').length;
+                var badge = cat.querySelector('.faq-cat-count');
+                if (badge) badge.textContent = cnt;
+            });
             document.getElementById('siteFeaturesModal').classList.add('visible');
         }
 
         function filterSFSearch(q) {
             var query = (q || '').toLowerCase().trim();
-            var items = document.querySelectorAll('#sfTabFAQ .faq-item');
-            var visible = 0;
-            items.forEach(function(item) {
-                var match = !query || item.textContent.toLowerCase().indexOf(query) !== -1;
-                item.style.display = match ? '' : 'none';
-                if (match) visible++;
+            var categories = document.querySelectorAll('#sfTabFAQ .faq-category');
+            var totalVisible = 0;
+            categories.forEach(function(cat) {
+                var items = cat.querySelectorAll('.faq-item');
+                var catVisible = 0;
+                items.forEach(function(item) {
+                    var match = !query || item.textContent.toLowerCase().indexOf(query) !== -1;
+                    item.style.display = match ? '' : 'none';
+                    if (match) catVisible++;
+                });
+                totalVisible += catVisible;
+                cat.style.display = (query && catVisible === 0) ? 'none' : '';
+                // Expand categories when searching
+                if (query && catVisible > 0) cat.classList.remove('collapsed');
             });
             var emptyEl = document.getElementById('sfSearchEmpty');
-            if (emptyEl) emptyEl.style.display = (query && visible === 0) ? 'block' : 'none';
+            if (emptyEl) emptyEl.style.display = (query && totalVisible === 0) ? 'block' : 'none';
+        }
+
+        function toggleFAQCategory(hdr) {
+            var cat = hdr.closest('.faq-category');
+            if (cat) cat.classList.toggle('collapsed');
         }
 
         function closeSiteFeaturesModal() {
@@ -30696,45 +31143,86 @@
                             </div>
                             <div id="sfSearchEmpty" style="display:none;text-align:center;padding:14px;color:#94a3b8;font-size:13px;"><i class="fas fa-search" style="margin-right:6px;"></i>No results found.</div>
                         </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I change a team member's access level?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Go to <strong>Team Settings</strong> in the sidebar. Find the member in the list, click the role dropdown next to their name, and select <em>Admin</em> or <em>Member</em>. Changes take effect on their next page load.</div>
+
+                        <!-- ── Views & Navigation ── -->
+                        <div class="faq-category" data-cat="views">
+                            <div class="faq-category-hdr" onclick="toggleFAQCategory(this)"><i class="fas fa-th-large faq-cat-icon"></i><span>Views &amp; Navigation</span><span class="faq-cat-count"></span><i class="fas fa-chevron-down faq-cat-chevron"></i></div>
+                            <div class="faq-category-body">
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What views are available and how do I switch between them?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Use the view tabs at the top of the page: <strong>Dashboard</strong> (KPI widgets &amp; charts), <strong>Kanban</strong> (drag-drop columns), <strong>List</strong> (sortable table), <strong>Calendar</strong> (month/week/day), <strong>Priority</strong> (grouped by level), <strong>Analytics</strong> (charts &amp; reports), <strong>Contacts</strong> (team directory), and <strong>Tasks</strong> (steps, issues, notes, approvals). Sprint mode adds <strong>Sprint Planning</strong> and <strong>Standup</strong> views.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I use the Dashboard view and customize widgets?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The Dashboard shows KPI widgets like total projects, completion rate, overdue count, and recent activity. Click the <strong>Customize</strong> button to add, remove, or reorder widgets. Each widget can be resized and rearranged to suit your workflow.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How does the Kanban board work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The Kanban board displays projects as draggable cards in columns. Drag cards between columns to change status. Use the <strong>Group By</strong> dropdown to switch grouping (status, priority, department, category). The board supports custom column configurations through Admin Settings.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I customize the List view columns?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">In List view, click the <strong>column settings</strong> icon to choose which columns appear: title, status, priority, assigned to, dates, department, story points, and more. Click column headers to sort. You can drag rows to reorder projects manually.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What does the Calendar view show?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The Calendar displays projects as date bars spanning from start date to due date. Switch between <strong>Month</strong>, <strong>Week</strong>, <strong>Work Week</strong>, and <strong>Day</strong> modes. Click a date bar to open the project details. Projects without dates won't appear on the calendar.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How does the Analytics view work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Analytics provides visual charts for your project data — status distribution (pie/bar), priority breakdown, department allocation, timeline forecasts, capacity planning, and sprint metrics. Use these to identify bottlenecks, track team workload, and report to stakeholders.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I filter and search projects?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Use the filter bar at the top to filter by status, priority, department, category, assigned user, and date range. The search field finds projects by title, description, or any field content. Filters persist across views until you clear them.</div></div>
+                            </div>
                         </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How can I keep a project confidential or separate from others?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Open the project's detail modal and check the <strong>Confidential</strong> checkbox. Confidential projects are visible only to Admins and the project's owner. Members see a blurred card with no details.</div>
+
+                        <!-- ── Project Details ── -->
+                        <div class="faq-category" data-cat="details">
+                            <div class="faq-category-hdr" onclick="toggleFAQCategory(this)"><i class="fas fa-clipboard-list faq-cat-icon"></i><span>Project Details</span><span class="faq-cat-count"></span><i class="fas fa-chevron-down faq-cat-chevron"></i></div>
+                            <div class="faq-category-body">
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I create and edit a project?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Click the <strong>+ New</strong> button in the toolbar to create a project. Fill in the title (required), description, status, priority, category, assignment, dates, department, and affected systems. Click an existing project card to open its full detail modal for editing. The Save button turns amber when you have unsaved changes.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>Can I assign projects to specific team members?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Yes. When creating or editing a project, use the <strong>Assigned To</strong> dropdown, which is automatically populated from your org chart and team members list. You can also set an <strong>Assigned Manager</strong> and configure automatic notifications when assignments change in the <em>Notifications &amp; Workflows</em> menu.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do project steps and milestones work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Project Steps</strong> section lets you break a project into phases or milestones. Each step has a title, status, owner, start/end dates, and notes. Add, edit, reorder, or delete steps. Step completion contributes to the project's overall progress tracking.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I track issues within a project?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Issues</strong> section in the project modal lets you log issues with title, priority, status, owner, date raised, and notes. Track issue resolution alongside your project steps. Issues can be filtered and viewed across all projects in the Tasks view.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How does the Impact Assessment work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The Impact Assessment section contains yes/no questions organized by area (Business &amp; Strategic, Technical, Organizational, Financial, Risk &amp; Compliance, Operational). Answer each question and add notes where applicable. Use the <strong>Yes All</strong> / <strong>No All</strong> buttons per area. A date badge shows when it was last completed. Custom areas can be added via <em>Form Builder</em>.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What is the RACI chart and how do I use it?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>RACI Chart</strong> defines roles for each project task: <em>Responsible</em> (does the work), <em>Accountable</em> (owns the outcome), <em>Consulted</em> (provides input), and <em>Informed</em> (kept in the loop). Add rows for each deliverable and assign team members to each role.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do dependencies work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Each project can have <strong>Blocked By</strong> and <strong>Blocks</strong> dependencies. Use the dependency pickers in the project modal to link related projects. Dependencies are used by the AI and Insights tab to identify bottlenecks and critical-path risks. Related projects can also be linked separately for reference.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How can I keep a project confidential?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Check the <strong>Confidential</strong> checkbox in the project modal. Confidential projects are visible only to Admins and the project owner. You can expand access to specific viewers using the <em>All Admins</em>, <em>My Direct Reports</em>, <em>My Full Team</em> presets, or search for individual members. Non-authorized members see a blurred card.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I archive or close out a completed project?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Change the <strong>Status</strong> to <em>Completed</em> or <em>Closed</em> and save. Completed projects can be filtered out of your main view using the status filter. The system records completion date and can trigger workflow notifications automatically.</div></div>
+                            </div>
                         </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I add team members to my organization?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Navigate to <strong>Team Settings</strong> in the sidebar. Use the <em>Invite Team Member</em> form to enter their email address. They'll receive an invitation link to join your workspace.</div>
+
+                        <!-- ── Collaboration ── -->
+                        <div class="faq-category" data-cat="collab">
+                            <div class="faq-category-hdr" onclick="toggleFAQCategory(this)"><i class="fas fa-users faq-cat-icon"></i><span>Collaboration</span><span class="faq-cat-count"></span><i class="fas fa-chevron-down faq-cat-chevron"></i></div>
+                            <div class="faq-category-body">
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do Notes and @mentions work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Open a project and go to the <strong>Notes</strong> tab. Type a note and use <strong>@</strong> followed by a team member's name to mention them. Notes are timestamped, show the author, and can include file attachments. You can also schedule notes with a date and reason. Edit or delete existing notes as needed.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How does the Chat tab work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Chat</strong> tab provides Teams-style real-time messaging within each project. Send messages, use @mentions to tag team members, and attach files. Messages appear in a threaded conversation view with timestamps and author avatars.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I manage Files and attachments?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Files</strong> tab supports drag-and-drop file uploads stored in Firebase Storage. You can also add <strong>collaborative links</strong> to Google Docs, Sheets, or Slides. Quick-create buttons let you generate new Google files directly. All uploads track filename, size, and upload date.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What does the Activity tab show?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Activity</strong> tab shows a comprehensive audit trail for the current project — every field change (with old → new values), notes added/deleted, chat messages, file attachments, approval events, and more. Each entry shows who made the change and when. Use the filter pills to narrow by type (Changes, Notes, Chat, Files, Approvals). Use <em>Load older activity</em> for pagination.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I manage Stakeholders?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>People</strong> tab lets you add stakeholders to a project. Search for team members by name or email, assign them a role (Stakeholder, Sponsor, Subject Matter Expert, etc.), and track who is involved. Stakeholders are distinct from the Assigned To field.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do Approvals work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Approvals</strong> tab supports multiple approval types: Sign-Off, Budget, Go/No-Go, Design Review, Change Request, Scope Change, Resource Allocation, UAT Sign-Off, and more. Request an approval from a team member, they can approve or deny it with comments. Attach files to approval requests for supporting documentation.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What does the Insights tab provide?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Insights</strong> tab auto-generates project health analysis: timeline risk, resource allocation, dependency bottlenecks, data quality score, and performance metrics. It highlights overdue steps, missing information, and provides actionable recommendations — all calculated from your project data in real time.</div></div>
+                            </div>
                         </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I create custom fields for project entries?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Open <strong>Admin Settings</strong> in the sidebar, then navigate to the <em>Form Builder</em> tab. Add custom fields (text, number, date, dropdown, etc.) by selecting a type and label, then click <em>Add Field</em>. Drag to reorder.<br><button onclick="closeSiteFeaturesModal();openFormBuilderModal();" style="margin-top:8px;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.2);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-pencil-ruler" style="margin-right:5px;"></i>Open Form Builder</button></div>
+
+                        <!-- ── AI & Analysis ── -->
+                        <div class="faq-category" data-cat="ai">
+                            <div class="faq-category-hdr" onclick="toggleFAQCategory(this)"><i class="fas fa-robot faq-cat-icon"></i><span>AI &amp; Analysis</span><span class="faq-cat-count"></span><i class="fas fa-chevron-down faq-cat-chevron"></i></div>
+                            <div class="faq-category-body">
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How does the AI analysis feature work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Click the <strong>AI</strong> button in the toolbar. The AI reads your project data and provides five tabs: <em>Project Analysis</em> (executive summaries, risks, next steps), <em>Email &amp; Document</em> (OCR analysis of uploaded files), <em>Ask a Question</em> (natural language Q&amp;A about your projects), <em>Impact Analysis</em> (AI risk assessment), and <em>Slides</em> (PowerPoint generation). Configure the AI model in Admin → AI Settings.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I generate a PowerPoint presentation?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Click <strong>Slides</strong> in the toolbar (or the AI → Slides tab). Choose the projects to include, select a theme, and click <em>Generate</em>. A branded .pptx file downloads automatically. Options include condensed deck mode and AI commentary.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>Can the AI help with Impact Assessments?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Yes. When viewing a project's Impact Assessment, click the <strong>AI Analyze</strong> button to have the AI review your project details and suggest responses for each impact area. Use the <em>Apply to Impact Assessment</em> button to populate the form with AI recommendations, then review and adjust before saving.</div></div>
+                            </div>
                         </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I generate a PowerPoint presentation from my projects?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Click the <strong>Slides</strong> button in the top toolbar. Choose the projects you want to include, select a theme, and click <em>Generate</em>. A branded .pptx file will download to your computer automatically.</div>
+
+                        <!-- ── Sprint / Agile ── -->
+                        <div class="faq-category" data-cat="sprint">
+                            <div class="faq-category-hdr" onclick="toggleFAQCategory(this)"><i class="fas fa-running faq-cat-icon"></i><span>Sprint &amp; Agile</span><span class="faq-cat-count"></span><i class="fas fa-chevron-down faq-cat-chevron"></i></div>
+                            <div class="faq-category-body">
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I enable Sprint mode?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Toggle <strong>Sprint Mode</strong> using the switch in the header toolbar. This enables sprint-specific views (Sprint Planning, Standup), shows Story Points fields on projects, and activates velocity/burndown charts. Configure sprint settings in Admin → Sprint tab.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do Story Points and velocity tracking work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Assign <strong>Story Points</strong> to each project in the edit modal (visible when Sprint mode is on). The Sprint Planning view shows backlog, committed points, and capacity. Velocity charts track points completed per sprint over time. Burndown/burnup charts visualize sprint progress toward the goal.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do Sprint Retrospectives work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">At the end of a sprint, the system supports capturing retrospective notes: what went well, what to improve, and action items. Sprint history is preserved for review. Scope changes during the sprint are logged automatically to track sprint health.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What is the Standup view?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Standup</strong> view provides a daily standup format: what each team member worked on yesterday, what they're working on today, and any impediments. It pulls from recent project activity and assignment data to pre-populate standup content.</div></div>
+                            </div>
                         </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How does the AI analysis feature work?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Click the <strong>AI</strong> button in the toolbar. The AI reads your current project data and can generate executive summaries, identify risks, recommend next steps, and flag overdue or stalled projects. Configure the AI model in Admin → AI Settings.</div>
-                        </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>Can I assign projects to specific team members?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Yes. When creating or editing a project, use the <strong>Assigned To</strong> dropdown, which is automatically populated from your org chart and team members list. You can also set up automatic notifications when assignments change in the <em>Notifications &amp; Workflows</em> menu.</div>
-                        </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I set up email notifications for project events?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Open <strong>Notifications &amp; Workflows</strong> in the sidebar. Go to the <em>Workflows</em> tab (Admins only) and add a rule: choose a trigger event (created, assigned, status changed, completed), select who to notify, and optionally require approval. Notifications go to each recipient's inbox.</div>
-                        </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I archive or close out a completed project?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Open the project's detail modal, change the <strong>Status</strong> to <em>Completed</em> or <em>Closed</em> (depending on your configured status labels), and save. Completed projects can be filtered out of your main view using the status filter at the top of the dashboard.</div>
-                        </div>
-                        <div class="faq-item">
-                            <div class="faq-question" onclick="toggleFAQ(this)"><span>How do I use the org chart to organize team structure?</span><i class="fas fa-chevron-down faq-chevron"></i></div>
-                            <div class="faq-answer">Go to <strong>Team Settings</strong> and open the <em>Org Chart</em> tab. Add positions, link them to team members, and set reporting relationships. The Assigned To dropdown on every project will reflect team members from your org chart automatically.</div>
+
+                        <!-- ── Admin & Settings ── -->
+                        <div class="faq-category" data-cat="admin">
+                            <div class="faq-category-hdr" onclick="toggleFAQCategory(this)"><i class="fas fa-cog faq-cat-icon"></i><span>Admin &amp; Settings</span><span class="faq-cat-count"></span><i class="fas fa-chevron-down faq-cat-chevron"></i></div>
+                            <div class="faq-category-body">
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I change a team member's access level?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Go to <strong>Team Settings</strong> in the sidebar. Find the member in the list, click the role dropdown next to their name, and select <em>Admin</em> or <em>Member</em>. Changes take effect on their next page load.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I add team members to my organization?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Navigate to <strong>Team Settings</strong> in the sidebar. Use the <em>Invite Team Member</em> form to enter their email address. They'll receive an invitation link to join your workspace.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I use the org chart to organize team structure?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Go to <strong>Team Settings</strong> → <em>Org Chart</em> tab. Add positions, link them to team members, and set reporting relationships. The Assigned To dropdown on every project reflects team members from your org chart automatically.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I create custom fields for project entries?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Open <strong>Admin Settings</strong> → <em>Form Builder</em> tab. Add custom fields (text, number, date, dropdown, checkbox) by selecting a type and label, then click <em>Add Field</em>. Drag to reorder. Toggle visibility of built-in sections like Impact Assessment, Steps, Issues, and RACI.<br><button onclick="closeSiteFeaturesModal();openFormBuilderModal();" style="margin-top:8px;background:rgba(37,99,235,0.08);color:#2563eb;border:1px solid rgba(37,99,235,0.2);border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;"><i class="fas fa-pencil-ruler" style="margin-right:5px;"></i>Open Form Builder</button></div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I set up email notifications and workflow rules?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Open <strong>Notifications &amp; Workflows</strong> in the sidebar. The <em>Inbox</em> tab shows your notifications. The <em>Workflows</em> tab (Admins only) lets you create rules: choose a trigger event (created, assigned, status changed, completed), select who to notify, and optionally require approval. Notifications go to each recipient's in-app inbox.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do Integrations work (Teams, Slack, Outlook, Webhooks)?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Open <strong>Admin Settings</strong> → <em>Integrations</em> tab. Configure connections to Microsoft Teams, Slack, Outlook, Jira, ServiceNow, or custom webhooks. Each integration lets you select which events to send (project created, status changed, overdue, completed) and test the connection with a single click.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>What does the Audit Trail track?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">The <strong>Audit Trail</strong> (accessible from the sidebar) logs every project change: who changed which field, the old value, and the new value. It also tracks note/chat deletions, file additions/removals, and status changes. Filter by action type, user, project, date range, or text search. Each project's <em>Activity</em> tab shows the same audit data filtered to that project.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How do I configure statuses, departments, and systems lists?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Open <strong>Admin Settings</strong> → <em>General</em> tab. Customize status labels, add/remove departments, configure the systems/affected systems list, and set default categories. These lists populate the dropdowns throughout the application.</div></div>
+                                <div class="faq-item"><div class="faq-question" onclick="toggleFAQ(this)"><span>How does data retention work?</span><i class="fas fa-chevron-down faq-chevron"></i></div><div class="faq-answer">Open <strong>Admin Settings</strong> → <em>Retention</em> tab. Configure retention policies for how long completed or archived projects are kept. This helps manage data volume and comply with organizational data governance policies.</div></div>
+                            </div>
                         </div>
                     </div>
 
