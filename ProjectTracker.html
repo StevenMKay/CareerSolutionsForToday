@@ -20862,11 +20862,12 @@
                 if (filterBar) filterBar.querySelectorAll('.maf-pill').forEach(function(p) { p.classList.toggle('active', p.dataset.maf === 'all'); });
             }
 
-            if (!currentTenantId) { _renderMafLocal(task, container, filterBar, loadMoreBtn); return; }
+            if (!currentTenantId || !db) { _renderMafLocal(task, container, filterBar, loadMoreBtn); return; }
 
+            // Query without .orderBy() to avoid requiring a composite Firestore index.
+            // We sort client-side after fetching.
             var query = db.collection('tenants').doc(currentTenantId).collection('auditLog')
                 .where('taskId', '==', task.id)
-                .orderBy('timestamp', 'desc')
                 .limit(_mafPageSize);
             if (append && _mafLastDoc) query = query.startAfter(_mafLastDoc);
 
@@ -20881,8 +20882,9 @@
                     // Add local notes not already covered
                     if (task.notes && task.notes.length) {
                         task.notes.forEach(function(n) {
-                            if (n.date && !auditTimes[n.date]) {
-                                _mafEntries.push({ action: 'note', taskId: task.id, taskTitle: task.title, performedBy: n.author || 'Unknown', timestamp: n.date, extra: { noteText: n.text ? n.text.substring(0, 120) : '' } });
+                            var ts = n.timestamp || n.date;
+                            if (ts && !auditTimes[ts]) {
+                                _mafEntries.push({ action: n.source === 'email' ? 'note_added_email' : 'note', taskId: task.id, taskTitle: task.title, performedBy: n.author || 'Unknown', timestamp: ts, extra: { noteText: n.text ? n.text.substring(0, 120) : '' } });
                             }
                         });
                     }
@@ -20899,16 +20901,33 @@
                     if (!hasCreate && task.createdDate) {
                         _mafEntries.push({ action: 'create', taskId: task.id, taskTitle: task.title, performedBy: task.createdBy || 'System', timestamp: task.createdDate, extra: {} });
                     }
-                    // Sort everything by time desc
-                    _mafEntries.sort(function(a, b) { return (b.timestamp || '').localeCompare(a.timestamp || ''); });
                 }
+                // Always sort client-side by timestamp descending
+                _mafEntries.sort(function(a, b) { return (b.timestamp || '').localeCompare(a.timestamp || ''); });
 
                 var hasMore = snap.size === _mafPageSize;
                 _renderMafEntries(container, filterBar, loadMoreBtn, hasMore);
 
             }).catch(function(err) {
-                console.warn('[Activity] Firestore query failed, falling back to local:', err);
-                _renderMafLocal(task, container, filterBar, loadMoreBtn);
+                console.warn('[Activity] Firestore query failed:', err);
+                // Show index-creation link if it's a missing-index error
+                var errStr = (err.message || err.toString() || '');
+                if (errStr.indexOf('index') !== -1 || errStr.indexOf('failed-precondition') !== -1 || errStr.indexOf('requires an index') !== -1) {
+                    var urlMatch = errStr.match(/(https:\/\/console\.firebase\.google\.com[^\s"']+)/);
+                    container.innerHTML = '<div style="text-align:center;padding:16px;color:#f59e0b;font-size:12px;line-height:1.6;">' +
+                        '<i class="fas fa-exclamation-triangle" style="font-size:18px;display:block;margin-bottom:8px;"></i>' +
+                        '<strong>Firestore Index Required</strong><br>' +
+                        'The Activity feed needs a database index to load audit data.' +
+                        (urlMatch ? '<br><a href="' + urlMatch[1] + '" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;font-weight:600;">Click here to create it in Firebase Console</a>' : '<br>Check the browser console for the index creation link.') +
+                        '<br><br><span style="color:#94a3b8;">Showing local data below:</span></div>';
+                } else {
+                    container.innerHTML = '<div style="text-align:center;padding:12px;color:#94a3b8;font-size:11px;">' +
+                        '<i class="fas fa-info-circle" style="margin-right:4px;"></i>Could not load audit trail from cloud. Showing local activity.</div>';
+                }
+                // Still render local data below any error message
+                var fallbackDiv = document.createElement('div');
+                container.appendChild(fallbackDiv);
+                _renderMafLocal(task, fallbackDiv, filterBar, loadMoreBtn);
             });
         }
 
@@ -20916,7 +20935,8 @@
             _mafEntries = [];
             if (task.notes && task.notes.length) {
                 task.notes.forEach(function(n) {
-                    _mafEntries.push({ action: 'note', taskId: task.id, taskTitle: task.title, performedBy: n.author || 'Unknown', timestamp: n.date || '', extra: { noteText: n.text ? n.text.substring(0, 120) : '' } });
+                    var ts = n.timestamp || n.date || '';
+                    _mafEntries.push({ action: n.source === 'email' ? 'note_added_email' : 'note', taskId: task.id, taskTitle: task.title, performedBy: n.author || 'Unknown', timestamp: ts, extra: { noteText: n.text ? n.text.substring(0, 120) : '' } });
                 });
             }
             if (task.attachments && task.attachments.length) {
