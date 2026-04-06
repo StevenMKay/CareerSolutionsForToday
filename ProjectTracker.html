@@ -15597,9 +15597,8 @@
                     logAuditEvent('status', tasks[currentEditIndex], { from: oldStatus, to: taskData.status, changes: _changes });
                 } else if (_changes.length) {
                     logAuditEvent('update', tasks[currentEditIndex], { changes: _changes });
-                } else {
-                    logAuditEvent('update', tasks[currentEditIndex], {});
                 }
+                // No audit entry when nothing changed — skip the empty 'update' log
 
                 var _savedTask  = tasks[currentEditIndex];
                 var _savedIndex = currentEditIndex;
@@ -20873,7 +20872,16 @@
 
             query.get().then(function(snap) {
                 if (!snap.empty) _mafLastDoc = snap.docs[snap.docs.length - 1];
-                snap.forEach(function(doc) { _mafEntries.push(doc.data()); });
+                var seenIds = {};
+                // Dedup by audit entry id, and skip empty 'update' entries (no changes)
+                snap.forEach(function(doc) {
+                    var d = doc.data();
+                    if (d.id && seenIds[d.id]) return;
+                    if (d.id) seenIds[d.id] = true;
+                    // Skip empty update entries (saved with no actual changes)
+                    if (d.action === 'update' && (!d.extra || !d.extra.changes || !d.extra.changes.length)) return;
+                    _mafEntries.push(d);
+                });
 
                 // For first load, supplement with local-only data that may predate audit system
                 if (!append) {
