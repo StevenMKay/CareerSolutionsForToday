@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14092,6 +14091,8 @@
             return true;
         }
 
+        var _lastImpactAssessmentData = null;
+
         async function runProjectImpactAssessment() {
             if (!aiApiKey) {
                 showToast('No AI API key configured. Go to Admin → AI Settings to add your key.', 'error');
@@ -14198,6 +14199,47 @@
                     prompt += '\n=== INSIGHTS LIBRARY NOTES ===\n' + insightsText + '\n';
                 }
 
+                // Sprint / Agile context when sprint mode is active
+                var _isSprintMode = !!sprintModeEnabled;
+                if (_isSprintMode) {
+                    prompt += '\n=== SPRINT / AGILE CONTEXT ===\n';
+                    prompt += 'Sprint Mode: ACTIVE\n';
+                    if (p.storyPoints) prompt += 'Story Points: ' + p.storyPoints + '\n';
+                    if (activeSprint) {
+                        prompt += 'Active Sprint: ' + (activeSprint.name || 'Unnamed') + '\n';
+                        if (activeSprint.goal) prompt += 'Sprint Goal: ' + activeSprint.goal + '\n';
+                        prompt += 'Sprint Dates: ' + (activeSprint.startDate || '?') + ' → ' + (activeSprint.endDate || '?') + '\n';
+                        prompt += 'Sprint Status: ' + (activeSprint.status || 'active') + '\n';
+                        // Capacity & points in sprint
+                        var sprintTasks = tasks.filter(function(t) { return t.sprintId === activeSprint.id; });
+                        var totalPts = 0, completedPts = 0;
+                        sprintTasks.forEach(function(t) {
+                            var pts = parseFloat(t.storyPoints) || 0;
+                            totalPts += pts;
+                            if (t.status === 'completed') completedPts += pts;
+                        });
+                        prompt += 'Sprint Items: ' + sprintTasks.length + ' (' + completedPts + '/' + totalPts + ' points completed)\n';
+                    }
+                    // Dependencies
+                    if (p.blockedBy && p.blockedBy.length) {
+                        prompt += 'Blocked By: ' + p.blockedBy.map(function(id) {
+                            var t = tasks.find(function(x) { return x.id === id; });
+                            return t ? t.title + ' (' + (statusLabels[t.status] || t.status) + ')' : id;
+                        }).join(', ') + '\n';
+                    }
+                    if (p.blocks && p.blocks.length) {
+                        prompt += 'Blocks: ' + p.blocks.map(function(id) {
+                            var t = tasks.find(function(x) { return x.id === id; });
+                            return t ? t.title + ' (' + (statusLabels[t.status] || t.status) + ')' : id;
+                        }).join(', ') + '\n';
+                    }
+                    // Velocity history
+                    if (sprintConfig.velocityHistory && sprintConfig.velocityHistory.length) {
+                        var recent = sprintConfig.velocityHistory.slice(-5);
+                        prompt += 'Recent Velocity (last ' + recent.length + ' sprints): ' + recent.map(function(v) { return v.completed + '/' + v.committed; }).join(', ') + ' pts\n';
+                    }
+                }
+
                 // Impact Assessment request — structured JSON
                 prompt += '\n=== ASSESSMENT REQUEST ===\n';
                 prompt += 'Analyze this project and return a JSON object with EXACTLY these keys:\n';
@@ -14212,13 +14254,27 @@
                 prompt += '  "risk_assessment": [{"text": "key risk with mitigation", "severity": "high|medium|low"}],\n';
                 prompt += '  "lessons_applied": [{"text": "lesson and how it applies here", "severity": "high|medium|low"}],\n';
                 prompt += '  "recommendations": ["specific prioritized recommendation 1", "recommendation 2"]\n';
+                if (_isSprintMode) {
+                    prompt += '  ,"sprint_impact": [{"text": "how this item impacts the current sprint goal and timeline", "severity": "high|medium|low"}],\n';
+                    prompt += '  "velocity_impact": [{"text": "effect on team velocity and capacity", "severity": "high|medium|low"}],\n';
+                    prompt += '  "dependency_risks": [{"text": "blocker/dependency risk analysis", "severity": "high|medium|low"}],\n';
+                    prompt += '  "backlog_recommendations": ["specific agile/backlog recommendation 1", "recommendation 2"]\n';
+                }
                 prompt += '}\n';
                 prompt += 'Provide 3-5 items per array. Be specific, reference actual project data and lessons. Today\'s date: ' + new Date().toISOString().split('T')[0] + '\n';
 
-                var systemPrompt = 'You are a senior project management consultant performing an AI-assisted impact assessment. ' +
-                    'Analyze the project data, cross-impacts, and historical lessons learned to provide a thorough, specific assessment. ' +
-                    'Reference specific data points and lessons. Always respond in valid JSON format. ' +
-                    'Be specific to THIS project, not generic advice.';
+                var systemPrompt;
+                if (_isSprintMode) {
+                    systemPrompt = 'You are a senior agile coach and scrum master performing a sprint-focused impact assessment. ' +
+                        'Analyze the project data through an agile lens — consider sprint goals, story points, velocity, dependencies, and backlog health. ' +
+                        'Reference specific sprint data, blockers, and velocity trends. Always respond in valid JSON format. ' +
+                        'Be specific to THIS item and its sprint context, not generic agile advice.';
+                } else {
+                    systemPrompt = 'You are a senior project management consultant performing an AI-assisted impact assessment. ' +
+                        'Analyze the project data, cross-impacts, and historical lessons learned to provide a thorough, specific assessment. ' +
+                        'Reference specific data points and lessons. Always respond in valid JSON format. ' +
+                        'Be specific to THIS project, not generic advice.';
+                }
 
                 var response = await callOpenAI(systemPrompt, prompt);
 
@@ -14277,7 +14333,29 @@
                 html += _renderImpactCard('fa-lightbulb', '#22c55e', 'Recommendations', data.recommendations);
                 html += '</div>';
 
+                // Sprint-specific cards when in sprint mode
+                if (_isSprintMode && (data.sprint_impact || data.velocity_impact || data.dependency_risks || data.backlog_recommendations)) {
+                    html += '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #6366f133;">';
+                    html += '<div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas fa-running"></i> Sprint / Agile Analysis</div>';
+                    html += '<div style="display:grid;grid-template-columns:1fr;gap:10px;">';
+                    if (data.sprint_impact) html += _renderImpactCard('fa-flag', '#6366f1', 'Sprint Impact', data.sprint_impact);
+                    if (data.velocity_impact) html += _renderImpactCard('fa-tachometer-alt', '#0ea5e9', 'Velocity Impact', data.velocity_impact);
+                    if (data.dependency_risks) html += _renderImpactCard('fa-link', '#f97316', 'Dependency Risks', data.dependency_risks);
+                    if (data.backlog_recommendations) html += _renderImpactCard('fa-tasks', '#10b981', 'Backlog Recommendations', data.backlog_recommendations);
+                    html += '</div></div>';
+                }
+
+                // "Apply to Impact Assessment" button
+                html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0;text-align:center;">';
+                html += '<button onclick="applyAIImpactToAssessment()" id="applyAIImpactBtn" style="padding:8px 20px;border-radius:8px;border:1.5px solid #7c3aed44;background:linear-gradient(135deg,#7c3aed11,#6366f111);color:#7c3aed;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:all .2s;">' +
+                    '<i class="fas fa-magic"></i> Apply to Impact Assessment</button>';
+                html += '<p style="font-size:10px;color:#94a3b8;margin:6px 0 0;line-height:1.4;">Updates relevant impact assessment questions based on AI findings</p>';
                 html += '</div>';
+
+                html += '</div>';
+                // Store parsed data for the Apply button
+                _lastImpactAssessmentData = data;
+                _lastImpactAssessmentData._isSprintMode = _isSprintMode;
                 resultDiv.innerHTML = html;
                 resultDiv.style.display = 'block';
 
@@ -18970,6 +19048,18 @@
                         if (d.aiApiKey) aiApiKey = d.aiApiKey;
                         if (d.aiModel) aiModel = d.aiModel;
                         if (Array.isArray(d.formSchema)) formSchema = d.formSchema;
+                        // Backfill any new built-in fields missing from saved formSchema
+                        if (formSchema.length && typeof _builtInEditableFields !== 'undefined') {
+                            var _existingIds = formSchema.map(function(f) { return f.id; });
+                            var _lastBI = -1;
+                            formSchema.forEach(function(f, i) { if (f.builtIn) _lastBI = i; });
+                            _builtInEditableFields.forEach(function(bf) {
+                                if (_existingIds.indexOf(bf.id) === -1) {
+                                    _lastBI++;
+                                    formSchema.splice(_lastBI, 0, Object.assign({}, bf, { options: (bf.options || []).slice() }));
+                                }
+                            });
+                        }
                         if (Array.isArray(d.aiContextLibrary)) aiContextLibrary = d.aiContextLibrary;
                         if (Array.isArray(d.impactInsightsLibrary)) impactInsightsLibrary = d.impactInsightsLibrary;
                         if (Array.isArray(d.impactAreas)) _impactAreas = d.impactAreas;
@@ -25429,22 +25519,88 @@
         // IMPACT ASSESSMENT
         // ============================================================
         var _impactAreas = [
-            { key: 'policy',     label: 'Policy',     icon: 'fa-file-alt',       color: '#2563eb',
-              questions: ['Does this require a new or updated policy?', 'Is legal / regulatory review needed?', 'Are there formal approval cycles required?'] },
-            { key: 'training',   label: 'Training',   icon: 'fa-graduation-cap', color: '#8b5cf6',
-              questions: ['Does this require staff training?', 'Are training materials needed?', 'Is there a training timeline or deadline impact?'] },
-            { key: 'compliance', label: 'Compliance', icon: 'fa-shield-alt',     color: '#f59e0b',
-              questions: ['Does this affect compliance requirements?', 'Are regulatory reporting obligations impacted?', 'Is an audit trail or documentation required?'] },
-            { key: 'results',    label: 'Results',    icon: 'fa-chart-line',     color: '#22c55e',
-              questions: ['Are success metrics clearly defined?', 'How will outcomes be measured / reported?', 'Is executive or stakeholder reporting required?'] }
+            { key: 'business_strategic', label: 'Business & Strategic Impact', icon: 'fa-briefcase', color: '#3b82f6',
+              questions: [
+                'Does this change or introduce core business processes?',
+                'Are there revenue, cost, or budget impacts expected?',
+                'Are KPIs and success metrics defined with measurable targets?',
+                'Is executive or stakeholder reporting required?'
+              ] },
+            { key: 'operational', label: 'Operational Impact', icon: 'fa-cogs', color: '#f59e0b',
+              questions: [
+                'Does this change day-to-day operational workflows?',
+                'Are there cross-department coordination requirements?',
+                'Will this require changes to existing SOPs or runbooks?',
+                'Is there a rollback or contingency plan if operations are disrupted?'
+              ] },
+            { key: 'system_technical', label: 'System & Technical Impact', icon: 'fa-server', color: '#06b6d4',
+              questions: [
+                'Does this affect existing systems, integrations, or APIs?',
+                'Is data migration, conversion, or restructuring required?',
+                'Are there infrastructure or capacity changes needed?',
+                'Is a security or vulnerability assessment required?'
+              ] },
+            { key: 'resource_timeline', label: 'Resource & Timeline', icon: 'fa-clock', color: '#8b5cf6',
+              questions: [
+                'Are additional staff, contractor, or vendor resources required?',
+                'Does this create resource conflicts with other active projects?',
+                'Is there a hard deadline or regulatory timeline driving this?',
+                'Does the timeline account for testing, UAT, and deployment phases?'
+              ] },
+            { key: 'policy_compliance_risk', label: 'Policy, Compliance & Risk', icon: 'fa-shield-alt', color: '#ef4444',
+              questions: [
+                'Does this require a new or updated policy?',
+                'Is legal or regulatory review needed?',
+                'Does this affect compliance, audit, or reporting requirements?',
+                'Are there formal approval cycles or change control boards required?',
+                'Is an audit trail or documentation required?'
+              ] },
+            { key: 'training_change', label: 'Training & Change Management', icon: 'fa-graduation-cap', color: '#10b981',
+              questions: [
+                'Does this require staff training or certification?',
+                'Are training materials, guides, or documentation needed?',
+                'Is there a communication or change management plan?',
+                'Is there a training timeline that impacts go-live readiness?'
+              ] }
         ];
+
+        // Migration map: old area keys → new area keys (preserves existing saved data)
+        var _impactAreaMigrationMap = {
+            'policy':     'policy_compliance_risk',
+            'compliance': 'policy_compliance_risk',
+            'training':   'training_change',
+            'results':    'business_strategic'
+        };
+
         // Custom section areas: { sectionId -> [ { key, label, icon, color, questions } ] }
         var _customSectionAreas = {};
+
+        function _migrateImpactData(data) {
+            if (!data) return data;
+            var migrated = {};
+            Object.keys(data).forEach(function(key) {
+                var newKey = _impactAreaMigrationMap[key];
+                if (newKey && !data[newKey]) {
+                    // Migrate old key to new key; merge if target already has data
+                    if (!migrated[newKey]) {
+                        migrated[newKey] = { questions: [] };
+                    }
+                    var existing = migrated[newKey].questions;
+                    var src = (data[key] && data[key].questions) ? data[key].questions : [];
+                    src.forEach(function(q) { existing.push(q); });
+                    migrated[newKey].questions = existing;
+                } else if (!_impactAreaMigrationMap[key]) {
+                    // Key is already in new format or unknown — keep as-is
+                    migrated[key] = data[key];
+                }
+            });
+            return migrated;
+        }
 
         function renderImpactAssessment(data) {
             var container = document.getElementById('impactAssessmentContent');
             if (!container) return;
-            data = data || {};
+            data = _migrateImpactData(data || {});
             var html = _impactAreas.map(function(area) {
                 var aData = data[area.key] || {};
                 var qHtml = area.questions.map(function(q, qi) {
@@ -25503,6 +25659,103 @@
                 result[area.key] = { questions: qs };
             });
             return result;
+        }
+
+        // Apply AI impact assessment results to impact assessment questions
+        function applyAIImpactToAssessment() {
+            if (!_lastImpactAssessmentData) {
+                showToast('No AI assessment data available. Run the assessment first.', 'error');
+                return;
+            }
+            var d = _lastImpactAssessmentData;
+            var btn = document.getElementById('applyAIImpactBtn');
+            if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+
+            // Category → impact area mapping with question index hints
+            // Each mapping: AI key → { areaKey, questionIndices (0-based), notePrefix }
+            var mappings = [
+                { aiKey: 'business_impact',     areaKey: 'business_strategic',      qIndices: [0, 1] },
+                { aiKey: 'operational_impact',   areaKey: 'operational',             qIndices: [0, 1] },
+                { aiKey: 'system_impact',        areaKey: 'system_technical',        qIndices: [0, 1] },
+                { aiKey: 'resource_timeline',    areaKey: 'resource_timeline',       qIndices: [0, 1] },
+                { aiKey: 'risk_assessment',      areaKey: 'policy_compliance_risk',  qIndices: [2, 3] },
+                { aiKey: 'lessons_applied',      areaKey: 'business_strategic',      qIndices: [2, 3] }
+            ];
+            // Sprint-specific mappings
+            if (d._isSprintMode) {
+                mappings.push({ aiKey: 'sprint_impact',         areaKey: 'resource_timeline',       qIndices: [2, 3] });
+                mappings.push({ aiKey: 'velocity_impact',       areaKey: 'operational',             qIndices: [2, 3] });
+                mappings.push({ aiKey: 'dependency_risks',      areaKey: 'system_technical',        qIndices: [2, 3] });
+            }
+
+            var appliedCount = 0;
+
+            mappings.forEach(function(map) {
+                var items = d[map.aiKey];
+                if (!items || !items.length) return;
+                // Filter to only high/medium severity items (or all if string array like recommendations)
+                var relevant = items.filter(function(item) {
+                    if (typeof item === 'string') return true;
+                    return item.severity === 'high' || item.severity === 'medium';
+                });
+                if (!relevant.length) return;
+
+                // Build the note text from AI findings
+                var noteText = '\u{1F916} AI-Generated: ' + relevant.map(function(item) {
+                    if (typeof item === 'string') return item;
+                    return item.text + (item.severity ? ' [' + item.severity.toUpperCase() + ']' : '');
+                }).join('; ');
+
+                // Apply to the mapped question indices
+                map.qIndices.forEach(function(qi) {
+                    var divs = document.querySelectorAll('#impactAssessmentContent .impact-question[data-area="' + map.areaKey + '"]');
+                    var div = divs[qi];
+                    if (!div) return;
+                    var sel = div.querySelector('.impact-yn-sel');
+                    var notesWrap = div.querySelector('.impact-notes-wrap');
+                    var notesInput = div.querySelector('.impact-notes-input');
+                    if (sel && sel.value !== 'yes') {
+                        sel.value = 'yes';
+                        if (notesWrap) notesWrap.style.display = '';
+                        appliedCount++;
+                    }
+                    if (notesInput) {
+                        var existing = notesInput.value.trim();
+                        if (existing && existing.indexOf('\u{1F916} AI-Generated') === -1) {
+                            notesInput.value = existing + '\n' + noteText;
+                        } else if (!existing) {
+                            notesInput.value = noteText;
+                        }
+                    }
+                });
+            });
+
+            // Also apply recommendations to training/change management if they mention training
+            if (d.recommendations && d.recommendations.length) {
+                var trainingRecs = d.recommendations.filter(function(r) {
+                    var lower = (typeof r === 'string' ? r : r.text || '').toLowerCase();
+                    return lower.indexOf('train') !== -1 || lower.indexOf('change management') !== -1 || lower.indexOf('communication') !== -1;
+                });
+                if (trainingRecs.length) {
+                    var trainingNote = '\u{1F916} AI-Generated: ' + trainingRecs.map(function(r) { return typeof r === 'string' ? r : r.text; }).join('; ');
+                    var tDivs = document.querySelectorAll('#impactAssessmentContent .impact-question[data-area="training_change"]');
+                    if (tDivs[0]) {
+                        var tSel = tDivs[0].querySelector('.impact-yn-sel');
+                        var tWrap = tDivs[0].querySelector('.impact-notes-wrap');
+                        var tInput = tDivs[0].querySelector('.impact-notes-input');
+                        if (tSel && tSel.value !== 'yes') { tSel.value = 'yes'; if (tWrap) tWrap.style.display = ''; appliedCount++; }
+                        if (tInput && !tInput.value.trim()) tInput.value = trainingNote;
+                    }
+                }
+            }
+
+            // Expand the Impact Assessment section
+            var impactSection = document.getElementById('sectionImpact');
+            if (impactSection && impactSection.classList.contains('modal-section-collapsed')) {
+                impactSection.classList.remove('modal-section-collapsed');
+            }
+
+            showToast('AI insights applied to ' + appliedCount + ' impact assessment question' + (appliedCount !== 1 ? 's' : ''), 'success');
         }
 
         // ============================================================
