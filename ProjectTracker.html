@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8726,7 +8727,7 @@
                     <label class="form-label"><i class="fas fa-clock" style="margin-right:4px;color:#8b5cf6;"></i>Estimated Hours</label>
                     <input type="number" class="form-input" id="editHours" placeholder="0" min="0" step="0.5" style="font-size:13px;">
                 </div>
-                <div class="form-group sprint-field" style="flex:0 0 auto;max-width:160px;display:none;">
+                <div class="form-group" id="formGroupStoryPoints" style="flex:0 0 auto;max-width:160px;display:none;">
                     <label class="form-label"><i class="fas fa-fire" style="margin-right:4px;color:#6366f1;"></i>Story Points</label>
                     <input type="number" class="form-input" id="editStoryPoints" min="0" max="100" step="1" placeholder="e.g. 5" style="font-size:13px;">
                 </div>
@@ -11045,6 +11046,8 @@
             document.querySelectorAll('.sprint-field').forEach(function(el) {
                 el.style.display = sprintModeEnabled ? '' : 'none';
             });
+            // Re-apply Form Builder visibility so Story Points respects sprint mode
+            if (typeof _applyBuiltinFieldVisibility === 'function') _applyBuiltinFieldVisibility();
             // Refresh sprint header bar
             refreshSprintHeader();
             // Re-render current view
@@ -21471,118 +21474,6 @@
             }
         }
 
-        // ── Sprint Analytics Charts ──────────────────────────────────
-        function renderSprintBurndownAnalyticsChart() {
-            var ctx = document.getElementById('chartSprintBurndown');
-            if (!ctx || typeof Chart === 'undefined') return;
-            if (!activeSprint) {
-                ctx.parentElement.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:30px 0;">No active sprint. Create and start a sprint to see burndown data.</div>';
-                return;
-            }
-            var bd = activeSprint.dailyBurndown || [];
-            if (bd.length === 0) {
-                ctx.parentElement.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:30px 0;">No burndown data recorded yet for this sprint.</div>';
-                return;
-            }
-            var totalPts = activeSprint.committedPoints || bd[0].remaining || 0;
-            var totalDays = bd.length > 1 ? bd.length : Math.max(10, bd.length);
-            var labels = bd.map(function(d, i) { return 'Day ' + (i + 1); });
-            var actual = bd.map(function(d) { return d.remaining; });
-            // Ideal line: from totalPts down to 0
-            var ideal = [];
-            for (var i = 0; i < bd.length; i++) {
-                ideal.push(Math.round(totalPts * (1 - i / (totalDays - 1))));
-            }
-            analyticsChartsMap.sprintBurndown = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: 'Ideal', data: ideal, borderColor: 'rgba(148,163,184,0.5)', borderDash: [6, 3], borderWidth: 2, pointRadius: 0, fill: false, tension: 0 },
-                        { label: 'Actual', data: actual, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#6366f1', fill: true, tension: 0.3 }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#475569', font: { size: 11 } } } },
-                    scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'Story Points', color: '#94a3b8', font: { size: 11 } }, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } },
-                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        function renderSprintVelocityAnalyticsChart() {
-            var ctx = document.getElementById('chartSprintVelocity');
-            if (!ctx || typeof Chart === 'undefined') return;
-            var history = (sprintConfig.velocityHistory || []).slice(-8);
-            if (history.length === 0) {
-                // Fall back to completed sprints
-                var completed = sprints.filter(function(s) { return s.status === 'completed'; }).slice(0, 8).reverse();
-                if (completed.length === 0) {
-                    ctx.parentElement.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:30px 0;">No completed sprints yet. Velocity data will appear after your first sprint.</div>';
-                    return;
-                }
-                history = completed.map(function(s) { return { name: s.name, committed: s.committedPoints || 0, completed: s.completedPoints || 0 }; });
-            }
-            var labels = history.map(function(h) { return h.name || h.sprint || ''; });
-            var committed = history.map(function(h) { return h.committed || 0; });
-            var completedPts = history.map(function(h) { return h.completed || 0; });
-            analyticsChartsMap.sprintVelocity = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: 'Committed', data: committed, backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#6366f1', borderWidth: 1.5, borderRadius: 6 },
-                        { label: 'Completed', data: completedPts, backgroundColor: 'rgba(34,197,94,0.25)', borderColor: '#22c55e', borderWidth: 1.5, borderRadius: 6 }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#475569', font: { size: 11 } } } },
-                    scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'Story Points', color: '#94a3b8', font: { size: 11 } }, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.1)' } },
-                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        function renderSprintCommitAnalyticsChart() {
-            var ctx = document.getElementById('chartSprintCommit');
-            if (!ctx || typeof Chart === 'undefined') return;
-            if (!activeSprint) {
-                ctx.parentElement.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:30px 0;">No active sprint. Start a sprint to see commitment breakdown.</div>';
-                return;
-            }
-            var sprintTasks = tasks.filter(function(t) { return t.sprintId === activeSprint.id && !t.archived; });
-            var completedPts = 0, remainingPts = 0, overduePts = 0;
-            var today = new Date(); today.setHours(0,0,0,0);
-            sprintTasks.forEach(function(t) {
-                var pts = parseInt(t.storyPoints) || 0;
-                if (t.status === 'completed') {
-                    completedPts += pts;
-                } else if (t.dueDate && new Date(t.dueDate) < today) {
-                    overduePts += pts;
-                } else {
-                    remainingPts += pts;
-                }
-            });
-            if (completedPts === 0 && remainingPts === 0 && overduePts === 0) {
-                ctx.parentElement.innerHTML = '<div style="color:#94a3b8;font-size:12px;text-align:center;padding:30px 0;">No story points assigned to sprint tasks yet.</div>';
-                return;
-            }
-            analyticsChartsMap.sprintCommit = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Completed', 'Remaining', 'Overdue'],
-                    datasets: [{ data: [completedPts, remainingPts, overduePts], backgroundColor: ['#22c55e', '#6366f1', '#ef4444'], borderWidth: 0 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#475569', font: { size: 11 } } } } }
-            });
-        }
-
         function kpiCard(label, value, icon, colorClass) {
             return '<div class="kpi-card ' + colorClass + '"><div class="kpi-icon"><i class="fas ' + icon + '"></i></div><div class="kpi-value">' + value + '</div><div class="kpi-label">' + label + '</div></div>';
         }
@@ -26982,6 +26873,7 @@
             { type: 'date',     label: 'Start Date',    id: 'builtin_startDate',     builtIn: true, options: [], chartEnabled: true },
             { type: 'date',     label: 'Due Date',      id: 'builtin_dueDate',       builtIn: true, options: [], chartEnabled: true },
             { type: 'number',   label: 'Estimated Hours', id: 'builtin_hours',       builtIn: true, options: [], chartEnabled: true },
+            { type: 'number',   label: 'Story Points',   id: 'builtin_storyPoints',  builtIn: true, options: [], chartEnabled: true },
             { type: 'text',     label: 'Department',    id: 'builtin_department',    builtIn: true, options: [], chartEnabled: true },
             { type: 'text',     label: 'Systems',       id: 'builtin_systems',       builtIn: true, options: [] },
             { type: 'checkbox',  label: 'Confidential', id: 'builtin_confidential',  builtIn: true, options: [] }
@@ -28463,6 +28355,7 @@
             'builtin_startDate':    'formGroupStartDate',
             'builtin_dueDate':      'formGroupDueDate',
             'builtin_hours':        'formRowHours',
+            'builtin_storyPoints':  'formGroupStoryPoints',
             'builtin_department':   'formGroupDepartment',
             'builtin_systems':      'formGroupSystems',
             'builtin_confidential': 'formRowConfidential'
@@ -28494,6 +28387,11 @@
                 });
                 row.style.display = allHidden ? 'none' : '';
             });
+            // Hide Story Points when sprint mode is off, regardless of schema
+            if (!sprintModeEnabled) {
+                var spEl = document.getElementById('formGroupStoryPoints');
+                if (spEl) spEl.style.display = 'none';
+            }
             // Also hide confidential viewers row when confidential is hidden
             var confRow = document.getElementById('formRowConfidential');
             var viewRow = document.getElementById('confidentialViewersRow');
@@ -28551,6 +28449,7 @@
             'builtin_startDate':   'editStartDate',
             'builtin_dueDate':     'editDueDate',
             'builtin_hours':       'editHours',
+            'builtin_storyPoints': 'editStoryPoints',
             'builtin_department':  'editDepartment',
             'builtin_systems':     'systemsMSWrap',
             'builtin_confidential':'editConfidential'
