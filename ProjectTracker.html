@@ -9624,6 +9624,11 @@
                 <option value="restore">Restored</option>
                 <option value="status">Status Changed</option>
                 <option value="note">Note Added</option>
+                <option value="note_deleted">Note Deleted</option>
+                <option value="chat">Chat Message</option>
+                <option value="chat_deleted">Chat Deleted</option>
+                <option value="attachment_added">Attachment Added</option>
+                <option value="attachment_deleted">Attachment Deleted</option>
                 <option value="settings">Settings</option>
             </select>
             <select class="audit-filter-select" id="auditFilterUser" onchange="filterAuditLog()">
@@ -15220,48 +15225,153 @@
                 });
             } else if (currentEditIndex !== null) {
                 // Edit existing task — record field-level changes for audit trail
-                var _auditLabels = { title:'Title', description:'Description', status:'Status', priority:'Priority', category:'Category', assignedTo:'Assigned To', assignedManager:'Manager', startDate:'Start Date', dueDate:'Due Date', owningDepartment:'Department', projectId:'Project ID', affectedSystems:'Systems', hours:'Hours', confidential:'Confidential' };
+                var _auditLabels = { title:'Title', description:'Description', status:'Status', priority:'Priority', category:'Category', assignedTo:'Assigned To', assignedManager:'Manager', startDate:'Start Date', dueDate:'Due Date', owningDepartment:'Department', projectId:'Project ID', affectedSystems:'Systems', hours:'Hours', confidential:'Confidential', storyPoints:'Story Points' };
+                var _arrayFields = ['affectedSystems'];
                 var oldStatus = tasks[currentEditIndex].status;
                 var _oldTaskSnapshot = JSON.parse(JSON.stringify(tasks[currentEditIndex]));
                 var _changes = [];
                 Object.keys(_auditLabels).forEach(function(k) {
-                    var ov = k === 'affectedSystems'
+                    var ov = _arrayFields.indexOf(k) !== -1
                         ? (tasks[currentEditIndex][k] || []).slice().sort().join(', ')
-                        : String(tasks[currentEditIndex][k] || '');
-                    var nv = k === 'affectedSystems'
+                        : String(tasks[currentEditIndex][k] != null ? tasks[currentEditIndex][k] : '');
+                    var nv = _arrayFields.indexOf(k) !== -1
                         ? (taskData[k] || []).slice().sort().join(', ')
-                        : String(taskData[k] || '');
+                        : String(taskData[k] != null ? taskData[k] : '');
                     if (ov !== nv) _changes.push({ field: _auditLabels[k], from: ov, to: nv });
                 });
-                // Track impact assessment changes
+                // Track confidentialViewers changes
                 (function() {
-                    var oldIA = JSON.stringify(tasks[currentEditIndex].impactAssessment || {});
-                    var newIA = JSON.stringify(taskData.impactAssessment || {});
-                    if (oldIA !== newIA) {
-                        var yesCount = 0;
-                        var iaData = taskData.impactAssessment || {};
-                        Object.keys(iaData).forEach(function(ak) {
-                            var qs = (iaData[ak] && iaData[ak].questions) || [];
-                            qs.forEach(function(q) { if (q.impacts === 'yes') yesCount++; });
+                    var ov = (tasks[currentEditIndex].confidentialViewers || []).slice().sort().join(', ');
+                    var nv = (taskData.confidentialViewers || []).slice().sort().join(', ');
+                    if (ov !== nv) _changes.push({ field: 'Confidential Viewers', from: ov || '(none)', to: nv || '(none)' });
+                })();
+                // Track dependencies changes
+                (function() {
+                    var oldDeps = tasks[currentEditIndex].dependencies || { blockedBy: [], blocks: [] };
+                    var newDeps = taskData.dependencies || { blockedBy: [], blocks: [] };
+                    var _depTitle = function(id) { var t = tasks.find(function(x){ return x.id === id; }); return t ? t.title : id; };
+                    var obStr = (oldDeps.blockedBy || []).slice().sort().map(_depTitle).join(', ');
+                    var nbStr = (newDeps.blockedBy || []).slice().sort().map(_depTitle).join(', ');
+                    if (obStr !== nbStr) _changes.push({ field: 'Blocked By', from: obStr || '(none)', to: nbStr || '(none)' });
+                    var oBlkStr = (oldDeps.blocks || []).slice().sort().map(_depTitle).join(', ');
+                    var nBlkStr = (newDeps.blocks || []).slice().sort().map(_depTitle).join(', ');
+                    if (oBlkStr !== nBlkStr) _changes.push({ field: 'Blocks', from: oBlkStr || '(none)', to: nBlkStr || '(none)' });
+                })();
+                // Track impact assessment changes (area-level question diffs)
+                (function() {
+                    var oldIA = tasks[currentEditIndex].impactAssessment || {};
+                    var newIA = taskData.impactAssessment || {};
+                    if (JSON.stringify(oldIA) === JSON.stringify(newIA)) return;
+                    _impactAreas.forEach(function(area) {
+                        var oldA = (oldIA[area.key] && oldIA[area.key].questions) || [];
+                        var newA = (newIA[area.key] && newIA[area.key].questions) || [];
+                        var maxQ = Math.max(oldA.length, newA.length);
+                        for (var qi = 0; qi < maxQ; qi++) {
+                            var oq = oldA[qi] || {}; var nq = newA[qi] || {};
+                            if ((oq.impacts || '') !== (nq.impacts || '')) {
+                                _changes.push({ field: area.label + ' Q' + (qi+1), from: oq.impacts || '(blank)', to: nq.impacts || '(blank)' });
+                            }
+                            var oNotes = (oq.notes || '').substring(0, 60);
+                            var nNotes = (nq.notes || '').substring(0, 60);
+                            if (oNotes !== nNotes) {
+                                _changes.push({ field: area.label + ' Q' + (qi+1) + ' notes', from: oNotes || '(empty)', to: nNotes || '(empty)' });
+                            }
+                        }
+                    });
+                })();
+                // Track project steps changes (field-level diffs)
+                (function() {
+                    var oldPS = tasks[currentEditIndex].projectSteps || [];
+                    var newPS = taskData.projectSteps || [];
+                    if (JSON.stringify(oldPS) === JSON.stringify(newPS)) return;
+                    var _stepFields = { title:'title', status:'status', owner:'owner', startDate:'start', endDate:'end', notes:'notes' };
+                    var oldMap = {}; oldPS.forEach(function(s, i) { oldMap[s.id || ('idx-'+i)] = s; });
+                    var newMap = {}; newPS.forEach(function(s, i) { newMap[s.id || ('idx-'+i)] = s; });
+                    // Added steps
+                    newPS.forEach(function(s, i) {
+                        var key = s.id || ('idx-'+i);
+                        if (!oldMap[key]) _changes.push({ field: 'Project Steps', from: '', to: 'Added: ' + (s.title || 'Step ' + (i+1)) });
+                    });
+                    // Removed steps
+                    oldPS.forEach(function(s, i) {
+                        var key = s.id || ('idx-'+i);
+                        if (!newMap[key]) _changes.push({ field: 'Project Steps', from: 'Removed: ' + (s.title || 'Step ' + (i+1)), to: '' });
+                    });
+                    // Modified steps
+                    newPS.forEach(function(s, i) {
+                        var key = s.id || ('idx-'+i);
+                        var old = oldMap[key];
+                        if (!old) return;
+                        var label = s.title || old.title || 'Step ' + (i+1);
+                        Object.keys(_stepFields).forEach(function(f) {
+                            var ov = String(old[f] || ''); var nv = String(s[f] || '');
+                            if (ov !== nv) _changes.push({ field: 'Step \u201C' + label + '\u201D ' + _stepFields[f], from: ov || '(empty)', to: nv || '(empty)' });
                         });
-                        _changes.push({ field: 'Impact Assessment', from: '(previous)', to: yesCount + ' impact(s) marked Yes' });
+                    });
+                })();
+                // Track issues changes (field-level diffs)
+                (function() {
+                    var oldIs = tasks[currentEditIndex].issues || [];
+                    var newIs = taskData.issues || [];
+                    if (JSON.stringify(oldIs) === JSON.stringify(newIs)) return;
+                    var _issFields = { title:'title', priority:'priority', status:'status', owner:'owner', dateRaised:'date', notes:'notes' };
+                    var oldMap = {}; oldIs.forEach(function(s, i) { oldMap[s.id || ('idx-'+i)] = s; });
+                    var newMap = {}; newIs.forEach(function(s, i) { newMap[s.id || ('idx-'+i)] = s; });
+                    newIs.forEach(function(s, i) {
+                        var key = s.id || ('idx-'+i);
+                        if (!oldMap[key]) _changes.push({ field: 'Issues', from: '', to: 'Added: ' + (s.title || 'Issue ' + (i+1)) });
+                    });
+                    oldIs.forEach(function(s, i) {
+                        var key = s.id || ('idx-'+i);
+                        if (!newMap[key]) _changes.push({ field: 'Issues', from: 'Removed: ' + (s.title || 'Issue ' + (i+1)), to: '' });
+                    });
+                    newIs.forEach(function(s, i) {
+                        var key = s.id || ('idx-'+i);
+                        var old = oldMap[key];
+                        if (!old) return;
+                        var label = s.title || old.title || 'Issue ' + (i+1);
+                        Object.keys(_issFields).forEach(function(f) {
+                            var ov = String(old[f] || ''); var nv = String(s[f] || '');
+                            if (ov !== nv) _changes.push({ field: 'Issue \u201C' + label + '\u201D ' + _issFields[f], from: ov || '(empty)', to: nv || '(empty)' });
+                        });
+                    });
+                })();
+                // Track RACI chart changes
+                (function() {
+                    var oldR = tasks[currentEditIndex].raciChart || [];
+                    var newR = taskData.raciChart || [];
+                    if (JSON.stringify(oldR) === JSON.stringify(newR)) return;
+                    if (oldR.length !== newR.length) {
+                        _changes.push({ field: 'RACI Chart', from: oldR.length + ' row(s)', to: newR.length + ' row(s)' });
+                    }
+                    var max = Math.min(oldR.length, newR.length);
+                    for (var ri = 0; ri < max; ri++) {
+                        var label = newR[ri].task || oldR[ri].task || 'Row ' + (ri+1);
+                        ['task','responsible','accountable','consulted','informed'].forEach(function(f) {
+                            if (String(oldR[ri][f] || '') !== String(newR[ri][f] || '')) {
+                                _changes.push({ field: 'RACI \u201C' + label + '\u201D ' + f, from: String(oldR[ri][f] || '(empty)'), to: String(newR[ri][f] || '(empty)') });
+                            }
+                        });
                     }
                 })();
-                // Track project steps changes
+                // Track custom fields changes
                 (function() {
-                    var oldPS = JSON.stringify(tasks[currentEditIndex].projectSteps || []);
-                    var newPS = JSON.stringify(taskData.projectSteps || []);
-                    if (oldPS !== newPS) {
-                        _changes.push({ field: 'Project Steps', from: (tasks[currentEditIndex].projectSteps || []).length + ' step(s)', to: (taskData.projectSteps || []).length + ' step(s)' });
-                    }
+                    var oldCF = tasks[currentEditIndex].customFields || {};
+                    var newCF = taskData.customFields || {};
+                    if (JSON.stringify(oldCF) === JSON.stringify(newCF)) return;
+                    (formSchema || []).forEach(function(f) {
+                        if (f.builtIn) return;
+                        var ov = String(oldCF[f.id] != null ? oldCF[f.id] : '');
+                        var nv = String(newCF[f.id] != null ? newCF[f.id] : '');
+                        if (ov !== nv) _changes.push({ field: (f.label || f.id) + ' (custom)', from: ov || '(empty)', to: nv || '(empty)' });
+                    });
                 })();
-                // Track issues changes
+                // Track related projects changes
                 (function() {
-                    var oldIs = JSON.stringify(tasks[currentEditIndex].issues || []);
-                    var newIs = JSON.stringify(taskData.issues || []);
-                    if (oldIs !== newIs) {
-                        _changes.push({ field: 'Issues', from: (tasks[currentEditIndex].issues || []).length + ' issue(s)', to: (taskData.issues || []).length + ' issue(s)' });
-                    }
+                    var _projTitle = function(id) { var t = tasks.find(function(x){ return x.id === id; }); return t ? t.title : id; };
+                    var oldRP = (tasks[currentEditIndex].relatedProjects || []).slice().sort().map(_projTitle).join(', ');
+                    var newRP = (taskData.relatedProjects || []).slice().sort().map(_projTitle).join(', ');
+                    if (oldRP !== newRP) _changes.push({ field: 'Related Projects', from: oldRP || '(none)', to: newRP || '(none)' });
                 })();
                 Object.assign(tasks[currentEditIndex], taskData);
                 _tasksModified = true;
@@ -15591,6 +15701,8 @@
 
         function deleteNote(noteIndex) {
             if (currentEditIndex === null) return;
+            var deletedNote = tasks[currentEditIndex].notes[noteIndex];
+            logAuditEvent('note_deleted', tasks[currentEditIndex], { noteText: (deletedNote && deletedNote.text ? deletedNote.text : '').substring(0, 80) });
             tasks[currentEditIndex].notes.splice(noteIndex, 1);
             renderNotesList(tasks[currentEditIndex].notes);
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
@@ -19578,6 +19690,8 @@
         function deleteChatMessage(idx) {
             if (currentEditIndex === null) return;
             if (!confirm('Delete this message?')) return;
+            var deletedMsg = tasks[currentEditIndex].chatMessages[idx];
+            logAuditEvent('chat_deleted', tasks[currentEditIndex], { messageText: (deletedMsg && deletedMsg.text ? deletedMsg.text : '').substring(0, 80) });
             tasks[currentEditIndex].chatMessages.splice(idx, 1);
             renderChatMessages(tasks[currentEditIndex].chatMessages);
             safeSetItem('projectTrackerTasks', JSON.stringify(tasks));
@@ -20085,6 +20199,7 @@
             if (!task || !task.attachments) return;
             if (!confirm('Remove this attachment?')) return;
             var att = task.attachments[index];
+            logAuditEvent('attachment_deleted', task, { fileName: att.name || att.url || '' });
             // Try to delete from Storage
             if (att.storagePath && firebase.storage) {
                 firebase.storage().ref(att.storagePath).delete().catch(function() {});
@@ -20130,6 +20245,7 @@
             if (!task) { showToast('Save the project first, then add links'); return; }
             if (!task.attachments) task.attachments = [];
             task.attachments.push({ name: name || url, url: url, type: 'Link', uploadedBy: currentUser ? currentUser.uid : '', uploadedAt: new Date().toISOString() });
+            logAuditEvent('attachment_added', task, { fileName: name || url });
             renderAttachments(task.attachments);
             inp.value = ''; if (nameInp) nameInp.value = '';
             toggleCollabLink();
@@ -20266,8 +20382,8 @@
                 list.innerHTML = '<div class="audit-empty"><i class="fas fa-history"></i><p>No audit entries found</p></div>';
                 return;
             }
-            var iconMap  = { create: 'fas fa-plus-circle', update: 'fas fa-edit', delete: 'fas fa-trash', archive: 'fas fa-archive', restore: 'fas fa-undo', status: 'fas fa-exchange-alt', note: 'fas fa-sticky-note', settings: 'fas fa-cog' };
-            var labelMap = { create: 'Created', update: 'Updated', delete: 'Deleted', archive: 'Archived', restore: 'Restored', status: 'Status Changed', note: 'Note Added', settings: 'Settings Changed' };
+            var iconMap  = { create: 'fas fa-plus-circle', update: 'fas fa-edit', delete: 'fas fa-trash', archive: 'fas fa-archive', restore: 'fas fa-undo', status: 'fas fa-exchange-alt', note: 'fas fa-sticky-note', note_deleted: 'fas fa-trash-alt', chat: 'fas fa-comment', chat_deleted: 'fas fa-comment-slash', attachment_added: 'fas fa-paperclip', attachment_deleted: 'fas fa-paperclip', settings: 'fas fa-cog' };
+            var labelMap = { create: 'Created', update: 'Updated', delete: 'Deleted', archive: 'Archived', restore: 'Restored', status: 'Status Changed', note: 'Note Added', note_deleted: 'Note Deleted', chat: 'Chat Message', chat_deleted: 'Chat Deleted', attachment_added: 'Attachment Added', attachment_deleted: 'Attachment Deleted', settings: 'Settings Changed' };
             var html = '';
             entries.forEach(function(e) {
                 var time = e.timestamp ? new Date(e.timestamp).toLocaleString() : '';
