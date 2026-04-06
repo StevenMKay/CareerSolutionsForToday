@@ -8839,6 +8839,7 @@
                 <span class="modal-section-chevron"><i class="fas fa-chevron-down"></i></span>
                 <i class="fas fa-exclamation-triangle" style="color:#f59e0b;font-size:12px;"></i>
                 <span class="modal-section-title">1.1 &middot; Impact Assessment</span>
+                <span id="impactAssessmentDateBadge" style="font-size:9px;color:#64748b;font-weight:500;margin-left:6px;white-space:nowrap;"></span>
                 <button class="modal-section-edit-btn admin-only-el" onclick="event.stopPropagation();openFormBuilderModal()" title="Edit form fields (Admin)"><i class="fas fa-pencil-alt"></i></button>
               </div>
               <div class="modal-section-body">
@@ -13745,6 +13746,7 @@
 
             // New sections
             renderImpactAssessment(task.impactAssessment || {});
+            _updateImpactAssessmentDateBadge(task);
             renderProjectSteps(task.projectSteps || []);
             renderIssues(task.issues || []);
             renderRaciChart(task.raciChart || []);
@@ -13848,6 +13850,7 @@
 
             // Clear new sections
             renderImpactAssessment({});
+            _updateImpactAssessmentDateBadge(null);
             renderProjectSteps([]);
             renderIssues([]);
             renderRaciChart([]);
@@ -15148,6 +15151,25 @@
                 relatedProjects: _relatedProjectIds || [],
                 updatedAt: new Date().toISOString()
             };
+            // Impact Assessment completion/updated tracking
+            (function() {
+                var ia = taskData.impactAssessment || {};
+                var hasAnyYes = false;
+                Object.keys(ia).forEach(function(ak) {
+                    var qs = (ia[ak] && ia[ak].questions) || [];
+                    qs.forEach(function(q) { if (q.impacts === 'yes') hasAnyYes = true; });
+                });
+                var prev = (currentEditIndex !== null && currentEditIndex !== -1 && tasks[currentEditIndex])
+                    ? tasks[currentEditIndex].impactAssessmentMeta || {} : {};
+                if (hasAnyYes) {
+                    taskData.impactAssessmentMeta = {
+                        completedDate: prev.completedDate || new Date().toISOString(),
+                        lastModified: new Date().toISOString()
+                    };
+                } else {
+                    taskData.impactAssessmentMeta = prev.completedDate ? prev : null;
+                }
+            })();
             // Sprint fields
             var spEl = document.getElementById('editStoryPoints');
             if (spEl && sprintModeEnabled) {
@@ -15198,7 +15220,7 @@
                 });
             } else if (currentEditIndex !== null) {
                 // Edit existing task — record field-level changes for audit trail
-                var _auditLabels = { title:'Title', description:'Description', status:'Status', priority:'Priority', category:'Category', assignedTo:'Assigned To', startDate:'Start Date', dueDate:'Due Date', owningDepartment:'Department', projectId:'Project ID', affectedSystems:'Systems' };
+                var _auditLabels = { title:'Title', description:'Description', status:'Status', priority:'Priority', category:'Category', assignedTo:'Assigned To', assignedManager:'Manager', startDate:'Start Date', dueDate:'Due Date', owningDepartment:'Department', projectId:'Project ID', affectedSystems:'Systems', hours:'Hours', confidential:'Confidential' };
                 var oldStatus = tasks[currentEditIndex].status;
                 var _oldTaskSnapshot = JSON.parse(JSON.stringify(tasks[currentEditIndex]));
                 var _changes = [];
@@ -15211,6 +15233,36 @@
                         : String(taskData[k] || '');
                     if (ov !== nv) _changes.push({ field: _auditLabels[k], from: ov, to: nv });
                 });
+                // Track impact assessment changes
+                (function() {
+                    var oldIA = JSON.stringify(tasks[currentEditIndex].impactAssessment || {});
+                    var newIA = JSON.stringify(taskData.impactAssessment || {});
+                    if (oldIA !== newIA) {
+                        var yesCount = 0;
+                        var iaData = taskData.impactAssessment || {};
+                        Object.keys(iaData).forEach(function(ak) {
+                            var qs = (iaData[ak] && iaData[ak].questions) || [];
+                            qs.forEach(function(q) { if (q.impacts === 'yes') yesCount++; });
+                        });
+                        _changes.push({ field: 'Impact Assessment', from: '(previous)', to: yesCount + ' impact(s) marked Yes' });
+                    }
+                })();
+                // Track project steps changes
+                (function() {
+                    var oldPS = JSON.stringify(tasks[currentEditIndex].projectSteps || []);
+                    var newPS = JSON.stringify(taskData.projectSteps || []);
+                    if (oldPS !== newPS) {
+                        _changes.push({ field: 'Project Steps', from: (tasks[currentEditIndex].projectSteps || []).length + ' step(s)', to: (taskData.projectSteps || []).length + ' step(s)' });
+                    }
+                })();
+                // Track issues changes
+                (function() {
+                    var oldIs = JSON.stringify(tasks[currentEditIndex].issues || []);
+                    var newIs = JSON.stringify(taskData.issues || []);
+                    if (oldIs !== newIs) {
+                        _changes.push({ field: 'Issues', from: (tasks[currentEditIndex].issues || []).length + ' issue(s)', to: (taskData.issues || []).length + ' issue(s)' });
+                    }
+                })();
                 Object.assign(tasks[currentEditIndex], taskData);
                 _tasksModified = true;
                 if (oldStatus !== taskData.status) {
@@ -25618,13 +25670,14 @@
                 var aData = data[area.key] || {};
                 var qHtml = area.questions.map(function(q, qi) {
                     var qData   = (aData.questions && aData.questions[qi]) ? aData.questions[qi] : {};
-                    var impacts = qData.impacts || 'no';
+                    var impacts = qData.impacts || '';
                     var notes   = qData.notes   || '';
                     return '<div class="impact-question" data-area="' + area.key + '" data-qi="' + qi + '">' +
                         '<div class="impact-q-row">' +
                             '<span class="impact-q-text">' + escapeHtml(q) + '</span>' +
                             '<select class="impact-yn-sel" onchange="impactYesNoChange(this)">' +
-                                '<option value="no"'  + (impacts !== 'yes' ? ' selected' : '') + '>No</option>' +
+                                '<option value=""'    + (impacts === ''    ? ' selected' : '') + '>\u2014</option>' +
+                                '<option value="no"'  + (impacts === 'no'  ? ' selected' : '') + '>No</option>' +
                                 '<option value="yes"' + (impacts === 'yes' ? ' selected' : '') + '>Yes</option>' +
                             '</select>' +
                         '</div>' +
@@ -25657,6 +25710,23 @@
                 if (sel) sel.value = value;
                 if (notesWrap) notesWrap.style.display = value === 'yes' ? '' : 'none';
             });
+        }
+
+        function _updateImpactAssessmentDateBadge(task) {
+            var badge = document.getElementById('impactAssessmentDateBadge');
+            if (!badge) return;
+            var meta = task && task.impactAssessmentMeta;
+            if (!meta || !meta.completedDate) { badge.textContent = ''; return; }
+            var fmt = function(iso) {
+                if (!iso) return '';
+                var d = new Date(iso);
+                return (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+            };
+            var text = 'Completed: ' + fmt(meta.completedDate);
+            if (meta.lastModified && meta.lastModified !== meta.completedDate) {
+                text += '  \u00B7  Updated: ' + fmt(meta.lastModified);
+            }
+            badge.textContent = text;
         }
 
         function readImpactAssessment() {
@@ -25714,7 +25784,7 @@
                 if (!relevant.length) return;
 
                 // Build the note text from AI findings
-                var noteText = '\u{1F916} AI-Generated: ' + relevant.map(function(item) {
+                var noteText = 'AI-Generated: ' + relevant.map(function(item) {
                     if (typeof item === 'string') return item;
                     return item.text + (item.severity ? ' [' + item.severity.toUpperCase() + ']' : '');
                 }).join('; ');
@@ -25734,7 +25804,7 @@
                     }
                     if (notesInput) {
                         var existing = notesInput.value.trim();
-                        if (existing && existing.indexOf('\u{1F916} AI-Generated') === -1) {
+                        if (existing && existing.indexOf('AI-Generated') === -1) {
                             notesInput.value = existing + '\n' + noteText;
                         } else if (!existing) {
                             notesInput.value = noteText;
@@ -25750,7 +25820,7 @@
                     return lower.indexOf('train') !== -1 || lower.indexOf('change management') !== -1 || lower.indexOf('communication') !== -1;
                 });
                 if (trainingRecs.length) {
-                    var trainingNote = '\u{1F916} AI-Generated: ' + trainingRecs.map(function(r) { return typeof r === 'string' ? r : r.text; }).join('; ');
+                    var trainingNote = 'AI-Generated: ' + trainingRecs.map(function(r) { return typeof r === 'string' ? r : r.text; }).join('; ');
                     var tDivs = document.querySelectorAll('#impactAssessmentContent .impact-question[data-area="training_change"]');
                     if (tDivs[0]) {
                         var tSel = tDivs[0].querySelector('.impact-yn-sel');
@@ -25768,6 +25838,7 @@
                 impactSection.classList.remove('modal-section-collapsed');
             }
 
+            if (typeof _markModalDirty === 'function') _markModalDirty();
             showToast('AI insights applied to ' + appliedCount + ' impact assessment question' + (appliedCount !== 1 ? 's' : ''), 'success');
         }
 
