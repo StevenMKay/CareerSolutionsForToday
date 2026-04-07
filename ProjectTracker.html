@@ -24849,14 +24849,17 @@
                 });
             }
 
-            var systemPrompt = 'You are an enterprise risk and audit analyst. Given the proposed initiative and the organization\'s historical project data (lessons learned, impact assessments, context library, and insights), identify risks in these categories:\n\n' +
-                '1) **Audit & Compliance Risks** — regulatory, SOX, data privacy, approval gaps\n' +
-                '2) **Operational Risks** — process disruption, resource strain, vendor dependencies\n' +
-                '3) **Technical Risks** — integration issues, security, performance, data migration\n' +
-                '4) **Change Management Risks** — adoption, training gaps, stakeholder resistance\n\n' +
-                'For each risk, provide:\n- **Risk**: Brief description\n- **Severity**: High / Medium / Low\n- **Likelihood**: High / Medium / Low\n- **Mitigation**: Recommended action\n\n' +
-                'Also include a **Lessons Learned Flags** section highlighting any patterns from past project lessons that are directly relevant.\n\n' +
-                'Use markdown formatting. Be specific and actionable.';
+            var systemPrompt = 'You are an enterprise risk and audit analyst. Given the proposed initiative and the organization\'s historical project data (lessons learned, impact assessments, context library, and insights), identify risks and return a JSON object with exactly this structure (no markdown, no code fences, ONLY raw JSON):\n\n' +
+                '{\n' +
+                '  "overall_risk_level": "High" or "Medium" or "Low",\n' +
+                '  "summary": "1-2 sentence executive summary of the overall risk posture",\n' +
+                '  "audit_compliance": [{"text": "risk description", "severity": "high/medium/low", "mitigation": "recommended action"}],\n' +
+                '  "operational": [{"text": "risk description", "severity": "high/medium/low", "mitigation": "recommended action"}],\n' +
+                '  "technical": [{"text": "risk description", "severity": "high/medium/low", "mitigation": "recommended action"}],\n' +
+                '  "change_management": [{"text": "risk description", "severity": "high/medium/low", "mitigation": "recommended action"}],\n' +
+                '  "lessons_flags": ["relevant pattern or lesson from past projects"]\n' +
+                '}\n\n' +
+                'Each array should have 2-5 items. Be specific and actionable. Do NOT wrap in markdown code fences. Return ONLY the JSON object.';
 
             var userPrompt = '=== PROPOSED INITIATIVE ===\n' + initiative + '\n\n';
             if (lessonsText) userPrompt += '=== LESSONS LEARNED FROM PAST PROJECTS ===\n' + lessonsText + '\n';
@@ -24866,10 +24869,75 @@
 
             try {
                 var response = await callOpenAI(systemPrompt, userPrompt);
-                if (typeof _formatAIMarkdown === 'function') {
-                    resultDiv.innerHTML = '<div class="note-email-formatted" style="max-height:500px;overflow-y:auto;">' + _formatAIMarkdown(response) + '</div>';
+                // Strip markdown code fences if present
+                var cleaned = response.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+                var data;
+                try { data = JSON.parse(cleaned); } catch(pe) { data = null; }
+
+                if (data && (data.audit_compliance || data.operational || data.technical || data.change_management)) {
+                    var rhtml = '';
+
+                    // Overall risk level banner
+                    if (data.overall_risk_level || data.summary) {
+                        var rlvl = (data.overall_risk_level || 'Medium').toLowerCase();
+                        var rlColor = rlvl === 'high' ? '#ef4444' : rlvl === 'low' ? '#22c55e' : '#f59e0b';
+                        rhtml += '<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:' + rlColor + '0d;border:1px solid ' + rlColor + '33;border-radius:10px;margin-bottom:12px;">';
+                        rhtml += '<div style="width:42px;height:42px;border-radius:50%;background:' + rlColor + '1a;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-shield-alt" style="font-size:18px;color:' + rlColor + ';"></i></div>';
+                        rhtml += '<div><div style="font-size:12px;font-weight:700;color:' + rlColor + ';text-transform:uppercase;letter-spacing:0.5px;">Overall Risk: ' + escapeHtml(data.overall_risk_level || 'Medium') + '</div>';
+                        if (data.summary) rhtml += '<div style="font-size:12px;color:#475569;margin-top:2px;line-height:1.5;">' + escapeHtml(data.summary) + '</div>';
+                        rhtml += '</div></div>';
+                    }
+
+                    // Risk category cards
+                    rhtml += '<div style="display:flex;flex-direction:column;gap:12px;">';
+                    var categories = [
+                        { key: 'audit_compliance', icon: 'fa-gavel', color: '#8b5cf6', title: 'Audit & Compliance Risks' },
+                        { key: 'operational', icon: 'fa-cogs', color: '#f59e0b', title: 'Operational Risks' },
+                        { key: 'technical', icon: 'fa-server', color: '#06b6d4', title: 'Technical Risks' },
+                        { key: 'change_management', icon: 'fa-users', color: '#3b82f6', title: 'Change Management Risks' }
+                    ];
+                    categories.forEach(function(cat) {
+                        var items = data[cat.key];
+                        if (!items || !items.length) return;
+                        rhtml += '<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;border-left:3px solid ' + cat.color + ';box-shadow:0 1px 4px rgba(0,0,0,0.06);">';
+                        rhtml += '<div style="font-weight:700;font-size:13px;color:' + cat.color + ';margin-bottom:10px;display:flex;align-items:center;gap:6px;"><i class="fas ' + cat.icon + '" style="font-size:11px;"></i>' + cat.title + '</div>';
+                        items.forEach(function(item) {
+                            var sev = (item.severity || 'medium').toLowerCase();
+                            var sevColor = sev === 'high' ? '#ef4444' : sev === 'low' ? '#22c55e' : '#f59e0b';
+                            var sevLabel = sev.charAt(0).toUpperCase() + sev.slice(1);
+                            rhtml += '<div style="padding:8px 10px;background:#f8fafc;border-radius:6px;margin-bottom:6px;border:1px solid #f1f5f9;">';
+                            rhtml += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                            rhtml += '<span style="font-size:12px;font-weight:600;color:#1e293b;line-height:1.4;">' + escapeHtml(item.text || item) + '</span>';
+                            rhtml += '<span style="flex-shrink:0;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:' + sevColor + '18;color:' + sevColor + ';white-space:nowrap;">' + sevLabel + '</span>';
+                            rhtml += '</div>';
+                            if (item.mitigation) {
+                                rhtml += '<div style="font-size:11px;color:#64748b;margin-top:5px;line-height:1.4;padding-left:1px;"><i class="fas fa-check-circle" style="color:#22c55e;margin-right:4px;font-size:9px;"></i><strong style="color:#475569;">Mitigation:</strong> ' + escapeHtml(item.mitigation) + '</div>';
+                            }
+                            rhtml += '</div>';
+                        });
+                        rhtml += '</div>';
+                    });
+                    rhtml += '</div>';
+
+                    // Lessons Learned Flags
+                    if (data.lessons_flags && data.lessons_flags.length) {
+                        rhtml += '<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;border-left:3px solid #f59e0b;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-top:0;">';
+                        rhtml += '<div style="font-weight:700;font-size:13px;color:#f59e0b;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><i class="fas fa-graduation-cap" style="font-size:11px;"></i>Lessons Learned Flags</div>';
+                        rhtml += '<ul style="margin:0;padding:0 0 0 16px;list-style:disc;">';
+                        data.lessons_flags.forEach(function(lesson) {
+                            rhtml += '<li style="color:#1e293b;font-size:12px;line-height:1.7;margin-bottom:2px;">' + escapeHtml(lesson) + '</li>';
+                        });
+                        rhtml += '</ul></div>';
+                    }
+
+                    resultDiv.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;max-height:500px;overflow-y:auto;padding:2px;">' + rhtml + '</div>';
                 } else {
-                    resultDiv.innerHTML = '<div style="white-space:pre-wrap;padding:16px;background:#f8fafc;border-radius:8px;font-size:12px;line-height:1.6;max-height:500px;overflow-y:auto;">' + escapeHtml(response) + '</div>';
+                    // Fallback: render as formatted markdown
+                    if (typeof _formatAIMarkdown === 'function') {
+                        resultDiv.innerHTML = '<div class="note-email-formatted" style="max-height:500px;overflow-y:auto;">' + _formatAIMarkdown(response) + '</div>';
+                    } else {
+                        resultDiv.innerHTML = '<div style="white-space:pre-wrap;padding:16px;background:#f8fafc;border-radius:8px;font-size:12px;line-height:1.6;max-height:500px;overflow-y:auto;">' + escapeHtml(response) + '</div>';
+                    }
                 }
             } catch (err) {
                 resultDiv.innerHTML = '<div style="color:#ef4444;padding:16px;font-size:12px;"><i class="fas fa-exclamation-triangle" style="margin-right:6px;"></i>' + escapeHtml(err.message || 'Risk assessment failed.') + '</div>';
@@ -24990,6 +25058,7 @@
 
         function _formatAIMarkdown(text) {
             var html = escapeHtml(text);
+            html = html.replace(/^### (.+)$/gm, '<div style="font-size:13px;font-weight:700;color:#475569;margin:12px 0 5px;display:flex;align-items:center;gap:5px;"><i class="fas fa-angle-right" style="color:#6366f1;font-size:10px;"></i>$1</div>');
             html = html.replace(/^## (.+)$/gm, '<div style="font-size:14px;font-weight:700;color:#1e293b;margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid #e2e8f0;">$1</div>');
             html = html.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#1e293b;">$1</strong>');
             html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<div style="display:flex;gap:8px;margin:3px 0 3px 8px;"><span style="color:#6366f1;font-weight:700;flex-shrink:0;">$1.</span><span>$2</span></div>');
