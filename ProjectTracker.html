@@ -7639,7 +7639,8 @@
         .tl-impact-badge { font-size:8px; font-weight:600; padding:1px 5px; border-radius:6px; white-space:nowrap; line-height:1.3; }
         .tl-impact-badge.dept { background:rgba(139,92,246,0.2); color:#c4b5fd; }
         .tl-impact-badge.sys { background:rgba(20,184,166,0.2); color:#5eead4; }
-        .tl-impact-badge.dep { background:rgba(245,158,11,0.2); color:#fcd34d; }
+        .tl-impact-badge.dep-in { background:rgba(245,158,11,0.2); color:#fcd34d; cursor:help; }
+        .tl-impact-badge.dep-out { background:rgba(239,68,68,0.15); color:#fca5a5; cursor:help; }
 
         /* ===== Timeline Enhancement: Collision/Conflict Glow ===== */
         .tl-bar.tl-conflict { box-shadow:0 0 8px 2px rgba(239,68,68,0.5); border:1px solid rgba(239,68,68,0.6); }
@@ -28293,8 +28294,16 @@
                     task.affectedSystems.forEach(function(s) { badges.push('<span class="tl-impact-badge sys">' + escapeHtml(s) + '</span>'); });
                 }
                 if (task.dependencies) {
-                    var depCount = (task.dependencies.blockedBy ? task.dependencies.blockedBy.length : 0) + (task.dependencies.blocks ? task.dependencies.blocks.length : 0);
-                    if (depCount > 0) badges.push('<span class="tl-impact-badge dep"><i class="fas fa-link" style="font-size:7px;margin-right:2px;"></i>' + depCount + ' dep</span>');
+                    var blockedByList = task.dependencies.blockedBy || [];
+                    var blocksList = task.dependencies.blocks || [];
+                    if (blockedByList.length > 0) {
+                        var depInTip = 'Dependencies (must finish first):\n' + blockedByList.map(function(id) { var t = tasks.find(function(x){ return x.id === id; }); return '\u2022 ' + (t ? t.title : id); }).join('\n');
+                        badges.push('<span class="tl-impact-badge dep-in" title="' + escapeHtml(depInTip) + '"><i class="fas fa-arrow-left" style="font-size:6px;margin-right:2px;"></i>' + blockedByList.length + ' ' + (blockedByList.length === 1 ? 'dependency' : 'dependencies') + '</span>');
+                    }
+                    if (blocksList.length > 0) {
+                        var depOutTip = 'Projects Impacted (waiting on this):\n' + blocksList.map(function(id) { var t = tasks.find(function(x){ return x.id === id; }); return '\u2022 ' + (t ? t.title : id); }).join('\n');
+                        badges.push('<span class="tl-impact-badge dep-out" title="' + escapeHtml(depOutTip) + '"><i class="fas fa-arrow-right" style="font-size:6px;margin-right:2px;"></i>' + blocksList.length + ' impacted</span>');
+                    }
                 }
                 if (badges.length) badgeHtml = '<div class="tl-impact-badges">' + badges.join('') + '</div>';
 
@@ -28356,7 +28365,9 @@
                 '<span class="tl-legend-item"><span class="tl-legend-swatch" style="background:#6b7280;"></span>Cancelled</span>' +
                 '<span class="tl-legend-item"><span class="tl-legend-swatch" style="background:#ef4444;width:2px;height:14px;border-radius:0;"></span>Today</span>' +
 
-                '<span class="tl-legend-item"><span style="display:inline-block;width:14px;height:2px;background:#f59e0b;border-radius:1px;margin-right:2px;"></span>Dependency</span>' +
+                '<span class="tl-legend-item"><span style="display:inline-block;width:14px;height:2px;background:#f59e0b;border-radius:1px;margin-right:2px;"></span>Dependency Line</span>' +
+                '<span class="tl-legend-item"><span class="tl-impact-badge dep-in" style="font-size:7px;cursor:default;"><i class="fas fa-arrow-left" style="font-size:5px;margin-right:2px;"></i>N</span> Dependencies</span>' +
+                '<span class="tl-legend-item"><span class="tl-impact-badge dep-out" style="font-size:7px;cursor:default;"><i class="fas fa-arrow-right" style="font-size:5px;margin-right:2px;"></i>N</span> Impacted</span>' +
             '</div>';
 
             container.innerHTML = html;
@@ -28410,10 +28421,13 @@
 
                     var isBlockedBy = task.dependencies.blockedBy && task.dependencies.blockedBy.indexOf(depId) !== -1;
                     var lineClass = isBlockedBy ? 'dep-blocks' : 'dep-system';
+                    var fromTitle = escapeHtml(task.title);
+                    var toTitle = escapeHtml(dep.title);
+                    var lineTooltip = isBlockedBy ? (toTitle + ' \u2192 ' + fromTitle + ' (dependency)') : (fromTitle + ' \u2192 ' + toTitle + ' (impacts)');
 
-                    lines += '<path class="tl-dep-line ' + lineClass + '" d="' + path + '" />';
+                    lines += '<path class="tl-dep-line ' + lineClass + '" d="' + path + '"><title>' + lineTooltip + '</title></path>';
                     // Arrow at end
-                    lines += '<polygon class="tl-dep-arrow" points="' + (x2 - 6) + ',' + (y2 - 4) + ' ' + x2 + ',' + y2 + ' ' + (x2 - 6) + ',' + (y2 + 4) + '" />';
+                    lines += '<polygon class="tl-dep-arrow" points="' + (x2 - 6) + ',' + (y2 - 4) + ' ' + x2 + ',' + y2 + ' ' + (x2 - 6) + ',' + (y2 + 4) + '"><title>' + lineTooltip + '</title></polygon>';
                 });
             });
 
