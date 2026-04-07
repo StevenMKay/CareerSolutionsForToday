@@ -7601,7 +7601,7 @@
         .tl-row-label-title { font-size:12px; font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .tl-row-label-sub { font-size:10px; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
         .tl-row-bar-area { flex:1; position:relative; height:28px; }
-        .tl-bar { position:absolute; height:20px; top:4px; border-radius:4px; opacity:0.9; min-width:6px; display:flex; align-items:center; overflow:hidden; cursor:pointer; transition:opacity 0.15s; }
+        .tl-bar { position:absolute; height:20px; top:4px; border-radius:4px; opacity:0.9; min-width:6px; display:flex; align-items:center; overflow:hidden; cursor:pointer; transition:opacity 0.15s; z-index:2; }
         .tl-bar:hover { opacity:1; }
         .tl-bar-label { font-size:10px; font-weight:600; color:#fff; padding:0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 2px rgba(0,0,0,0.4); }
         .tl-today-line { position:absolute; top:0; bottom:0; width:2px; background:#ef4444; opacity:0.8; z-index:1; pointer-events:none; }
@@ -7648,7 +7648,7 @@
         .tl-conflict-icon { position:absolute; right:18px; top:50%; transform:translateY(-50%); font-size:9px; color:#dc2626; cursor:help; z-index:1; }
 
         /* ===== Timeline Enhancement: Dependency Lines SVG ===== */
-        .tl-svg-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:3; overflow:visible; }
+        .tl-svg-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0; overflow:visible; }
         .tl-dep-line { stroke-width:8; fill:none; pointer-events:stroke; cursor:pointer; opacity:0.6; }
         .tl-dep-line:hover { stroke-width:10; opacity:1; }
         .tl-dep-line.dep-blocks { stroke:#f59e0b; stroke-dasharray:6,3; }
@@ -13311,6 +13311,8 @@
                         '<div style="min-width:0;"><div class="list-title" onclick="openEditModal(\'' + task.id + '\')">' + escapeHtml(task.title) + '</div>' +
                         '<div class="list-badges">' +
                             (task.confidential ? '<span class="confidential-badge" style="font-size:9px;padding:1px 6px;"><i class="fas fa-lock"></i></span>' : '') +
+                            (function(){ var _oi = (task.issues || []).filter(function(iss){ return iss.status !== 'resolved' && iss.status !== 'wont-fix'; }).length; return _oi > 0 ? '<span class="category-tag" style="background:rgba(229,62,62,0.12);color:#9b2c2c;border:1px solid rgba(229,62,62,0.18);font-size:9px;padding:1px 6px;gap:3px;"><i class="fas fa-exclamation-triangle" style="font-size:9px;"></i>' + _oi + '</span>' : ''; }()) +
+                            (function(){ if (!task.approvals || !task.approvals.length) return ''; var _pa = task.approvals.filter(function(a){ return !a.outcome || a.outcome === 'Not Yet Approved'; }); if (!_pa.length) return ''; var _td = new Date().toISOString().slice(0,10); var _od = _pa.filter(function(a){ return a.dueDate && a.dueDate < _td; }); if (_od.length > 0) return '<span class="approval-badge-overdue" title="' + _od.length + ' approval(s) past due"><i class="fas fa-gavel"></i></span>'; return '<span class="approval-badge-pending" title="' + _pa.length + ' approval(s) pending"><i class="fas fa-gavel"></i></span>'; }()) +
                         '</div></div>';
                     cols.forEach(function(c) {
                         html += '<div>' + _listCellContent(task, c.id) + '</div>';
@@ -28513,13 +28515,33 @@
             ph += '<i class="fas fa-flag" style="color:' + ({'not-started':'#94a3b8','in-progress':'#3b82f6','completed':'#10b981','on-hold':'#f59e0b','blocked':'#ef4444'}[task.status] || '#94a3b8') + ';margin-right:3px;"></i>' + (statusLabels[task.status] || task.status);
             ph += '</div></div>';
 
-            // Conflicts section
+            // Conflicts section (grouped by shared system set when >2)
             if (conflicts.length) {
                 ph += '<div class="tl-ripple-cascade"><div class="tl-ripple-cascade-title"><i class="fas fa-exclamation-triangle"></i> System Conflicts (' + conflicts.length + ')</div>';
-                conflicts.forEach(function(c) {
-                    ph += '<div class="tl-ripple-node impact-high"><div class="tl-ripple-node-title" onclick="openEditModal(\'' + c.id + '\');_tlCloseRipple();">' + escapeHtml(c.title) + '</div>';
-                    ph += '<div class="tl-ripple-node-reason"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Shared systems: ' + c.systems.map(escapeHtml).join(', ') + '</div></div>';
-                });
+                if (conflicts.length <= 2) {
+                    conflicts.forEach(function(c) {
+                        ph += '<div class="tl-ripple-node impact-high"><div class="tl-ripple-node-title" onclick="openEditModal(\'' + c.id + '\');_tlCloseRipple();">' + escapeHtml(c.title) + '</div>';
+                        ph += '<div class="tl-ripple-node-reason"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Shared systems: ' + c.systems.map(escapeHtml).join(', ') + '</div></div>';
+                    });
+                } else {
+                    // Group by system set
+                    var sysGroups = {};
+                    conflicts.forEach(function(c) {
+                        var key = c.systems.slice().sort().join(', ');
+                        if (!sysGroups[key]) sysGroups[key] = [];
+                        sysGroups[key].push(c);
+                    });
+                    Object.keys(sysGroups).forEach(function(sysKey) {
+                        var grp = sysGroups[sysKey];
+                        ph += '<div class="tl-ripple-node impact-high">';
+                        ph += '<div class="tl-ripple-node-reason" style="margin-top:0;font-weight:600;"><i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Shared systems: ' + escapeHtml(sysKey) + '</div>';
+                        ph += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">';
+                        grp.forEach(function(c) {
+                            ph += '<span style="font-size:10px;font-weight:600;color:#1e293b;cursor:pointer;padding:2px 8px;background:#fef2f2;border:1px solid rgba(239,68,68,0.2);border-radius:6px;" onclick="openEditModal(\'' + c.id + '\');_tlCloseRipple();">' + escapeHtml(c.title) + '</span>';
+                        });
+                        ph += '</div></div>';
+                    });
+                }
                 ph += '</div>';
             }
 
@@ -28572,43 +28594,83 @@
             });
             if (crossOnlyHits.length) {
                 ph += '<div class="tl-ripple-cascade"><div class="tl-ripple-cascade-title"><i class="fas fa-sitemap" style="color:#0d9488;"></i> Projects Impacted (' + crossOnlyHits.length + ')</div>';
-                ph += '<div style="font-size:10px;color:#64748b;margin:-8px 0 10px;line-height:1.4;">These projects overlap in time and share affected systems or departments with <strong>' + escapeHtml(task.title) + '</strong>. The connecting lines on the timeline visualize these relationships.</div>';
-                crossOnlyHits.forEach(function(h) {
-                    var ht = null;
-                    for (var j = 0; j < allT.length; j++) { if (allT[j].id === h.id) { ht = allT[j]; break; } }
-                    if (!ht) return;
-                    var stColor = {'not-started':'#94a3b8','in-progress':'#3b82f6','completed':'#10b981','on-hold':'#f59e0b','blocked':'#ef4444','cancelled':'#6b7280'}[ht.status] || '#94a3b8';
-                    ph += '<div class="tl-ripple-node impact-low">';
-                    ph += '<div class="tl-ripple-node-title" onclick="openEditModal(\'' + h.id + '\');_tlCloseRipple();">' + escapeHtml(h.title) + '</div>';
-                    h.reasons.forEach(function(r) {
-                        if (r.indexOf('Dept:') === 0) {
-                            ph += '<div class="tl-ripple-node-reason"><i class="fas fa-building" style="color:#7c3aed;"></i> Same department: ' + escapeHtml(r.replace('Dept: ', '')) + '</div>';
-                        } else if (r.indexOf('Systems:') === 0) {
-                            ph += '<div class="tl-ripple-node-reason"><i class="fas fa-server" style="color:#0d9488;"></i> Shared systems: ' + escapeHtml(r.replace('Systems: ', '')) + '</div>';
-                        } else {
-                            ph += '<div class="tl-ripple-node-reason"><i class="fas fa-link" style="color:#64748b;"></i> ' + escapeHtml(r) + '</div>';
-                        }
+                if (crossOnlyHits.length <= 2) {
+                    crossOnlyHits.forEach(function(h) {
+                        var ht = null;
+                        for (var j = 0; j < allT.length; j++) { if (allT[j].id === h.id) { ht = allT[j]; break; } }
+                        if (!ht) return;
+                        var stColor = {'not-started':'#94a3b8','in-progress':'#3b82f6','completed':'#10b981','on-hold':'#f59e0b','blocked':'#ef4444','cancelled':'#6b7280'}[ht.status] || '#94a3b8';
+                        ph += '<div class="tl-ripple-node impact-low">';
+                        ph += '<div class="tl-ripple-node-title" onclick="openEditModal(\'' + h.id + '\');_tlCloseRipple();">' + escapeHtml(h.title) + '</div>';
+                        h.reasons.forEach(function(r) {
+                            if (r.indexOf('Dept:') === 0) {
+                                ph += '<div class="tl-ripple-node-reason"><i class="fas fa-building" style="color:#7c3aed;"></i> Same department: ' + escapeHtml(r.replace('Dept: ', '')) + '</div>';
+                            } else if (r.indexOf('Systems:') === 0) {
+                                ph += '<div class="tl-ripple-node-reason"><i class="fas fa-server" style="color:#0d9488;"></i> Shared systems: ' + escapeHtml(r.replace('Systems: ', '')) + '</div>';
+                            }
+                        });
+                        ph += '<div class="tl-ripple-node-reason"><i class="fas fa-calendar" style="color:#2563eb;"></i> ' + (ht.startDate || '?') + ' &rarr; ' + (ht.dueDate || '?') + '</div>';
+                        ph += '<div class="tl-ripple-node-reason"><i class="fas fa-flag" style="color:' + stColor + ';"></i> ' + (statusLabels[ht.status] || ht.status) + '</div>';
+                        ph += '</div>';
                     });
-                    ph += '<div class="tl-ripple-node-reason"><i class="fas fa-calendar" style="color:#2563eb;"></i> ' + (ht.startDate || '?') + ' &rarr; ' + (ht.dueDate || '?') + '</div>';
-                    ph += '<div class="tl-ripple-node-reason"><i class="fas fa-flag" style="color:' + stColor + ';"></i> ' + (statusLabels[ht.status] || ht.status) + '</div>';
-                    ph += '</div>';
-                });
+                } else {
+                    // Group by reason type
+                    var deptGroup = {};
+                    var sysGroup = {};
+                    crossOnlyHits.forEach(function(h) {
+                        h.reasons.forEach(function(r) {
+                            if (r.indexOf('Dept:') === 0) {
+                                var dept = r.replace('Dept: ', '');
+                                if (!deptGroup[dept]) deptGroup[dept] = [];
+                                deptGroup[dept].push(h);
+                            } else if (r.indexOf('Systems:') === 0) {
+                                var sys = r.replace('Systems: ', '');
+                                if (!sysGroup[sys]) sysGroup[sys] = [];
+                                sysGroup[sys].push(h);
+                            }
+                        });
+                    });
+                    // Render department groups
+                    Object.keys(deptGroup).forEach(function(dept) {
+                        var grp = deptGroup[dept];
+                        ph += '<div class="tl-ripple-node impact-low">';
+                        ph += '<div class="tl-ripple-node-reason" style="margin-top:0;font-weight:600;"><i class="fas fa-building" style="color:#7c3aed;"></i> Same department: ' + escapeHtml(dept) + ' &mdash; ' + grp.length + ' project' + (grp.length > 1 ? 's' : '') + '</div>';
+                        ph += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">';
+                        grp.forEach(function(h) {
+                            ph += '<span style="font-size:10px;font-weight:600;color:#1e293b;cursor:pointer;padding:2px 8px;background:#f5f3ff;border:1px solid rgba(124,58,237,0.2);border-radius:6px;" onclick="openEditModal(\'' + h.id + '\');_tlCloseRipple();">' + escapeHtml(h.title) + '</span>';
+                        });
+                        ph += '</div></div>';
+                    });
+                    // Render system groups
+                    Object.keys(sysGroup).forEach(function(sys) {
+                        var grp = sysGroup[sys];
+                        ph += '<div class="tl-ripple-node impact-low">';
+                        ph += '<div class="tl-ripple-node-reason" style="margin-top:0;font-weight:600;"><i class="fas fa-server" style="color:#0d9488;"></i> Shared systems: ' + escapeHtml(sys) + ' &mdash; ' + grp.length + ' project' + (grp.length > 1 ? 's' : '') + '</div>';
+                        ph += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">';
+                        grp.forEach(function(h) {
+                            ph += '<span style="font-size:10px;font-weight:600;color:#1e293b;cursor:pointer;padding:2px 8px;background:#f0fdfa;border:1px solid rgba(20,184,166,0.2);border-radius:6px;" onclick="openEditModal(\'' + h.id + '\');_tlCloseRipple();">' + escapeHtml(h.title) + '</span>';
+                        });
+                        ph += '</div></div>';
+                    });
+                }
                 ph += '</div>';
             }
 
-            // Ripple cascade
+            // Ripple cascade (capped at 8 items)
             if (chain.length) {
                 ph += '<div class="tl-ripple-cascade"><div class="tl-ripple-cascade-title"><i class="fas fa-wave-square"></i> If This Is Delayed...</div>';
+                var _cascadeCount = 0;
+                var _cascadeMax = 8;
                 function renderChainNodes(nodes) {
                     var h = '';
                     nodes.forEach(function(n) {
+                        if (_cascadeCount >= _cascadeMax) return;
+                        _cascadeCount++;
                         var impactClass = n.level === 'high' ? 'impact-high' : (n.level === 'med' ? 'impact-med' : 'impact-low');
                         h += '<div class="tl-ripple-node ' + impactClass + '">';
                         h += '<div class="tl-ripple-node-title" onclick="openEditModal(\'' + n.task.id + '\');_tlCloseRipple();">' + escapeHtml(n.task.title) + '</div>';
                         h += '<div class="tl-ripple-node-reason"><i class="fas fa-arrow-right"></i> ' + escapeHtml(n.reason) + '</div>';
-                        if (n.task.owningDepartment) h += '<div class="tl-ripple-node-reason"><i class="fas fa-building" style="color:#7c3aed;"></i> ' + escapeHtml(n.task.owningDepartment) + '</div>';
-                        if (n.task.affectedSystems && n.task.affectedSystems.length) h += '<div class="tl-ripple-node-reason"><i class="fas fa-server" style="color:#0d9488;"></i> ' + n.task.affectedSystems.map(escapeHtml).join(', ') + '</div>';
-                        if (n.children && n.children.length) {
+                        if (n.children && n.children.length && _cascadeCount < _cascadeMax) {
                             h += '<div class="tl-ripple-chain">' + renderChainNodes(n.children) + '</div>';
                         }
                         h += '</div>';
@@ -28616,6 +28678,13 @@
                     return h;
                 }
                 ph += renderChainNodes(chain);
+                // Count total nodes in chain
+                var _totalChain = 0;
+                function _countChain(nodes) { nodes.forEach(function(n) { _totalChain++; if (n.children) _countChain(n.children); }); }
+                _countChain(chain);
+                if (_totalChain > _cascadeMax) {
+                    ph += '<div style="font-size:10px;color:#94a3b8;text-align:center;padding:6px 0;font-style:italic;">and ' + (_totalChain - _cascadeMax) + ' more downstream...</div>';
+                }
                 ph += '</div>';
             }
 
@@ -32405,6 +32474,20 @@
                     var empty = !val || val === '—';
                     el.classList.toggle('field-incomplete', empty);
                 });
+            });
+
+            // Dependency pickers (custom multi-select widgets)
+            ['depPickerBlockedBy', 'depPickerBlocks'].forEach(function(pickerId) {
+                var picker = document.getElementById(pickerId);
+                if (!picker) return;
+                var box = picker.querySelector('.dep-picker-box');
+                if (!box) return;
+                var section = picker.closest('.modal-section');
+                if (section && (section.classList.contains('modal-section-collapsed') || section.style.display === 'none')) {
+                    box.classList.remove('field-incomplete'); return;
+                }
+                var hasTags = box.querySelectorAll('.dep-tag').length > 0;
+                box.classList.toggle('field-incomplete', !hasTags);
             });
         }
 
