@@ -7678,6 +7678,13 @@
         .tl-ripple-node-reason i { margin-right:3px; }
         .tl-ripple-chain { padding-left:18px; border-left:2px solid rgba(255,255,255,0.08); margin:6px 0 6px 8px; }
         .tl-ripple-empty { font-size:12px; color:rgba(255,255,255,0.3); text-align:center; padding:24px; }
+        .tl-ripple-ai { padding:14px 18px; border-top:1px solid rgba(139,92,246,0.2); }
+        .tl-ripple-ai-btn { width:100%; padding:10px 14px; border:1px solid rgba(139,92,246,0.4); background:linear-gradient(135deg,rgba(139,92,246,0.15),rgba(59,130,246,0.10)); color:#c4b5fd; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s; }
+        .tl-ripple-ai-btn:hover { background:linear-gradient(135deg,rgba(139,92,246,0.25),rgba(59,130,246,0.18)); color:#e9d5ff; border-color:rgba(139,92,246,0.6); }
+        .tl-ripple-ai-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        .tl-ripple-ai-result { margin-top:12px; padding:12px 14px; background:rgba(15,23,42,0.5); border:1px solid rgba(255,255,255,0.08); border-radius:8px; font-size:11px; color:#cbd5e1; line-height:1.6; max-height:400px; overflow-y:auto; }
+        .tl-ripple-ai-result strong { color:#e2e8f0; }
+        .tl-ripple-ai-result div[style*="border-bottom"] { color:#e2e8f0 !important; }
 
         /* ===== Timeline Enhancement: View Mode Toggle ===== */
         .tl-view-toggle { display:flex; gap:2px; background:rgba(255,255,255,0.06); border-radius:6px; padding:2px; }
@@ -12391,7 +12398,6 @@
         });
 
         function saveDependencies(task) {
-            if (!sprintModeEnabled) return;
             var newBlockedBy = _getDepPickerValues('depPickerBlockedBy');
             var newBlocks = _getDepPickerValues('depPickerBlocks');
             task.dependencies = { blockedBy: newBlockedBy, blocks: newBlocks };
@@ -28544,6 +28550,12 @@
                 ph += '<div class="tl-ripple-empty"><i class="fas fa-check-circle" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.3;"></i>No downstream impacts or conflicts detected.</div>';
             }
 
+            // AI Impact Analysis button
+            ph += '<div class="tl-ripple-ai">';
+            ph += '<button class="tl-ripple-ai-btn" id="tlAiImpactBtn" onclick="_tlRunAiImpact(\'' + taskId + '\')" data-testid="tl-ai-impact-btn"><i class="fas fa-robot"></i> AI Impact Analysis</button>';
+            ph += '<div id="tlAiImpactResult"></div>';
+            ph += '</div>';
+
             panel.innerHTML = ph;
             document.body.appendChild(panel);
             requestAnimationFrame(function() { panel.classList.add('open'); });
@@ -28561,6 +28573,112 @@
                 setTimeout(function() { panel.remove(); }, 300);
             }
             document.querySelectorAll('.tl-row.tl-row-highlighted').forEach(function(r) { r.classList.remove('tl-row-highlighted'); });
+        }
+
+        function _tlRunAiImpact(taskId) {
+            if (!aiApiKey) { showToast('No API key configured. Go to Admin \u2192 AI Settings.'); return; }
+            var allT = window._tlAllTasks || [];
+            var task = null;
+            for (var i = 0; i < allT.length; i++) { if (allT[i].id === taskId) { task = allT[i]; break; } }
+            if (!task) return;
+
+            var btn = document.getElementById('tlAiImpactBtn');
+            var resultDiv = document.getElementById('tlAiImpactResult');
+            if (!resultDiv) return;
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing\u2026'; }
+            resultDiv.innerHTML = '';
+
+            var crossHits = (window._tlCrossMap || {})[taskId] || [];
+            var conflicts = (window._tlConflictMap || {})[taskId] || [];
+            var depBlocks = (task.dependencies && task.dependencies.blocks) || [];
+            var depBlockedBy = (task.dependencies && task.dependencies.blockedBy) || [];
+
+            function findTask(id) { for (var j = 0; j < allT.length; j++) { if (allT[j].id === id) return allT[j]; } return null; }
+
+            var userPrompt = '=== TARGET PROJECT ===\n';
+            userPrompt += 'Title: ' + task.title + '\n';
+            userPrompt += 'Status: ' + (statusLabels[task.status] || task.status) + '\n';
+            userPrompt += 'Priority: ' + (task.priority || 'N/A') + '\n';
+            userPrompt += 'Assigned To: ' + (task.assignedTo || 'Unassigned') + '\n';
+            userPrompt += 'Department: ' + (task.owningDepartment || 'N/A') + '\n';
+            userPrompt += 'Affected Systems: ' + (task.affectedSystems && task.affectedSystems.length ? task.affectedSystems.join(', ') : 'None') + '\n';
+            userPrompt += 'Timeline: ' + (task.startDate || '?') + ' to ' + (task.dueDate || '?') + '\n';
+            if (task.description) userPrompt += 'Description: ' + task.description + '\n';
+            userPrompt += '\n';
+
+            if (crossHits.length) {
+                userPrompt += '=== CROSS-IMPACTED PROJECTS (' + crossHits.length + ') ===\n';
+                crossHits.forEach(function(h) {
+                    var ht = findTask(h.id);
+                    userPrompt += '- ' + h.title + ' | Status: ' + (ht ? (statusLabels[ht.status] || ht.status) : '?') + ' | Overlap: ' + h.reasons.join(', ');
+                    if (ht && ht.dueDate) userPrompt += ' | Due: ' + ht.dueDate;
+                    userPrompt += '\n';
+                });
+                userPrompt += '\n';
+            }
+
+            if (conflicts.length) {
+                userPrompt += '=== SYSTEM CONFLICTS (' + conflicts.length + ') ===\n';
+                conflicts.forEach(function(c) {
+                    userPrompt += '- ' + c.title + ' | Shared systems: ' + c.systems.join(', ') + '\n';
+                });
+                userPrompt += '\n';
+            }
+
+            if (depBlockedBy.length || depBlocks.length) {
+                userPrompt += '=== DEPENDENCIES ===\n';
+                depBlockedBy.forEach(function(bId) {
+                    var bt = findTask(bId);
+                    if (bt) userPrompt += '- BLOCKED BY: ' + bt.title + ' | Status: ' + (statusLabels[bt.status] || bt.status) + ' | Due: ' + (bt.dueDate || '?') + '\n';
+                });
+                depBlocks.forEach(function(bId) {
+                    var bt = findTask(bId);
+                    if (bt) userPrompt += '- BLOCKS: ' + bt.title + ' | Status: ' + (statusLabels[bt.status] || bt.status) + ' | Due: ' + (bt.dueDate || '?') + '\n';
+                });
+                userPrompt += '\n';
+            }
+
+            var visited = {};
+            function chainSummary(tId, depth) {
+                if (depth > 3 || visited[tId]) return '';
+                visited[tId] = true;
+                var t = findTask(tId);
+                if (!t) return '';
+                var indent = '  '.repeat(depth);
+                var txt = '';
+                var blocks = (t.dependencies && t.dependencies.blocks) || [];
+                blocks.forEach(function(bId) {
+                    var bt = findTask(bId);
+                    if (bt) { txt += indent + '- ' + bt.title + ' (Status: ' + (statusLabels[bt.status] || bt.status) + ', Due: ' + (bt.dueDate || '?') + ')\n' + chainSummary(bId, depth + 1); }
+                });
+                return txt;
+            }
+            var chainTxt = chainSummary(taskId, 0);
+            if (chainTxt) {
+                userPrompt += '=== DOWNSTREAM RIPPLE CHAIN (if delayed) ===\n' + chainTxt + '\n';
+            }
+
+            if (typeof getActiveAIContext === 'function') {
+                var ctx = getActiveAIContext();
+                if (ctx) userPrompt += '=== ORGANIZATION CONTEXT ===\n' + ctx + '\n';
+            }
+
+            var systemPrompt = 'You are a senior project impact analyst. Given the target project and its related cross-impacted projects, system conflicts, dependencies, and downstream ripple chain, provide a concise but thorough impact analysis.\n\n' +
+                'Structure your response as:\n' +
+                '## Impact Summary\nA 2-3 sentence executive overview of the overall impact footprint of this project.\n\n' +
+                '## Risk Level\nState HIGH / MEDIUM / LOW risk with a one-line justification.\n\n' +
+                '## Key Risks\n- List 2-4 specific risks based on the data (system conflicts, dependency chains, timeline overlaps, resource contention).\n\n' +
+                '## Delay Scenario\nIf this project is delayed by 2 weeks, describe the cascading effects on dependent and cross-impacted projects.\n\n' +
+                '## Recommendations\n- 2-3 actionable mitigation steps to reduce impact risk.\n\n' +
+                'Be specific—reference actual project names and systems from the data. Keep the total response under 300 words. Use markdown formatting.';
+
+            callOpenAI(systemPrompt, userPrompt).then(function(response) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-robot"></i> AI Impact Analysis'; }
+                resultDiv.innerHTML = '<div class="tl-ripple-ai-result">' + _formatAIMarkdown(response) + '</div>';
+            }).catch(function(err) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-robot"></i> AI Impact Analysis'; }
+                resultDiv.innerHTML = '<div style="color:#ef4444;font-size:11px;margin-top:8px;"><i class="fas fa-exclamation-triangle" style="margin-right:4px;"></i>' + escapeHtml(err.message || 'Analysis failed') + '</div>';
+            });
         }
 
         // Cross-impact hover highlight for timeline rows
