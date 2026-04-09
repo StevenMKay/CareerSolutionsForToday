@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan & Resume</title>
+<meta name="description" content="">
+<meta property="og:title" content="">
+<meta property="og:description" content="">
+<meta property="og:type" content="profile">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<style>
+  body{font-family:'Manrope',sans-serif;margin:0;background:#F8F9FB;color:#0A0A0A}
+  h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}
+  .card{background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.5rem}
+  .fade-in{animation:fadeIn 0.5s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  @media print{body{background:#fff;padding:0}.no-print{display:none!important}.card{border:none;box-shadow:none;padding:1rem 0;border-radius:0}}
+</style>
+</head>
+<body>
+<header class="bg-white border-b no-print" style="border-color:#E5E7EB">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 flex items-center justify-between h-12">
+    <div class="flex items-center gap-2"><i data-lucide="file-text" style="width:18px;height:18px;color:#005EB8"></i><span class="text-sm font-semibold tracking-tight" style="font-family:'Outfit';color:#0A2F6B">Plan & Resume</span></div>
+    <div class="flex items-center gap-2"><button onclick="window.print()" class="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1.5 hover:bg-gray-50" style="border-color:#E5E7EB;color:#4B5563"><i data-lucide="printer" style="width:12px;height:12px"></i> Print</button><a href="builder.html" class="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 text-white hover:opacity-90" style="background:#005EB8">Create Yours</a></div>
+  </div>
+</header>
+<div id="loading" class="max-w-4xl mx-auto px-4 sm:px-6 py-20 text-center"><div style="width:2.5rem;height:2.5rem;border:3px solid #E5E7EB;border-top-color:#005EB8;border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto 1rem"></div><p class="text-sm font-medium" style="color:#4B5563">Loading plan...</p><style>@keyframes spin{to{transform:rotate(360deg)}}</style></div>
+<div id="not-found" class="hidden max-w-md mx-auto px-4 py-20 text-center"><div class="card"><i data-lucide="file-x" style="width:48px;height:48px;color:#D1D5DB;margin:0 auto 1rem"></i><h2 class="text-lg font-semibold" style="color:#0A2F6B">Plan Not Found</h2><p class="text-sm mt-2 mb-4" style="color:#6B7280">This plan may have been removed or the link is incorrect.</p><a href="builder.html" class="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg text-white" style="background:#005EB8">Create Your Own Plan</a></div></div>
+<div id="plan-content" class="hidden max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6 fade-in"></div>
+<footer id="plan-footer" class="hidden no-print border-t py-8 mt-12" style="border-color:#E5E7EB;background:#FAFBFC"><div class="max-w-4xl mx-auto px-4 sm:px-6 text-center"><p class="text-xs" style="color:#9CA3AF">Built with <a href="builder.html" class="underline hover:text-blue-600" style="color:#005EB8">Plan & Resume Builder</a></p></div></footer>
+<script>
+const firebaseConfig={apiKey:'AIzaSyBupprzs7nXLXXa29T9z3aJcq_7kjm03-U',authDomain:'career-solutions-project-tool.firebaseapp.com',projectId:'career-solutions-project-tool',storageBucket:'career-solutions-project-tool.firebasestorage.app',messagingSenderId:'834959161768',appId:'1:834959161768:web:d9b653a7039e865c1e859d'};
+firebase.initializeApp(firebaseConfig);const db=firebase.firestore();
+
+async function loadPlan(){
+  const slug=new URLSearchParams(window.location.search).get('p');
+  if(!slug){document.getElementById('loading').classList.add('hidden');document.getElementById('not-found').classList.remove('hidden');return;}
+  try{
+    const snap=await db.collection('plans').where('slug','==',slug).where('published','==',true).limit(1).get();
+    if(snap.empty){document.getElementById('loading').classList.add('hidden');document.getElementById('not-found').classList.remove('hidden');return;}
+    const plan=snap.docs[0].data();const g=plan.generated||{};const C=plan.color||'#005EB8';
+    const name=g.hero?.name||plan.userName||'Plan';const title=g.hero?.target_title||plan.jobTitle||'';const company=g.hero?.company||plan.company||'';
+    document.title=name+' — '+title+(company?' at '+company:'');
+    document.querySelector('meta[property="og:title"]').content=document.title;
+    const desc=g.executive_summary?g.executive_summary.substring(0,160):name+"'s "+(plan.planType||'90-day')+' plan for '+title;
+    document.querySelector('meta[name="description"]').content=desc;document.querySelector('meta[property="og:description"]').content=desc;
+    renderPlan(g,plan,C);
+    document.getElementById('loading').classList.add('hidden');document.getElementById('plan-content').classList.remove('hidden');document.getElementById('plan-footer').classList.remove('hidden');
+  }catch(e){console.error(e);document.getElementById('loading').classList.add('hidden');document.getElementById('not-found').classList.remove('hidden');}
+  lucide.createIcons();
+}
+
+function renderPlan(g,plan,C){
+  const light=C+'12';let h='';
+  // Hero
+  if(g.hero){
+    const photo=plan.photoUrl||'';
+    h+=`<div class="card" style="background:linear-gradient(135deg,#F4F7F9,${light});border-color:${C}30">
+      <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+        ${photo?`<img src="${photo}" class="w-24 h-24 rounded-full object-cover border-4 flex-shrink-0" style="border-color:${C}30">`:''}<div class="flex-1 ${photo?'':'text-center sm:text-left'}">
+        <p class="text-xs font-bold uppercase tracking-wider mb-2" style="color:${C};letter-spacing:0.2em">${(plan.planType||'90-day').replace('-',' ').toUpperCase()} PLAN AND RESUME</p>
+        <h1 class="text-3xl sm:text-4xl font-light tracking-tight" style="color:#0A2F6B">${g.hero.name||''}</h1>
+        <p class="text-lg font-medium mt-1" style="color:${C}">${g.hero.target_title||''}</p>
+        ${g.hero.subtitle?`<p class="text-sm mt-0.5" style="color:#4B5563">${g.hero.subtitle}</p>`:''}
+        ${g.hero.company?`<p class="text-sm mt-0.5" style="color:#4B5563">${g.hero.company}</p>`:''}
+        ${g.hero.tagline?`<p class="text-sm mt-3 max-w-2xl leading-relaxed" style="color:#4B5563">${g.hero.tagline}</p>`:''}
+        <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:#4B5563">${plan.contactPhone?`<span class="flex items-center gap-1.5"><i data-lucide="phone" style="width:14px;height:14px;color:${C}"></i>${plan.contactPhone}</span>`:''}${plan.contactEmail?`<span class="flex items-center gap-1.5"><i data-lucide="mail" style="width:14px;height:14px;color:${C}"></i>${plan.contactEmail}</span>`:''}${plan.contactLinkedin?`<span class="flex items-center gap-1.5"><i data-lucide="linkedin" style="width:14px;height:14px;color:${C}"></i><a href="${plan.contactLinkedin.startsWith('http')?plan.contactLinkedin:'https://'+plan.contactLinkedin}" target="_blank" style="color:${C}">LinkedIn</a></span>`:''}</div>
+      </div></div></div>`;
+  }
+  // Executive Summary
+  if(g.executive_summary){h+=`<div class="card"><div class="flex items-center gap-2 mb-3"><i data-lucide="sparkles" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Executive Summary</p></div><p class="text-sm leading-relaxed" style="color:#374151">${g.executive_summary}</p></div>`;}
+  // Plan Phases
+  if(g.plan_phases?.length){
+    h+=g.plan_phases.map(p=>{
+      const icon=p.icon||'target';
+      let ph=`<div class="card" style="border-left:4px solid ${C}"><div class="flex items-center gap-3 mb-1"><i data-lucide="${icon}" style="width:20px;height:20px;color:${C}"></i><span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${p.phase}</span><span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${light};color:${C}">${p.timeframe}</span></div><h3 class="text-xl font-semibold mt-2" style="color:#0A2F6B">${p.title}</h3><p class="text-sm mt-2 leading-relaxed" style="color:#4B5563">${p.objective}</p>`;
+      if(p.actions?.length){ph+=`<div class="mt-5"><p class="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5" style="color:#4B5563"><i data-lucide="list-checks" style="width:14px;height:14px;color:${C}"></i>Key Actions</p><div class="space-y-2">${p.actions.map(a=>`<div class="flex gap-3 text-sm" style="color:#374151"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${a}</span></div>`).join('')}</div></div>`;}
+      if(p.tools?.length){ph+=`<div class="mt-5"><p class="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5" style="color:#4B5563"><i data-lucide="wrench" style="width:14px;height:14px;color:${C}"></i>Tools & Technology</p><div class="grid sm:grid-cols-2 gap-3">${p.tools.map(t=>`<div class="p-3 rounded-lg border" style="border-color:#E5E7EB"><div class="flex items-center gap-2 mb-1"><i data-lucide="${t.icon||'monitor'}" style="width:14px;height:14px;color:${C}"></i><span class="text-sm font-semibold" style="color:#0A2F6B">${t.name}</span></div><p class="text-xs" style="color:#4B5563">${t.description}</p></div>`).join('')}</div></div>`;}
+      if(p.milestones?.length){ph+=`<div class="mt-5"><p class="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5" style="color:#4B5563"><i data-lucide="trophy" style="width:14px;height:14px;color:${C}"></i>Key Milestones</p><div class="space-y-2">${p.milestones.map(m=>`<div class="flex gap-3 text-sm" style="color:#374151"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${m}</span></div>`).join('')}</div></div>`;}
+      if(p.exec_value||p.value){ph+=`<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}"><p class="text-xs font-bold uppercase tracking-wider mb-2" style="color:${C}">Executive Value</p><p class="text-sm leading-relaxed" style="color:#374151">${p.exec_value||p.value}</p></div>`;}
+      ph+='</div>';return ph;
+    }).join('');
+  }
+  // Success Criteria
+  if(g.success_criteria?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-3"><i data-lucide="check-square" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">What Success Looks Like</p></div><div class="space-y-2">${g.success_criteria.map(s=>`<div class="flex gap-3 text-sm" style="color:#374151"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span></div>`).join('')}</div></div>`;}
+  // KPIs
+  if(g.kpis?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="bar-chart-3" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Key Performance Indicators</p></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${g.kpis.map(k=>`<div class="p-3 rounded-lg border text-center" style="border-color:#E5E7EB"><i data-lucide="${k.icon||'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:#4B5563">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:#0A2F6B">${k.target}</p></div>`).join('')}</div></div>`;}
+  // Experience
+  if(g.experience?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="briefcase" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Professional Experience</p></div><div class="space-y-8">${g.experience.map(e=>`<div><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:#0A2F6B">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:#6B7280">${e.company}${e.location?' — '+e.location:''}</p><ul class="space-y-2">${(e.bullets||[]).map(b=>`<li class="flex gap-3 text-sm" style="color:#374151"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>${b}</span></li>`).join('')}</ul></div>`).join('')}</div></div>`;}
+  // Leadership Engagement
+  if(g.leadership_engagement?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="users" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Leadership Engagement</p></div><div class="grid sm:grid-cols-2 gap-4">${g.leadership_engagement.map(l=>`<div class="p-4 rounded-lg border" style="border-color:#E5E7EB"><h4 class="text-sm font-semibold mb-1" style="color:#0A2F6B">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization||''}</p><p class="text-sm" style="color:#4B5563">${l.description}</p></div>`).join('')}</div></div>`;}
+  // Skills
+  if(g.skills?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="layers" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Core Competencies</p></div><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">${g.skills.map(s=>`<div class="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm" style="border-color:#E5E7EB"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i>${s}</div>`).join('')}</div></div>`;}
+  // Education & Certs
+  if(g.education?.length||g.certifications?.length){
+    h+='<div class="grid sm:grid-cols-2 gap-6">';
+    if(g.education?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="graduation-cap" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Education</p></div><div class="space-y-4">${g.education.map(e=>`<div><p class="font-semibold" style="color:#0A2F6B">${e.degree}</p><p class="text-sm" style="color:#4B5563">${e.school}</p><p class="text-xs" style="color:#9CA3AF">${e.year||''}</p>${e.details?`<p class="text-xs mt-1" style="color:#6B7280">${e.details}</p>`:''}</div>`).join('')}</div></div>`;}
+    if(g.certifications?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="award" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Certifications</p></div><div class="space-y-4">${g.certifications.map(c=>`<div><p class="font-semibold" style="color:#0A2F6B">${c.name}</p><p class="text-sm" style="color:#4B5563">${c.issuer}</p><p class="text-xs" style="color:#9CA3AF">${c.year||''}</p>${c.url?`<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>`:''}</div>`).join('')}</div></div>`;}
+    h+='</div>';
+  }
+  // Achievements
+  if(g.achievements?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="star" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Key Achievements</p></div><div class="space-y-4">${g.achievements.map(a=>`<div class="flex items-start gap-3"><i data-lucide="${a.icon||'award'}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" style="color:#0A2F6B">${a.title}</p><p class="text-sm mt-1" style="color:#4B5563">${a.description}</p></div></div>`).join('')}</div></div>`;}
+  // Leadership
+  if(g.leadership?.length){h+=`<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="crown" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Leadership</p></div><div class="space-y-4">${g.leadership.map(l=>`<div><p class="font-semibold" style="color:#0A2F6B">${l.role}</p><p class="text-sm mt-1" style="color:#4B5563">${l.description}</p></div>`).join('')}</div></div>`;}
+  document.getElementById('plan-content').innerHTML=h;
+}
+
+loadPlan();lucide.createIcons();
+</script>
+</body>
+</html>
