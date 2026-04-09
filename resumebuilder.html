@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Plan & Resume Builder</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -214,6 +216,20 @@
             <input class="input-field" id="contact-linkedin" placeholder="linkedin.com/in/yourname" data-testid="contact-linkedin-input">
           </div>
         </div>
+        <div class="grid sm:grid-cols-3 gap-4">
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">GitHub URL <span class="font-normal" style="color:#9CA3AF">(optional)</span></label>
+            <input class="input-field" id="contact-github" placeholder="github.com/username" data-testid="contact-github-input">
+          </div>
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Portfolio / Website <span class="font-normal" style="color:#9CA3AF">(optional)</span></label>
+            <input class="input-field" id="contact-website" placeholder="yoursite.com" data-testid="contact-website-input">
+          </div>
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Twitter / X <span class="font-normal" style="color:#9CA3AF">(optional)</span></label>
+            <input class="input-field" id="contact-twitter" placeholder="x.com/username" data-testid="contact-twitter-input">
+          </div>
+        </div>
       </div>
       <div class="flex items-center justify-between mt-6">
         <button class="btn-secondary" onclick="goToStep(1)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
@@ -378,6 +394,23 @@
 </div>
 </div>
 
+<!-- Crop Modal -->
+<div id="crop-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center" style="background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)">
+  <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden">
+    <div class="p-4 border-b" style="border-color:#E5E7EB">
+      <h3 class="text-sm font-semibold" style="color:#0A2F6B">Crop Your Photo</h3>
+      <p class="text-xs mt-1" style="color:#6B7280">Drag to reposition. Scroll to zoom. Crop will be square.</p>
+    </div>
+    <div class="p-4" style="max-height:400px;background:#f1f5f9">
+      <img id="crop-source" style="max-width:100%;display:block">
+    </div>
+    <div class="p-4 flex justify-end gap-3 border-t" style="border-color:#E5E7EB">
+      <button class="btn-secondary" onclick="cancelCrop()">Cancel</button>
+      <button class="btn-primary" onclick="applyCrop()"><i data-lucide="check" style="width:14px;height:14px"></i> Crop & Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -518,6 +551,9 @@ function startNewPlan() {
   document.getElementById('contact-phone').value = '';
   document.getElementById('contact-email').value = '';
   document.getElementById('contact-linkedin').value = '';
+  document.getElementById('contact-github').value = '';
+  document.getElementById('contact-website').value = '';
+  document.getElementById('contact-twitter').value = '';
   document.getElementById('file-name').classList.add('hidden');
   document.getElementById('photo-preview-img').classList.add('hidden');
   document.getElementById('photo-placeholder').classList.remove('hidden');
@@ -563,6 +599,9 @@ async function loadPlan(planId) {
     document.getElementById('contact-phone').value = d.contactPhone || '';
     document.getElementById('contact-email').value = d.contactEmail || '';
     document.getElementById('contact-linkedin').value = d.contactLinkedin || '';
+    document.getElementById('contact-github').value = d.contactGithub || '';
+    document.getElementById('contact-website').value = d.contactWebsite || '';
+    document.getElementById('contact-twitter').value = d.contactTwitter || '';
 
     // Photo
     if (STATE.photoUrl) {
@@ -633,6 +672,9 @@ async function savePlan() {
     contactPhone: document.getElementById('contact-phone').value || '',
     contactEmail: document.getElementById('contact-email').value || '',
     contactLinkedin: document.getElementById('contact-linkedin').value || '',
+    contactGithub: document.getElementById('contact-github').value || '',
+    contactWebsite: document.getElementById('contact-website').value || '',
+    contactTwitter: document.getElementById('contact-twitter').value || '',
     style: STATE.style,
     color: STATE.color,
     photoUrl: STATE.photoUrl,
@@ -742,16 +784,39 @@ function goToStep(n) {
 }
 
 // ============ Photo ============
+let cropperInstance = null;
+
 function handlePhotoSelect(input) {
   if (!input.files[0]) return;
   const reader = new FileReader();
   reader.onload = e => {
-    photoDataUrl = e.target.result;
-    document.getElementById('photo-preview-img').src = photoDataUrl;
-    document.getElementById('photo-preview-img').classList.remove('hidden');
-    document.getElementById('photo-placeholder').classList.add('hidden');
+    const img = document.getElementById('crop-source');
+    img.src = e.target.result;
+    document.getElementById('crop-modal').classList.remove('hidden');
+    if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+    img.onload = () => {
+      cropperInstance = new Cropper(img, { aspectRatio: 1, viewMode: 1, dragMode: 'move', autoCropArea: 0.9, responsive: true });
+    };
   };
   reader.readAsDataURL(input.files[0]);
+}
+
+function applyCrop() {
+  if (!cropperInstance) return;
+  const canvas = cropperInstance.getCroppedCanvas({ width: 400, height: 400 });
+  photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  document.getElementById('photo-preview-img').src = photoDataUrl;
+  document.getElementById('photo-preview-img').classList.remove('hidden');
+  document.getElementById('photo-placeholder').classList.add('hidden');
+  cropperInstance.destroy(); cropperInstance = null;
+  document.getElementById('crop-modal').classList.add('hidden');
+  document.getElementById('photo-input').value = '';
+}
+
+function cancelCrop() {
+  if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+  document.getElementById('crop-modal').classList.add('hidden');
+  document.getElementById('photo-input').value = '';
 }
 
 // ============ Style & Color ============
@@ -816,6 +881,9 @@ async function parseResume() {
     if (data.resume_data.phone) document.getElementById('contact-phone').value = data.resume_data.phone;
     if (data.resume_data.email) document.getElementById('contact-email').value = data.resume_data.email;
     if (data.resume_data.linkedin) document.getElementById('contact-linkedin').value = data.resume_data.linkedin;
+    if (data.resume_data.github) document.getElementById('contact-github').value = data.resume_data.github;
+    if (data.resume_data.website) document.getElementById('contact-website').value = data.resume_data.website;
+    if (data.resume_data.twitter) document.getElementById('contact-twitter').value = data.resume_data.twitter;
     showToast('Resume extracted successfully!');
   } catch(e) { document.getElementById('parse-status').innerHTML = `<span style="color:#B91C1C">Error: ${e.message}</span>`; }
   btn.disabled = false; btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI'; lucide.createIcons();
@@ -875,7 +943,7 @@ async function generatePlan() {
     const res = await fetch(API_BASE + '/builder/generate', {
       method: 'POST',
       headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ resume_data: STATE.resumeData, role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections })
+      body: JSON.stringify({ resume_data: STATE.resumeData, role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections, job_description: document.getElementById('job-desc').value.trim() })
     });
     if (!res.ok) { const errData = await res.json().catch(() => ({error:'Server error'})); throw new Error(errData.error || 'Server error ' + res.status); }
     const data = await res.json();
@@ -888,113 +956,373 @@ async function generatePlan() {
   hideLoading();
 }
 
-// ============ Preview Render (Rich) ============
+// ============ Style Config ============
+const STYLE_CONFIG = {
+  executive: {
+    name: 'Executive',
+    layout: 'sidebar',
+    pageBg: '#F8F9FB',
+    cardBg: '#fff',
+    cardBorder: '#E5E7EB',
+    headingFont: "'Georgia', serif",
+    bodyFont: "'Manrope', sans-serif",
+    headingColor: '#0A2F6B',
+    textColor: '#374151',
+    mutedColor: '#4B5563',
+    sidebarBg: '#0A2F6B',
+    sidebarText: '#fff',
+    sidebarMuted: '#94A3B8',
+    sectionLabelStyle: 'uppercase',
+    cardRadius: '0.75rem',
+    cardShadow: 'none',
+    borderStyle: '1px solid #E5E7EB',
+    dividerStyle: '2px solid #E5E7EB',
+    skillCols: 4,
+    kpiCols: 4,
+  },
+  modern: {
+    name: 'Modern Minimal',
+    layout: 'full-width',
+    pageBg: '#FAFAFA',
+    cardBg: '#fff',
+    cardBorder: 'transparent',
+    headingFont: "'Inter', sans-serif",
+    bodyFont: "'Inter', sans-serif",
+    headingColor: '#111827',
+    textColor: '#374151',
+    mutedColor: '#6B7280',
+    sectionLabelStyle: 'minimal',
+    cardRadius: '1rem',
+    cardShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    borderStyle: '1px solid #F3F4F6',
+    dividerStyle: '1px solid #F3F4F6',
+    skillCols: 3,
+    kpiCols: 4,
+  },
+  classic: {
+    name: 'Classic',
+    layout: 'banner',
+    pageBg: '#FFFDF9',
+    cardBg: '#FEFCF8',
+    cardBorder: '#E8DFD3',
+    headingFont: "'Playfair Display', serif",
+    bodyFont: "'Georgia', serif",
+    headingColor: '#1a1a1a',
+    textColor: '#333',
+    mutedColor: '#555',
+    sectionLabelStyle: 'classic',
+    cardRadius: '0.5rem',
+    cardShadow: 'none',
+    borderStyle: '1px solid #E8DFD3',
+    dividerStyle: '2px double #C8B89A',
+    skillCols: 3,
+    kpiCols: 3,
+  },
+  bold: {
+    name: 'Bold Creative',
+    layout: 'bold',
+    pageBg: '#F5F3FF',
+    cardBg: '#fff',
+    cardBorder: '#E5E7EB',
+    headingFont: "'DM Sans', sans-serif",
+    bodyFont: "'DM Sans', sans-serif",
+    headingColor: '#1E1B4B',
+    textColor: '#374151',
+    mutedColor: '#4B5563',
+    sectionLabelStyle: 'bold',
+    cardRadius: '1rem',
+    cardShadow: '0 4px 16px rgba(0,0,0,0.08)',
+    borderStyle: '1px solid #E5E7EB',
+    dividerStyle: 'none',
+    skillCols: 4,
+    kpiCols: 4,
+  },
+  tech: {
+    name: 'Tech',
+    layout: 'full-width',
+    pageBg: '#0F172A',
+    cardBg: '#1E293B',
+    cardBorder: '#334155',
+    headingFont: "'JetBrains Mono', monospace",
+    bodyFont: "'Inter', sans-serif",
+    headingColor: '#E2E8F0',
+    textColor: '#CBD5E1',
+    mutedColor: '#94A3B8',
+    sectionLabelStyle: 'terminal',
+    cardRadius: '0.5rem',
+    cardShadow: '0 2px 8px rgba(0,0,0,0.3)',
+    borderStyle: '1px solid #334155',
+    dividerStyle: '1px solid #334155',
+    skillCols: 4,
+    kpiCols: 4,
+    accentOverride: '#22D3EE',
+  },
+};
+
+// ============ Preview Render (Rich + Style-Aware) ============
 function renderPreview(g) {
-  const C = STATE.color;
-  const light = C + '12';
+  const style = STATE.style || 'executive';
+  const S = STYLE_CONFIG[style] || STYLE_CONFIG.executive;
+  const C = S.accentOverride || STATE.color;
+  const light = C + '18';
+  const lighter = C + '10';
+
+  // Helper: section label
+  function sectionLabel(icon, text) {
+    if (S.sectionLabelStyle === 'terminal') {
+      return `<div class="flex items-center gap-2 mb-4"><span style="color:${C};font-family:${S.headingFont};font-size:0.8rem;font-weight:700">&gt; ${text.toUpperCase()}</span></div>`;
+    }
+    if (S.sectionLabelStyle === 'classic') {
+      return `<div class="mb-4" style="border-bottom:${S.dividerStyle};padding-bottom:0.5rem"><div class="flex items-center gap-2"><i data-lucide="${icon}" style="width:16px;height:16px;color:${C}"></i><p style="font-family:${S.headingFont};font-size:0.9rem;font-weight:600;color:${S.headingColor};letter-spacing:0.05em">${text}</p></div></div>`;
+    }
+    if (S.sectionLabelStyle === 'minimal') {
+      return `<div class="flex items-center gap-2 mb-4"><p style="font-family:${S.headingFont};font-size:0.7rem;font-weight:600;color:${S.mutedColor};letter-spacing:0.15em;text-transform:uppercase">${text}</p></div>`;
+    }
+    if (S.sectionLabelStyle === 'bold') {
+      return `<div class="flex items-center gap-2 mb-4"><div style="width:4px;height:24px;background:${C};border-radius:2px"></div><p style="font-family:${S.headingFont};font-size:0.85rem;font-weight:700;color:${S.headingColor};text-transform:uppercase;letter-spacing:0.1em">${text}</p></div>`;
+    }
+    // uppercase (executive default)
+    return `<div class="flex items-center gap-2 mb-3"><i data-lucide="${icon}" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">${text}</p></div>`;
+  }
+
+  // Helper: card wrapper
+  function card(content, extra) {
+    return `<div style="background:${S.cardBg};border:${S.borderStyle};border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont};${extra || ''}">${content}</div>`;
+  }
+
+  // Contact info bar shared across layouts
+  function contactBar(accentColor) {
+    const ac = accentColor || C;
+    let items = '';
+    const phone = document.getElementById('contact-phone').value;
+    const email = document.getElementById('contact-email').value;
+    const linkedin = document.getElementById('contact-linkedin').value;
+    const github = document.getElementById('contact-github').value;
+    const website = document.getElementById('contact-website').value;
+    const twitter = document.getElementById('contact-twitter').value;
+    if (phone) items += `<span class="flex items-center gap-1.5"><i data-lucide="phone" style="width:14px;height:14px;color:${ac}"></i>${phone}</span>`;
+    if (email) items += `<span class="flex items-center gap-1.5"><i data-lucide="mail" style="width:14px;height:14px;color:${ac}"></i>${email}</span>`;
+    if (linkedin) items += `<a href="${linkedin.startsWith('http') ? linkedin : 'https://' + linkedin}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="linkedin" style="width:14px;height:14px;color:${ac}"></i>LinkedIn</a>`;
+    if (github) items += `<a href="${github.startsWith('http') ? github : 'https://' + github}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="github" style="width:14px;height:14px;color:${ac}"></i>GitHub</a>`;
+    if (website) items += `<a href="${website.startsWith('http') ? website : 'https://' + website}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="globe" style="width:14px;height:14px;color:${ac}"></i>Website</a>`;
+    if (twitter) items += `<a href="${twitter.startsWith('http') ? twitter : 'https://' + twitter}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="twitter" style="width:14px;height:14px;color:${ac}"></i>X / Twitter</a>`;
+    return items;
+  }
+
   let h = '';
 
-  // Hero
+  // ──── HERO ────
   if (g.hero) {
     const photo = STATE.photoUrl || photoDataUrl || '';
-    h += `<div class="card" style="background:linear-gradient(135deg,#F4F7F9,${light});border-color:${C}30">
-      <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-        ${photo ? `<img src="${photo}" class="w-24 h-24 rounded-full object-cover border-4 flex-shrink-0" style="border-color:${C}30">` : ''}
-        <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
-        <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
-        <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" contenteditable="true" style="color:#0A2F6B">${g.hero.name || ''}</h1>
-        <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C}">${g.hero.target_title || ''}</p>
-        ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:#4B5563">${g.hero.subtitle}</p>` : ''}
-        ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:#4B5563">${g.hero.company}</p>` : ''}
-        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" style="color:#4B5563">${g.hero.tagline}</p>` : ''}
-        <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:#4B5563">
-          ${document.getElementById('contact-phone').value ? `<span class="flex items-center gap-1.5"><i data-lucide="phone" style="width:14px;height:14px;color:${C}"></i>${document.getElementById('contact-phone').value}</span>` : ''}
-          ${document.getElementById('contact-email').value ? `<span class="flex items-center gap-1.5"><i data-lucide="mail" style="width:14px;height:14px;color:${C}"></i>${document.getElementById('contact-email').value}</span>` : ''}
-          ${document.getElementById('contact-linkedin').value ? `<span class="flex items-center gap-1.5"><i data-lucide="linkedin" style="width:14px;height:14px;color:${C}"></i>LinkedIn</span>` : ''}
+
+    if (S.layout === 'sidebar') {
+      // Executive: sidebar left with name/photo/contact, content right
+      h += `<div style="display:grid;grid-template-columns:260px 1fr;border-radius:${S.cardRadius};overflow:hidden;border:${S.borderStyle};box-shadow:${S.cardShadow}">
+        <div style="background:${S.sidebarBg};padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem;font-family:${S.bodyFont}">
+          ${photo ? `<img src="${photo}" class="w-28 h-28 rounded-full object-cover border-4" style="border-color:${C}60">` : ''}
+          <h1 class="text-xl font-semibold text-center editable" contenteditable="true" style="color:${S.sidebarText};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+          <p class="text-sm font-medium text-center editable" contenteditable="true" style="color:${C}">${g.hero.target_title || ''}</p>
+          ${g.hero.company ? `<p class="text-xs text-center editable" contenteditable="true" style="color:${S.sidebarMuted}">${g.hero.company}</p>` : ''}
+          <div style="width:60%;height:1px;background:${S.sidebarMuted}40;margin:0.5rem 0"></div>
+          <div class="flex flex-col gap-2 text-xs w-full" style="color:${S.sidebarMuted}">${contactBar(C)}</div>
         </div>
-      </div></div></div>`;
+        <div style="background:${S.cardBg};padding:2rem;font-family:${S.bodyFont}">
+          <p class="text-xs font-bold uppercase tracking-wider mb-3 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+          ${g.hero.tagline ? `<p class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          ${g.hero.subtitle ? `<p class="text-sm mt-2 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+        </div>
+      </div>`;
+    } else if (S.layout === 'banner') {
+      // Classic: centered top banner
+      h += card(`<div class="text-center">
+        ${photo ? `<img src="${photo}" class="w-28 h-28 rounded-full object-cover border-4 mx-auto mb-4" style="border-color:${C}30">` : ''}
+        <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.bodyFont}">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+        <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+        <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
+        ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
+        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
+        <div class="flex flex-wrap justify-center gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
+        <div style="${S.dividerStyle !== 'none' ? 'border-bottom:' + S.dividerStyle + ';margin-top:1.5rem' : ''}"></div>
+      </div>`, `background:${S.cardBg}`);
+    } else if (S.layout === 'bold') {
+      // Bold: big gradient hero
+      h += `<div style="background:linear-gradient(135deg,${C},${C}CC);border-radius:${S.cardRadius};padding:2.5rem;box-shadow:${S.cardShadow};position:relative;overflow:hidden">
+        <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:rgba(255,255,255,0.08);border-radius:50%"></div>
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6" style="position:relative;z-index:1">
+          ${photo ? `<img src="${photo}" class="w-28 h-28 rounded-2xl object-cover border-4 flex-shrink-0" style="border-color:rgba(255,255,255,0.3)">` : ''}
+          <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
+            <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:rgba(255,255,255,0.7);letter-spacing:0.2em">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+            <h1 class="text-3xl sm:text-4xl font-bold tracking-tight editable" contenteditable="true" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+            <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
+            ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
+            ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" style="color:rgba(255,255,255,0.8)">${g.hero.tagline}</p>` : ''}
+            <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:rgba(255,255,255,0.8)">${contactBar('rgba(255,255,255,0.8)')}</div>
+          </div>
+        </div>
+      </div>`;
+    } else {
+      // Modern / Tech: full-width clean
+      const isDark = style === 'tech';
+      h += card(`<div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+        ${photo ? `<img src="${photo}" class="${isDark ? 'w-24 h-24 rounded-lg' : 'w-24 h-24 rounded-full'} object-cover border-4 flex-shrink-0" style="border-color:${C}30">` : ''}
+        <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
+          <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.headingFont}">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+          <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+          <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C}">${g.hero.target_title || ''}</p>
+          ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+          ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
+          ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
+        </div>
+      </div>`, `background:${isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + lighter + ')'};border-color:${C}30`);
+    }
   }
 
-  // Executive Summary
+  // ──── EXECUTIVE SUMMARY ────
   if (g.executive_summary) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-3"><i data-lucide="sparkles" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Executive Summary</p></div><div class="text-sm leading-relaxed editable" contenteditable="true" style="color:#374151">${g.executive_summary}</div></div>`;
+    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.executive_summary}</div>`);
   }
 
-  // Plan Phases
+  // ──── PLAN PHASES ────
   if (g.plan_phases?.length) {
-    h += g.plan_phases.map(p => {
+    h += g.plan_phases.map((p, idx) => {
       const icon = p.icon || 'target';
-      let ph = `<div class="card" style="border-left:4px solid ${C}">
-        <div class="flex items-center gap-3 mb-1"><i data-lucide="${icon}" style="width:20px;height:20px;color:${C}"></i><span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${p.phase}</span><span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${light};color:${C}">${p.timeframe}</span></div>
-        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" style="color:#0A2F6B">${p.title}</h3>
-        <p class="text-sm mt-2 leading-relaxed editable" contenteditable="true" style="color:#4B5563">${p.objective}</p>`;
+      const phaseLabel = p.phase || p.label || ('Phase ' + (idx + 1));
+      const phaseTimeframe = p.timeframe || p.timeline || '';
+      const actions = p.actions || p.key_actions || [];
+      const tools = p.tools || p.tools_and_technology || [];
+      const execValue = p.exec_value || p.executive_value || p.value || '';
+      const objective = p.objective || '';
+
+      let inner = '';
+
+      if (S.layout === 'bold') {
+        // Large phase number + title
+        inner += `<div class="flex items-start gap-4 mb-3">
+          <div style="width:48px;height:48px;background:${C};border-radius:0.75rem;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.25rem;font-weight:800;font-family:${S.headingFont};flex-shrink:0">${idx + 1}</div>
+          <div class="flex-1">
+            <span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${phaseLabel}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full font-medium ml-2" style="background:${light};color:${C}">${phaseTimeframe}</span>
+            <h3 class="text-xl font-bold mt-1 editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>
+          </div>
+        </div>`;
+      } else if (S.sectionLabelStyle === 'terminal') {
+        inner += `<div class="flex items-center gap-3 mb-1"><span style="color:${C};font-family:${S.headingFont};font-size:0.75rem;font-weight:700">phase[${idx}]</span><span class="text-xs px-2 py-0.5 rounded font-medium" style="background:${light};color:${C};font-family:${S.headingFont}">${phaseTimeframe}</span></div>
+        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
+      } else {
+        inner += `<div class="flex items-center gap-3 mb-1"><i data-lucide="${icon}" style="width:20px;height:20px;color:${C}"></i><span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${phaseLabel}</span><span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${light};color:${C}">${phaseTimeframe}</span></div>
+        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
+      }
+
+      if (objective) {
+        inner += `<p class="text-sm mt-2 leading-relaxed editable" contenteditable="true" style="color:${S.mutedColor}">${objective}</p>`;
+      }
+
       // Actions
-      if (p.actions?.length) {
-        ph += `<div class="mt-5"><p class="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5" style="color:#4B5563"><i data-lucide="list-checks" style="width:14px;height:14px;color:${C}"></i>Key Actions</p><div class="space-y-2">${p.actions.map(a => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:#374151"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${a}</span></div>`).join('')}</div></div>`;
+      if (actions.length) {
+        inner += `<div class="mt-5">${sectionLabel('list-checks', 'Key Actions')}<div class="space-y-2">${actions.map(a => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${a}</span></div>`).join('')}</div></div>`;
       }
+
       // Tools
-      if (p.tools?.length) {
-        ph += `<div class="mt-5"><p class="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5" style="color:#4B5563"><i data-lucide="wrench" style="width:14px;height:14px;color:${C}"></i>Tools & Technology</p><div class="grid sm:grid-cols-2 gap-3">${p.tools.map(t => `<div class="p-3 rounded-lg border editable" contenteditable="true" style="border-color:#E5E7EB"><div class="flex items-center gap-2 mb-1"><i data-lucide="${t.icon || 'monitor'}" style="width:14px;height:14px;color:${C}"></i><span class="text-sm font-semibold" style="color:#0A2F6B">${t.name}</span></div><p class="text-xs" style="color:#4B5563">${t.description}</p></div>`).join('')}</div></div>`;
+      if (tools.length) {
+        inner += `<div class="mt-5">${sectionLabel('wrench', 'Tools & Technology')}<div class="grid sm:grid-cols-2 gap-3">${tools.map(t => {
+          const tName = typeof t === 'string' ? t : (t.name || '');
+          const tDesc = typeof t === 'string' ? '' : (t.description || '');
+          const tIcon = (typeof t === 'object' && t.icon) ? t.icon : 'monitor';
+          return `<div class="p-3 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle};background:${S.cardBg}"><div class="flex items-center gap-2 mb-1"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C}"></i><span class="text-sm font-semibold" style="color:${S.headingColor}">${tName}</span></div>${tDesc ? `<p class="text-xs" style="color:${S.mutedColor}">${tDesc}</p>` : ''}</div>`;
+        }).join('')}</div></div>`;
       }
+
       // Milestones
       if (p.milestones?.length) {
-        ph += `<div class="mt-5"><p class="text-xs font-bold uppercase tracking-wider mb-3 flex items-center gap-1.5" style="color:#4B5563"><i data-lucide="trophy" style="width:14px;height:14px;color:${C}"></i>Key Milestones</p><div class="space-y-2">${p.milestones.map(m => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:#374151"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${m}</span></div>`).join('')}</div></div>`;
+        inner += `<div class="mt-5">${sectionLabel('trophy', 'Key Milestones')}<div class="space-y-2">${p.milestones.map(m => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${m}</span></div>`).join('')}</div></div>`;
       }
-      // Exec Value
-      if (p.exec_value || p.value) {
-        ph += `<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}"><p class="text-xs font-bold uppercase tracking-wider mb-2" style="color:${C}">Executive Value</p><p class="text-sm leading-relaxed editable" contenteditable="true" style="color:#374151">${p.exec_value || p.value}</p></div>`;
+
+      // Executive Value
+      if (execValue) {
+        inner += `<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}">${sectionLabel('gem', 'Executive Value')}<p class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${execValue}</p></div>`;
       }
-      ph += '</div>';
-      return ph;
+
+      const borderLeft = S.layout === 'bold' ? '' : `border-left:4px solid ${C};`;
+      return `<div style="background:${S.cardBg};border:${S.borderStyle};${borderLeft}border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont}">${inner}</div>`;
     }).join('');
   }
 
-  // Success Criteria
+  // ──── SUCCESS CRITERIA ────
   if (g.success_criteria?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-3"><i data-lucide="check-square" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">What Success Looks Like</p></div><div class="space-y-2">${g.success_criteria.map(s => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:#374151"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span></div>`).join('')}</div></div>`;
+    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2">${g.success_criteria.map(s => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span></div>`).join('')}</div>`);
   }
 
-  // KPIs
+  // ──── SUCCESS SUMMARY (Day 90 summary) ────
+  if (g.success_summary?.length) {
+    h += card(`${sectionLabel('award', 'What Success Looks Like By Day ' + (STATE.planType === '90-day' ? '90' : STATE.planType === '12-month' ? '365' : '730'))}<div class="space-y-2">${g.success_summary.map(s => `<div class="flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${s}</span></div>`).join('')}</div>`);
+  }
+
+  // ──── KPIS ────
   if (g.kpis?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="bar-chart-3" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Key Performance Indicators</p></div><div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${g.kpis.map(k => `<div class="p-3 rounded-lg border text-center editable" contenteditable="true" style="border-color:#E5E7EB"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:#4B5563">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:#0A2F6B">${k.target}</p></div>`).join('')}</div></div>`;
+    const kCols = S.kpiCols;
+    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3">${g.kpis.map(k => `<div class="p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div>`);
   }
 
-  // Experience
+  // ──── EXPERIENCE ────
   if (g.experience?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="briefcase" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Professional Experience</p></div><div class="space-y-8">${g.experience.map(e => `<div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:#0A2F6B">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:#6B7280">${e.company}${e.location ? ' — ' + e.location : ''}</p><ul class="space-y-2">${(e.bullets || []).map(b => `<li class="flex gap-3 text-sm" style="color:#374151"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>${b}</span></li>`).join('')}</ul></div>`).join('')}</div></div>`;
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8">${g.experience.map(e => `<div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p><ul class="space-y-2">${(e.bullets || []).map(b => `<li class="flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>${b}</span></li>`).join('')}</ul></div>`).join('')}</div>`);
   }
 
-  // Leadership Engagement
+  // ──── LEADERSHIP ENGAGEMENT ────
   if (g.leadership_engagement?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="users" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Leadership Engagement</p></div><div class="grid sm:grid-cols-2 gap-4">${g.leadership_engagement.map(l => `<div class="p-4 rounded-lg border editable" contenteditable="true" style="border-color:#E5E7EB"><h4 class="text-sm font-semibold mb-1" style="color:#0A2F6B">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:#4B5563">${l.description}</p></div>`).join('')}</div></div>`;
+    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4">${g.leadership_engagement.map(l => `<div class="p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`);
   }
 
-  // Skills
+  // ──── SKILLS ────
   if (g.skills?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="layers" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Core Competencies</p></div><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">${g.skills.map(s => `<div class="flex items-center gap-2 px-3 py-2 rounded-lg border text-sm editable" contenteditable="true" style="border-color:#E5E7EB"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i>${s}</div>`).join('')}</div></div>`;
+    const sCols = S.skillCols;
+    const skillStyle = S.sectionLabelStyle === 'terminal'
+      ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
+      : `border:${S.borderStyle};color:${S.textColor}`;
+    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2">${g.skills.map(s => `<div class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i>${s}</div>`).join('')}</div>`);
   }
 
-  // Education & Certs
+  // ──── EDUCATION & CERTS ────
   if (g.education?.length || g.certifications?.length) {
-    h += '<div class="grid sm:grid-cols-2 gap-6">';
+    let eduCert = '<div class="grid sm:grid-cols-2 gap-6">';
     if (g.education?.length) {
-      h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="graduation-cap" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Education</p></div><div class="space-y-4">${g.education.map(e => `<div class="editable" contenteditable="true"><p class="font-semibold" style="color:#0A2F6B">${e.degree}</p><p class="text-sm" style="color:#4B5563">${e.school}</p><p class="text-xs" style="color:#9CA3AF">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" style="color:#6B7280">${e.details}</p>` : ''}</div>`).join('')}</div></div>`;
+      eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4">${g.education.map(e => `<div class="editable" contenteditable="true"><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div>`);
     }
     if (g.certifications?.length) {
-      h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="award" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Certifications</p></div><div class="space-y-4">${g.certifications.map(c => `<div class="editable" contenteditable="true"><p class="font-semibold" style="color:#0A2F6B">${c.name}</p><p class="text-sm" style="color:#4B5563">${c.issuer}</p><p class="text-xs" style="color:#9CA3AF">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div></div>`;
+      eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4">${g.certifications.map(c => `<div class="editable" contenteditable="true"><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div>`);
     }
-    h += '</div>';
+    eduCert += '</div>';
+    h += eduCert;
   }
 
-  // Achievements
+  // ──── ACHIEVEMENTS ────
   if (g.achievements?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="star" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Key Achievements</p></div><div class="space-y-4">${g.achievements.map(a => `<div class="editable" contenteditable="true"><div class="flex items-start gap-3"><i data-lucide="${a.icon || 'award'}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" style="color:#0A2F6B">${a.title}</p><p class="text-sm mt-1" style="color:#4B5563">${a.description}</p></div></div></div>`).join('')}</div></div>`;
+    h += card(`${sectionLabel('star', 'Key Achievements')}<div class="space-y-4">${g.achievements.map(a => {
+      const aTitle = typeof a === 'string' ? a : (a.title || '');
+      const aDesc = typeof a === 'string' ? '' : (a.description || '');
+      const aIcon = (typeof a === 'object' && a.icon) ? a.icon : 'award';
+      return `<div class="editable" contenteditable="true"><div class="flex items-start gap-3"><i data-lucide="${aIcon}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" style="color:${S.headingColor}">${aTitle}</p>${aDesc ? `<p class="text-sm mt-1" style="color:${S.mutedColor}">${aDesc}</p>` : ''}</div></div></div>`;
+    }).join('')}</div>`);
   }
 
-  // Leadership
+  // ──── LEADERSHIP ────
   if (g.leadership?.length) {
-    h += `<div class="card"><div class="flex items-center gap-2 mb-4"><i data-lucide="crown" style="width:16px;height:16px;color:${C}"></i><p class="text-xs font-bold uppercase tracking-wider" style="color:${C};letter-spacing:0.2em">Leadership</p></div><div class="space-y-4">${g.leadership.map(l => `<div class="editable" contenteditable="true"><p class="font-semibold" style="color:#0A2F6B">${l.role}</p><p class="text-sm mt-1" style="color:#4B5563">${l.description}</p></div>`).join('')}</div></div>`;
+    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4">${g.leadership.map(l => `<div class="editable" contenteditable="true"><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`);
   }
+
+  // ──── FOOTER ────
+  if (g.hero) {
+    const footerBg = S.layout === 'sidebar' ? S.sidebarBg : (style === 'tech' ? '#0F172A' : S.headingColor);
+    h += `<div style="background:${footerBg};border-radius:${S.cardRadius};padding:1rem 1.5rem;text-align:center">
+      <p class="text-xs" style="color:rgba(255,255,255,0.7)">${g.hero.name || ''} &bull; ${g.hero.target_title || ''} ${g.hero.company ? '&bull; ' + g.hero.company : ''}</p>
+    </div>`;
+  }
+
+  // Apply page background
+  document.getElementById('preview-container').style.background = S.pageBg;
+  document.getElementById('preview-container').style.padding = '1.5rem';
+  document.getElementById('preview-container').style.borderRadius = '0.75rem';
 
   document.getElementById('preview-container').innerHTML = h;
   lucide.createIcons();
@@ -1003,7 +1331,8 @@ function renderPreview(g) {
 // ============ Export ============
 function exportHTML() {
   const content = document.getElementById('preview-container').innerHTML;
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${STATE.generated.hero?.name || 'Plan'} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"><\/script><style>body{font-family:'Manrope',sans-serif;background:#F8F9FB;color:#0A0A0A;margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}.card{background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.5rem}.editable:hover{outline:none}.editable:focus{outline:none}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div><script>lucide.createIcons();<\/script></body></html>`;
+  const S = STYLE_CONFIG[STATE.style || 'executive'] || STYLE_CONFIG.executive;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${STATE.generated.hero?.name || 'Plan'} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"><\/script><style>body{font-family:${S.bodyFont};background:${S.pageBg};color:${S.textColor};margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:${S.headingFont}}.card{background:${S.cardBg};border:${S.borderStyle};border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow}}.editable:hover{outline:none}.editable:focus{outline:none}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div><script>lucide.createIcons();<\/script></body></html>`;
   const blob = new Blob([html], { type: 'text/html' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
