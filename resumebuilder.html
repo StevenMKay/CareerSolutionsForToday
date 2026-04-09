@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Plan & Resume Builder - Career Solutions for Today</title>
-<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/24f41fc0ba84fa65c8b2fad5155b6b32c824486e/icons/CareerIcon.png">
+<title>Plan & Resume Builder</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <style>
   body{font-family:'Manrope',sans-serif;margin:0;background:#F8F9FB;color:#0A0A0A}
   h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}
@@ -22,8 +25,8 @@
   .btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none}
   .btn-secondary{background:#fff;color:#374151;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #E5E7EB;cursor:pointer;font-size:0.875rem;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.5rem}
   .btn-secondary:hover{background:#F9FAFB;border-color:#D1D5DB}
-  .btn-danger{background:#B91C1C;color:#fff;font-weight:600;padding:0.5rem 1rem;border-radius:0.5rem;border:none;cursor:pointer;font-size:0.875rem;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.5rem}
-  .btn-danger:hover{background:#991B1B}
+  .btn-danger{background:#fff;color:#B91C1C;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #FEE2E2;cursor:pointer;font-size:0.875rem;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.5rem}
+  .btn-danger:hover{background:#FEF2F2;border-color:#FECACA}
   .input-field{width:100%;padding:0.625rem 0.875rem;border:1px solid #E5E7EB;border-radius:0.5rem;font-size:0.875rem;font-family:'Manrope',sans-serif;transition:border-color 0.2s;background:#fff}
   .input-field:focus{outline:none;border-color:#005EB8;box-shadow:0 0 0 3px #005EB815}
   textarea.input-field{min-height:120px;resize:vertical}
@@ -45,12 +48,10 @@
   .plan-type-card{border:2px solid #E5E7EB;border-radius:0.75rem;padding:1.25rem;cursor:pointer;transition:all 0.2s;text-align:center}
   .plan-type-card:hover{border-color:#93C5FD}
   .plan-type-card.selected{border-color:#005EB8;background:#EFF6FF}
-  .mockup-type-card{border:2px solid #E5E7EB;border-radius:0.625rem;padding:1rem;cursor:pointer;transition:all 0.2s;text-align:center;background:#fff}
-  .mockup-type-card:hover{border-color:#93C5FD;background:#F9FAFB}
-  .mockup-type-card.selected{border-color:#005EB8;background:#EFF6FF}
-  .mockup-preview-frame{width:100%;min-height:500px;border:1px solid #E5E7EB;border-radius:0.5rem;background:#fff}
   .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#0A2F6B;color:#fff;padding:0.75rem 1.25rem;border-radius:0.5rem;font-size:0.875rem;z-index:100;opacity:0;transform:translateY(10px);transition:all 0.3s}
   .toast.show{opacity:1;transform:translateY(0)}
+  .plan-card{border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.25rem;background:#fff;transition:all 0.2s;cursor:pointer}
+  .plan-card:hover{border-color:#93C5FD;box-shadow:0 4px 12px rgba(0,0,0,0.06)}
 </style>
 </head>
 <body>
@@ -63,12 +64,57 @@
       <i data-lucide="file-text" style="width:20px;height:20px;color:#005EB8"></i>
       <h1 class="text-base font-semibold tracking-tight" style="font-family:'Outfit';color:#0A2F6B">Plan & Resume Builder</h1>
     </div>
-    <a href="index.html" class="btn-secondary text-xs py-1.5 px-3"><i data-lucide="arrow-left" style="width:12px;height:12px"></i> Back</a>
+    <div class="flex items-center gap-3">
+      <button id="btn-my-plans" class="btn-secondary text-xs py-1.5 px-3 hidden" onclick="showDashboard()"><i data-lucide="folder" style="width:12px;height:12px"></i> My Plans</button>
+      <div id="user-info" class="hidden flex items-center gap-2">
+        <img id="user-avatar" class="w-7 h-7 rounded-full border" style="border-color:#E5E7EB" src="" alt="">
+        <span id="user-name" class="text-xs font-medium hidden sm:inline" style="color:#4B5563"></span>
+        <button onclick="signOutUser()" class="text-xs px-2 py-1 rounded border hover:bg-gray-50" style="border-color:#E5E7EB;color:#6B7280">Sign Out</button>
+      </div>
+      <a href="index.html" class="btn-secondary text-xs py-1.5 px-3"><i data-lucide="arrow-left" style="width:12px;height:12px"></i> Back</a>
+    </div>
   </div>
 </header>
 
-<!-- Steps -->
-<div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+<!-- Auth Gate -->
+<div id="auth-gate" class="max-w-md mx-auto px-4 py-20 text-center fade-in">
+  <div class="card">
+    <div class="mb-6">
+      <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background:#EFF6FF">
+        <i data-lucide="user-circle" style="width:32px;height:32px;color:#005EB8"></i>
+      </div>
+      <h2 class="text-xl font-semibold" style="color:#0A2F6B">Sign in to get started</h2>
+      <p class="text-sm mt-2" style="color:#6B7280">Sign in to create, save, and manage your plans and resumes.</p>
+    </div>
+    <button onclick="signInWithGoogle()" class="btn-primary w-full justify-center" data-testid="google-signin-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Sign in with Google
+    </button>
+    <p class="text-xs mt-4" style="color:#9CA3AF">Your data is stored securely in Firebase</p>
+  </div>
+</div>
+
+<!-- Dashboard: My Plans -->
+<div id="dashboard" class="max-w-5xl mx-auto px-4 sm:px-6 py-6 hidden fade-in">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h2 class="text-xl font-semibold" style="color:#0A2F6B">My Plans</h2>
+      <p class="text-sm" style="color:#6B7280">Create new plans or continue editing saved ones.</p>
+    </div>
+    <button class="btn-primary" onclick="startNewPlan()" data-testid="new-plan-btn"><i data-lucide="plus" style="width:16px;height:16px"></i> New Plan</button>
+  </div>
+  <div id="plans-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  <div id="plans-empty" class="hidden text-center py-16">
+    <i data-lucide="file-plus" style="width:48px;height:48px;color:#D1D5DB;margin:0 auto 1rem"></i>
+    <p class="text-sm font-medium" style="color:#6B7280">No plans yet</p>
+    <p class="text-xs mt-1 mb-4" style="color:#9CA3AF">Create your first plan to get started</p>
+    <button class="btn-primary" onclick="startNewPlan()"><i data-lucide="plus" style="width:16px;height:16px"></i> Create Plan</button>
+  </div>
+</div>
+
+<!-- Builder -->
+<div id="builder-wrapper" class="max-w-5xl mx-auto px-4 sm:px-6 py-6 hidden">
+  <!-- Steps -->
   <div class="flex items-center gap-0 mb-8" id="step-bar">
     <div class="flex flex-col items-center gap-1"><div class="step-dot active" id="dot-1">1</div><span class="text-[10px] font-semibold hidden sm:block" style="color:#005EB8">Resume</span></div>
     <div class="step-line bg-gray-200" id="line-1"></div>
@@ -77,8 +123,6 @@
     <div class="flex flex-col items-center gap-1"><div class="step-dot pending" id="dot-3">3</div><span class="text-[10px] font-medium hidden sm:block" style="color:#9CA3AF">Configure</span></div>
     <div class="step-line bg-gray-200" id="line-3"></div>
     <div class="flex flex-col items-center gap-1"><div class="step-dot pending" id="dot-4">4</div><span class="text-[10px] font-medium hidden sm:block" style="color:#9CA3AF">Preview</span></div>
-    <div class="step-line bg-gray-200" id="line-4"></div>
-    <div class="flex flex-col items-center gap-1"><div class="step-dot pending" id="dot-5">5</div><span class="text-[10px] font-medium hidden sm:block" style="color:#9CA3AF">Mockups</span></div>
   </div>
 
   <!-- Step 1: Resume -->
@@ -99,19 +143,18 @@
         </div>
         <div>
           <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Or Paste Text</label>
-          <textarea class="input-field" id="resume-text" placeholder="Paste your resume content here..." style="min-height:168px"></textarea>
+          <textarea class="input-field" id="resume-text" placeholder="Paste your resume content here..." style="min-height:168px" data-testid="resume-text-input"></textarea>
         </div>
       </div>
       <div class="flex items-center justify-between mt-6">
         <div id="parse-status" class="text-sm" style="color:#6B7280"></div>
-        <button class="btn-primary" id="btn-parse" onclick="parseResume()"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI</button>
+        <button class="btn-primary" id="btn-parse" onclick="parseResume()" data-testid="extract-btn"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI</button>
       </div>
-      <!-- Extracted preview -->
       <div id="resume-preview" class="hidden mt-6 border-t pt-6" style="border-color:#E5E7EB">
         <h3 class="text-sm font-semibold mb-3" style="color:#0A2F6B">Extracted Resume Data</h3>
         <div class="grid sm:grid-cols-2 gap-4 text-sm" id="resume-preview-content"></div>
         <div class="flex justify-end mt-4">
-          <button class="btn-primary" onclick="goToStep(2)">Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+          <button class="btn-primary" onclick="goToStep(2)" data-testid="step1-continue">Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
         </div>
       </div>
     </div>
@@ -126,31 +169,30 @@
         <div class="grid sm:grid-cols-2 gap-4">
           <div>
             <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Job Title</label>
-            <input class="input-field" id="job-title" placeholder="e.g. Executive Director, Audit Readiness">
+            <input class="input-field" id="job-title" placeholder="e.g. Executive Director, Audit Readiness" data-testid="job-title-input">
           </div>
           <div>
             <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Company</label>
-            <input class="input-field" id="job-company" placeholder="e.g. Chase Bank">
+            <input class="input-field" id="job-company" placeholder="e.g. Chase Bank" data-testid="job-company-input">
           </div>
         </div>
         <div>
-          <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Job Description <span class="font-normal" style="color:#9CA3AF">(optional — paste full JD for best results)</span></label>
-          <textarea class="input-field" id="job-desc" placeholder="Paste the full job description here..."></textarea>
+          <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Job Description <span class="font-normal" style="color:#9CA3AF">(optional)</span></label>
+          <textarea class="input-field" id="job-desc" placeholder="Paste the full job description here..." data-testid="job-desc-input"></textarea>
         </div>
       </div>
       <div class="flex items-center justify-between mt-6">
         <button class="btn-secondary" onclick="goToStep(1)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
         <div class="flex items-center gap-3">
           <div id="research-status" class="text-sm" style="color:#6B7280"></div>
-          <button class="btn-primary" id="btn-research" onclick="researchRole()"><i data-lucide="search" style="width:16px;height:16px"></i> Research & Continue</button>
+          <button class="btn-primary" id="btn-research" onclick="researchRole()" data-testid="research-btn"><i data-lucide="search" style="width:16px;height:16px"></i> Research & Continue</button>
         </div>
       </div>
-      <!-- Research preview -->
       <div id="role-preview" class="hidden mt-6 border-t pt-6" style="border-color:#E5E7EB">
         <h3 class="text-sm font-semibold mb-3" style="color:#0A2F6B">Role Research</h3>
         <div class="text-sm space-y-3" id="role-preview-content"></div>
         <div class="flex justify-end mt-4">
-          <button class="btn-primary" onclick="goToStep(3)">Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+          <button class="btn-primary" onclick="goToStep(3)" data-testid="step2-continue">Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
         </div>
       </div>
     </div>
@@ -160,8 +202,7 @@
   <div id="step-3" class="fade-in hidden">
     <div class="card">
       <h2 class="text-xl font-semibold mb-1" style="color:#0A2F6B">Configure Your Plan</h2>
-      <p class="text-sm mb-6" style="color:#6B7280">Choose the plan duration and which sections to include in your generated output.</p>
-      
+      <p class="text-sm mb-6" style="color:#6B7280">Choose the plan duration and which sections to include.</p>
       <label class="text-xs font-semibold uppercase tracking-wider block mb-3" style="color:#4B5563">Plan Type</label>
       <div class="grid grid-cols-3 gap-4 mb-8" id="plan-types">
         <div class="plan-type-card selected" data-value="90-day" onclick="selectPlanType(this)">
@@ -180,23 +221,21 @@
           <p class="text-xs mt-1" style="color:#6B7280">Year 1 & Year 2 roadmap</p>
         </div>
       </div>
-
       <label class="text-xs font-semibold uppercase tracking-wider block mb-3" style="color:#4B5563">Sections to Include</label>
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="section-checks">
-        <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="plan" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Strategic Plan</p><p class="text-xs" style="color:#6B7280">Phased action plan with milestones</p></div></label>
-        <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="executive_summary" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Executive Summary</p><p class="text-xs" style="color:#6B7280">Tailored professional summary</p></div></label>
-        <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="kpis" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">KPIs & Metrics</p><p class="text-xs" style="color:#6B7280">Success metrics for the role</p></div></label>
+        <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="plan" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Strategic Plan</p><p class="text-xs" style="color:#6B7280">Phased action plan</p></div></label>
+        <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="executive_summary" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Executive Summary</p><p class="text-xs" style="color:#6B7280">Professional summary</p></div></label>
+        <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="kpis" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">KPIs & Metrics</p><p class="text-xs" style="color:#6B7280">Success metrics</p></div></label>
         <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="experience" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Experience</p><p class="text-xs" style="color:#6B7280">Tailored work history</p></div></label>
-        <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="skills"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Skills</p><p class="text-xs" style="color:#6B7280">Core competencies list</p></div></label>
-        <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="education"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Education & Certs</p><p class="text-xs" style="color:#6B7280">Degrees and certifications</p></div></label>
+        <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="skills"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Skills</p><p class="text-xs" style="color:#6B7280">Core competencies</p></div></label>
+        <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="education"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Education & Certs</p><p class="text-xs" style="color:#6B7280">Degrees and certs</p></div></label>
         <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="achievements"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Achievements</p><p class="text-xs" style="color:#6B7280">Key accomplishments</p></div></label>
-        <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="leadership"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Leadership</p><p class="text-xs" style="color:#6B7280">Leadership roles & programs</p></div></label>
+        <label class="check-card" onclick="toggleCheck(this)"><input type="checkbox" value="leadership"><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Leadership</p><p class="text-xs" style="color:#6B7280">Leadership roles</p></div></label>
         <label class="check-card selected" onclick="toggleCheck(this)"><input type="checkbox" value="success_criteria" checked><div class="check-box"><svg class="hidden" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div><div><p class="text-sm font-medium">Success Criteria</p><p class="text-xs" style="color:#6B7280">What success looks like</p></div></label>
       </div>
-
       <div class="flex items-center justify-between mt-8">
         <button class="btn-secondary" onclick="goToStep(2)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
-        <button class="btn-primary" id="btn-generate" onclick="generatePlan()"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate Plan</button>
+        <button class="btn-primary" id="btn-generate" onclick="generatePlan()" data-testid="generate-btn"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate Plan</button>
       </div>
     </div>
   </div>
@@ -206,86 +245,15 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h2 class="text-xl font-semibold" style="color:#0A2F6B">Your Plan & Resume</h2>
-        <p class="text-sm" style="color:#6B7280">Click any text to edit directly. Changes save automatically.</p>
+        <p class="text-sm" style="color:#6B7280">Click any text to edit. Save to keep your changes.</p>
       </div>
-      <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center gap-2">
         <button class="btn-secondary" onclick="goToStep(3)"><i data-lucide="settings" style="width:14px;height:14px"></i> Reconfigure</button>
-        <button class="btn-primary" onclick="exportHTML()"><i data-lucide="download" style="width:14px;height:14px"></i> Download HTML</button>
-        <button class="btn-primary" style="background:#047857" onclick="goToStep(5)"><i data-lucide="image" style="width:14px;height:14px"></i> Create Mockup</button>
+        <button class="btn-primary" onclick="savePlan()" data-testid="save-plan-btn"><i data-lucide="save" style="width:14px;height:14px"></i> Save</button>
+        <button class="btn-secondary" onclick="exportHTML()"><i data-lucide="download" style="width:14px;height:14px"></i> Download</button>
       </div>
     </div>
     <div id="preview-container" class="space-y-6"></div>
-  </div>
-
-  <!-- Step 5: Mockup Generator -->
-  <div id="step-5" class="fade-in hidden">
-    <div class="card mb-6">
-      <h2 class="text-xl font-semibold mb-1" style="color:#0A2F6B">Generate Visual Mockups</h2>
-      <p class="text-sm mb-6" style="color:#6B7280">Create shareable mockups — dashboards, landing pages, org charts, and more — to visualize what you plan to build. These are generated as self-contained HTML you can share or present.</p>
-
-      <label class="text-xs font-semibold uppercase tracking-wider block mb-3" style="color:#4B5563">Mockup Type</label>
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6" id="mockup-types">
-        <div class="mockup-type-card selected" data-value="dashboard" onclick="selectMockupType(this)">
-          <i data-lucide="layout-dashboard" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Dashboard</p>
-        </div>
-        <div class="mockup-type-card" data-value="landing_page" onclick="selectMockupType(this)">
-          <i data-lucide="globe" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Landing Page</p>
-        </div>
-        <div class="mockup-type-card" data-value="org_chart" onclick="selectMockupType(this)">
-          <i data-lucide="network" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Org Chart</p>
-        </div>
-        <div class="mockup-type-card" data-value="project_timeline" onclick="selectMockupType(this)">
-          <i data-lucide="gantt-chart" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Timeline</p>
-        </div>
-        <div class="mockup-type-card" data-value="presentation_slide" onclick="selectMockupType(this)">
-          <i data-lucide="presentation" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Presentation</p>
-        </div>
-        <div class="mockup-type-card" data-value="wireframe" onclick="selectMockupType(this)">
-          <i data-lucide="layout" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Wireframe</p>
-        </div>
-        <div class="mockup-type-card" data-value="infographic" onclick="selectMockupType(this)">
-          <i data-lucide="bar-chart-3" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Infographic</p>
-        </div>
-        <div class="mockup-type-card" data-value="process_flow" onclick="selectMockupType(this)">
-          <i data-lucide="git-branch" style="width:20px;height:20px;color:#005EB8;margin:0 auto 0.375rem"></i>
-          <p class="text-xs font-semibold" style="color:#0A2F6B">Process Flow</p>
-        </div>
-      </div>
-
-      <div class="mb-6">
-        <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Describe Your Mockup</label>
-        <textarea class="input-field" id="mockup-description" placeholder="e.g. A KPI dashboard showing my 90-day plan progress with charts for audit readiness metrics, team onboarding status, and compliance scores..." style="min-height:100px"></textarea>
-        <p class="text-xs mt-2" style="color:#9CA3AF">Tip: Be specific about what data, sections, or visuals you want to see. Your plan context is automatically included.</p>
-      </div>
-
-      <div class="flex items-center justify-between">
-        <button class="btn-secondary" onclick="goToStep(4)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Plan</button>
-        <div class="flex items-center gap-3">
-          <div id="mockup-status" class="text-sm" style="color:#6B7280"></div>
-          <button class="btn-primary" id="btn-mockup" onclick="generateMockup()"><i data-lucide="wand-2" style="width:16px;height:16px"></i> Generate Mockup</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Mockup preview area -->
-    <div id="mockup-result" class="hidden fade-in">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="text-sm font-semibold" style="color:#0A2F6B">Mockup Preview</h3>
-        <div class="flex items-center gap-2">
-          <button class="btn-secondary text-xs" onclick="downloadMockup()"><i data-lucide="download" style="width:12px;height:12px"></i> Download HTML</button>
-          <button class="btn-secondary text-xs" onclick="openMockupNewTab()"><i data-lucide="external-link" style="width:12px;height:12px"></i> Open in New Tab</button>
-          <button class="btn-primary text-xs" style="background:#047857" onclick="generateMockup()"><i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Regenerate</button>
-        </div>
-      </div>
-      <iframe id="mockup-frame" class="mockup-preview-frame" sandbox="allow-scripts"></iframe>
-    </div>
   </div>
 
   <!-- Loading overlay -->
@@ -297,33 +265,239 @@
     </div>
   </div>
 </div>
+</div>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-const API_URL = 'https://resume-analyzer-backend-stevens-projects-4a20c66c.vercel.app';
-const TOTAL_STEPS = 5;
-let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:['plan','executive_summary','kpis','experience','success_criteria'], generated:{}, mockupType:'dashboard', mockupHtml:'' };
+// ============ Firebase Config ============
+const firebaseConfig = {
+  apiKey: 'AIzaSyBupprzs7nXLXXa29T9z3aJcq_7kjm03-U',
+  authDomain: 'career-solutions-project-tool.firebaseapp.com',
+  projectId: 'career-solutions-project-tool',
+  storageBucket: 'career-solutions-project-tool.firebasestorage.app',
+  messagingSenderId: '834959161768',
+  appId: '1:834959161768:web:d9b653a7039e865c1e859d'
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
+// ============ State ============
+const API_BASE = window.location.hostname.includes('localhost') ? 'http://localhost:8001/api' : window.location.origin + '/api';
+let currentUser = null;
+let currentPlanId = null; // null = new plan
+let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:['plan','executive_summary','kpis','experience','success_criteria'], generated:{}, rawResumeText:'' };
+
+// ============ Helpers ============
 function showToast(msg,dur){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur||3000);}
 function showLoading(msg){document.getElementById('loading-text').textContent=msg;document.getElementById('loading-overlay').classList.remove('hidden');}
 function hideLoading(){document.getElementById('loading-overlay').classList.add('hidden');}
 
+// ============ Auth ============
+function signInWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(e => showToast('Sign-in failed: ' + e.message));
+}
+function signOutUser(){
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  if(user){
+    document.getElementById('auth-gate').classList.add('hidden');
+    document.getElementById('user-info').classList.remove('hidden');
+    document.getElementById('btn-my-plans').classList.remove('hidden');
+    document.getElementById('user-avatar').src = user.photoURL || '';
+    document.getElementById('user-name').textContent = user.displayName || user.email;
+    showDashboard();
+  } else {
+    document.getElementById('auth-gate').classList.remove('hidden');
+    document.getElementById('user-info').classList.add('hidden');
+    document.getElementById('btn-my-plans').classList.add('hidden');
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('builder-wrapper').classList.add('hidden');
+  }
+  lucide.createIcons();
+});
+
+// ============ Dashboard ============
+async function showDashboard(){
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('builder-wrapper').classList.add('hidden');
+  currentPlanId = null;
+  const list = document.getElementById('plans-list');
+  const empty = document.getElementById('plans-empty');
+  list.innerHTML = '<p class="text-sm" style="color:#9CA3AF">Loading plans...</p>';
+  empty.classList.add('hidden');
+  try {
+    const snap = await db.collection('plans').where('userId','==',currentUser.uid).orderBy('updatedAt','desc').get();
+    if(snap.empty){
+      list.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    list.innerHTML = snap.docs.map(doc => {
+      const d = doc.data();
+      const title = d.generated?.hero?.target_title || d.jobTitle || 'Untitled Plan';
+      const company = d.generated?.hero?.company || d.company || '';
+      const planType = (d.planType||'90-day').replace('-',' ');
+      const updated = d.updatedAt?.toDate ? d.updatedAt.toDate().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+      return `<div class="plan-card" onclick="loadPlan('${doc.id}')" data-testid="plan-card-${doc.id}">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:#EFF6FF;color:#005EB8">${planType}</span>
+          <span class="text-[10px]" style="color:#9CA3AF">${updated}</span>
+        </div>
+        <p class="text-sm font-semibold mb-1" style="color:#0A2F6B">${title}</p>
+        ${company ? `<p class="text-xs" style="color:#4B5563">${company}</p>` : ''}
+        <div class="flex items-center gap-2 mt-3">
+          <button class="text-xs px-2 py-1 rounded border hover:bg-gray-50" style="border-color:#E5E7EB;color:#005EB8" onclick="event.stopPropagation();loadPlan('${doc.id}')">Edit</button>
+          <button class="text-xs px-2 py-1 rounded border hover:bg-red-50" style="border-color:#FEE2E2;color:#B91C1C" onclick="event.stopPropagation();deletePlan('${doc.id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<p class="text-sm" style="color:#B91C1C">Error loading plans. Check Firebase permissions.</p>`;
+    console.error('Firestore error:', e);
+  }
+  lucide.createIcons();
+}
+
+// ============ Plan CRUD ============
+function startNewPlan(){
+  currentPlanId = null;
+  STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:['plan','executive_summary','kpis','experience','success_criteria'], generated:{}, rawResumeText:'' };
+  document.getElementById('resume-text').value = '';
+  document.getElementById('resume-preview').classList.add('hidden');
+  document.getElementById('role-preview').classList.add('hidden');
+  document.getElementById('job-title').value = '';
+  document.getElementById('job-company').value = '';
+  document.getElementById('job-desc').value = '';
+  document.getElementById('file-name').classList.add('hidden');
+  selectedFile = null;
+  // Reset checkboxes
+  document.querySelectorAll('#section-checks .check-card').forEach(c => {
+    const cb = c.querySelector('input');
+    const def = ['plan','executive_summary','kpis','experience','success_criteria'].includes(cb.value);
+    cb.checked = def;
+    c.classList.toggle('selected', def);
+    c.querySelector('.check-box svg').classList.toggle('hidden', !def);
+  });
+  document.querySelectorAll('.plan-type-card').forEach(c => c.classList.toggle('selected', c.dataset.value === '90-day'));
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('builder-wrapper').classList.remove('hidden');
+  goToStep(1);
+}
+
+async function loadPlan(planId){
+  showLoading('Loading plan...');
+  try {
+    const doc = await db.collection('plans').doc(planId).get();
+    if(!doc.exists){ hideLoading(); showToast('Plan not found'); return; }
+    const d = doc.data();
+    currentPlanId = planId;
+    STATE.resumeData = d.resumeData || {};
+    STATE.roleResearch = d.roleResearch || {};
+    STATE.planType = d.planType || '90-day';
+    STATE.sections = d.sections || ['plan','executive_summary','kpis','experience','success_criteria'];
+    STATE.generated = d.generated || {};
+    STATE.rawResumeText = d.rawResumeText || '';
+
+    // Populate form fields
+    document.getElementById('resume-text').value = STATE.rawResumeText;
+    document.getElementById('job-title').value = d.jobTitle || '';
+    document.getElementById('job-company').value = d.company || '';
+    document.getElementById('job-desc').value = d.jobDescription || '';
+
+    // Set plan type
+    document.querySelectorAll('.plan-type-card').forEach(c => c.classList.toggle('selected', c.dataset.value === STATE.planType));
+    // Set section checkboxes
+    document.querySelectorAll('#section-checks .check-card').forEach(c => {
+      const cb = c.querySelector('input');
+      const on = STATE.sections.includes(cb.value);
+      cb.checked = on;
+      c.classList.toggle('selected', on);
+      c.querySelector('.check-box svg').classList.toggle('hidden', !on);
+    });
+
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('builder-wrapper').classList.remove('hidden');
+
+    // If plan was generated, go to preview
+    if(STATE.generated && Object.keys(STATE.generated).length > 0 && !STATE.generated.error){
+      renderPreview(STATE.generated);
+      goToStep(4);
+    } else {
+      goToStep(1);
+      if(Object.keys(STATE.resumeData).length > 0){
+        renderResumePreview(STATE.resumeData);
+        document.getElementById('resume-preview').classList.remove('hidden');
+      }
+      if(Object.keys(STATE.roleResearch).length > 0){
+        renderRolePreview(STATE.roleResearch);
+        document.getElementById('role-preview').classList.remove('hidden');
+      }
+    }
+  } catch(e) { console.error(e); showToast('Error loading plan'); }
+  hideLoading();
+}
+
+async function savePlan(){
+  if(!currentUser) return showToast('Please sign in first');
+  showLoading('Saving plan...');
+  const planData = {
+    userId: currentUser.uid,
+    userEmail: currentUser.email,
+    userName: currentUser.displayName || '',
+    resumeData: STATE.resumeData,
+    roleResearch: STATE.roleResearch,
+    planType: STATE.planType,
+    sections: STATE.sections,
+    generated: STATE.generated,
+    rawResumeText: document.getElementById('resume-text').value || '',
+    jobTitle: document.getElementById('job-title').value || '',
+    company: document.getElementById('job-company').value || '',
+    jobDescription: document.getElementById('job-desc').value || '',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  try {
+    if(currentPlanId){
+      await db.collection('plans').doc(currentPlanId).update(planData);
+    } else {
+      planData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      const ref = await db.collection('plans').add(planData);
+      currentPlanId = ref.id;
+    }
+    showToast('Plan saved!');
+  } catch(e) { console.error(e); showToast('Error saving: ' + e.message); }
+  hideLoading();
+}
+
+async function deletePlan(planId){
+  if(!confirm('Delete this plan? This cannot be undone.')) return;
+  try {
+    await db.collection('plans').doc(planId).delete();
+    showToast('Plan deleted');
+    showDashboard();
+  } catch(e) { showToast('Error deleting plan'); }
+}
+
+// ============ Step Navigation ============
 function goToStep(n){
-  for(let i=1;i<=TOTAL_STEPS;i++){
+  for(let i=1;i<=4;i++){
     document.getElementById('step-'+i).classList.toggle('hidden',i!==n);
     const dot=document.getElementById('dot-'+i);
     dot.className='step-dot '+(i<n?'done':i===n?'active':'pending');
-    if(i<TOTAL_STEPS){const line=document.getElementById('line-'+i);line.style.background=i<n?'#047857':'#E5E7EB';}
+    if(i<4){const line=document.getElementById('line-'+i);line.style.background=i<n?'#047857':'#E5E7EB';}
     const label=dot.parentElement.querySelector('span');
     if(label){label.style.color=i<=n?'#005EB8':'#9CA3AF';label.style.fontWeight=i===n?'600':'500';}
   }
   window.scrollTo({top:0,behavior:'smooth'});
-  lucide.createIcons();
 }
 
-// Step 1: File handling
+// ============ Step 1: Resume ============
 let selectedFile=null;
 function handleFileSelect(input){if(input.files[0]){selectedFile=input.files[0];document.getElementById('file-name').textContent=selectedFile.name;document.getElementById('file-name').classList.remove('hidden');}}
 function handleFileDrop(e){if(e.dataTransfer.files[0]){selectedFile=e.dataTransfer.files[0];document.getElementById('file-name').textContent=selectedFile.name;document.getElementById('file-name').classList.remove('hidden');}}
@@ -335,13 +509,19 @@ async function parseResume(){
   btn.disabled=true;btn.innerHTML='<span class="loader"></span> Extracting...';
   document.getElementById('parse-status').textContent='';
   try{
-    const fd=new FormData();
-    if(selectedFile){fd.append('file',selectedFile);}
-    else{fd.append('text',text);}
-    const res=await fetch(`${API_URL}/api/builder-parse`,{method:'POST',body:fd});
+    let res;
+    if(selectedFile){
+      const fd=new FormData();fd.append('file',selectedFile);
+      res=await fetch(API_BASE+'/builder/parse-resume',{method:'POST',body:fd});
+    }else{
+      const fd=new FormData();fd.append('text',text);
+      res=await fetch(API_BASE+'/builder/parse-resume',{method:'POST',body:fd});
+    }
+    if(!res.ok){const errData=await res.json().catch(()=>({error:'Server error'}));throw new Error(errData.error||'Server error '+res.status);}
     const data=await res.json();
     if(data.error){throw new Error(data.error);}
     STATE.resumeData=data.resume_data;
+    STATE.rawResumeText=data.raw_text||text;
     renderResumePreview(data.resume_data);
     document.getElementById('resume-preview').classList.remove('hidden');
     showToast('Resume extracted successfully!');
@@ -361,16 +541,16 @@ function renderResumePreview(d){
   document.getElementById('resume-preview-content').innerHTML=h;
 }
 
-// Step 2: Role research
+// ============ Step 2: Role Research ============
 async function researchRole(){
   const title=document.getElementById('job-title').value.trim();
   if(!title){showToast('Please enter a job title');return;}
   const btn=document.getElementById('btn-research');
   btn.disabled=true;btn.innerHTML='<span class="loader"></span> Researching...';
   try{
-    const res=await fetch(`${API_URL}/api/builder-research`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_title:title,company:document.getElementById('job-company').value.trim(),job_description:document.getElementById('job-desc').value.trim()})});
+    const res=await fetch(API_BASE+'/builder/research-role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_title:title,company:document.getElementById('job-company').value.trim(),job_description:document.getElementById('job-desc').value.trim()})});
+    if(!res.ok){const errData=await res.json().catch(()=>({error:'Server error'}));throw new Error(errData.error||'Server error '+res.status);}
     const data=await res.json();
-    if(data.error) throw new Error(data.error);
     STATE.roleResearch=data.role_research;
     STATE.roleResearch.job_title=title;
     STATE.roleResearch.company=document.getElementById('job-company').value.trim();
@@ -390,7 +570,7 @@ function renderRolePreview(d){
   document.getElementById('role-preview-content').innerHTML=h;
 }
 
-// Step 3: Config
+// ============ Step 3: Configure ============
 function selectPlanType(el){document.querySelectorAll('.plan-type-card').forEach(c=>c.classList.remove('selected'));el.classList.add('selected');STATE.planType=el.dataset.value;}
 function toggleCheck(el){
   setTimeout(()=>{
@@ -400,26 +580,26 @@ function toggleCheck(el){
     STATE.sections=Array.from(document.querySelectorAll('#section-checks input:checked')).map(i=>i.value);
   },0);
 }
-// Init checkboxes
 document.querySelectorAll('#section-checks .check-card.selected .check-box svg').forEach(s=>s.classList.remove('hidden'));
 
-// Step 3: Generate
 async function generatePlan(){
   if(!STATE.sections.length){showToast('Please select at least one section');return;}
   showLoading('Generating your '+STATE.planType+' plan...');
   try{
-    const res=await fetch(`${API_URL}/api/builder-generate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resume_data:STATE.resumeData,role_context:STATE.roleResearch,plan_type:STATE.planType,sections:STATE.sections})});
+    const res=await fetch(API_BASE+'/builder/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resume_data:STATE.resumeData,role_context:STATE.roleResearch,plan_type:STATE.planType,sections:STATE.sections})});
+    if(!res.ok){const errData=await res.json().catch(()=>({error:'Server error'}));throw new Error(errData.error||'Server error '+res.status);}
     const data=await res.json();
-    if(data.error) throw new Error(data.error);
     STATE.generated=data.generated;
     renderPreview(data.generated);
     goToStep(4);
     showToast('Plan generated! Click any text to edit.');
-  }catch(e){showToast('Error generating plan: '+e.message);}
+    // Auto-save after generation
+    savePlan();
+  }catch(e){showToast('Error: '+e.message);}
   hideLoading();
 }
 
-// Step 4: Render preview
+// ============ Step 4: Preview & Render ============
 function renderPreview(g){
   let h='';
   if(g.hero){
@@ -481,75 +661,13 @@ function renderPreview(g){
   document.getElementById('preview-container').innerHTML=h;
 }
 
-// Export plan as HTML
+// ============ Export ============
 function exportHTML(){
   const content=document.getElementById('preview-container').innerHTML;
   const html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${STATE.generated.hero?.name||'Plan'} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"><style>body{font-family:'Manrope',sans-serif;background:#F8F9FB;color:#0A0A0A;margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}.card{background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.5rem}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div></body></html>`;
   const blob=new Blob([html],{type:'text/html'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(STATE.generated.hero?.name||'plan').replace(/\s+/g,'-').toLowerCase()+'-'+STATE.planType+'-plan.html';a.click();
   showToast('HTML file downloaded!');
-}
-
-// Step 5: Mockup Generator
-function selectMockupType(el){
-  document.querySelectorAll('.mockup-type-card').forEach(c=>c.classList.remove('selected'));
-  el.classList.add('selected');
-  STATE.mockupType=el.dataset.value;
-}
-
-async function generateMockup(){
-  const desc=document.getElementById('mockup-description').value.trim();
-  if(!desc){showToast('Please describe the mockup you want to generate');return;}
-  const btn=document.getElementById('btn-mockup');
-  btn.disabled=true;btn.innerHTML='<span class="loader"></span> Generating...';
-  document.getElementById('mockup-status').textContent='This may take 30-60 seconds...';
-  try{
-    // Build context from generated plan data
-    const ctx={};
-    if(STATE.generated.hero){
-      ctx.name=STATE.generated.hero.name;
-      ctx.target_title=STATE.generated.hero.target_title;
-      ctx.company=STATE.generated.hero.company;
-    }
-    ctx.plan_type=STATE.planType;
-    if(STATE.generated.kpis) ctx.kpis=STATE.generated.kpis;
-    if(STATE.generated.plan_phases) ctx.plan_phases=STATE.generated.plan_phases;
-
-    const res=await fetch(`${API_URL}/api/builder-mockup`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mockup_type:STATE.mockupType,description:desc,context:ctx})
-    });
-    const data=await res.json();
-    if(data.error) throw new Error(data.error);
-
-    STATE.mockupHtml=data.mockup_html;
-    const frame=document.getElementById('mockup-frame');
-    frame.srcdoc=data.mockup_html;
-    document.getElementById('mockup-result').classList.remove('hidden');
-    document.getElementById('mockup-status').textContent='';
-    showToast('Mockup generated! Preview below.');
-  }catch(e){
-    document.getElementById('mockup-status').innerHTML=`<span style="color:#B91C1C">Error: ${e.message}</span>`;
-  }
-  btn.disabled=false;btn.innerHTML='<i data-lucide="wand-2" style="width:16px;height:16px"></i> Generate Mockup';lucide.createIcons();
-}
-
-function downloadMockup(){
-  if(!STATE.mockupHtml){showToast('No mockup to download');return;}
-  const blob=new Blob([STATE.mockupHtml],{type:'text/html'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`${STATE.mockupType}-mockup.html`;
-  a.click();
-  showToast('Mockup HTML downloaded!');
-}
-
-function openMockupNewTab(){
-  if(!STATE.mockupHtml){showToast('No mockup to open');return;}
-  const blob=new Blob([STATE.mockupHtml],{type:'text/html'});
-  const url=URL.createObjectURL(blob);
-  window.open(url,'_blank');
 }
 
 lucide.createIcons();
