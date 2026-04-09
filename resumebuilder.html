@@ -242,15 +242,33 @@
 
   <!-- Step 4: Preview -->
   <div id="step-4" class="fade-in hidden">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
       <div>
         <h2 class="text-xl font-semibold" style="color:#0A2F6B">Your Plan & Resume</h2>
         <p class="text-sm" style="color:#6B7280">Click any text to edit. Save to keep your changes.</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <button class="btn-secondary" onclick="goToStep(3)"><i data-lucide="settings" style="width:14px;height:14px"></i> Reconfigure</button>
         <button class="btn-primary" onclick="savePlan()" data-testid="save-plan-btn"><i data-lucide="save" style="width:14px;height:14px"></i> Save</button>
+        <button class="btn-primary" onclick="publishAndShare()" data-testid="publish-btn" style="background:#047857"><i data-lucide="globe" style="width:14px;height:14px"></i> Publish & Share</button>
         <button class="btn-secondary" onclick="exportHTML()"><i data-lucide="download" style="width:14px;height:14px"></i> Download</button>
+      </div>
+    </div>
+    <!-- Share Link Bar -->
+    <div id="share-bar" class="hidden card mb-4 fade-in" style="background:#F0FDF4;border-color:#BBF7D0">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <i data-lucide="link" style="width:18px;height:18px;color:#047857;flex-shrink:0"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#047857">Your public link</p>
+            <p id="share-url" class="text-sm font-medium truncate" style="color:#0A2F6B;word-break:break-all"></p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="copyShareLink()" class="btn-primary text-xs py-1.5" style="background:#047857" data-testid="copy-link-btn"><i data-lucide="copy" style="width:12px;height:12px"></i> Copy Link</button>
+          <a id="share-view-link" href="#" target="_blank" class="btn-secondary text-xs py-1.5"><i data-lucide="external-link" style="width:12px;height:12px"></i> Preview</a>
+          <button onclick="unpublishPlan()" class="btn-danger text-xs py-1.5"><i data-lucide="eye-off" style="width:12px;height:12px"></i> Unpublish</button>
+        </div>
       </div>
     </div>
     <div id="preview-container" class="space-y-6"></div>
@@ -347,7 +365,10 @@ async function showDashboard(){
       const updated = d.updatedAt?.toDate ? d.updatedAt.toDate().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
       return `<div class="plan-card" onclick="loadPlan('${doc.id}')" data-testid="plan-card-${doc.id}">
         <div class="flex items-center justify-between mb-2">
-          <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:#EFF6FF;color:#005EB8">${planType}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:#EFF6FF;color:#005EB8">${planType}</span>
+            ${d.published ? '<span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:#D1FAE5;color:#047857">Published</span>' : ''}
+          </div>
           <span class="text-[10px]" style="color:#9CA3AF">${updated}</span>
         </div>
         <p class="text-sm font-semibold mb-1" style="color:#0A2F6B">${title}</p>
@@ -429,6 +450,8 @@ async function loadPlan(planId){
     if(STATE.generated && Object.keys(STATE.generated).length > 0 && !STATE.generated.error){
       renderPreview(STATE.generated);
       goToStep(4);
+      // Show share bar if published
+      if(d.published && d.slug) showShareBar(d.slug);
     } else {
       goToStep(1);
       if(Object.keys(STATE.resumeData).length > 0){
@@ -482,6 +505,86 @@ async function deletePlan(planId){
     showToast('Plan deleted');
     showDashboard();
   } catch(e) { showToast('Error deleting plan'); }
+}
+
+// ============ Slug & Publishing ============
+function generateSlug(name, jobTitle, company, planType){
+  const parts = [name, jobTitle, company, planType].filter(Boolean);
+  let slug = parts.join(' ').toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 80);
+  // Add a short random suffix for uniqueness
+  slug += '-' + Math.random().toString(36).substring(2, 6);
+  return slug;
+}
+
+function getShareUrl(slug){
+  const base = window.location.origin;
+  return base + '/view.html?p=' + encodeURIComponent(slug);
+}
+
+function showShareBar(slug){
+  const url = getShareUrl(slug);
+  document.getElementById('share-url').textContent = url;
+  document.getElementById('share-view-link').href = url;
+  document.getElementById('share-bar').classList.remove('hidden');
+  lucide.createIcons();
+}
+
+function hideShareBar(){
+  document.getElementById('share-bar').classList.add('hidden');
+}
+
+async function publishAndShare(){
+  if(!currentUser) return showToast('Please sign in first');
+  // Save first
+  await savePlan();
+  if(!currentPlanId) return showToast('Please save the plan first');
+
+  showLoading('Publishing your plan...');
+  try {
+    // Check if already published
+    const doc = await db.collection('plans').doc(currentPlanId).get();
+    const data = doc.data();
+    let slug = data.slug;
+
+    if(!slug || !data.published){
+      // Generate a new slug
+      const name = STATE.generated?.hero?.name || data.userName || '';
+      const title = STATE.generated?.hero?.target_title || data.jobTitle || '';
+      const company = STATE.generated?.hero?.company || data.company || '';
+      slug = generateSlug(name, title, company, STATE.planType);
+      await db.collection('plans').doc(currentPlanId).update({
+        slug: slug,
+        published: true
+      });
+    }
+
+    showShareBar(slug);
+    showToast('Plan published! Share your link.');
+  } catch(e) { console.error(e); showToast('Error publishing: ' + e.message); }
+  hideLoading();
+}
+
+async function unpublishPlan(){
+  if(!currentPlanId) return;
+  try {
+    await db.collection('plans').doc(currentPlanId).update({ published: false });
+    hideShareBar();
+    showToast('Plan unpublished. The link will no longer work.');
+  } catch(e) { showToast('Error unpublishing'); }
+}
+
+function copyShareLink(){
+  const url = document.getElementById('share-url').textContent;
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard!')).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    showToast('Link copied!');
+  });
 }
 
 // ============ Step Navigation ============
