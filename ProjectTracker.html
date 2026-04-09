@@ -646,18 +646,19 @@
             background: #ffffff;
             border-radius: 7px;
             padding: 12px;
-            border: 1px solid #d5dbe3;
+            border: 1px solid #d0d5dd;
+            border-left: 3px solid #a0aec0;
             cursor: grab;
             transition: all 0.2s ease;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
             display: flex;
             flex-direction: column;
         }
 
         .project-card:hover {
             background: white;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.08);
         }
 
         .project-card:active {
@@ -17372,11 +17373,13 @@
                 // Data Quality
                 hasDescription: !!(project.description && project.description.trim()),
                 hasOwner: !!project.assignedTo,
+                hasAssignedManager: !!(project.assignedManager && project.assignedManager.trim()),
                 hasDueDate: !!project.dueDate,
                 hasStartDate: !!project.startDate,
                 hasDepartment: !!project.owningDepartment,
                 hasCategory: !!project.category,
                 hasPriority: !!project.priority,
+                hasHours: !!(project.hours && parseFloat(project.hours) > 0),
                 hasAffectedSystems: project.affectedSystems && project.affectedSystems.length > 0,
                 
                 // Project Steps (if exists)
@@ -17412,17 +17415,33 @@
             metrics.healthStatus = calculateProjectHealth(metrics);
             
             // Calculate data quality score
-            var fieldsTotal = 9;
+            var fieldsTotal = 11;
             var fieldsFilled = 0;
             if (metrics.hasDescription) fieldsFilled++;
             if (metrics.hasOwner) fieldsFilled++;
+            if (metrics.hasAssignedManager) fieldsFilled++;
             if (metrics.hasDueDate) fieldsFilled++;
             if (metrics.hasStartDate) fieldsFilled++;
             if (metrics.hasDepartment) fieldsFilled++;
             if (metrics.hasCategory) fieldsFilled++;
             if (metrics.hasPriority) fieldsFilled++;
+            if (metrics.hasHours) fieldsFilled++;
             if (metrics.hasAffectedSystems) fieldsFilled++;
             if (metrics.hasProjectSteps) fieldsFilled++;
+            // Include basic-section custom fields from formSchema
+            var basicCustomFields = (formSchema || []).filter(function(f) {
+                return f.section === 'basic' && !f.builtIn && f.type !== 'section';
+            });
+            metrics.missingBasicCustomFields = [];
+            basicCustomFields.forEach(function(f) {
+                fieldsTotal++;
+                var val = project.customFields && project.customFields[f.id];
+                if (val && String(val).trim()) {
+                    fieldsFilled++;
+                } else {
+                    metrics.missingBasicCustomFields.push(f.label || f.id);
+                }
+            });
             metrics.dataQualityScore = Math.round((fieldsFilled / fieldsTotal) * 100);
             metrics.fieldsFilled = fieldsFilled;
             metrics.fieldsTotal = fieldsTotal;
@@ -17725,11 +17744,17 @@
             var missing = [];
             if (!m.hasDescription) missing.push('Description');
             if (!m.hasOwner) missing.push('Owner');
+            if (!m.hasAssignedManager) missing.push('Assigned Manager');
             if (!m.hasDueDate) missing.push('Due Date');
             if (!m.hasStartDate) missing.push('Start Date');
             if (!m.hasDepartment) missing.push('Department');
             if (!m.hasCategory) missing.push('Category');
+            if (!m.hasHours) missing.push('Estimated Hours');
             if (!m.hasAffectedSystems) missing.push('Affected Systems');
+            // Add any missing basic-section custom fields
+            if (m.missingBasicCustomFields && m.missingBasicCustomFields.length) {
+                m.missingBasicCustomFields.forEach(function(lbl) { missing.push(lbl); });
+            }
             
             if (missing.length > 0) {
                 html += '<div style="margin:10px 0;padding:10px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;">';
