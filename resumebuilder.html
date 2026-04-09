@@ -303,7 +303,9 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // ============ State ============
-const API_BASE = window.location.hostname.includes('localhost') ? 'http://localhost:8001/api' : window.location.origin + '/api';
+const API_BASE = window.location.hostname === 'localhost'
+  ? 'http://localhost:3001/api'
+  : 'https://projectbackend-production-aa38.up.railway.app/api';
 let currentUser = null;
 let currentPlanId = null; // null = new plan
 let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:['plan','executive_summary','kpis','experience','success_criteria'], generated:{}, rawResumeText:'' };
@@ -312,6 +314,15 @@ let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:['plan
 function showToast(msg,dur){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur||3000);}
 function showLoading(msg){document.getElementById('loading-text').textContent=msg;document.getElementById('loading-overlay').classList.remove('hidden');}
 function hideLoading(){document.getElementById('loading-overlay').classList.add('hidden');}
+
+// Get auth header for API calls (uses same Firebase Auth as Project Tracker)
+async function getAuthHeaders(extra){
+  const headers = Object.assign({}, extra || {});
+  if(currentUser){
+    try{ const token = await currentUser.getIdToken(); headers['Authorization'] = 'Bearer ' + token; }catch(e){}
+  }
+  return headers;
+}
 
 // ============ Auth ============
 function signInWithGoogle(){
@@ -613,12 +624,13 @@ async function parseResume(){
   document.getElementById('parse-status').textContent='';
   try{
     let res;
+    const authHdrs = await getAuthHeaders();
     if(selectedFile){
       const fd=new FormData();fd.append('file',selectedFile);
-      res=await fetch(API_BASE+'/builder/parse-resume',{method:'POST',body:fd});
+      res=await fetch(API_BASE+'/builder/parse-resume',{method:'POST',headers:authHdrs,body:fd});
     }else{
       const fd=new FormData();fd.append('text',text);
-      res=await fetch(API_BASE+'/builder/parse-resume',{method:'POST',body:fd});
+      res=await fetch(API_BASE+'/builder/parse-resume',{method:'POST',headers:authHdrs,body:fd});
     }
     if(!res.ok){const errData=await res.json().catch(()=>({error:'Server error'}));throw new Error(errData.error||'Server error '+res.status);}
     const data=await res.json();
@@ -651,7 +663,7 @@ async function researchRole(){
   const btn=document.getElementById('btn-research');
   btn.disabled=true;btn.innerHTML='<span class="loader"></span> Researching...';
   try{
-    const res=await fetch(API_BASE+'/builder/research-role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_title:title,company:document.getElementById('job-company').value.trim(),job_description:document.getElementById('job-desc').value.trim()})});
+    const res=await fetch(API_BASE+'/builder/research-role',{method:'POST',headers:await getAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({job_title:title,company:document.getElementById('job-company').value.trim(),job_description:document.getElementById('job-desc').value.trim()})});
     if(!res.ok){const errData=await res.json().catch(()=>({error:'Server error'}));throw new Error(errData.error||'Server error '+res.status);}
     const data=await res.json();
     STATE.roleResearch=data.role_research;
@@ -689,7 +701,7 @@ async function generatePlan(){
   if(!STATE.sections.length){showToast('Please select at least one section');return;}
   showLoading('Generating your '+STATE.planType+' plan...');
   try{
-    const res=await fetch(API_BASE+'/builder/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({resume_data:STATE.resumeData,role_context:STATE.roleResearch,plan_type:STATE.planType,sections:STATE.sections})});
+    const res=await fetch(API_BASE+'/builder/generate',{method:'POST',headers:await getAuthHeaders({'Content-Type':'application/json'}),body:JSON.stringify({resume_data:STATE.resumeData,role_context:STATE.roleResearch,plan_type:STATE.planType,sections:STATE.sections})});
     if(!res.ok){const errData=await res.json().catch(()=>({error:'Server error'}));throw new Error(errData.error||'Server error '+res.status);}
     const data=await res.json();
     STATE.generated=data.generated;
