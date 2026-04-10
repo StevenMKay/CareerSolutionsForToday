@@ -1589,15 +1589,18 @@ async function exportDOCX() {
 
     // Fetch the template
     const templateResp = await fetch('resume-template.docx');
-    if (!templateResp.ok) throw new Error('Could not load resume template file');
+    if (!templateResp.ok) throw new Error('Could not load resume template file (HTTP ' + templateResp.status + ')');
     const templateArrayBuffer = await templateResp.arrayBuffer();
+    console.log('[DOCX] Template fetched:', templateArrayBuffer.byteLength, 'bytes, type:', templateResp.headers.get('content-type'));
 
     // Load into PizZip and docxtemplater
-    const zip = new PizZip(templateArrayBuffer);
+    const zip = new PizZip(new Uint8Array(templateArrayBuffer));
+    console.log('[DOCX] PizZip loaded, files:', Object.keys(zip.files).length);
     const doc = new window.docxtemplater(zip, {
       paragraphLoop: true,
       linebreaks: true,
     });
+    console.log('[DOCX] Docxtemplater initialized');
 
     // Build data from resume data + contact fields
     const contactPhone = document.getElementById('contact-phone')?.value || resumeData.phone || '';
@@ -1645,16 +1648,21 @@ async function exportDOCX() {
       certifications: certifications
     };
 
+    console.log('[DOCX] Rendering with data keys:', Object.keys(data));
     doc.render(data);
+    console.log('[DOCX] Render complete');
 
     const out = doc.getZip().generate({
-      type: 'blob',
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      type: 'uint8array',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      compression: 'DEFLATE'
     });
+    console.log('[DOCX] Generated output:', out.length, 'bytes');
+    const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
 
     // Trigger download
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(out);
+    a.href = URL.createObjectURL(blob);
     a.download = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.docx';
     a.click();
     URL.revokeObjectURL(a.href);
