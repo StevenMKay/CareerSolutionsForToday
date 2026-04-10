@@ -99,8 +99,8 @@
   .photo-shape-shield{border-radius:50% 50% 50% 50% / 40% 40% 60% 60%}
   .photo-shape-hexagon{clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);border-radius:0;border:none}
   /* ── Item Action Buttons (delete ×, add +) ── */
-  .item-row{position:relative}
-  .item-row .item-del{position:absolute;right:-8px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:rgba(185,28,28,0.12);color:#B91C1C;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s;z-index:5;padding:0}
+  .item-row{position:relative;padding-right:28px}
+  .item-row .item-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:rgba(185,28,28,0.12);color:#B91C1C;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s;z-index:5;padding:0}
   .item-row:hover .item-del{opacity:1}
   .item-del:hover{background:rgba(185,28,28,0.25)!important;color:#7F1D1D}
   .item-add{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:6px;border:1px dashed #D1D5DB;background:transparent;color:#6B7280;font-size:12px;cursor:pointer;transition:all 0.2s;margin-top:6px}
@@ -606,6 +606,14 @@
         <span style="color:#6B7280;font-weight:400">— rewords bullets & summary with job keywords</span>
       </label>
     </div>
+    <!-- Section Toggles on Preview -->
+    <div class="card mb-4" style="padding:0.75rem 1rem" data-testid="preview-section-toggles">
+      <div class="flex items-center gap-2 mb-2">
+        <i data-lucide="eye" style="width:14px;height:14px;color:#6B7280"></i>
+        <span class="text-xs font-semibold uppercase tracking-wider" style="color:#4B5563">Show / Hide Sections</span>
+      </div>
+      <div class="flex flex-wrap gap-2" id="preview-section-toggles"></div>
+    </div>
     <!-- Share Link Bar -->
     <div id="share-bar" class="hidden card mb-4 fade-in" style="background:#F0FDF4;border-color:#BBF7D0">
       <div class="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -890,6 +898,9 @@ let isDirty = false;
 let pendingNavCallback = null;
 let builderSubscribed = false;
 let freeUsesCount = 0;
+let analysisCache = null;
+let analysisCacheKey = null;
+let _preEnhanceGenerated = null;
 const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills','education','achievements','leadership','success_criteria'];
 let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top' };
 
@@ -1443,6 +1454,7 @@ async function savePlan() {
       currentPlanId = ref.id;
     }
     isDirty = false;
+    updateSaveButtonState();
     showToast('Plan saved!');
     // Auto-sync photo & resume to profile
     try {
@@ -1599,6 +1611,15 @@ function stepHasData(step) {
 }
 
 function goToStep(n) {
+  // Check unsaved changes if leaving Step 4
+  const currentStep = [1,2,3,4].find(i => !document.getElementById('step-' + i).classList.contains('hidden'));
+  if (currentStep === 4 && n !== 4 && isDirty && STATE.generated?.hero) {
+    checkUnsavedChanges(() => goToStepDirect(n));
+    return;
+  }
+  goToStepDirect(n);
+}
+function goToStepDirect(n) {
   // Don't allow jumping to steps beyond the highest reached
   if (n > highestStepReached + 1) return;
   if (n > highestStepReached) highestStepReached = n;
@@ -1624,6 +1645,8 @@ function goToStep(n) {
       dot.appendChild(warn);
     }
   }
+  // When arriving at Step 4, render section toggles
+  if (n === 4) { renderSectionToggles(); }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1769,11 +1792,13 @@ async function unsavedSaveAndLeave() {
   document.getElementById('unsaved-modal').classList.add('hidden');
   await savePlan();
   isDirty = false;
+  updateSaveButtonState();
   if (pendingNavCallback) { pendingNavCallback(); pendingNavCallback = null; }
 }
 function unsavedDiscardAndLeave() {
   document.getElementById('unsaved-modal').classList.add('hidden');
   isDirty = false;
+  updateSaveButtonState();
   if (pendingNavCallback) { pendingNavCallback(); pendingNavCallback = null; }
 }
 function navigateAway(url) {
@@ -1783,8 +1808,32 @@ window.addEventListener('beforeunload', e => { if (isDirty) { e.preventDefault()
 
 // Track edits on contenteditable elements in preview
 document.addEventListener('input', e => {
-  if (e.target.closest('#preview-container') && e.target.getAttribute('contenteditable') === 'true') { isDirty = true; }
+  if (e.target.closest('#preview-container') && e.target.getAttribute('contenteditable') === 'true') { markDirty(); }
 });
+
+function markDirty() {
+  isDirty = true;
+  updateSaveButtonState();
+}
+function updateSaveButtonState() {
+  const saveBtn = document.querySelector('[data-testid="save-plan-btn"]');
+  if (!saveBtn) return;
+  const iconWrap = saveBtn.querySelector('div');
+  if (isDirty) {
+    saveBtn.style.borderColor = '#F59E0B';
+    saveBtn.style.background = '#FFFBEB';
+    if (iconWrap) { iconWrap.style.background = '#FEF3C7'; }
+    // Add unsaved indicator text
+    const label = saveBtn.querySelector('span');
+    if (label && !label.textContent.includes('*')) { label.textContent = 'Save *'; }
+  } else {
+    saveBtn.style.borderColor = '#E5E7EB';
+    saveBtn.style.background = '';
+    if (iconWrap) { iconWrap.style.background = '#EFF6FF'; }
+    const label = saveBtn.querySelector('span');
+    if (label) { label.textContent = 'Save'; }
+  }
+}
 
 // ============ Style Preview ============
 function previewStyle(styleName) {
@@ -2027,7 +2076,7 @@ async function generatePlan() {
     renderPreview(data.generated);
     highestStepReached = 4;
     goToStep(4);
-    isDirty = true;
+    markDirty();
     showToast('Plan generated! Click any text to edit.');
     savePlan();
     await incrementUsage();
@@ -2260,12 +2309,12 @@ function renderPreview(g) {
   }
 
   // ──── EXECUTIVE SUMMARY ────
-  if (g.executive_summary) {
+  if (STATE.sections.includes('executive_summary') && g.executive_summary) {
     h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.executive_summary}</div>`);
   }
 
   // ──── PLAN PHASES ────
-  if (g.plan_phases?.length) {
+  if (STATE.sections.includes('plan') && g.plan_phases?.length) {
     h += g.plan_phases.map((p, idx) => {
       const icon = p.icon || 'target';
       const phaseLabel = p.phase || p.label || ('Phase ' + (idx + 1));
@@ -2330,33 +2379,33 @@ function renderPreview(g) {
   }
 
   // ──── SUCCESS CRITERIA ────
-  if (g.success_criteria?.length) {
+  if (STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
     h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`);
   }
 
   // ──── SUCCESS SUMMARY (Day 90 summary) ────
-  if (g.success_summary?.length) {
+  if (STATE.sections.includes('success_criteria') && g.success_summary?.length) {
     h += card(`${sectionLabel('award', 'What Success Looks Like By Day ' + (STATE.planType === '90-day' ? '90' : STATE.planType === '12-month' ? '365' : '730'))}<div class="space-y-2" data-list="summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`);
   }
 
   // ──── KPIS ────
-  if (g.kpis?.length) {
+  if (STATE.sections.includes('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
     h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:4px;top:4px;transform:none">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`);
   }
 
   // ──── EXPERIENCE ────
-  if (g.experience?.length) {
+  if (STATE.sections.includes('experience') && g.experience?.length) {
     h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map(e => `<div class="item-row"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map(b => `<li class="item-row flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>${b}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this,'${S.headingColor}','${S.headingFont}','${C}','${S.mutedColor}','${S.textColor}')">+ Add Position</button>`);
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
-  if (g.leadership_engagement?.length) {
+  if (STATE.sections.includes('leadership') && g.leadership_engagement?.length) {
     h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:4px;top:4px;transform:none">&times;</button><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`);
   }
 
   // ──── SKILLS ────
-  if (g.skills?.length) {
+  if (STATE.sections.includes('skills') && g.skills?.length) {
     const sCols = S.skillCols;
     const skillStyle = S.sectionLabelStyle === 'terminal'
       ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
@@ -2378,7 +2427,7 @@ function renderPreview(g) {
   }
 
   // ──── ACHIEVEMENTS ────
-  if (g.achievements?.length) {
+  if (STATE.sections.includes('achievements') && g.achievements?.length) {
     h += card(`${sectionLabel('star', 'Key Achievements')}<div class="space-y-4" data-list="achievements">${g.achievements.map(a => {
       const aTitle = typeof a === 'string' ? a : (a.title || '');
       const aDesc = typeof a === 'string' ? '' : (a.description || '');
@@ -2388,7 +2437,7 @@ function renderPreview(g) {
   }
 
   // ──── LEADERSHIP ────
-  if (g.leadership?.length) {
+  if (STATE.sections.includes('leadership') && g.leadership?.length) {
     h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`);
   }
 
@@ -2412,7 +2461,7 @@ function renderPreview(g) {
 // ============ Item Actions (Delete/Add) ============
 function removeItem(btn) {
   const row = btn.closest('.item-row') || btn.parentElement;
-  if (row) { row.remove(); isDirty = true; }
+  if (row) { row.remove(); markDirty(); }
 }
 
 function addListItem(addBtn, type, iconColor, textColor) {
@@ -2427,7 +2476,7 @@ function addListItem(addBtn, type, iconColor, textColor) {
   container.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
-  isDirty = true;
+  markDirty();
 }
 
 function addBullet(addBtn, accent, textColor) {
@@ -2439,7 +2488,7 @@ function addBullet(addBtn, accent, textColor) {
   li.innerHTML = `<span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span contenteditable="true">New bullet point</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button>`;
   ul.appendChild(li);
   li.querySelector('span[contenteditable]').focus();
-  isDirty = true;
+  markDirty();
 }
 
 function addSkill(addBtn, accent, styleStr) {
@@ -2453,7 +2502,7 @@ function addSkill(addBtn, accent, styleStr) {
   grid.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
-  isDirty = true;
+  markDirty();
 }
 
 function addKpi(addBtn, accent, muted, heading, borderStr) {
@@ -2467,7 +2516,7 @@ function addKpi(addBtn, accent, muted, heading, borderStr) {
   grid.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
-  isDirty = true;
+  markDirty();
 }
 
 function addExperience(addBtn, headingColor, headingFont, accent, muted, textColor) {
@@ -2478,7 +2527,7 @@ function addExperience(addBtn, headingColor, headingFont, accent, muted, textCol
   div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company — Location</p><ul class="space-y-2" data-list="bullets"><li class="item-row flex gap-3 text-sm" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
   container.appendChild(div);
   div.querySelector('.editable').focus();
-  isDirty = true;
+  markDirty();
 }
 
 // Strip action buttons from HTML before export
@@ -2878,6 +2927,16 @@ function closeAnalysis() {
 async function analyzeResume() {
   const btn = document.querySelector('[data-testid="analyze-btn"]');
   const origHTML = btn.innerHTML;
+
+  // Check analysis cache first
+  const cacheKey = getAnalysisCacheKey();
+  if (analysisCache && analysisCacheKey === cacheKey) {
+    openAnalysis();
+    displayAnalysisResults(analysisCache);
+    showToast('Showing cached analysis (no tokens used)');
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = '<span class="loader" style="width:14px;height:14px"></span> Analyzing...';
 
@@ -2913,6 +2972,9 @@ async function analyzeResume() {
       throw new Error(err.detail || 'Analysis failed (HTTP ' + resp.status + ')');
     }
     const data = await resp.json();
+    // Cache the result
+    analysisCache = data.analysis;
+    analysisCacheKey = cacheKey;
     displayAnalysisResults(data.analysis);
   } catch (e) {
     document.getElementById('analysis-content').innerHTML = `<div style="padding:30px;text-align:center"><p style="color:#ff8a80;margin-bottom:12px">Analysis failed</p><p style="color:rgba(255,255,255,0.6);font-size:0.9rem">${e.message}</p></div>`;
@@ -2989,6 +3051,117 @@ function displayAnalysisResults(a) {
   }
 
   document.getElementById('analysis-content').innerHTML = h;
+}
+
+// ============ Section Toggles on Preview Tab ============
+const SECTION_LABELS = {
+  plan: 'Strategic Plan', executive_summary: 'Executive Summary', kpis: 'KPIs & Metrics',
+  success_criteria: 'Success Criteria', experience: 'Experience', skills: 'Skills',
+  education: 'Education & Certs', achievements: 'Achievements', leadership: 'Leadership'
+};
+
+function renderSectionToggles() {
+  const container = document.getElementById('preview-section-toggles');
+  if (!container) return;
+  container.innerHTML = '';
+  const allSections = Object.keys(SECTION_LABELS);
+  allSections.forEach(sec => {
+    const isOn = STATE.sections.includes(sec);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.section = sec;
+    btn.dataset.testid = 'toggle-section-' + sec;
+    btn.className = 'text-xs px-3 py-1.5 rounded-full font-medium transition-all';
+    btn.style.cssText = isOn
+      ? 'background:#EFF6FF;color:#1D4ED8;border:1px solid #93C5FD'
+      : 'background:#F3F4F6;color:#9CA3AF;border:1px solid #E5E7EB;text-decoration:line-through';
+    btn.textContent = SECTION_LABELS[sec];
+    btn.onclick = () => togglePreviewSection(sec);
+    container.appendChild(btn);
+  });
+}
+
+function togglePreviewSection(sec) {
+  const idx = STATE.sections.indexOf(sec);
+  if (idx >= 0) { STATE.sections.splice(idx, 1); }
+  else { STATE.sections.push(sec); }
+  renderSectionToggles();
+  if (STATE.generated?.hero) { renderPreview(STATE.generated); }
+  markDirty();
+}
+
+// ============ AI Enhance Resume → Update DOM ============
+document.getElementById('ai-enhance-toggle').addEventListener('change', async function() {
+  if (this.checked) {
+    // Store original generated data before enhancement
+    if (!_preEnhanceGenerated) {
+      _preEnhanceGenerated = JSON.parse(JSON.stringify(STATE.generated));
+    }
+    const btn = this.closest('label');
+    const origText = btn ? btn.innerHTML : '';
+    if (btn) {
+      const spinner = document.createElement('span');
+      spinner.className = 'loader-dark';
+      spinner.style.cssText = 'width:14px;height:14px;border-width:2px;margin-left:8px';
+      btn.appendChild(spinner);
+    }
+    try {
+      const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
+      const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
+      const resumeData = STATE.resumeData || {};
+      const res = await fetch(API_BASE + '/builder/enhance-resume', {
+        method: 'POST',
+        headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          experience: resumeData.experience || STATE.generated.experience || [],
+          skills: resumeData.skills || STATE.generated.skills || [],
+          summary: resumeData.summary || STATE.generated.executive_summary || '',
+          job_description: jobDesc,
+          job_title: jobTitle
+        })
+      });
+      if (res.ok) {
+        const enhanced = await res.json();
+        const ed = enhanced.enhanced_data || {};
+        // Merge enhanced data into generated for preview
+        if (ed.summary) STATE.generated.executive_summary = ed.summary;
+        if (ed.experience?.length) STATE.generated.experience = ed.experience;
+        if (ed.skills?.length) STATE.generated.skills = ed.skills;
+        renderPreview(STATE.generated);
+        showToast('Resume enhanced with job keywords!');
+        markDirty();
+      } else {
+        showToast('AI enhancement failed — check budget or try again');
+        this.checked = false;
+      }
+    } catch (e) {
+      showToast('AI enhancement error: ' + e.message);
+      this.checked = false;
+    } finally {
+      // Remove spinner
+      if (btn) {
+        const spinner = btn.querySelector('.loader-dark');
+        if (spinner) spinner.remove();
+      }
+    }
+  } else {
+    // Revert to original data
+    if (_preEnhanceGenerated) {
+      STATE.generated = JSON.parse(JSON.stringify(_preEnhanceGenerated));
+      renderPreview(STATE.generated);
+      showToast('Reverted to original resume data');
+      markDirty();
+    }
+  }
+});
+
+// ============ Analysis Cache ============
+function getAnalysisCacheKey() {
+  const resumeText = STATE.rawResumeText || JSON.stringify(STATE.resumeData || {});
+  const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
+  const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
+  const jobCompany = document.getElementById('job-company')?.value?.trim() || '';
+  return resumeText.substring(0, 200) + '|' + jobDesc.substring(0, 200) + '|' + jobTitle + '|' + jobCompany;
 }
 
 lucide.createIcons();
