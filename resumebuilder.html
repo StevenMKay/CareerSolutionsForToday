@@ -784,13 +784,58 @@
 
 <!-- Profile / My Info Modal -->
 <div id="profile-modal" class="hidden" style="position:fixed;inset:0;z-index:1500;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)" data-testid="profile-modal">
-  <div style="background:#fff;border-radius:1rem;max-width:480px;width:90%;padding:2rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);position:relative">
+  <div style="background:#fff;border-radius:1rem;max-width:520px;width:90%;max-height:90vh;overflow-y:auto;padding:2rem;box-shadow:0 20px 60px rgba(0,0,0,0.3);position:relative">
     <button onclick="closeProfileModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;color:#9CA3AF;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%" data-testid="close-profile-btn">&times;</button>
     <div class="flex items-center gap-2 mb-4">
       <i data-lucide="user" style="width:20px;height:20px;color:#005EB8"></i>
       <h3 style="font-family:'Outfit',sans-serif;font-size:1.1rem;font-weight:700;color:#0A2F6B">My Info</h3>
     </div>
     <p class="text-xs mb-4" style="color:#6B7280">This information will be auto-filled when you create new plans.</p>
+
+    <!-- Saved Photo -->
+    <div class="mb-4 pb-4 border-b" style="border-color:#E5E7EB">
+      <label class="text-xs font-semibold block mb-2" style="color:#4B5563">Profile Photo</label>
+      <div class="flex items-center gap-4">
+        <div id="profile-photo-wrap" class="w-16 h-16 rounded-full overflow-hidden border-2 flex items-center justify-center flex-shrink-0" style="border-color:#E5E7EB;background:#F9FAFB">
+          <img id="profile-photo-preview" src="" class="hidden w-full h-full object-cover" alt="Profile">
+          <i data-lucide="camera" id="profile-photo-placeholder" style="width:24px;height:24px;color:#CBD5E1"></i>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <button type="button" class="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1.5 hover:bg-gray-50 transition" style="border-color:#E5E7EB;color:#374151" onclick="document.getElementById('profile-photo-input').click()" data-testid="profile-change-photo-btn">
+            <i data-lucide="upload" style="width:12px;height:12px"></i> <span id="profile-photo-label">Upload Photo</span>
+          </button>
+          <button type="button" id="profile-remove-photo-btn" class="hidden text-xs px-3 py-1.5 rounded-md border flex items-center gap-1.5 hover:bg-red-50 transition" style="border-color:#FCA5A5;color:#DC2626" onclick="removeProfilePhoto()" data-testid="profile-remove-photo-btn">
+            <i data-lucide="x" style="width:12px;height:12px"></i> Remove
+          </button>
+        </div>
+        <input type="file" id="profile-photo-input" accept="image/*" style="display:none" onchange="handleProfilePhotoSelect(this)">
+      </div>
+    </div>
+
+    <!-- Saved Resume -->
+    <div class="mb-4 pb-4 border-b" style="border-color:#E5E7EB">
+      <label class="text-xs font-semibold block mb-2" style="color:#4B5563">Saved Resume</label>
+      <div id="profile-resume-empty" class="flex items-center gap-3 p-3 rounded-lg" style="background:#F9FAFB">
+        <i data-lucide="file-text" style="width:20px;height:20px;color:#CBD5E1"></i>
+        <p class="text-xs" style="color:#9CA3AF">No resume saved yet. Upload one when creating a plan and it will be saved here.</p>
+      </div>
+      <div id="profile-resume-saved" class="hidden">
+        <div class="flex items-center gap-3 p-3 rounded-lg" style="background:#EFF6FF">
+          <i data-lucide="file-check" style="width:20px;height:20px;color:#005EB8"></i>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold truncate" style="color:#0A2F6B" id="profile-resume-name">Resume on file</p>
+            <p class="text-[10px] truncate" style="color:#6B7280" id="profile-resume-summary"></p>
+          </div>
+          <div class="flex gap-1.5 flex-shrink-0">
+            <button type="button" class="text-xs px-2 py-1 rounded border hover:bg-gray-50" style="border-color:#E5E7EB;color:#374151" onclick="document.getElementById('profile-resume-input').click()" data-testid="profile-update-resume-btn"><i data-lucide="refresh-cw" style="width:10px;height:10px"></i> Replace</button>
+            <button type="button" class="text-xs px-2 py-1 rounded border hover:bg-red-50" style="border-color:#FCA5A5;color:#DC2626" onclick="removeProfileResume()" data-testid="profile-remove-resume-btn"><i data-lucide="x" style="width:10px;height:10px"></i></button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="profile-resume-input" accept=".pdf,.docx,.doc,.txt" style="display:none" onchange="handleProfileResumeSelect(this)">
+    </div>
+
+    <!-- Contact Fields -->
     <div class="space-y-3">
       <div class="grid grid-cols-2 gap-3">
         <div><label class="text-xs font-semibold block mb-1" style="color:#4B5563">First Name</label><input class="input-field" id="profile-first" placeholder="Steven" data-testid="profile-first"></div>
@@ -905,6 +950,10 @@ function closeProfileModal() {
 }
 
 // ============ Saved User Info ============
+let _profilePhotoDataUrl = '';
+let _profileResumeData = null;
+let _profileRawResumeText = '';
+
 async function loadSavedUserInfo() {
   if (!currentUser) return;
   try {
@@ -923,6 +972,44 @@ async function loadSavedUserInfo() {
       if (pEmail) pEmail.value = d.email || '';
       if (pLinkedin) pLinkedin.value = d.linkedin || '';
       if (pAddress) pAddress.value = d.address || '';
+
+      // Load saved photo
+      _profilePhotoDataUrl = d.photoUrl || '';
+      const photoPreview = document.getElementById('profile-photo-preview');
+      const photoPlaceholder = document.getElementById('profile-photo-placeholder');
+      const removeBtn = document.getElementById('profile-remove-photo-btn');
+      const label = document.getElementById('profile-photo-label');
+      if (_profilePhotoDataUrl) {
+        photoPreview.src = _profilePhotoDataUrl;
+        photoPreview.classList.remove('hidden');
+        photoPlaceholder.classList.add('hidden');
+        removeBtn.classList.remove('hidden');
+        label.textContent = 'Change Photo';
+      } else {
+        photoPreview.classList.add('hidden');
+        photoPlaceholder.classList.remove('hidden');
+        removeBtn.classList.add('hidden');
+        label.textContent = 'Upload Photo';
+      }
+
+      // Load saved resume
+      _profileResumeData = d.resumeData || null;
+      _profileRawResumeText = d.rawResumeText || '';
+      const resumeEmpty = document.getElementById('profile-resume-empty');
+      const resumeSaved = document.getElementById('profile-resume-saved');
+      if (_profileResumeData && ((_profileResumeData.experience && _profileResumeData.experience.length) || _profileResumeData.name)) {
+        resumeEmpty.classList.add('hidden');
+        resumeSaved.classList.remove('hidden');
+        const rName = _profileResumeData.name || 'Resume';
+        const rTitle = _profileResumeData.current_title || '';
+        document.getElementById('profile-resume-name').textContent = rName + (rTitle ? ' — ' + rTitle : '');
+        const expCount = (_profileResumeData.experience || []).length;
+        const skillCount = (_profileResumeData.skills || []).length;
+        document.getElementById('profile-resume-summary').textContent = expCount + ' experience' + (expCount !== 1 ? 's' : '') + ', ' + skillCount + ' skill' + (skillCount !== 1 ? 's' : '');
+      } else {
+        resumeEmpty.classList.remove('hidden');
+        resumeSaved.classList.add('hidden');
+      }
     }
   } catch(e) { console.warn('Load profile error:', e); }
 }
@@ -936,6 +1023,9 @@ async function saveUserProfile() {
     email: document.getElementById('profile-email')?.value?.trim() || '',
     linkedin: document.getElementById('profile-linkedin')?.value?.trim() || '',
     address: document.getElementById('profile-address')?.value?.trim() || '',
+    photoUrl: _profilePhotoDataUrl || '',
+    resumeData: _profileResumeData || null,
+    rawResumeText: _profileRawResumeText || '',
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
   try {
@@ -943,6 +1033,94 @@ async function saveUserProfile() {
     showToast('Profile saved!');
     closeProfileModal();
   } catch(e) { showToast('Error saving profile: ' + e.message); }
+}
+
+function handleProfilePhotoSelect(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // Use crop modal for consistency
+    const img = document.getElementById('crop-source');
+    img.src = e.target.result;
+    document.getElementById('crop-modal').classList.remove('hidden');
+    if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+    img.onload = () => {
+      cropperInstance = new Cropper(img, { aspectRatio: 1, viewMode: 1, dragMode: 'move', autoCropArea: 0.9, responsive: true });
+    };
+    // Override applyCrop temporarily to save to profile
+    window._profileCropMode = true;
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value = '';
+}
+
+function removeProfilePhoto() {
+  _profilePhotoDataUrl = '';
+  document.getElementById('profile-photo-preview').classList.add('hidden');
+  document.getElementById('profile-photo-placeholder').classList.remove('hidden');
+  document.getElementById('profile-remove-photo-btn').classList.add('hidden');
+  document.getElementById('profile-photo-label').textContent = 'Upload Photo';
+}
+
+async function handleProfileResumeSelect(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  const statusEl = document.getElementById('profile-resume-summary');
+
+  // Read file content
+  if (file.name.endsWith('.txt')) {
+    const text = await file.text();
+    _profileRawResumeText = text;
+    // Parse with AI if possible
+    try {
+      const resp = await fetch(API_BASE + '/builder/parse-resume', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ resume_text: text })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.resume_data) _profileResumeData = data.resume_data;
+      }
+    } catch(e) { console.warn('Parse error:', e); }
+  } else {
+    // For PDF/DOCX, read as base64 and send to backend
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const resp = await fetch(API_BASE + '/builder/parse-resume', {
+        method: 'POST', body: formData
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.resume_data) _profileResumeData = data.resume_data;
+        if (data.raw_text) _profileRawResumeText = data.raw_text;
+      }
+    } catch(e) { console.warn('Parse error:', e); }
+  }
+
+  // Update UI to show saved state
+  if (_profileResumeData) {
+    document.getElementById('profile-resume-empty').classList.add('hidden');
+    document.getElementById('profile-resume-saved').classList.remove('hidden');
+    const rName = _profileResumeData.name || file.name;
+    document.getElementById('profile-resume-name').textContent = rName;
+    const expCount = (_profileResumeData.experience || []).length;
+    const skillCount = (_profileResumeData.skills || []).length;
+    document.getElementById('profile-resume-summary').textContent = expCount + ' experience' + (expCount !== 1 ? 's' : '') + ', ' + skillCount + ' skill' + (skillCount !== 1 ? 's' : '');
+    showToast('Resume updated! Click "Save Info" to keep.');
+  } else {
+    _profileRawResumeText = await file.text().catch(() => '');
+    showToast('File read. Click "Save Info" to keep.');
+  }
+  input.value = '';
+  lucide.createIcons();
+}
+
+function removeProfileResume() {
+  _profileResumeData = null;
+  _profileRawResumeText = '';
+  document.getElementById('profile-resume-empty').classList.remove('hidden');
+  document.getElementById('profile-resume-saved').classList.add('hidden');
 }
 
 async function prefillContactFromProfile() {
@@ -960,6 +1138,23 @@ async function prefillContactFromProfile() {
       if (cPhone && !cPhone.value && d.phone) cPhone.value = d.phone;
       if (cEmail && !cEmail.value && d.email) cEmail.value = d.email;
       if (cLinkedin && !cLinkedin.value && d.linkedin) cLinkedin.value = d.linkedin;
+
+      // Prefill saved photo
+      if (d.photoUrl && !STATE.photoUrl) {
+        STATE.photoUrl = d.photoUrl;
+        photoDataUrl = d.photoUrl;
+        document.getElementById('photo-preview-img').src = d.photoUrl;
+        document.getElementById('photo-preview-img').classList.remove('hidden');
+        document.getElementById('photo-placeholder').classList.add('hidden');
+      }
+
+      // Prefill saved resume
+      if (d.resumeData && (!STATE.resumeData || !STATE.resumeData.name)) {
+        STATE.resumeData = d.resumeData;
+        STATE.rawResumeText = d.rawResumeText || '';
+        renderResumePreview(d.resumeData);
+        document.getElementById('resume-preview').classList.remove('hidden');
+      }
     }
   } catch(e) { console.warn('Prefill error:', e); }
 }
@@ -1249,6 +1444,17 @@ async function savePlan() {
     }
     isDirty = false;
     showToast('Plan saved!');
+    // Auto-sync photo & resume to profile
+    try {
+      const profileUpdate = {};
+      if (STATE.photoUrl) profileUpdate.photoUrl = STATE.photoUrl;
+      if (STATE.resumeData && STATE.resumeData.name) profileUpdate.resumeData = STATE.resumeData;
+      if (STATE.rawResumeText) profileUpdate.rawResumeText = STATE.rawResumeText;
+      if (Object.keys(profileUpdate).length) {
+        profileUpdate.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+        await db.collection('builderProfiles').doc(currentUser.uid).set(profileUpdate, { merge: true });
+      }
+    } catch(e) { console.warn('Auto-sync to profile:', e); }
   } catch(e) { console.error(e); showToast('Error saving: ' + e.message); }
   hideLoading();
 }
@@ -1402,7 +1608,7 @@ function goToStep(n) {
     dot.className = 'step-dot ' + (i < n ? 'done' : i === n ? 'active' : 'pending');
     if (i < 4) { document.getElementById('line-' + i).style.background = i < n ? '#047857' : '#7a8899'; }
     const label = dot.parentElement.querySelector('span');
-    if (label) { label.style.color = i <= n ? 'var(--c-primary,#005EB8)' : '#9CA3AF'; label.style.fontWeight = i === n ? '600' : '500'; }
+    if (label) { label.style.color = i <= n ? '#F1F5F9' : '#CBD5E1'; label.style.fontWeight = i === n ? '600' : '500'; }
     // Update cursor: reachable steps = pointer, unreachable = default
     const stepContainer = dot.parentElement;
     stepContainer.style.cursor = i <= highestStepReached + 1 ? 'pointer' : 'default';
@@ -1442,10 +1648,26 @@ function handlePhotoSelect(input) {
 function applyCrop() {
   if (!cropperInstance) return;
   const canvas = cropperInstance.getCroppedCanvas({ width: 400, height: 400 });
-  photoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-  document.getElementById('photo-preview-img').src = photoDataUrl;
-  document.getElementById('photo-preview-img').classList.remove('hidden');
-  document.getElementById('photo-placeholder').classList.add('hidden');
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+  if (window._profileCropMode) {
+    // Save to profile photo
+    _profilePhotoDataUrl = dataUrl;
+    document.getElementById('profile-photo-preview').src = dataUrl;
+    document.getElementById('profile-photo-preview').classList.remove('hidden');
+    document.getElementById('profile-photo-placeholder').classList.add('hidden');
+    document.getElementById('profile-remove-photo-btn').classList.remove('hidden');
+    document.getElementById('profile-photo-label').textContent = 'Change Photo';
+    showToast('Photo updated! Click "Save Info" to keep.');
+    window._profileCropMode = false;
+  } else {
+    // Normal plan photo
+    photoDataUrl = dataUrl;
+    document.getElementById('photo-preview-img').src = dataUrl;
+    document.getElementById('photo-preview-img').classList.remove('hidden');
+    document.getElementById('photo-placeholder').classList.add('hidden');
+  }
+
   cropperInstance.destroy(); cropperInstance = null;
   document.getElementById('crop-modal').classList.add('hidden');
   document.getElementById('photo-input').value = '';
@@ -1455,6 +1677,7 @@ function cancelCrop() {
   if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
   document.getElementById('crop-modal').classList.add('hidden');
   document.getElementById('photo-input').value = '';
+  window._profileCropMode = false;
 }
 
 function handlePhotoDrop(e) {
@@ -2455,7 +2678,8 @@ async function importLinkedInProfile() {
     }
   } catch(e) {
     console.error('LinkedIn import error:', e);
-    statusEl.innerHTML = `<span style="color:#B91C1C">Could not import: ${e.message}. Try downloading your LinkedIn profile as PDF and uploading it instead.</span>`;
+    const msg = e.message.replace(/\n/g, '<br>');
+    statusEl.innerHTML = `<div style="color:#B91C1C;font-size:12px;line-height:1.6">${msg}</div>`;
   }
   btn.disabled = false;
   btn.innerHTML = '<i data-lucide="download" style="width:12px;height:12px"></i> Import';
@@ -2467,7 +2691,7 @@ async function importLinkedInJob() {
   const url = document.getElementById('linkedin-job-url').value.trim();
   const statusEl = document.getElementById('linkedin-job-status');
   statusEl.classList.remove('hidden');
-  if (!url || !url.includes('linkedin.com/job')) {
+  if (!url || (!url.includes('linkedin.com/job') && !url.includes('currentJobId'))) {
     statusEl.innerHTML = '<span style="color:#B91C1C">Please paste a valid LinkedIn job URL (e.g. https://linkedin.com/jobs/view/12345)</span>';
     return;
   }
@@ -2490,7 +2714,8 @@ async function importLinkedInJob() {
     showToast('Job details imported from LinkedIn!');
   } catch(e) {
     console.error('LinkedIn job import error:', e);
-    statusEl.innerHTML = `<span style="color:#B91C1C">Could not import: ${e.message}. Please paste the job details manually.</span>`;
+    const msg = e.message.replace(/\n/g, '<br>');
+    statusEl.innerHTML = `<div style="color:#B91C1C;font-size:12px;line-height:1.6">${msg}</div>`;
   }
   btn.disabled = false;
   btn.innerHTML = '<i data-lucide="download" style="width:12px;height:12px"></i> Import';
