@@ -9,6 +9,8 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.50.0/build/docxtemplater.min.js"></script>
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -360,8 +362,18 @@
         <button class="btn-secondary" onclick="goToStep(3)"><i data-lucide="settings" style="width:14px;height:14px"></i> Reconfigure</button>
         <button class="btn-primary" onclick="savePlan()" data-testid="save-plan-btn"><i data-lucide="save" style="width:14px;height:14px"></i> Save</button>
         <button class="btn-primary" onclick="publishAndShare()" data-testid="publish-btn" style="background:#047857"><i data-lucide="globe" style="width:14px;height:14px"></i> Publish & Share</button>
-        <button class="btn-secondary" onclick="exportHTML()" data-testid="export-btn"><i data-lucide="download" style="width:14px;height:14px"></i> Download</button>
+        <button class="btn-secondary" onclick="exportHTML()" data-testid="export-btn"><i data-lucide="download" style="width:14px;height:14px"></i> Download HTML</button>
+        <button class="btn-secondary" onclick="exportDOCX()" data-testid="export-docx-btn"><i data-lucide="file-text" style="width:14px;height:14px"></i> Download Word</button>
       </div>
+    </div>
+    <!-- AI Enhancement toggle for Word export -->
+    <div class="card mb-4" style="background:#FAFBFF;border-color:#E0E7FF;padding:0.75rem 1rem">
+      <label class="flex items-center gap-2 cursor-pointer text-sm">
+        <input type="checkbox" id="ai-enhance-toggle" class="w-4 h-4 rounded" style="accent-color:#4F46E5">
+        <i data-lucide="sparkles" style="width:14px;height:14px;color:#4F46E5"></i>
+        <span style="color:#312E81;font-weight:500">AI-enhance resume for target role</span>
+        <span style="color:#6B7280;font-weight:400">— rewords bullets & summary with job keywords</span>
+      </label>
     </div>
     <!-- Share Link Bar -->
     <div id="share-bar" class="hidden card mb-4 fade-in" style="background:#F0FDF4;border-color:#BBF7D0">
@@ -893,12 +905,27 @@ function renderResumePreview(d) {
   let h = '';
   if (d.name) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Name</p><p class="font-medium">${d.name}</p></div>`;
   if (d.current_title) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Current Title</p><p class="font-medium">${d.current_title}</p></div>`;
+  if (d.address) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Location</p><p style="color:#4B5563">${d.address}</p></div>`;
+  // Contact badges
+  const contacts = [];
+  if (d.phone) contacts.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs" style="background:#EFF6FF;color:#1D4ED8">📞 ${d.phone}</span>`);
+  if (d.email) contacts.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs" style="background:#EFF6FF;color:#1D4ED8">✉️ ${d.email}</span>`);
+  if (d.linkedin) contacts.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs" style="background:#EFF6FF;color:#1D4ED8">🔗 LinkedIn</span>`);
+  if (d.github) contacts.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs" style="background:#F0FDF4;color:#166534">💻 GitHub</span>`);
+  if (d.website) contacts.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs" style="background:#F0FDF4;color:#166534">🌐 Website</span>`);
+  if (contacts.length) h += `<div class="sm:col-span-2"><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Contact</p><div class="flex flex-wrap gap-1">${contacts.join('')}</div></div>`;
   if (d.summary) h += `<div class="sm:col-span-2"><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Summary</p><p style="color:#4B5563">${d.summary}</p></div>`;
-  if (d.experience?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Experience</p><p style="color:#4B5563">${d.experience.length} positions found</p></div>`;
-  if (d.skills?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Skills</p><p style="color:#4B5563">${d.skills.slice(0, 6).join(', ')}${d.skills.length > 6 ? ' +more' : ''}</p></div>`;
-  if (d.education?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Education</p><p style="color:#4B5563">${d.education.map(e => e.degree).join(', ')}</p></div>`;
-  if (d.achievements?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Achievements</p><p style="color:#4B5563">${d.achievements.length} found</p></div>`;
+  if (d.experience?.length) {
+    const expDetail = d.experience.slice(0, 4).map(e => `<span class="text-sm"><strong>${e.title || ''}</strong>${e.company ? ' at ' + e.company : ''}${e.dates ? ' <span style="color:#9CA3AF">(' + e.dates + ')</span>' : ''}</span>`).join('<br>');
+    h += `<div class="sm:col-span-2"><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Experience (${d.experience.length})</p><div style="color:#4B5563">${expDetail}${d.experience.length > 4 ? '<br><span class="text-xs" style="color:#9CA3AF">+' + (d.experience.length - 4) + ' more</span>' : ''}</div></div>`;
+  }
+  if (d.skills?.length) h += `<div class="sm:col-span-2"><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Skills (${d.skills.length})</p><div class="flex flex-wrap gap-1">${d.skills.slice(0, 10).map(s => `<span class="px-2 py-0.5 rounded-full text-xs" style="background:#F3F4F6;color:#374151">${s}</span>`).join('')}${d.skills.length > 10 ? '<span class="text-xs" style="color:#9CA3AF"> +' + (d.skills.length - 10) + ' more</span>' : ''}</div></div>`;
+  if (d.education?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Education</p><p style="color:#4B5563">${d.education.map(e => `${e.degree}${e.school ? ' — ' + e.school : ''}${e.year ? ' (' + e.year + ')' : ''}`).join('<br>')}</p></div>`;
   if (d.certifications?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Certifications</p><p style="color:#4B5563">${d.certifications.map(c => c.name).join(', ')}</p></div>`;
+  if (d.achievements?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Achievements</p><p style="color:#4B5563">${d.achievements.length} found</p></div>`;
+  if (d.languages?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Languages</p><p style="color:#4B5563">${d.languages.join(', ')}</p></div>`;
+  if (d.projects?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Projects</p><p style="color:#4B5563">${d.projects.map(p => p.title).join(', ')}</p></div>`;
+  if (d.volunteer_experience?.length) h += `<div><p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#9CA3AF">Volunteer</p><p style="color:#4B5563">${d.volunteer_experience.map(v => v.role + ' at ' + v.organization).join(', ')}</p></div>`;
   document.getElementById('resume-preview-content').innerHTML = h;
 }
 
@@ -1331,14 +1358,137 @@ function renderPreview(g) {
 // ============ Export ============
 function exportHTML() {
   const content = document.getElementById('preview-container').innerHTML;
-  const S = STYLE_CONFIG[STATE.style || 'executive'] || STYLE_CONFIG.executive;
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${STATE.generated.hero?.name || 'Plan'} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"><\/script><style>body{font-family:${S.bodyFont};background:${S.pageBg};color:${S.textColor};margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:${S.headingFont}}.card{background:${S.cardBg};border:${S.borderStyle};border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow}}.editable:hover{outline:none}.editable:focus{outline:none}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div><script>lucide.createIcons();<\/script></body></html>`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${STATE.generated.hero?.name || 'Plan'} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"><\/script><style>body{font-family:'Manrope',sans-serif;background:#F8F9FB;color:#0A0A0A;margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}.card{background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.5rem}.editable:hover{outline:none}.editable:focus{outline:none}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div><script>lucide.createIcons();<\/script></body></html>`;
   const blob = new Blob([html], { type: 'text/html' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = (STATE.generated.hero?.name || 'plan').replace(/\s+/g, '-').toLowerCase() + '-' + STATE.planType + '-plan.html';
   a.click();
   showToast('HTML file downloaded!');
+}
+
+async function exportDOCX() {
+  if (!STATE.resumeData && !STATE.generated) {
+    showToast('No resume data available. Parse a resume first.');
+    return;
+  }
+  const btn = document.querySelector('[data-testid="export-docx-btn"]');
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader" style="width:14px;height:14px;border-width:2px"></span> Generating...';
+
+  try {
+    // Decide data source: original resume data or AI-enhanced
+    let resumeData = STATE.resumeData || {};
+    const generated = STATE.generated || {};
+    const aiEnhance = document.getElementById('ai-enhance-toggle')?.checked;
+
+    if (aiEnhance) {
+      try {
+        const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
+        const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
+        const res = await fetch(API_BASE + '/builder/enhance-resume', {
+          method: 'POST',
+          headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            experience: resumeData.experience || [],
+            skills: resumeData.skills || [],
+            summary: resumeData.summary || '',
+            job_description: jobDesc,
+            job_title: jobTitle
+          })
+        });
+        if (res.ok) {
+          const enhanced = await res.json();
+          resumeData = { ...resumeData, ...enhanced.enhanced_data };
+        } else {
+          showToast('AI enhancement failed — using original data');
+        }
+      } catch (e) {
+        showToast('AI enhancement failed — using original data');
+      }
+    }
+
+    // Fetch the template
+    const templateResp = await fetch('resume-template.docx');
+    if (!templateResp.ok) throw new Error('Could not load resume template file');
+    const templateArrayBuffer = await templateResp.arrayBuffer();
+
+    // Load into PizZip and docxtemplater
+    const zip = new PizZip(templateArrayBuffer);
+    const doc = new window.docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+    });
+
+    // Build data from resume data + contact fields
+    const contactPhone = document.getElementById('contact-phone')?.value || resumeData.phone || '';
+    const contactEmail = document.getElementById('contact-email')?.value || resumeData.email || '';
+    const name = resumeData.name || generated.hero?.name || '';
+    const address = resumeData.address || '';
+
+    // Build experience array
+    const experience = (resumeData.experience || generated.experience || []).map(e => ({
+      company: e.company || '',
+      location: e.location || '',
+      title: e.title || '',
+      dates: e.dates || e.timeframe || '',
+      role_summary: '',
+      bullets: (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || ''))
+    }));
+
+    // Build skills array (flat strings for the loop)
+    const skills = resumeData.skills || generated.skills || [];
+
+    // Build education array
+    const education = (resumeData.education || generated.education || []).map(e => ({
+      degree: e.degree || '',
+      year: e.year || '',
+      school: e.school || ''
+    }));
+
+    // Build certifications array
+    const certifications = (resumeData.certifications || []).map(c => ({
+      cert_name: c.name || '',
+      cert_date: c.year || '',
+      cert_issuer: c.issuer || ''
+    }));
+
+    const data = {
+      name: name,
+      address_line_1: address,
+      address_line_2: '',
+      phone: contactPhone,
+      email: contactEmail,
+      summary: resumeData.summary || generated.executive_summary || '',
+      skills: skills,
+      experience: experience,
+      education: education,
+      certifications: certifications
+    };
+
+    doc.render(data);
+
+    const out = doc.getZip().generate({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    });
+
+    // Trigger download
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(out);
+    a.download = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.docx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Word document downloaded!');
+  } catch (e) {
+    console.error('DOCX export error:', e);
+    showToast('Error generating Word document: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+    lucide.createIcons();
+  }
 }
 
 lucide.createIcons();
