@@ -22,7 +22,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 <style>
-  body{font-family:'Manrope',sans-serif;margin:0;background:linear-gradient(135deg,#4a5568 0%,#576476 25%,#505d6f 50%,#4c5869 75%,#4a5568 100%);background-attachment:fixed;color:#0A0A0A;min-height:100vh}
+  body{font-family:'Manrope',sans-serif;margin:0;background:linear-gradient(145deg,#5b6b7d 0%,#6b7f96 18%,#5e7285 35%,#7089a0 52%,#5a6d82 68%,#627a90 85%,#536275 100%);background-attachment:fixed;color:#0A0A0A;min-height:100vh}
   h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}
   .step-dot{width:2.5rem;height:2.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;transition:all 0.3s;position:relative}
   .step-dot.active{background:var(--c-primary,#005EB8);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--c-primary,#005EB8) 20%,transparent)}
@@ -39,6 +39,8 @@
   .btn-secondary{background:#fff;color:#374151;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #E5E7EB;cursor:pointer;font-size:0.875rem;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.5rem}
   .btn-secondary:hover{background:#F9FAFB;border-color:#D1D5DB}
   .btn-danger{background:#fff;color:#B91C1C;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #FEE2E2;cursor:pointer;font-size:0.875rem;transition:all 0.2s;display:inline-flex;align-items:center;gap:0.5rem}
+  @keyframes ai-highlight-fade{0%{background-color:#DBEAFE}80%{background-color:#DBEAFE}100%{background-color:transparent}}
+  .ai-changed{animation:ai-highlight-fade 60s ease-out forwards;border-radius:4px}
   .btn-danger:hover{background:#FEF2F2;border-color:#FECACA}
   .input-field{width:100%;padding:0.625rem 0.875rem;border:1px solid #E5E7EB;border-radius:0.5rem;font-size:0.875rem;font-family:'Manrope',sans-serif;transition:border-color 0.2s;background:#fff;box-sizing:border-box}
   .input-field:focus{outline:none;border-color:var(--c-primary,#005EB8);box-shadow:0 0 0 3px color-mix(in srgb,var(--c-primary,#005EB8) 10%,transparent)}
@@ -1168,7 +1170,7 @@ async function prefillContactFromProfile() {
         document.getElementById('resume-preview').classList.remove('hidden');
       }
     }
-  } catch(e) { console.warn('Prefill error:', e); }
+  } catch(e) { console.debug('Prefill error:', e); }
 }
 
 // ============ Auth ============
@@ -1467,7 +1469,7 @@ async function savePlan() {
         profileUpdate.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
         await db.collection('builderProfiles').doc(currentUser.uid).set(profileUpdate, { merge: true });
       }
-    } catch(e) { console.warn('Auto-sync to profile:', e); }
+    } catch(e) { console.debug('Auto-sync to profile:', e); }
   } catch(e) { console.error(e); showToast('Error saving: ' + e.message); }
   hideLoading();
 }
@@ -1646,8 +1648,18 @@ function goToStepDirect(n) {
       dot.appendChild(warn);
     }
   }
-  // When arriving at Step 4, render section toggles
-  if (n === 4) { renderSectionToggles(); }
+  // When arriving at Step 4, render section toggles and auto-prefetch analysis
+  if (n === 4) {
+    renderSectionToggles();
+    // Auto-prefetch analysis in the background if data is available
+    if (STATE.resumeData || STATE.rawResumeText) {
+      setTimeout(() => {
+        if (!analysisCache || getAnalysisCacheKey() !== analysisCacheKey) {
+          prefetchAnalysis();
+        }
+      }, 500);
+    }
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2562,6 +2574,7 @@ function addExperience(addBtn, headingColor, headingFont, accent, muted, textCol
 function getCleanPreviewHTML() {
   const clone = document.getElementById('preview-container').cloneNode(true);
   clone.querySelectorAll('.export-hide').forEach(el => el.remove());
+  clone.querySelectorAll('.ai-changed').forEach(el => el.classList.remove('ai-changed'));
   clone.querySelectorAll('.item-row').forEach(el => {
     // Keep content but remove the item-row class (cosmetic only)
     el.classList.remove('item-row');
@@ -3259,11 +3272,17 @@ document.getElementById('ai-enhance-toggle').addEventListener('change', async fu
       if (res.ok) {
         const enhanced = await res.json();
         const ed = enhanced.enhanced_data || {};
+        // Capture old text for highlighting comparison
+        const oldSummary = _preEnhanceGenerated?.executive_summary || '';
+        const oldBullets = (_preEnhanceGenerated?.experience || []).flatMap(e => e.bullets || []);
+        const oldSkills = _preEnhanceGenerated?.skills || [];
         // Merge enhanced data into generated for preview
         if (ed.summary) STATE.generated.executive_summary = ed.summary;
         if (ed.experience?.length) STATE.generated.experience = ed.experience;
         if (ed.skills?.length) STATE.generated.skills = ed.skills;
         renderPreview(STATE.generated);
+        // Highlight changed content
+        highlightAIChanges(oldSummary, oldBullets, oldSkills);
         showToast('Resume enhanced with job keywords!');
         markDirty();
       } else {
@@ -3290,6 +3309,74 @@ document.getElementById('ai-enhance-toggle').addEventListener('change', async fu
     }
   }
 });
+
+// ============ AI Change Highlighting ============
+function highlightAIChanges(oldSummary, oldBullets, oldSkills) {
+  const container = document.getElementById('preview-container');
+  if (!container) return;
+  // Highlight summary if changed
+  if (oldSummary && STATE.generated?.executive_summary && oldSummary !== STATE.generated.executive_summary) {
+    const summaryEl = container.querySelector('[data-field="executive_summary"]') || Array.from(container.querySelectorAll('p')).find(p => p.textContent.trim() === STATE.generated.executive_summary.trim());
+    if (summaryEl) summaryEl.classList.add('ai-changed');
+  }
+  // Highlight changed bullets
+  const newBullets = (STATE.generated?.experience || []).flatMap(e => e.bullets || []);
+  const bulletEls = container.querySelectorAll('li');
+  bulletEls.forEach(li => {
+    const text = li.textContent.trim();
+    if (newBullets.includes(text) && !oldBullets.includes(text)) {
+      li.classList.add('ai-changed');
+    }
+  });
+  // Highlight changed skills
+  const newSkills = STATE.generated?.skills || [];
+  if (JSON.stringify(oldSkills) !== JSON.stringify(newSkills)) {
+    container.querySelectorAll('.skill-tag, [data-field="skills"] span').forEach(el => {
+      const text = el.textContent.trim();
+      if (newSkills.includes(text) && !oldSkills.includes(text)) {
+        el.classList.add('ai-changed');
+      }
+    });
+  }
+  // Auto-remove after 60s
+  setTimeout(() => {
+    container.querySelectorAll('.ai-changed').forEach(el => el.classList.remove('ai-changed'));
+  }, 60000);
+}
+
+// ============ Prefetch Analysis (silent background) ============
+async function prefetchAnalysis() {
+  try {
+    let resumeText = '';
+    if (STATE.rawResumeText) {
+      resumeText = STATE.rawResumeText;
+    } else if (STATE.resumeData) {
+      const r = STATE.resumeData;
+      resumeText = [r.name, r.current_title, r.summary, ...(r.experience || []).map(e => `${e.title} at ${e.company} (${e.dates})\n${(e.bullets || []).join('\n')}`), 'Skills: ' + (r.skills || []).join(', '), ...(r.education || []).map(e => `${e.degree} - ${e.school} ${e.year || ''}`)].join('\n\n');
+    }
+    if (!resumeText) return;
+
+    const formData = new FormData();
+    formData.append('resume_text', resumeText);
+    let jobDesc = document.getElementById('job-desc')?.value?.trim();
+    if (!jobDesc) {
+      const targetTitle = document.getElementById('job-title')?.value?.trim();
+      const targetCompany = document.getElementById('job-company')?.value?.trim();
+      if (targetTitle || targetCompany) {
+        jobDesc = `Role: ${targetTitle || 'Not specified'}${targetCompany ? ' at ' + targetCompany : ''}. Seeking a ${targetTitle || 'professional'} position${targetCompany ? ' at ' + targetCompany : ''}.`;
+      }
+    }
+    if (jobDesc) formData.append('job_description', jobDesc);
+
+    const resp = await fetch(`${ANALYSIS_API}/api/analyze-resume`, { method: 'POST', body: formData });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    analysisCache = data.analysis;
+    analysisCacheKey = getAnalysisCacheKey();
+  } catch (e) {
+    console.debug('Prefetch analysis failed:', e);
+  }
+}
 
 // ============ Analysis Cache ============
 function getAnalysisCacheKey() {
