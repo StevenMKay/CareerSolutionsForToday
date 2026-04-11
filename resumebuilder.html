@@ -3235,13 +3235,27 @@ async function analyzeResume() {
   const btn = document.querySelector('[data-testid="analyze-btn"]');
   const origHTML = btn.innerHTML;
 
-  // Check analysis cache first
+  // Check analysis cache first (including prefetch in-flight)
   const cacheKey = getAnalysisCacheKey();
   if (analysisCache && analysisCacheKey === cacheKey) {
     openAnalysis();
     displayAnalysisResults(analysisCache);
     showToast('Showing cached analysis (no tokens used)');
     return;
+  }
+  // If prefetch is already running for the same data, wait for it
+  if (_prefetchInFlight) {
+    openAnalysis();
+    document.getElementById('analysis-content').innerHTML = '<div style="text-align:center;padding:60px 0">' + loaderHTML(40) + '<p style="color:rgba(255,255,255,0.6);margin-top:16px">Analysis in progress...</p></div>';
+    const waitForPrefetch = () => new Promise(resolve => {
+      const check = setInterval(() => { if (!_prefetchInFlight) { clearInterval(check); resolve(); } }, 300);
+    });
+    await waitForPrefetch();
+    if (analysisCache && analysisCacheKey === cacheKey) {
+      displayAnalysisResults(analysisCache);
+      showToast('Showing cached analysis (no tokens used)');
+      return;
+    }
   }
 
   btn.disabled = true;
@@ -3515,7 +3529,10 @@ function highlightAIChanges(oldSummary, oldBullets, oldSkills) {
 }
 
 // ============ Prefetch Analysis (silent background) ============
+let _prefetchInFlight = false;
 async function prefetchAnalysis() {
+  if (_prefetchInFlight) return;
+  _prefetchInFlight = true;
   try {
     let resumeText = '';
     if (STATE.rawResumeText) {
@@ -3543,9 +3560,22 @@ async function prefetchAnalysis() {
     const data = await resp.json();
     analysisCache = data.analysis;
     analysisCacheKey = getAnalysisCacheKey();
+    // Persist prefetched analysis to Firestore so it survives page reload
+    if (currentPlanId && data.analysis?.overall_score != null) {
+      try {
+        await db.collection('plans').doc(currentPlanId).update({
+          analysisScore: data.analysis.overall_score,
+          analysisData: data.analysis,
+          analysisCacheKey: analysisCacheKey,
+          lastAnalyzedJobTitle: document.getElementById('job-title')?.value || '',
+          lastAnalyzedCompany: document.getElementById('job-company')?.value || ''
+        });
+      } catch(e) { console.debug('Failed to save prefetched analysis:', e); }
+    }
   } catch (e) {
     console.debug('Prefetch analysis failed:', e);
   }
+  _prefetchInFlight = false;
 }
 
 // ============ Analysis Cache ============
