@@ -15,6 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.50.0/build/docxtemplater.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -1929,6 +1930,26 @@ function handleFileDrop(e) {
   if (e.dataTransfer.files[0]) { selectedFile = e.dataTransfer.files[0]; document.getElementById('file-name').textContent = selectedFile.name; document.getElementById('file-name').classList.remove('hidden'); }
 }
 
+// Render PDF pages to base64 PNG images using PDF.js (client-side, no server deps)
+async function renderPdfToImages(file, maxPages = 3) {
+  if (typeof pdfjsLib === 'undefined') return [];
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const images = [];
+  const numPages = Math.min(pdf.numPages, maxPages);
+  for (let i = 1; i <= numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    images.push(canvas.toDataURL('image/png').split(',')[1]);
+  }
+  return images;
+}
+
 async function parseResume() {
   const text = document.getElementById('resume-text').value.trim();
   if (!selectedFile && !text) { showToast('Please upload a file or paste resume text'); return; }
@@ -1940,6 +1961,13 @@ async function parseResume() {
     const authHdrs = await getAuthHeaders();
     if (selectedFile) {
       const fd = new FormData(); fd.append('file', selectedFile);
+      // If PDF, render pages to images client-side for vision-based layout parsing
+      if (selectedFile.name.toLowerCase().endsWith('.pdf')) {
+        try {
+          const pageImages = await renderPdfToImages(selectedFile);
+          if (pageImages.length) fd.append('page_images_json', JSON.stringify(pageImages));
+        } catch (imgErr) { console.warn('PDF image rendering skipped:', imgErr.message); }
+      }
       res = await fetch(API_BASE + '/builder/parse-resume', { method: 'POST', headers: authHdrs, body: fd });
     } else {
       const fd = new FormData(); fd.append('text', text);
