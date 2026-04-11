@@ -315,6 +315,19 @@
         </div>
       </div>
 
+      <!-- Collapsed resume summary bar (shown when resume already loaded) -->
+      <div id="resume-collapsed-bar" class="hidden mb-4 p-3 rounded-lg flex items-center justify-between" style="background:#F0FDF4;border:1px solid #BBF7D0">
+        <div class="flex items-center gap-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span class="text-sm font-medium" style="color:#166534">Resume loaded</span>
+          <span id="resume-collapsed-info" class="text-[11px] font-medium px-2 py-0.5 rounded-full" style="background:#DCFCE7;color:#166534"></span>
+        </div>
+        <button type="button" class="text-xs font-medium flex items-center gap-1 px-2 py-1 rounded-md" style="color:#0369A1;background:#F0F9FF;border:1px solid #BAE6FD" onclick="expandResumeUpload()">
+          Re-upload / Edit <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+      <!-- Collapsible resume upload section -->
+      <div id="resume-upload-section">
       <h3 class="text-sm font-semibold mb-3" style="color:#0A2F6B">Resume & Photo</h3>
       <div class="flex flex-col sm:flex-row gap-6 mb-6">
         <div class="flex flex-col items-center gap-2">
@@ -362,6 +375,7 @@
         <div id="parse-status" class="text-sm" style="color:#6B7280"></div>
         <button class="btn-primary" id="btn-parse" onclick="parseResume()" data-testid="extract-btn"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI</button>
       </div>
+      </div><!-- /resume-upload-section -->
       <div id="resume-preview" class="hidden mt-6 border-t pt-6" style="border-color:#E5E7EB">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-semibold" style="color:#0A2F6B">Extracted Resume Data</h3>
@@ -937,10 +951,31 @@ function showToast(msg, dur) {
 }
 function showLoading(msg) {
   document.getElementById('loading-text').textContent = msg;
-  document.getElementById('loading-overlay').classList.remove('hidden');
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.remove('hidden');
+  // Force-restart CSS animations so 3D sphere always spins
+  overlay.querySelectorAll('.inner').forEach(el => {
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = '';
+  });
 }
 function hideLoading() {
   document.getElementById('loading-overlay').classList.add('hidden');
+}
+// Collapse/expand resume upload section
+function collapseResumeUpload(fileName, extractedAt) {
+  document.getElementById('resume-upload-section').classList.add('hidden');
+  const bar = document.getElementById('resume-collapsed-bar');
+  const infoSpan = document.getElementById('resume-collapsed-info');
+  let label = fileName || 'Resume';
+  if (extractedAt) label += ' • ' + extractedAt;
+  infoSpan.textContent = label;
+  bar.classList.remove('hidden');
+}
+function expandResumeUpload() {
+  document.getElementById('resume-upload-section').classList.remove('hidden');
+  document.getElementById('resume-collapsed-bar').classList.add('hidden');
 }
 // Generate 3D sphere loader HTML at a given size (px)
 function loaderHTML(size, dark) {
@@ -1391,6 +1426,9 @@ function _doStartNewPlan() {
   document.getElementById('file-name').classList.add('hidden');
   document.getElementById('photo-preview-img').classList.add('hidden');
   document.getElementById('photo-placeholder').classList.remove('hidden');
+  // Reset collapsible resume section to expanded state
+  document.getElementById('resume-upload-section').classList.remove('hidden');
+  document.getElementById('resume-collapsed-bar').classList.add('hidden');
   // Reset checkboxes
   document.querySelectorAll('#section-checks .check-card, #section-checks-resume .check-card').forEach(c => {
     const cb = c.querySelector('input');
@@ -1428,6 +1466,8 @@ async function loadPlan(planId) {
     STATE.photoUrl = d.photoUrl || '';
     STATE.photoShape = d.photoShape || 'circle';
     STATE.photoSize = d.photoSize || 'md';
+    STATE.resumeFileName = d.resumeFileName || '';
+    STATE.resumeExtractedAt = d.resumeExtractedAt || '';
     setColor(STATE.color);
 
     // Populate form fields
@@ -1471,6 +1511,16 @@ async function loadPlan(planId) {
     if (Object.keys(STATE.resumeData).length > 0) {
       renderResumePreview(STATE.resumeData);
       document.getElementById('resume-preview').classList.remove('hidden');
+      // Auto-collapse upload section when resume data already exists
+      collapseResumeUpload(STATE.resumeFileName, STATE.resumeExtractedAt);
+      // Show file info pill in extracted data section too
+      if (STATE.resumeFileName) {
+        const fileInfoEl = document.getElementById('resume-file-info');
+        let infoText = STATE.resumeFileName;
+        if (STATE.resumeExtractedAt) infoText += ' • ' + STATE.resumeExtractedAt;
+        fileInfoEl.textContent = infoText;
+        fileInfoEl.classList.remove('hidden');
+      }
     }
     if (Object.keys(STATE.roleResearch).length > 0) {
       renderRolePreview(STATE.roleResearch);
@@ -1531,6 +1581,8 @@ async function savePlan() {
     photoUrl: STATE.photoUrl,
     photoShape: STATE.photoShape,
     photoSize: STATE.photoSize,
+    resumeFileName: STATE.resumeFileName || '',
+    resumeExtractedAt: STATE.resumeExtractedAt || '',
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
   try {
@@ -2141,6 +2193,11 @@ async function parseResume() {
     if (data.resume_data.github) document.getElementById('contact-github').value = data.resume_data.github;
     if (data.resume_data.website) document.getElementById('contact-website').value = data.resume_data.website;
     if (data.resume_data.twitter) document.getElementById('contact-twitter').value = data.resume_data.twitter;
+    // Store filename/date for persistent collapsed bar
+    STATE.resumeFileName = fname;
+    STATE.resumeExtractedAt = now;
+    // Auto-collapse the upload section now that resume is loaded
+    collapseResumeUpload(fname, now);
     showToast('Resume extracted successfully!');
   } catch(e) { document.getElementById('parse-status').innerHTML = `<span style="color:#B91C1C">Error: ${e.message}</span>`; }
   btn.disabled = false; btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI'; lucide.createIcons();
