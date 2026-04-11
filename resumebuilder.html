@@ -215,14 +215,30 @@
   .compare-active #compare-wrapper{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
   .compare-active #preview-container-b{display:block}
   .compare-active #preview-container,.compare-active #preview-container-b{min-width:0}
-  .diff-added{background:#D1FAE5!important;border-radius:3px}
-  .diff-removed{background:#FEE2E2!important;text-decoration:line-through;border-radius:3px}
-  .diff-changed{background:#FEF3C7!important;border-radius:3px}
+  .compare-active #preview-container *,.compare-active #preview-container-b *{font-size:inherit}
+  .compare-active #compare-wrapper{font-size:0.82rem}
+  .compare-active #compare-wrapper h1{font-size:1.5rem!important}
+  .compare-active #compare-wrapper h3{font-size:1rem!important}
+  .compare-active #compare-wrapper h4{font-size:0.85rem!important}
+  .compare-active #compare-wrapper .text-lg{font-size:0.9rem!important}
+  .compare-active #compare-wrapper .text-3xl{font-size:1.5rem!important}
+  .compare-active #compare-wrapper .text-xl{font-size:1rem!important}
+  .compare-active [data-section]{transition:background 0.3s,border-color 0.3s}
+  .diff-added{background:#D1FAE5!important;border-radius:3px;outline:2px solid #34D399}
+  .diff-removed{background:#FEE2E2!important;text-decoration:line-through;border-radius:3px;outline:2px solid #F87171}
+  .diff-changed{background:#FEF3C7!important;border-radius:3px;outline:2px solid #FBBF24}
   @media(max-width:768px){
     .compare-active #compare-wrapper{grid-template-columns:1fr}
     .compare-active #preview-container-b{display:none}
     .compare-active.show-b #preview-container{display:none}
     .compare-active.show-b #preview-container-b{display:block}
+    .compare-active #compare-wrapper{font-size:inherit}
+    .compare-active #compare-wrapper h1{font-size:unset!important}
+    .compare-active #compare-wrapper h3{font-size:unset!important}
+    .compare-active #compare-wrapper h4{font-size:unset!important}
+    .compare-active #compare-wrapper .text-lg{font-size:unset!important}
+    .compare-active #compare-wrapper .text-3xl{font-size:unset!important}
+    .compare-active #compare-wrapper .text-xl{font-size:unset!important}
   }
 </style>
 </head>
@@ -264,6 +280,7 @@
           </div>
           <div class="user-menu-divider"></div>
           <div class="py-1">
+            <button class="user-menu-item" onclick="showPaywall();closeUserMenu()" data-testid="menu-view-plans"><i data-lucide="tag" style="width:14px;height:14px;color:#6B7280"></i> View Plans & Pricing</button>
             <button id="menu-sub-btn" class="user-menu-item" onclick="cancelSubscription();closeUserMenu()" data-testid="menu-cancel-sub"><i id="menu-sub-icon" data-lucide="credit-card" style="width:14px;height:14px;color:#6B7280"></i> <span id="menu-sub-text">Manage Subscription</span></button>
             <button class="user-menu-item danger" onclick="signOutUser();closeUserMenu()" data-testid="menu-signout"><i data-lucide="log-out" style="width:14px;height:14px;color:#B91C1C"></i> Sign Out</button>
           </div>
@@ -927,7 +944,7 @@
       <div style="background:#F0F7FF;border:2px solid #005EB8;border-radius:0.75rem;padding:1rem;text-align:left;position:relative">
         <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#005EB8;color:#fff;font-size:0.6rem;font-weight:700;padding:2px 10px;border-radius:99px;text-transform:uppercase;letter-spacing:0.5px">Best Value</div>
         <div style="text-align:center;margin-bottom:0.5rem;margin-top:0.25rem">
-          <span style="font-size:1.75rem;font-weight:800;color:#005EB8">$9.99</span>
+          <span style="font-size:1.75rem;font-weight:800;color:#005EB8">$4.99</span>
           <span style="color:#6B7280;font-size:0.8rem">/mo</span>
         </div>
         <p style="text-align:center;color:#047857;font-size:0.7rem;font-weight:600;margin:0 0 0.6rem">7-day free trial</p>
@@ -2192,6 +2209,8 @@ function goToStepDirect(n) {
   // When arriving at Step 4, render section toggles and auto-prefetch analysis
   if (n === 4) {
     renderSectionToggles();
+    // Auto-populate job tracker from most recent target role
+    autoPopulateJobFromTargetRole();
     // Show analysis pop-out tab
     const popout = document.getElementById('analysis-popout');
     if (popout) {
@@ -2650,7 +2669,35 @@ async function deductAIUse() {
 }
 
 function showPaywall() {
-  document.getElementById('paywall-modal').classList.remove('hidden');
+  const modal = document.getElementById('paywall-modal');
+  // Update current plan status banner
+  let statusBanner = document.getElementById('paywall-plan-status');
+  if (!statusBanner) {
+    statusBanner = document.createElement('div');
+    statusBanner.id = 'paywall-plan-status';
+    const h3 = modal.querySelector('h3');
+    if (h3) h3.parentNode.insertBefore(statusBanner, h3);
+  }
+  const subBtn = document.getElementById('paywall-upgrade-btn');
+  const singleBtn = modal.querySelector('[onclick="startSingleCheckout()"]');
+  // Reset buttons
+  if (subBtn) { subBtn.disabled = false; subBtn.innerHTML = 'Start Free Trial'; subBtn.style.opacity = '1'; }
+  if (singleBtn) { singleBtn.disabled = false; singleBtn.innerHTML = 'Pay $1'; singleBtn.style.opacity = '1'; }
+
+  if (isOwner()) {
+    statusBanner.innerHTML = '<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:#047857;font-weight:600;font-size:0.8rem">&#10003; Owner — Full Access</span></div>';
+    if (subBtn) { subBtn.disabled = true; subBtn.innerHTML = '&#10003; Active'; subBtn.style.opacity = '0.5'; }
+  } else if (builderSubscribed) {
+    statusBanner.innerHTML = '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:#005EB8;font-weight:600;font-size:0.8rem">&#10003; Current Plan: Subscriber ($4.99/mo)</span></div>';
+    if (subBtn) { subBtn.disabled = true; subBtn.innerHTML = '&#10003; Current Plan'; subBtn.style.opacity = '0.5'; }
+  } else if (isSinglePurchaseActive()) {
+    const daysLeft = Math.max(0, Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - singlePurchaseDate)) / (24 * 60 * 60 * 1000)));
+    statusBanner.innerHTML = '<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:#92400E;font-weight:600;font-size:0.8rem">&#10003; Current Plan: $1 Single Run (' + daysLeft + ' days left)</span></div>';
+    if (singleBtn) { singleBtn.disabled = true; singleBtn.innerHTML = '&#10003; Active'; singleBtn.style.opacity = '0.5'; }
+  } else {
+    statusBanner.innerHTML = '<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:#6B7280;font-weight:600;font-size:0.8rem">Current Plan: Free</span></div>';
+  }
+  modal.classList.remove('hidden');
 }
 function hidePaywall() {
   document.getElementById('paywall-modal').classList.add('hidden');
@@ -2732,6 +2779,29 @@ function updateJobField(idx, field, value) {
   if (!STATE.appliedJobs[idx]) return;
   STATE.appliedJobs[idx][field] = value;
   markDirty();
+}
+function autoPopulateJobFromTargetRole() {
+  const jt = (document.getElementById('job-title')?.value || '').trim();
+  const jc = (document.getElementById('job-company')?.value || '').trim();
+  if (!jt && !jc) return;
+  // If tracker is empty, add a new row
+  if (!STATE.appliedJobs.length) {
+    addJobRow({ title: jt, company: jc });
+    return;
+  }
+  // If the most recent row has the same title/company, no action needed
+  const last = STATE.appliedJobs[STATE.appliedJobs.length - 1];
+  if (last.title === jt && last.company === jc) return;
+  // If the most recent row is blank (no title AND no company), fill it
+  if (!last.title && !last.company) {
+    last.title = jt;
+    last.company = jc;
+    renderJobTracker();
+    markDirty();
+    return;
+  }
+  // Otherwise add a new row with the current target role
+  addJobRow({ title: jt, company: jc });
 }
 
 // ============ Career Path Generator ============
@@ -2963,6 +3033,21 @@ function showCompareVersion(version) {
   const step4 = document.getElementById('step-4');
   const btnA = document.getElementById('compare-btn-a');
   const btnB = document.getElementById('compare-btn-b');
+  // Capture current scroll section before toggling
+  const fromContainer = version === 'b' ? document.getElementById('preview-container') : document.getElementById('preview-container-b');
+  const toContainer = version === 'b' ? document.getElementById('preview-container-b') : document.getElementById('preview-container');
+  let scrollTarget = null;
+  if (fromContainer) {
+    const sections = fromContainer.querySelectorAll('[data-section]');
+    const viewMid = window.innerHeight / 2;
+    let best = null, bestDist = Infinity;
+    sections.forEach(el => {
+      const r = el.getBoundingClientRect();
+      const dist = Math.abs(r.top + r.height / 2 - viewMid);
+      if (dist < bestDist) { bestDist = dist; best = el.getAttribute('data-section'); }
+    });
+    scrollTarget = best;
+  }
   if (version === 'b') {
     step4.classList.add('show-b');
     btnA.style.background = 'transparent'; btnA.style.color = '#4F46E5';
@@ -2971,6 +3056,11 @@ function showCompareVersion(version) {
     step4.classList.remove('show-b');
     btnA.style.background = '#4F46E5'; btnA.style.color = '#fff';
     btnB.style.background = 'transparent'; btnB.style.color = '#4F46E5';
+  }
+  // Sync scroll to matching section
+  if (scrollTarget && toContainer) {
+    const match = toContainer.querySelector(`[data-section="${scrollTarget}"]`);
+    if (match) { setTimeout(() => match.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50); }
   }
 }
 
@@ -3221,8 +3311,9 @@ function renderPreview(g, targetId) {
   }
 
   // Helper: card wrapper
-  function card(content, extra) {
-    return `<div style="background:${S.cardBg};border:${S.borderStyle};border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont};${extra || ''}">${content}</div>`;
+  function card(content, extra, sectionKey) {
+    const ds = sectionKey ? ` data-section="${sectionKey}"` : '';
+    return `<div${ds} style="background:${S.cardBg};border:${S.borderStyle};border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont};${extra || ''}">${content}</div>`;
   }
 
   // Contact info bar shared across layouts
@@ -3253,7 +3344,7 @@ function renderPreview(g, targetId) {
 
     if (S.layout === 'sidebar') {
       // Executive: sidebar left with name/photo/contact, content right — stacks on mobile
-      h += `<div style="display:grid;grid-template-columns:1fr;border-radius:${S.cardRadius};overflow:hidden;border:${S.borderStyle};box-shadow:${S.cardShadow}" class="sm:!grid-cols-[260px_1fr]">
+      h += `<div data-section="hero" style="display:grid;grid-template-columns:1fr;border-radius:${S.cardRadius};overflow:hidden;border:${S.borderStyle};box-shadow:${S.cardShadow}" class="sm:!grid-cols-[260px_1fr]">
         <style>.sm\\:\\!grid-cols-\\[260px_1fr\\]{grid-template-columns:1fr}@media(min-width:640px){.sm\\:\\!grid-cols-\\[260px_1fr\\]{grid-template-columns:260px 1fr}}</style>
         <div style="background:${S.sidebarBg};padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem;font-family:${S.bodyFont}">
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4" style="border-color:${C}60">` : ''}
@@ -3280,10 +3371,10 @@ function renderPreview(g, targetId) {
         ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
         <div class="flex flex-wrap justify-center gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         <div style="${S.dividerStyle !== 'none' ? 'border-bottom:' + S.dividerStyle + ';margin-top:1.5rem' : ''}"></div>
-      </div>`, `background:${S.cardBg}`);
+      </div>`, `background:${S.cardBg}`, 'hero');
     } else if (S.layout === 'bold') {
       // Bold: big gradient hero
-      h += `<div style="background:linear-gradient(135deg,${C},${C}CC);border-radius:${S.cardRadius};padding:2.5rem;box-shadow:${S.cardShadow};position:relative;overflow:hidden">
+      h += `<div data-section="hero" style="background:linear-gradient(135deg,${C},${C}CC);border-radius:${S.cardRadius};padding:2.5rem;box-shadow:${S.cardShadow};position:relative;overflow:hidden">
         <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:rgba(255,255,255,0.08);border-radius:50%"></div>
         <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6" style="position:relative;z-index:1">
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:rgba(255,255,255,0.3)">` : ''}
@@ -3311,13 +3402,13 @@ function renderPreview(g, targetId) {
           ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
           <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         </div>
-      </div>`, `background:${isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + lighter + ')'};border-color:${C}30`);
+      </div>`, `background:${isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + lighter + ')'};border-color:${C}30`, 'hero');
     }
   }
 
   // ──── EXECUTIVE SUMMARY ────
   if (STATE.sections.includes('executive_summary') && g.executive_summary) {
-    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.executive_summary}</div>`);
+    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.executive_summary}</div>`, '', 'executive_summary');
   }
 
   // ──── PLAN PHASES ────
@@ -3381,34 +3472,34 @@ function renderPreview(g, targetId) {
       }
 
       const borderLeft = S.layout === 'bold' ? '' : `border-left:4px solid ${C};`;
-      return `<div style="background:${S.cardBg};border:${S.borderStyle};${borderLeft}border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont}">${inner}</div>`;
+      return `<div data-section="plan_phases" style="background:${S.cardBg};border:${S.borderStyle};${borderLeft}border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont}">${inner}</div>`;
     }).join('');
   }
 
   // ──── SUCCESS CRITERIA ────
   if (STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
-    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`);
+    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
   }
 
   // ──── SUCCESS SUMMARY (Day 90 summary) ────
   if (STATE.sections.includes('success_criteria') && g.success_summary?.length) {
-    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`);
+    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
   }
 
   // ──── KPIS ────
   if (STATE.sections.includes('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
-    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:4px;top:4px;transform:none">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`);
+    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:4px;top:4px;transform:none">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`, '', 'kpis');
   }
 
   // ──── EXPERIENCE ────
   if (STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map(e => `<div class="item-row"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map(b => `<li class="item-row flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this,'${S.headingColor}','${S.headingFont}','${C}','${S.mutedColor}','${S.textColor}')">+ Add Position</button>`);
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map(e => `<div class="item-row"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map(b => `<li class="item-row flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this,'${S.headingColor}','${S.headingFont}','${C}','${S.mutedColor}','${S.textColor}')">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
   if (STATE.sections.includes('leadership') && g.leadership_engagement?.length) {
-    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:4px;top:4px;transform:none">&times;</button><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`);
+    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:4px;top:4px;transform:none">&times;</button><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership_engagement');
   }
 
   // ──── SKILLS ────
@@ -3417,17 +3508,17 @@ function renderPreview(g, targetId) {
     const skillStyle = S.sectionLabelStyle === 'terminal'
       ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
       : `border:${S.borderStyle};color:${S.textColor}`;
-    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`);
+    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`, '', 'skills');
   }
 
   // ──── EDUCATION & CERTS ────
   if (STATE.sections.includes('education') && (g.education?.length || g.certifications?.length)) {
     let eduCert = '<div class="grid sm:grid-cols-2 gap-6">';
     if (g.education?.length) {
-      eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${g.education.map(e => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div>`);
+      eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${g.education.map(e => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div>`, '', 'education');
     }
     if (g.certifications?.length) {
-      eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${g.certifications.map(c => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div>`);
+      eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${g.certifications.map(c => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div>`, '', 'certifications');
     }
     eduCert += '</div>';
     h += eduCert;
@@ -3440,12 +3531,12 @@ function renderPreview(g, targetId) {
       const aDesc = typeof a === 'string' ? '' : (a.description || '');
       const aIcon = (typeof a === 'object' && a.icon) ? a.icon : 'award';
       return `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="flex items-start gap-3"><i data-lucide="${aIcon}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" style="color:${S.headingColor}">${aTitle}</p>${aDesc ? `<p class="text-sm mt-1" style="color:${S.mutedColor}">${aDesc}</p>` : ''}</div></div></div>`;
-    }).join('')}</div>`);
+    }).join('')}</div>`, '', 'achievements');
   }
 
   // ──── LEADERSHIP ────
   if (STATE.sections.includes('leadership') && g.leadership?.length) {
-    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`);
+    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership');
   }
 
   // ──── FOOTER ────
