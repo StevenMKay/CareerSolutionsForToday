@@ -3188,7 +3188,10 @@ async function exportPPTX() {
     // Build replacements map matching actual PPTX template placeholders
     const replacements = {
       '{FULL NAME}': name.toUpperCase(),
+      '{Name}': name,
+      '{name}': name,
       '{JOBTITLE}': currentTitle,
+      '{JobTitle}': currentTitle,
       '{Phone}': phone,
       '{Email}': email,
       '{Address}': address,
@@ -3196,50 +3199,57 @@ async function exportPPTX() {
       '{Summary}': summary,
     };
 
-    // Skills: template has {Skill1} through {Skill14}
-    for (let i = 0; i < 14; i++) {
+    // Skills: template has {Skill1} through {Skill20}
+    for (let i = 0; i < 20; i++) {
       replacements[`{Skill${i + 1}}`] = skills[i] || '';
     }
 
-    // Experience: template has Job1-Job2 on slide 1, each with 5 accomplishments
-    for (let i = 0; i < 2; i++) {
+    // Experience: support Job1 through Job6 (each with up to 8 accomplishments)
+    for (let i = 0; i < 6; i++) {
       const exp = experiences[i] || {};
       const idx = i + 1;
       replacements[`{Job${idx}Title}`] = exp.title || '';
       replacements[`{Company${idx}Name}`] = exp.company || '';
+      replacements[`{Company${idx}}`] = exp.company || '';
       replacements[`{Job${idx}Location CityState}`] = exp.location || '';
+      replacements[`{Job${idx}Location}`] = exp.location || '';
       replacements[`{Job${idx}Summary}`] = exp.role_summary || '';
-      // Replace date placeholder: " | MM/YYYY – MM/YYYY" with actual dates
       replacements[`{Job${idx}Dates}`] = exp.dates || '';
-      for (let b = 0; b < 5; b++) {
+      for (let b = 0; b < 8; b++) {
         replacements[`{Job${idx}Accomplishment${b + 1}}`] = (exp.bullets && exp.bullets[b]) || '';
+        replacements[`{Job${idx}Bullet${b + 1}}`] = (exp.bullets && exp.bullets[b]) || '';
       }
     }
 
-    // Education: template uses loop syntax {#education}...{/education} with {Degree}, {school}, {year}
-    // Since we do raw XML replacement (not docxtemplater), handle these as simple replacements
+    // Education: support up to 5 entries, with generic and numbered forms
+    for (let i = 0; i < 5; i++) {
+      const ed = education[i] || {};
+      const idx = i + 1;
+      replacements[`{Degree${idx}}`] = ed.degree || '';
+      replacements[`{School${idx}}`] = ed.school || '';
+      replacements[`{Year${idx}}`] = ed.year || '';
+    }
     if (education[0]) {
       replacements['{Degree}'] = education[0].degree || '';
       replacements['{school}'] = education[0].school || '';
       replacements['{year}'] = education[0].year || '';
     }
-    // Numbered fallbacks for additional entries
-    for (let i = 0; i < 3; i++) {
-      const ed = education[i] || {};
-      replacements[`{Degree${i + 1}}`] = ed.degree || '';
-      replacements[`{School${i + 1}}`] = ed.school || '';
-      replacements[`{Year${i + 1}}`] = ed.year || '';
-    }
 
-    // Certifications: template uses loop syntax {#certifications}...{/certifications}
+    // Certifications: support up to 8 entries, with generic and numbered forms
+    for (let i = 0; i < 8; i++) {
+      const cert = certifications[i] || {};
+      const idx = i + 1;
+      replacements[`{Cert${idx}}`] = cert.name ? `${cert.name}${cert.issuer ? ' — ' + cert.issuer : ''}${cert.year ? ' (' + cert.year + ')' : ''}` : '';
+      replacements[`{CertName${idx}}`] = cert.name || '';
+      replacements[`{CertIssuer${idx}}`] = cert.issuer || '';
+      replacements[`{CertYear${idx}}`] = cert.year || '';
+      replacements[`{cert_name${idx}}`] = cert.name || '';
+      replacements[`{cert_issuer${idx}}`] = cert.issuer || '';
+    }
     if (certifications[0]) {
       replacements['{cert_name}'] = certifications[0].name || '';
       replacements['{cert_issuer}'] = certifications[0].issuer || '';
-    }
-    for (let i = 0; i < 5; i++) {
-      const cert = certifications[i] || {};
-      replacements[`{cert_name${i + 1}}`] = cert.name || '';
-      replacements[`{cert_issuer${i + 1}}`] = cert.issuer || '';
+      replacements['{Certification}'] = certifications[0].name || '';
     }
 
     // Helper: merge split runs in a paragraph for reliable placeholder replacement
@@ -3303,9 +3313,7 @@ async function exportPPTX() {
         }
 
         // Phase 3: Replace static date placeholders with actual dates
-        // Template has " | MM/YYYY – MM/YYYY" as static text next to location
-        // For Job1: replace the first occurrence, Job2: the second
-        for (let i = 0; i < 2; i++) {
+        for (let i = 0; i < 6; i++) {
           const exp = experiences[i] || {};
           if (exp.dates) {
             xml = xml.replace(/MM\/YYYY\s*[–\-]\s*MM\/YYYY/, exp.dates);
@@ -3314,19 +3322,32 @@ async function exportPPTX() {
 
         // Phase 4: Clean up loop markers and empty placeholders
         xml = xml.replace(/\{[^}]*\}/g, function(match) {
-          // Remove loop syntax markers
           if (match.startsWith('{#') || match.startsWith('{/')) return '';
-          // Remove known unfilled placeholders
-          if (match.startsWith('{Job') || match.startsWith('{Skill') || match.startsWith('{cert') ||
-              match.startsWith('{Degree') || match.startsWith('{School') || match.startsWith('{Year') ||
-              match.startsWith('{Company') || match === '{JOBTITLE}' ||
-              match === '{Phone}' || match === '{Email}' ||
-              match === '{Address}' || match === '{LinkedIn}' || match === '{Summary}' ||
-              match === '{FULL NAME}' || match === '{Degree}' || match === '{school}' ||
-              match === '{year}' || match === '{cert_name}' || match === '{cert_issuer}') {
+          if (/^\{(Job|Skill|cert|Cert|Degree|School|Year|Company|Name|name|FULL|JOBTITLE|JobTitle|Phone|Email|Address|LinkedIn|Summary|Certification)\b/i.test(match)) return '';
+          return match;
+        });
+
+        // Phase 5: Remove entirely-empty paragraphs (all <a:t> content is whitespace)
+        xml = xml.replace(/<a:p\b[^>]*>[\s\S]*?<\/a:p>/g, function(pBlock) {
+          const merged = mergeRunsInParagraph(pBlock).trim();
+          // Keep paragraphs that have real text or are structural (no runs = spacing/line-break)
+          if (merged === '' && /<a:r>/.test(pBlock)) {
+            // This paragraph had runs but they're all empty now — remove the whole <a:p>
             return '';
           }
-          return match;
+          return pBlock;
+        });
+
+        // Phase 6: Remove shapes (<p:sp>) where ALL text content is empty after replacements
+        xml = xml.replace(/<p:sp>[\s\S]*?<\/p:sp>/g, function(spBlock) {
+          const allTexts = [];
+          const tRegex = /<a:t[^>]*>([^<]*)<\/a:t>/g;
+          let tm;
+          while ((tm = tRegex.exec(spBlock)) !== null) allTexts.push(tm[1]);
+          const combined = allTexts.join('').trim();
+          // If the shape had text fields but they're ALL empty, remove it
+          if (allTexts.length > 0 && combined === '') return '';
+          return spBlock;
         });
 
         zip.file(fileName, xml);
