@@ -4384,6 +4384,8 @@ async function exportPPTX() {
 
     // --- PptxGenJS Dynamic Generation (Portrait / Sidebar Layout) ---
     const ACCENT = (STATE.color || '#104862').replace('#','');
+    const BAR_COLOR = '0B487A';
+    const SECTION_TITLE = '0B487A';
     const SIDEBAR_BG = 'E8E8E8';
     const DARK = '0E2841';
     const GRAY = '595959';
@@ -4395,6 +4397,20 @@ async function exportPPTX() {
     const FONT_BODY = 'Arial';
     const ss = STATE.sections || [];
     const showSec = (key) => ss.length === 0 || ss.includes(key);
+
+    // Preload LinkedIn icon
+    let linkedinIconBase64 = null;
+    if (linkedin) {
+      try {
+        const resp = await fetch('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/51798ba40224f7fd87a20974da85d3549baa73cb/icons/LinkedInIcon.png');
+        const blob = await resp.blob();
+        linkedinIconBase64 = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      } catch(e) { /* fallback to text */ }
+    }
 
     const pptx = new PptxGenJS();
     pptx.defineLayout({ name: 'PORTRAIT', width: 7.5, height: 10 });
@@ -4409,7 +4425,7 @@ async function exportPPTX() {
     const MAIN_W = 7.5 - MAIN_X - 0.35; // main content width
     const MX_SB = 0.12;         // sidebar inner padding
     const PAGE_H = 10;
-    const MAX_Y = 9.4;          // stop content before footer
+    const MAX_Y = 9.3;          // stop content before footer
 
     // --- Continuous-flow page manager ---
     let curSlide = null;
@@ -4424,10 +4440,15 @@ async function exportPPTX() {
         x: 0, y: 0, w: SB_W, h: PAGE_H,
         fill: { color: SIDEBAR_BG }
       });
-      // Thin accent line at top of sidebar
+      // Full-width accent bar at top
       curSlide.addShape(pptx.ShapeType.rect, {
-        x: 0, y: 0, w: SB_W, h: 0.04,
-        fill: { color: ACCENT }
+        x: 0, y: 0, w: 7.5, h: 0.06,
+        fill: { color: BAR_COLOR }
+      });
+      // Full-width accent bar at bottom
+      curSlide.addShape(pptx.ShapeType.rect, {
+        x: 0, y: PAGE_H - 0.06, w: 7.5, h: 0.06,
+        fill: { color: BAR_COLOR }
       });
       sidebarY = 0.3;
       Y = 0.35;
@@ -4444,12 +4465,12 @@ async function exportPPTX() {
       curSlide.addText(label, {
         x: MAIN_X, y: Y, w: MAIN_W, h: 0.25,
         fontSize: 9, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT, align: 'left', letterSpacing: 2
+        color: SECTION_TITLE, align: 'left', letterSpacing: 2
       });
       Y += 0.25;
       curSlide.addShape(pptx.ShapeType.line, {
         x: MAIN_X, y: Y, w: MAIN_W, h: 0,
-        line: { color: ACCENT, width: 0.75 }
+        line: { color: SECTION_TITLE, width: 0.75 }
       });
       Y += 0.1;
     }
@@ -4459,12 +4480,12 @@ async function exportPPTX() {
 
     // --- SIDEBAR: Name (centered) ---
     curSlide.addText(name.toUpperCase(), {
-      x: MX_SB, y: 0.5, w: SB_W - MX_SB * 2, h: 0.5,
+      x: MX_SB, y: 0.25, w: SB_W - MX_SB * 2, h: 0.5,
       fontSize: 13, fontFace: FONT_HEAD, bold: true,
       color: SIDEBAR_TEXT, align: 'center', valign: 'middle',
       lineSpacing: 16
     });
-    sidebarY = 1.0;
+    sidebarY = 0.75;
 
     // --- SIDEBAR: Title (centered) ---
     if (currentTitle) {
@@ -4478,23 +4499,22 @@ async function exportPPTX() {
 
     // --- SIDEBAR: Separator ---
     curSlide.addShape(pptx.ShapeType.line, {
-      x: MX_SB + 0.3, y: sidebarY, w: SB_W - MX_SB * 2 - 0.6, h: 0,
+      x: MX_SB + 0.2, y: sidebarY, w: SB_W - MX_SB * 2 - 0.4, h: 0,
       line: { color: SIDEBAR_MUTED, width: 0.5 }
     });
-    sidebarY += 0.2;
+    sidebarY += 0.25;
 
     // --- SIDEBAR: Contact items (stacked, with icon labels) ---
     const contactItems = [];
-    if (phone) contactItems.push({ icon: '☎', text: phone });
-    if (email) contactItems.push({ icon: '✉', text: email });
-    if (address) contactItems.push({ icon: '⌂', text: address });
-    if (linkedin) contactItems.push({ icon: 'in', text: 'LinkedIn' });
+    if (phone) contactItems.push({ icon: '\u260E', text: phone });
+    if (email) contactItems.push({ icon: '\u2709', text: email });
+    if (address) contactItems.push({ icon: '\u2302', text: address });
 
-    if (contactItems.length) {
+    if (contactItems.length || linkedin) {
       curSlide.addText('CONTACT', {
         x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.22,
         fontSize: 7.5, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT, align: 'left', letterSpacing: 2
+        color: SECTION_TITLE, align: 'left', letterSpacing: 2
       });
       sidebarY += 0.24;
 
@@ -4506,6 +4526,28 @@ async function exportPPTX() {
         });
         sidebarY += 0.2;
       });
+
+      // LinkedIn with icon image
+      if (linkedin) {
+        if (linkedinIconBase64) {
+          curSlide.addImage({
+            data: linkedinIconBase64,
+            x: MX_SB, y: sidebarY + 0.03, w: 0.14, h: 0.14
+          });
+          curSlide.addText('LinkedIn', {
+            x: MX_SB + 0.2, y: sidebarY, w: SB_W - MX_SB * 2 - 0.2, h: 0.2,
+            fontSize: 7.5, fontFace: FONT_BODY, color: SIDEBAR_TEXT,
+            align: 'left', valign: 'middle'
+          });
+        } else {
+          curSlide.addText('in  LinkedIn', {
+            x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.2,
+            fontSize: 7.5, fontFace: FONT_BODY, color: SIDEBAR_TEXT,
+            align: 'left', valign: 'middle'
+          });
+        }
+        sidebarY += 0.2;
+      }
       sidebarY += 0.15;
     }
 
@@ -4513,22 +4555,22 @@ async function exportPPTX() {
     if (showSec('skills') && skills.length) {
       // Separator
       curSlide.addShape(pptx.ShapeType.line, {
-        x: MX_SB + 0.3, y: sidebarY, w: SB_W - MX_SB * 2 - 0.6, h: 0,
+        x: MX_SB + 0.2, y: sidebarY, w: SB_W - MX_SB * 2 - 0.4, h: 0,
         line: { color: SIDEBAR_MUTED, width: 0.5 }
       });
-      sidebarY += 0.2;
+      sidebarY += 0.25;
 
       curSlide.addText('CORE COMPETENCIES', {
         x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.22,
         fontSize: 7.5, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT, align: 'left', letterSpacing: 2
+        color: SECTION_TITLE, align: 'left', letterSpacing: 2
       });
       sidebarY += 0.26;
 
       const maxSkills = Math.min(skills.length, 18);
       for (let i = 0; i < maxSkills; i++) {
         if (sidebarY > 9.2) break;
-        curSlide.addText('•  ' + skills[i], {
+        curSlide.addText('\u2022  ' + skills[i], {
           x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.18,
           fontSize: 7.5, fontFace: FONT_BODY, color: SIDEBAR_TEXT,
           align: 'left', valign: 'middle'
@@ -4538,59 +4580,18 @@ async function exportPPTX() {
       sidebarY += 0.15;
     }
 
-    // --- SIDEBAR: Education ---
-    if (showSec('education') && education.length && sidebarY < 8.0) {
-      curSlide.addShape(pptx.ShapeType.line, {
-        x: MX_SB + 0.3, y: sidebarY, w: SB_W - MX_SB * 2 - 0.6, h: 0,
-        line: { color: SIDEBAR_MUTED, width: 0.5 }
-      });
-      sidebarY += 0.2;
-
-      curSlide.addText('EDUCATION', {
-        x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.22,
-        fontSize: 7.5, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT, align: 'left', letterSpacing: 2
-      });
-      sidebarY += 0.26;
-
-      education.forEach(ed => {
-        if (!ed.degree || sidebarY > 9.0) return;
-        curSlide.addText(ed.degree, {
-          x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.18,
-          fontSize: 7.5, fontFace: FONT_BODY, bold: true,
-          color: SIDEBAR_TEXT, align: 'left'
-        });
-        sidebarY += 0.18;
-        if (ed.school) {
-          curSlide.addText(ed.school, {
-            x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.16,
-            fontSize: 7, fontFace: FONT_BODY, color: SIDEBAR_MUTED, align: 'left'
-          });
-          sidebarY += 0.16;
-        }
-        if (ed.year) {
-          curSlide.addText(ed.year, {
-            x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.16,
-            fontSize: 7, fontFace: FONT_BODY, color: SIDEBAR_MUTED, align: 'left'
-          });
-          sidebarY += 0.16;
-        }
-        sidebarY += 0.1;
-      });
-    }
-
     // --- SIDEBAR: Certifications ---
     if (showSec('education') && certifications.length && certifications[0].name && sidebarY < 8.5) {
       curSlide.addShape(pptx.ShapeType.line, {
-        x: MX_SB + 0.3, y: sidebarY, w: SB_W - MX_SB * 2 - 0.6, h: 0,
+        x: MX_SB + 0.2, y: sidebarY, w: SB_W - MX_SB * 2 - 0.4, h: 0,
         line: { color: SIDEBAR_MUTED, width: 0.5 }
       });
-      sidebarY += 0.2;
+      sidebarY += 0.25;
 
       curSlide.addText('CERTIFICATIONS', {
         x: MX_SB, y: sidebarY, w: SB_W - MX_SB * 2, h: 0.22,
         fontSize: 7.5, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT, align: 'left', letterSpacing: 2
+        color: SECTION_TITLE, align: 'left', letterSpacing: 2
       });
       sidebarY += 0.26;
 
@@ -4658,7 +4659,7 @@ async function exportPPTX() {
 
           // Company + location
           if (exp.company) {
-            const companyLine = exp.company + (exp.location ? '  —  ' + exp.location : '');
+            const companyLine = exp.company + (exp.location ? '  \u2014  ' + exp.location : '');
             curSlide.addText(companyLine, {
               x: MAIN_X, y: Y, w: MAIN_W, h: 0.18,
               fontSize: 9, fontFace: FONT_BODY, color: ACCENT, italic: true, align: 'left'
@@ -4686,23 +4687,23 @@ async function exportPPTX() {
               ensureRoom(0.2);
               const bLines = Math.ceil(bullet.length / 68);
               const bH = Math.max(0.18, bLines * 0.15);
-              curSlide.addText('•  ' + bullet, {
+              curSlide.addText('\u2022  ' + bullet, {
                 x: MAIN_X + 0.12, y: Y, w: MAIN_W - 0.12, h: bH,
-                fontSize: 8.5, fontFace: FONT_BODY, color: DARK,
+                fontSize: 8.5, fontFace: FONT_BODY, color: GRAY,
                 align: 'left', valign: 'top', lineSpacing: 12.5
               });
               Y += bH + 0.02;
             });
           }
 
-          // Separator
+          // Separator between jobs
           Y += 0.06;
           if (idx < filteredExps.length - 1 && Y < MAX_Y - 0.1) {
             curSlide.addShape(pptx.ShapeType.line, {
-              x: MAIN_X, y: Y, w: MAIN_W, h: 0,
+              x: MAIN_X, y: Y + 0.1, w: MAIN_W, h: 0,
               line: { color: SEP_GRAY, width: 0.5, dashType: 'dash' }
             });
-            Y += 0.1;
+            Y += 0.2;
           }
         });
         Y += 0.08;
@@ -4717,19 +4718,45 @@ async function exportPPTX() {
         ensureRoom(0.22);
         const aLines = Math.ceil(ach.length / 68);
         const aH = Math.max(0.18, aLines * 0.15);
-        curSlide.addText('★  ' + ach, {
+        curSlide.addText('\u2605  ' + ach, {
           x: MAIN_X + 0.08, y: Y, w: MAIN_W - 0.08, h: aH,
           fontSize: 8.5, fontFace: FONT_BODY, color: DARK,
           align: 'left', valign: 'top', lineSpacing: 12.5
         });
         Y += aH + 0.04;
       });
+      Y += 0.08;
+    }
+
+    // --- Education (right side) ---
+    if (showSec('education') && education.length) {
+      addSectionLabel('EDUCATION');
+      education.forEach(ed => {
+        if (!ed.degree) return;
+        ensureRoom(0.5);
+        curSlide.addText(ed.degree, {
+          x: MAIN_X, y: Y, w: MAIN_W, h: 0.2,
+          fontSize: 9.5, fontFace: FONT_BODY, bold: true,
+          color: DARK, align: 'left'
+        });
+        Y += 0.2;
+        if (ed.school) {
+          let schoolLine = ed.school;
+          if (ed.year) schoolLine += '  \u2014  ' + ed.year;
+          curSlide.addText(schoolLine, {
+            x: MAIN_X, y: Y, w: MAIN_W, h: 0.18,
+            fontSize: 9, fontFace: FONT_BODY, color: GRAY, align: 'left'
+          });
+          Y += 0.2;
+        }
+        Y += 0.06;
+      });
     }
 
     // ========== Footer on every page ==========
     pptx.slides.forEach(sl => {
       sl.addText('Built with Career Solutions for Today', {
-        x: SB_W + 0.2, y: 9.6, w: MAIN_W, h: 0.2,
+        x: SB_W + 0.2, y: 9.42, w: MAIN_W, h: 0.2,
         fontSize: 6.5, fontFace: FONT_BODY, color: LIGHT_GRAY, align: 'center'
       });
     });
