@@ -135,7 +135,8 @@
   .photo-shape-shield{border-radius:50% 50% 50% 50% / 40% 40% 60% 60%}
   .photo-shape-hexagon{clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);border-radius:0;border:none}
   /* ── Item Action Buttons (delete ×, add +) ── */
-  .item-row{position:relative;padding-right:28px}
+  .item-row{position:relative;padding-right:28px;min-width:0;overflow:hidden}
+  .skill-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
   .item-row .item-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:rgba(185,28,28,0.12);color:#B91C1C;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s;z-index:5;padding:0}
   .item-row:hover .item-del{opacity:1}
   .item-del:hover{background:rgba(185,28,28,0.25)!important;color:#7F1D1D}
@@ -241,6 +242,15 @@
   .diff-added{background:#D1FAE5!important;border-radius:3px;outline:2px solid #34D399}
   .diff-removed{background:#FEE2E2!important;text-decoration:line-through;border-radius:3px;outline:2px solid #F87171}
   .diff-changed{background:#FEF3C7!important;border-radius:3px;outline:2px solid #FBBF24}
+  /* Compare mode: tighter grids when containers are half-width */
+  .compare-active #preview-container [data-list="skills"],
+  .compare-active #preview-container-b [data-list="skills"]{grid-template-columns:repeat(2,1fr)!important}
+  .compare-active #preview-container [data-list="skills"] .item-row,
+  .compare-active #preview-container-b [data-list="skills"] .item-row{padding-right:24px}
+  .compare-active #preview-container [data-list="kpis"],
+  .compare-active #preview-container-b [data-list="kpis"]{grid-template-columns:repeat(2,1fr)!important}
+  .diff-word-added{background:#BBF7D0;color:#166534;border-radius:2px;padding:0 2px}
+  .diff-word-removed{background:#FECACA;color:#991B1B;border-radius:2px;padding:0 2px;text-decoration:line-through}
   @media(max-width:768px){
     .compare-active #compare-wrapper{grid-template-columns:1fr}
     .compare-active #preview-container-b{display:none}
@@ -3134,15 +3144,15 @@ function renderDiffHighlights(diffs) {
   const containerA = document.getElementById('preview-container');
   const containerB = document.getElementById('preview-container-b');
 
-  // Apply per-item granular diff for arrays (experience bullets, skills, etc.)
   diffs.changed.forEach(k => {
     const a = STATE.generated[k];
     const b = comparePlanData.generated[k];
-    // Try granular item-level diff for arrays
     if (Array.isArray(a) && Array.isArray(b)) {
       applyGranularArrayDiff(containerA, containerB, k, a, b);
+    } else if (typeof a === 'string' && typeof b === 'string') {
+      // Word-level inline diff for text sections
+      applyWordDiff(containerA, containerB, k, a, b);
     } else {
-      // Fallback to section-level highlight
       applyClass(containerA, k, 'diff-changed');
       applyClass(containerB, k, 'diff-changed');
     }
@@ -3157,10 +3167,54 @@ function applyClass(container, sectionKey, cls) {
   if (el) el.classList.add(cls);
 }
 
+// ── Word-level diff for string sections (Executive Summary, etc.) ──
+function applyWordDiff(containerA, containerB, sectionKey, textA, textB) {
+  const elA = containerA?.querySelector(`[data-section="${sectionKey}"] .editable`);
+  const elB = containerB?.querySelector(`[data-section="${sectionKey}"] .editable`);
+  if (!elA && !elB) {
+    applyClass(containerA, sectionKey, 'diff-changed');
+    applyClass(containerB, sectionKey, 'diff-changed');
+    return;
+  }
+  const wordsA = textA.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
+  const wordsB = textB.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
+  const lcs = computeLCS(wordsA, wordsB);
+  if (elA) { elA.innerHTML = buildDiffHTML(wordsA, lcs, 'a'); elA.setAttribute('data-diff-applied', 'true'); }
+  if (elB) { elB.innerHTML = buildDiffHTML(wordsB, lcs, 'b'); elB.setAttribute('data-diff-applied', 'true'); }
+}
+
+function computeLCS(a, b) {
+  const m = a.length, n = b.length;
+  // For very long texts, skip LCS and fall back to simple comparison
+  if (m > 500 || n > 500) return [];
+  const dp = Array.from({length: m + 1}, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (a[i-1] === b[j-1]) { result.unshift({word: a[i-1], ai: i-1, bi: j-1}); i--; j--; }
+    else if (dp[i-1][j] >= dp[i][j-1]) { i--; }
+    else { j--; }
+  }
+  return result;
+}
+
+function buildDiffHTML(words, lcs, side) {
+  const lcsSet = new Set(lcs.map(l => side === 'a' ? l.ai : l.bi));
+  return words.map((w, i) => {
+    if (lcsSet.has(i)) return w;
+    const cls = side === 'a' ? 'diff-word-removed' : 'diff-word-added';
+    return `<span class="${cls}">${w}</span>`;
+  }).join(' ');
+}
+
 function applyGranularArrayDiff(containerA, containerB, sectionKey, arrA, arrB) {
-  // For experience arrays, compare per-item
-  const listA = containerA ? containerA.querySelectorAll(`[data-list="${sectionKey}"] > .item-row, [data-list="${sectionKey}"] > li`) : [];
-  const listB = containerB ? containerB.querySelectorAll(`[data-list="${sectionKey}"] > .item-row, [data-list="${sectionKey}"] > li`) : [];
+  const listA = containerA ? containerA.querySelectorAll(`[data-list="${sectionKey}"] > .item-row, [data-list="${sectionKey}"] > li, [data-list="${sectionKey}"] > div`) : [];
+  const listB = containerB ? containerB.querySelectorAll(`[data-list="${sectionKey}"] > .item-row, [data-list="${sectionKey}"] > li, [data-list="${sectionKey}"] > div`) : [];
 
   const maxLen = Math.max(arrA.length, arrB.length);
   for (let i = 0; i < maxLen; i++) {
@@ -3176,7 +3230,6 @@ function applyGranularArrayDiff(containerA, containerB, sectionKey, arrA, arrB) 
       if (listA[i]) listA[i].classList.add('diff-removed');
     }
   }
-  // If no list items found, fallback to section-level
   if (listA.length === 0 && listB.length === 0) {
     applyClass(containerA, sectionKey, 'diff-changed');
     applyClass(containerB, sectionKey, 'diff-changed');
@@ -3184,8 +3237,13 @@ function applyGranularArrayDiff(containerA, containerB, sectionKey, arrA, arrB) 
 }
 
 function clearDiffHighlights() {
-  document.querySelectorAll('.diff-added,.diff-removed,.diff-changed').forEach(el => {
-    el.classList.remove('diff-added', 'diff-removed', 'diff-changed');
+  document.querySelectorAll('.diff-added,.diff-removed,.diff-changed,.diff-word-added,.diff-word-removed').forEach(el => {
+    el.classList.remove('diff-added', 'diff-removed', 'diff-changed', 'diff-word-added', 'diff-word-removed');
+  });
+  // Restore original text for word-diff elements
+  document.querySelectorAll('[data-diff-applied]').forEach(el => {
+    el.innerHTML = el.textContent;
+    el.removeAttribute('data-diff-applied');
   });
 }
 
