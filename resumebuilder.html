@@ -167,7 +167,7 @@
   /* ── Analysis Slide-Out Panel ── */
   .analysis-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:998;opacity:0;transition:opacity 0.3s;pointer-events:none}
   .analysis-overlay.open{opacity:1;pointer-events:auto}
-  .analysis-drawer{position:fixed;top:0;right:0;bottom:0;width:560px;max-width:100vw;background:#071326;color:#fff;z-index:999;transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);overflow-y:auto;box-shadow:-8px 0 30px rgba(0,0,0,0.3);font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}
+  .analysis-drawer{position:fixed;top:0;right:0;bottom:0;width:840px;max-width:100vw;background:#071326;color:#fff;z-index:999;transform:translateX(100%);transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);overflow-y:auto;box-shadow:-8px 0 30px rgba(0,0,0,0.3);font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}
   .analysis-drawer.open{transform:translateX(0)}
   .analysis-drawer .drawer-header{position:sticky;top:0;z-index:5;padding:20px 24px;background:linear-gradient(135deg,#071326,#0c1f33);border-bottom:1px solid rgba(66,165,245,0.25);display:flex;align-items:center;justify-content:space-between}
   .analysis-drawer .drawer-header h2{font-size:1.3rem;font-weight:700;margin:0}
@@ -723,7 +723,7 @@
     <!-- Step 4 Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
       <div>
-        <h2 class="text-lg sm:text-xl font-semibold" style="color:#F1F5F9">Your Plan & Resume</h2>
+        <h2 id="step4-title" class="text-lg sm:text-xl font-semibold" style="color:#F1F5F9">Your Plan & Resume</h2>
         <p class="text-xs sm:text-sm" style="color:#CBD5E1">Click any text to edit. Save to keep your changes.</p>
       </div>
       <button class="btn-secondary text-xs py-1.5 px-3 sm:hidden" onclick="goToStep(3)" data-testid="reconfigure-mobile-btn"><i data-lucide="settings" style="width:12px;height:12px"></i> Reconfigure</button>
@@ -2982,6 +2982,16 @@ function renderJobTracker() {
       <div class="job-fields grid gap-2" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
         <input type="url" value="${(j.url||'').replace(/"/g,'&quot;')}" placeholder="Posting URL" onchange="updateJobField(${i},'url',this.value)" class="text-xs px-2 py-1.5 rounded border w-full" style="border-color:#E5E7EB;color:#374151">
         <input type="date" value="${j.appliedDate||''}" onchange="updateJobField(${i},'appliedDate',this.value)" class="text-xs px-2 py-1.5 rounded border w-full" style="border-color:#E5E7EB;color:#374151">
+        <input type="email" value="${(j.recruiterEmail||'').replace(/"/g,'&quot;')}" placeholder="Recruiter Email" onchange="updateJobField(${i},'recruiterEmail',this.value)" class="text-xs px-2 py-1.5 rounded border w-full" style="border-color:#E5E7EB;color:#374151">
+        <select onchange="updateJobField(${i},'status',this.value)" class="text-xs px-2 py-1.5 rounded border w-full" style="border-color:#E5E7EB;color:#374151;background:#fff">
+          <option value="not_applied"${(j.status||'not_applied')==='not_applied'?' selected':''}>Not Applied</option>
+          <option value="applied"${j.status==='applied'?' selected':''}>Applied</option>
+          <option value="screening"${j.status==='screening'?' selected':''}>Screening</option>
+          <option value="interview"${j.status==='interview'?' selected':''}>Interview</option>
+          <option value="offer"${j.status==='offer'?' selected':''}>Offer</option>
+          <option value="rejected"${j.status==='rejected'?' selected':''}>Rejected</option>
+          <option value="withdrawn"${j.status==='withdrawn'?' selected':''}>Withdrawn</option>
+        </select>
         <input type="text" value="${(j.notes||'').replace(/"/g,'&quot;')}" placeholder="Notes..." onchange="updateJobField(${i},'notes',this.value)" class="text-xs px-2 py-1.5 rounded border w-full" style="border-color:#E5E7EB;color:#374151">
       </div>
     </div>
@@ -2997,6 +3007,8 @@ function addJobRow(prefill) {
     applied: false,
     appliedDate: '',
     notes: '',
+    recruiterEmail: '',
+    status: 'not_applied',
     addedAt: new Date().toISOString()
   });
   renderJobTracker();
@@ -3683,6 +3695,21 @@ function renderPreview(g, targetId) {
 
   let h = '';
 
+  // Compute dynamic plan label based on selected sections
+  const PLAN_SECTION_KEYS = ['plan', 'executive_summary', 'kpis', 'success_criteria'];
+  const hasPlanSections = STATE.sections.some(s => PLAN_SECTION_KEYS.includes(s));
+  const planLabel = hasPlanSections
+    ? (STATE.planType || '90-day').replace('-', ' ').toUpperCase() + ' PLAN AND RESUME'
+    : 'RESUME';
+
+  // Update Step 4 header dynamically
+  const step4Title = document.getElementById('step4-title');
+  if (step4Title) {
+    step4Title.textContent = hasPlanSections
+      ? 'Your ' + (STATE.planType || '90-day').replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' Plan & Resume'
+      : 'Your Resume';
+  }
+
   // ──── HERO ────
   // MOBILE: Always verify responsive behavior when editing hero section layouts
   if (g.hero) {
@@ -3701,7 +3728,7 @@ function renderPreview(g, targetId) {
           <div class="flex flex-col gap-2 text-xs w-full" style="color:${S.sidebarText};opacity:0.8">${contactBar(S.sidebarText)}</div>
         </div>
         <div style="background:${S.cardBg};padding:2rem;font-family:${S.bodyFont}">
-          <p class="text-xs font-bold uppercase tracking-wider mb-3 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+          <p class="text-xs font-bold uppercase tracking-wider mb-3 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em">${planLabel}</p>
           ${g.hero.tagline ? `<p class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
           ${g.hero.subtitle ? `<p class="text-sm mt-2 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
         </div>
@@ -3710,7 +3737,7 @@ function renderPreview(g, targetId) {
       // Classic: centered top banner
       h += card(`<div class="text-center">
         ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 mx-auto mb-4" style="border-color:${C}30">` : ''}
-        <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.bodyFont}">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+        <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.bodyFont}">${planLabel}</p>
         <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
         <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
         ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
@@ -3725,7 +3752,7 @@ function renderPreview(g, targetId) {
         <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6" style="position:relative;z-index:1">
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:rgba(255,255,255,0.3)">` : ''}
           <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
-            <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:rgba(255,255,255,0.7);letter-spacing:0.2em">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+            <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:rgba(255,255,255,0.7);letter-spacing:0.2em">${planLabel}</p>
             <h1 class="text-3xl sm:text-4xl font-bold tracking-tight editable" contenteditable="true" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
             <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
             ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
@@ -3740,7 +3767,7 @@ function renderPreview(g, targetId) {
       h += card(`<div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
         ${photo ? `<img src="${photo}" class="${isDark ? 'w-24 h-24 rounded-lg' : 'w-24 h-24 photo-shape-' + STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:${C}30">` : ''}
         <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
-          <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.headingFont}">${(STATE.planType || '90-day').replace('-', ' ').toUpperCase()} PLAN AND RESUME</p>
+          <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.headingFont}">${planLabel}</p>
           <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
           <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C}">${g.hero.target_title || ''}</p>
           ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
