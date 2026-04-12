@@ -135,7 +135,7 @@
   .color-swatch{width:2.5rem;height:2.5rem;border-radius:50%;cursor:pointer;transition:all 0.2s;border:3px solid transparent}
   .color-swatch:hover{transform:scale(1.15)}
   .color-swatch.selected{border-color:#0A0A0A;box-shadow:0 0 0 3px #fff,0 0 0 5px currentColor}
-  .photo-upload{width:120px;height:120px;border-radius:50%;border:3px dashed #D1D5DB;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;overflow:hidden;background:#FAFBFC;flex-shrink:0}
+  .photo-upload{width:120px;height:120px;border-radius:50%;border:3px dashed #D1D5DB;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;overflow:hidden;background:#fff;flex-shrink:0}
   .photo-upload:hover{border-color:var(--c-primary,#005EB8)}
   .photo-upload img{width:100%;height:100%;object-fit:cover}
   .photo-upload.shape-square{border-radius:0.5rem}
@@ -531,6 +531,64 @@
         <button class="btn-primary" id="btn-parse" onclick="parseResume()" data-testid="extract-btn"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI</button>
       </div>
       </div><!-- /resume-upload-section -->
+
+      <!-- Manual Resume Entry (collapsible) -->
+      <div class="mt-4 border-t pt-4" style="border-color:#E5E7EB">
+        <button type="button" onclick="toggleManualEntry()" class="flex items-center gap-2 text-sm font-medium w-full text-left py-1" style="color:#4B5563" data-testid="manual-entry-toggle">
+          <svg id="manual-entry-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform 0.2s;transform:rotate(-90deg)"><polyline points="6 9 12 15 18 9"/></svg>
+          Enter Resume Details Manually
+        </button>
+        <div id="manual-entry-section" class="hidden mt-4 space-y-4">
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Current Title</label>
+              <input class="input-field" id="manual-current-title" placeholder="e.g. Senior Software Engineer">
+            </div>
+            <div>
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Summary</label>
+              <textarea class="input-field" id="manual-summary" placeholder="Brief professional summary..." style="min-height:80px"></textarea>
+            </div>
+          </div>
+
+          <!-- Experience -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-semibold uppercase tracking-wider" style="color:#4B5563">Experience</label>
+              <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addManualExperience()">+ Add</button>
+            </div>
+            <div id="manual-experience-list" class="space-y-3"></div>
+          </div>
+
+          <!-- Skills -->
+          <div>
+            <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Skills <span class="font-normal" style="color:#9CA3AF">(comma-separated)</span></label>
+            <textarea class="input-field" id="manual-skills" placeholder="e.g. JavaScript, Python, Project Management, Leadership" style="min-height:60px"></textarea>
+          </div>
+
+          <!-- Education -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-semibold uppercase tracking-wider" style="color:#4B5563">Education</label>
+              <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addManualEducation()">+ Add</button>
+            </div>
+            <div id="manual-education-list" class="space-y-3"></div>
+          </div>
+
+          <!-- Certifications -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-semibold uppercase tracking-wider" style="color:#4B5563">Certifications <span class="font-normal" style="color:#9CA3AF">(optional)</span></label>
+              <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addManualCertification()">+ Add</button>
+            </div>
+            <div id="manual-certification-list" class="space-y-3"></div>
+          </div>
+
+          <div class="flex justify-end">
+            <button class="btn-primary" onclick="saveManualEntry()" data-testid="save-manual-entry"><i data-lucide="check" style="width:16px;height:16px"></i> Save Manual Entry</button>
+          </div>
+        </div>
+      </div>
+
       <div id="resume-preview" class="hidden mt-6 border-t pt-6" style="border-color:#E5E7EB">
         <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-semibold" style="color:#0A2F6B">Extracted Resume Data</h3>
@@ -2032,6 +2090,8 @@ function _doStartNewPlan() {
   // Reset collapsible resume section to expanded state
   document.getElementById('resume-upload-section').classList.remove('hidden');
   document.getElementById('resume-collapsed-bar').classList.add('hidden');
+  // Reset manual entry section
+  resetManualEntry();
   // Remove analysis + publish completion badges
   const _aiw = document.getElementById('analyze-icon-wrap');
   if (_aiw) _aiw.classList.remove('analysis-done');
@@ -2102,6 +2162,11 @@ async function loadPlan(planId) {
     document.getElementById('contact-website').value = d.contactWebsite || '';
     document.getElementById('contact-twitter').value = d.contactTwitter || '';
     document.getElementById('resume-build-name').value = d.resumeBuildName || '';
+
+    // Populate manual entry fields from resume data
+    if (STATE.resumeData && Object.keys(STATE.resumeData).length) {
+      populateManualEntryFromState();
+    }
 
     // Re-sync analysis cache key to current state (DOM fields now populated)
     if (analysisCache) {
@@ -2808,6 +2873,185 @@ async function renderPdfToImages(file, maxPages = 3) {
     images.push(canvas.toDataURL('image/png').split(',')[1]);
   }
   return images;
+}
+
+// ============ Manual Resume Entry ============
+function toggleManualEntry() {
+  const section = document.getElementById('manual-entry-section');
+  const chevron = document.getElementById('manual-entry-chevron');
+  const isHidden = section.classList.contains('hidden');
+  section.classList.toggle('hidden');
+  chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
+  if (isHidden && !document.querySelectorAll('#manual-experience-list .manual-exp-item').length) {
+    addManualExperience();
+    addManualEducation();
+  }
+}
+
+function addManualExperience() {
+  const list = document.getElementById('manual-experience-list');
+  const idx = list.children.length;
+  const div = document.createElement('div');
+  div.className = 'manual-exp-item p-3 rounded-lg border space-y-2';
+  div.style.cssText = 'border-color:#E5E7EB;background:#FAFBFC';
+  div.innerHTML = `
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-semibold" style="color:#6B7280">Position ${idx + 1}</span>
+      <button type="button" onclick="this.closest('.manual-exp-item').remove()" class="text-xs" style="color:#EF4444">Remove</button>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-2">
+      <input class="input-field manual-exp-title" placeholder="Job Title">
+      <input class="input-field manual-exp-company" placeholder="Company">
+    </div>
+    <div class="grid sm:grid-cols-2 gap-2">
+      <input class="input-field manual-exp-dates" placeholder="Dates (e.g. Jan 2020 - Present)">
+      <input class="input-field manual-exp-location" placeholder="Location (optional)">
+    </div>
+    <textarea class="input-field manual-exp-bullets" placeholder="Key accomplishments (one per line)" style="min-height:60px"></textarea>`;
+  list.appendChild(div);
+  lucide?.createIcons?.();
+}
+
+function addManualEducation() {
+  const list = document.getElementById('manual-education-list');
+  const div = document.createElement('div');
+  div.className = 'manual-edu-item p-3 rounded-lg border';
+  div.style.cssText = 'border-color:#E5E7EB;background:#FAFBFC';
+  div.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold" style="color:#6B7280">Education</span>
+      <button type="button" onclick="this.closest('.manual-edu-item').remove()" class="text-xs" style="color:#EF4444">Remove</button>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-2">
+      <input class="input-field manual-edu-degree" placeholder="Degree">
+      <input class="input-field manual-edu-school" placeholder="School">
+      <input class="input-field manual-edu-year" placeholder="Year">
+    </div>`;
+  list.appendChild(div);
+}
+
+function addManualCertification() {
+  const list = document.getElementById('manual-certification-list');
+  const div = document.createElement('div');
+  div.className = 'manual-cert-item p-3 rounded-lg border';
+  div.style.cssText = 'border-color:#E5E7EB;background:#FAFBFC';
+  div.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold" style="color:#6B7280">Certification</span>
+      <button type="button" onclick="this.closest('.manual-cert-item').remove()" class="text-xs" style="color:#EF4444">Remove</button>
+    </div>
+    <div class="grid sm:grid-cols-3 gap-2">
+      <input class="input-field manual-cert-name" placeholder="Certification Name">
+      <input class="input-field manual-cert-issuer" placeholder="Issuer">
+      <input class="input-field manual-cert-year" placeholder="Year">
+    </div>`;
+  list.appendChild(div);
+}
+
+function saveManualEntry() {
+  const currentTitle = document.getElementById('manual-current-title').value.trim();
+  const summary = document.getElementById('manual-summary').value.trim();
+  const skillsRaw = document.getElementById('manual-skills').value.trim();
+  const skills = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const experience = [];
+  document.querySelectorAll('#manual-experience-list .manual-exp-item').forEach(item => {
+    const title = item.querySelector('.manual-exp-title').value.trim();
+    const company = item.querySelector('.manual-exp-company').value.trim();
+    const dates = item.querySelector('.manual-exp-dates').value.trim();
+    const location = item.querySelector('.manual-exp-location').value.trim();
+    const bulletsRaw = item.querySelector('.manual-exp-bullets').value.trim();
+    const bullets = bulletsRaw ? bulletsRaw.split('\n').map(b => b.trim()).filter(Boolean) : [];
+    if (title || company) experience.push({ title, company, dates, location, bullets });
+  });
+
+  const education = [];
+  document.querySelectorAll('#manual-education-list .manual-edu-item').forEach(item => {
+    const degree = item.querySelector('.manual-edu-degree').value.trim();
+    const school = item.querySelector('.manual-edu-school').value.trim();
+    const year = item.querySelector('.manual-edu-year').value.trim();
+    if (degree || school) education.push({ degree, school, year });
+  });
+
+  const certifications = [];
+  document.querySelectorAll('#manual-certification-list .manual-cert-item').forEach(item => {
+    const name = item.querySelector('.manual-cert-name').value.trim();
+    const issuer = item.querySelector('.manual-cert-issuer').value.trim();
+    const year = item.querySelector('.manual-cert-year').value.trim();
+    if (name) certifications.push({ name, issuer, year });
+  });
+
+  if (!currentTitle && !summary && !experience.length && !skills.length && !education.length) {
+    showToast('Please fill in at least one field'); return;
+  }
+
+  // Merge into STATE.resumeData (preserve existing AI-extracted data, override with manual)
+  const rd = STATE.resumeData || {};
+  if (currentTitle) rd.current_title = currentTitle;
+  if (summary) rd.summary = summary;
+  if (skills.length) rd.skills = skills;
+  if (experience.length) rd.experience = experience;
+  if (education.length) rd.education = education;
+  if (certifications.length) rd.certifications = certifications;
+  // Also set name from contact field if not set
+  const cName = document.getElementById('contact-name').value.trim();
+  if (cName && !rd.name) rd.name = cName;
+  STATE.resumeData = rd;
+
+  renderResumePreview(rd);
+  document.getElementById('resume-preview').classList.remove('hidden');
+  showToast('Manual resume data saved!');
+}
+
+function populateManualEntryFromState() {
+  const rd = STATE.resumeData;
+  if (!rd) return;
+  document.getElementById('manual-current-title').value = rd.current_title || '';
+  document.getElementById('manual-summary').value = rd.summary || '';
+  document.getElementById('manual-skills').value = (rd.skills || []).join(', ');
+  // Experience
+  const expList = document.getElementById('manual-experience-list');
+  expList.innerHTML = '';
+  (rd.experience || []).forEach(e => {
+    addManualExperience();
+    const item = expList.lastElementChild;
+    item.querySelector('.manual-exp-title').value = e.title || '';
+    item.querySelector('.manual-exp-company').value = e.company || '';
+    item.querySelector('.manual-exp-dates').value = e.dates || '';
+    item.querySelector('.manual-exp-location').value = e.location || '';
+    item.querySelector('.manual-exp-bullets').value = (e.bullets || []).join('\n');
+  });
+  // Education
+  const eduList = document.getElementById('manual-education-list');
+  eduList.innerHTML = '';
+  (rd.education || []).forEach(e => {
+    addManualEducation();
+    const item = eduList.lastElementChild;
+    item.querySelector('.manual-edu-degree').value = e.degree || '';
+    item.querySelector('.manual-edu-school').value = e.school || '';
+    item.querySelector('.manual-edu-year').value = e.year || '';
+  });
+  // Certifications
+  const certList = document.getElementById('manual-certification-list');
+  certList.innerHTML = '';
+  (rd.certifications || []).forEach(c => {
+    addManualCertification();
+    const item = certList.lastElementChild;
+    item.querySelector('.manual-cert-name').value = c.name || '';
+    item.querySelector('.manual-cert-issuer').value = c.issuer || '';
+    item.querySelector('.manual-cert-year').value = c.year || '';
+  });
+}
+
+function resetManualEntry() {
+  document.getElementById('manual-current-title').value = '';
+  document.getElementById('manual-summary').value = '';
+  document.getElementById('manual-skills').value = '';
+  document.getElementById('manual-experience-list').innerHTML = '';
+  document.getElementById('manual-education-list').innerHTML = '';
+  document.getElementById('manual-certification-list').innerHTML = '';
+  document.getElementById('manual-entry-section').classList.add('hidden');
+  document.getElementById('manual-entry-chevron').style.transform = 'rotate(-90deg)';
 }
 
 async function parseResume() {
