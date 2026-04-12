@@ -1447,6 +1447,20 @@ function hideLoading() {
   overlay.classList.add('hidden');
 }
 // Collapse/expand resume upload section
+function showInfoModal(title, message) {
+  let m = document.getElementById('info-modal-overlay');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'info-modal-overlay';
+    Object.assign(m.style, {position:'fixed',inset:'0',zIndex:'2000',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.5)',backdropFilter:'blur(4px)'});
+    document.body.appendChild(m);
+  }
+  m.innerHTML = '<div style="background:#fff;border-radius:1rem;padding:2rem;max-width:420px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.15)">' +
+    '<h3 style="margin:0 0 0.75rem;font-size:1.15rem;font-weight:700;color:#111827">' + title + '</h3>' +
+    '<p style="margin:0 0 1.5rem;font-size:0.95rem;color:#4B5563;line-height:1.5">' + message + '</p>' +
+    '<button onclick="document.getElementById(\'info-modal-overlay\').style.display=\'none\'" style="padding:0.625rem 2rem;border:none;border-radius:0.5rem;background:linear-gradient(135deg,#005EB8,#0284C7);color:#fff;font-weight:600;font-size:0.9rem;cursor:pointer">Got It</button></div>';
+  m.style.display = 'flex';
+}
 function collapseResumeUpload(fileName, extractedAt) {
   document.getElementById('resume-upload-section').classList.add('hidden');
   const bar = document.getElementById('resume-collapsed-bar');
@@ -2103,9 +2117,9 @@ async function showDashboard() {
     // Disable "New Plan" button if at limit
     const newPlanBtn = document.querySelector('[data-testid="new-plan-btn"]');
     if (newPlanBtn) {
-      if (!isOwnerUser && planCount >= effectiveMax) {
+      if (!isOwnerUser && isSubscribed && planCount >= maxPlans) {
         newPlanBtn.disabled = true;
-        newPlanBtn.title = effectiveMax === 1 ? 'Upgrade to create more resumes (limit 1)' : 'Delete a plan to create a new one (max ' + maxPlans + ')';
+        newPlanBtn.title = 'Delete a plan to create a new one (max ' + maxPlans + ')';
         newPlanBtn.style.opacity = '0.5';
         newPlanBtn.style.cursor = 'not-allowed';
       } else {
@@ -2206,7 +2220,7 @@ function startNewPlan() {
     // Subscriber — just check 5-plan max
     db.collection('plans').where('userId','==',currentUser.uid).get().then(snap => {
       if (snap.size >= 5) {
-        showToast('You\'ve reached the max of 5 plans. Delete one to create a new one.');
+        showInfoModal('Resume Limit Reached', 'You\'ve reached the maximum of 5 resumes on your plan. To create a new resume, please delete an existing one from your dashboard first.');
         return;
       }
       _doStartNewPlan();
@@ -2367,6 +2381,12 @@ async function loadPlan(planId) {
       document.getElementById('resume-preview').classList.remove('hidden');
       // Auto-collapse upload section when resume data already exists
       collapseResumeUpload(STATE.resumeFileName, STATE.resumeExtractedAt);
+      // Show file name in the upload box so it's visible when user expands
+      if (STATE.resumeFileName) {
+        const fnEl = document.getElementById('file-name');
+        fnEl.textContent = STATE.resumeFileName;
+        fnEl.classList.remove('hidden');
+      }
       // Show file info pill in extracted data section too
       if (STATE.resumeFileName) {
         const fileInfoEl = document.getElementById('resume-file-info');
@@ -2763,7 +2783,13 @@ function handlePhotoSelect(input) {
 
 function applyCrop() {
   if (!cropperInstance) return;
-  const canvas = cropperInstance.getCroppedCanvas({ width: 400, height: 400 });
+  const cropped = cropperInstance.getCroppedCanvas({ width: 400, height: 400 });
+  const canvas = document.createElement('canvas');
+  canvas.width = 400; canvas.height = 400;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, 400, 400);
+  ctx.drawImage(cropped, 0, 0);
   const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
 
   if (window._profileCropMode) {
