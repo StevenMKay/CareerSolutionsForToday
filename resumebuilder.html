@@ -369,9 +369,12 @@
           <svg id="eye-off-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
         </button>
       </div>
-      <p class="text-xs" style="color:#9CA3AF;margin:0">New here? Just enter your email and password to create an account.</p>
+      <div class="flex items-center justify-between" style="margin:0">
+        <p class="text-xs" style="color:#9CA3AF;margin:0">New here? Just enter your email and password to create an account.</p>
+        <button type="button" onclick="resetPassword()" class="text-xs font-medium" style="color:#005EB8;background:none;border:none;cursor:pointer;white-space:nowrap;padding:0" data-testid="forgot-password-btn">Forgot password?</button>
+      </div>
       <div id="login-error" class="text-xs hidden" style="color:#B91C1C" data-testid="login-error"></div>
-      <button onclick="signInWithEmail()" class="btn-primary w-full justify-center" data-testid="email-signin-btn">
+      <button id="email-signin-btn" onclick="signInWithEmail()" class="btn-primary w-full justify-center" data-testid="email-signin-btn">
         <i data-lucide="log-in" style="width:16px;height:16px"></i> Sign In / Sign Up
       </button>
     </div>
@@ -1837,9 +1840,39 @@ function togglePasswordVisibility() {
   btn.setAttribute('title', isHidden ? 'Hide password' : 'Show password');
 }
 
+function setAuthLoading(loading) {
+  const emailBtn = document.getElementById('email-signin-btn');
+  const googleBtn = document.querySelector('[data-testid="google-signin-btn"]');
+  if (emailBtn) {
+    emailBtn.disabled = loading;
+    emailBtn.innerHTML = loading
+      ? '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;display:inline-block"></span> Signing in...'
+      : '<i data-lucide="log-in" style="width:16px;height:16px"></i> Sign In / Sign Up';
+    if (!loading) lucide.createIcons();
+  }
+  if (googleBtn) { googleBtn.disabled = loading; googleBtn.style.opacity = loading ? '0.6' : ''; }
+}
+
 function signInWithGoogle() {
+  setAuthLoading(true);
   const provider = new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(provider).catch(e => showToast('Sign-in failed: ' + e.message));
+  auth.signInWithPopup(provider).catch(e => { showToast('Sign-in failed: ' + e.message); setAuthLoading(false); });
+}
+
+async function resetPassword() {
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+  if (!email) { errEl.textContent = 'Enter your email address first, then click "Forgot password?"'; errEl.classList.remove('hidden'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Please enter a valid email address'; errEl.classList.remove('hidden'); return; }
+  try {
+    await auth.sendPasswordResetEmail(email);
+    showToast('Password reset email sent! Check your inbox.');
+  } catch(e) {
+    if (e.code === 'auth/user-not-found') { errEl.textContent = 'No account found with this email.'; }
+    else { errEl.textContent = e.message; }
+    errEl.classList.remove('hidden');
+  }
 }
 
 async function signInWithEmail() {
@@ -1848,6 +1881,9 @@ async function signInWithEmail() {
   const errEl = document.getElementById('login-error');
   errEl.classList.add('hidden');
   if (!email || !password) { errEl.textContent = 'Please enter email and password'; errEl.classList.remove('hidden'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'Please enter a valid email address'; errEl.classList.remove('hidden'); return; }
+  if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; errEl.classList.remove('hidden'); return; }
+  setAuthLoading(true);
   try {
     await auth.signInWithEmailAndPassword(email, password);
   } catch(e) {
@@ -1856,25 +1892,40 @@ async function signInWithEmail() {
       catch(e2) {
         if (e2.code === 'auth/email-already-in-use') {
           errEl.textContent = 'This email is already registered with Google. Please use the "Sign in with Google" button above.';
+        } else if (e2.code === 'auth/weak-password') {
+          errEl.textContent = 'Password must be at least 6 characters';
         } else {
           errEl.textContent = e2.message;
         }
         errEl.classList.remove('hidden');
+        setAuthLoading(false);
       }
+    } else if (e.code === 'auth/wrong-password') {
+      errEl.textContent = 'Incorrect password. Try again or click "Forgot password?"';
+      errEl.classList.remove('hidden');
+      setAuthLoading(false);
+    } else if (e.code === 'auth/too-many-requests') {
+      errEl.textContent = 'Too many attempts. Please wait a moment and try again.';
+      errEl.classList.remove('hidden');
+      setAuthLoading(false);
     } else {
       errEl.textContent = e.message; errEl.classList.remove('hidden');
+      setAuthLoading(false);
     }
   }
 }
 document.addEventListener('DOMContentLoaded', () => {
   const pwField = document.getElementById('login-password');
+  const emField = document.getElementById('login-email');
   if (pwField) pwField.addEventListener('keydown', e => { if (e.key === 'Enter') signInWithEmail(); });
+  if (emField) emField.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('login-password').focus(); });
 });
 
 function signOutUser() { auth.signOut(); }
 
 auth.onAuthStateChanged(async user => {
   currentUser = user;
+  setAuthLoading(false);
   if (user) {
     document.getElementById('auth-gate').classList.add('hidden');
     document.getElementById('user-info').classList.remove('hidden');
