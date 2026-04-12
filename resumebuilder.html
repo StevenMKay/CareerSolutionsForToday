@@ -4188,7 +4188,7 @@ async function exportDOCX() {
     // Build data from resume data + contact fields
     const contactPhone = document.getElementById('contact-phone')?.value || resumeData.phone || '';
     const contactEmail = document.getElementById('contact-email')?.value || resumeData.email || '';
-    const name = document.getElementById('contact-name')?.value || resumeData.name || generated.hero?.name || '';
+    const name = (document.getElementById('contact-name')?.value || '').trim() || (resumeData.name || '').trim() || (generated.hero?.name || '').trim() || '';
     const address = resumeData.address || '';
 
     // Build experience array
@@ -4350,20 +4350,14 @@ async function exportPPTX() {
       }
     }
 
-    // Fetch the template
-    const templateResp = await fetch('resume-template.pptx');
-    if (!templateResp.ok) throw new Error('Could not load PPTX template (HTTP ' + templateResp.status + ')');
-    const templateData = await templateResp.arrayBuffer();
-    const zip = await JSZip.loadAsync(templateData);
-
     // Build data from resumeData first, generated as fallback (mirrors DOCX)
-    const name = document.getElementById('contact-name')?.value || resumeData.name || generated.hero?.name || '';
+    const name = (document.getElementById('contact-name')?.value || '').trim() || (resumeData.name || '').trim() || (generated.hero?.name || '').trim() || '';
     const phone = document.getElementById('contact-phone')?.value || resumeData.phone || '';
     const email = document.getElementById('contact-email')?.value || resumeData.email || '';
     const address = resumeData.address || resumeData.location || '';
     const linkedin = document.getElementById('contact-linkedin')?.value || resumeData.linkedin || '';
     const currentTitle = resumeData.current_title || generated.hero?.target_title || '';
-    const summary = resumeData.summary || generated.executive_summary || '';
+    const summary = generated.hero?.tagline || resumeData.summary || generated.executive_summary || '';
     const skills = resumeData.skills || generated.skills || [];
     const experiences = (resumeData.experience || generated.experience || []).map(e => ({
       company: e.company || '',
@@ -4388,171 +4382,265 @@ async function exportPPTX() {
       return (a.title || '') + (a.description ? ' \u2014 ' + a.description : '');
     });
 
-    // Build replacements map matching actual PPTX template placeholders
-    const replacements = {
-      '{FULL NAME}': name.toUpperCase(),
-      '{Name}': name,
-      '{name}': name,
-      '{JOBTITLE}': currentTitle,
-      '{JobTitle}': currentTitle,
-      '{Phone}': phone,
-      '{Email}': email,
-      '{Address}': address,
-      '{LinkedIn}': linkedin,
-      '{Summary}': summary,
-    };
+    // --- PptxGenJS Dynamic Generation ---
+    const ACCENT = STATE.color || '#104862';
+    const DARK = '#0E2841';
+    const GRAY = '#595959';
+    const LIGHT_GRAY = '#BFBFBF';
+    const WHITE = '#FFFFFF';
+    const FONT_HEAD = 'Arial';
+    const FONT_BODY = 'Arial';
+    const ss = STATE.sections || [];
+    const showSec = (key) => ss.length === 0 || ss.includes(key);
 
-    // Skills: template has {Skill1} through {Skill20}
-    for (let i = 0; i < 20; i++) {
-      replacements[`{Skill${i + 1}}`] = skills[i] || '';
+    const pptx = new PptxGenJS();
+    pptx.layout = 'LAYOUT_WIDE';
+    pptx.author = 'Career Solutions for Today';
+    pptx.title = (name || 'Resume') + ' — Resume';
+
+    // ========== SLIDE 1: Header / Contact / Summary ==========
+    const slide1 = pptx.addSlide();
+    // Accent top bar
+    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT.replace('#','') } });
+
+    // Name
+    slide1.addText(name.toUpperCase(), {
+      x: 0.6, y: 0.3, w: 8.8, h: 0.6,
+      fontSize: 28, fontFace: FONT_HEAD, bold: true,
+      color: DARK, align: 'left', valign: 'bottom'
+    });
+
+    // Title
+    if (currentTitle) {
+      slide1.addText(currentTitle, {
+        x: 0.6, y: 0.85, w: 8.8, h: 0.35,
+        fontSize: 14, fontFace: FONT_HEAD,
+        color: ACCENT.replace('#',''), align: 'left', valign: 'top'
+      });
     }
 
-    // Experience: support Job1 through Job6 (each with up to 8 accomplishments)
-    for (let i = 0; i < 6; i++) {
-      const exp = experiences[i] || {};
-      const idx = i + 1;
-      replacements[`{Job${idx}Title}`] = exp.title || '';
-      replacements[`{Company${idx}Name}`] = exp.company || '';
-      replacements[`{Company${idx}}`] = exp.company || '';
-      replacements[`{Job${idx}Location CityState}`] = exp.location || '';
-      replacements[`{Job${idx}Location}`] = exp.location || '';
-      replacements[`{Job${idx}Summary}`] = exp.role_summary || '';
-      replacements[`{Job${idx}Dates}`] = exp.dates || '';
-      for (let b = 0; b < 8; b++) {
-        replacements[`{Job${idx}Accomplishment${b + 1}}`] = (exp.bullets && exp.bullets[b]) || '';
-        replacements[`{Job${idx}Bullet${b + 1}}`] = (exp.bullets && exp.bullets[b]) || '';
-      }
+    // Contact bar
+    const contactParts = [];
+    if (phone) contactParts.push(phone);
+    if (email) contactParts.push(email);
+    if (address) contactParts.push(address);
+    if (linkedin) contactParts.push(linkedin);
+    if (contactParts.length) {
+      slide1.addText(contactParts.join('   |   '), {
+        x: 0.6, y: 1.25, w: 8.8, h: 0.3,
+        fontSize: 9, fontFace: FONT_BODY, color: GRAY, align: 'left'
+      });
     }
 
-    // Education: support up to 5 entries, with generic and numbered forms
-    for (let i = 0; i < 5; i++) {
-      const ed = education[i] || {};
-      const idx = i + 1;
-      replacements[`{Degree${idx}}`] = ed.degree || '';
-      replacements[`{School${idx}}`] = ed.school || '';
-      replacements[`{Year${idx}}`] = ed.year || '';
-    }
-    if (education[0]) {
-      replacements['{Degree}'] = education[0].degree || '';
-      replacements['{school}'] = education[0].school || '';
-      replacements['{year}'] = education[0].year || '';
-    }
+    // Divider line
+    slide1.addShape(pptx.ShapeType.line, {
+      x: 0.6, y: 1.6, w: 8.8, h: 0,
+      line: { color: LIGHT_GRAY.replace('#',''), width: 1 }
+    });
 
-    // Certifications: support up to 8 entries, with generic and numbered forms
-    for (let i = 0; i < 8; i++) {
-      const cert = certifications[i] || {};
-      const idx = i + 1;
-      replacements[`{Cert${idx}}`] = cert.name ? `${cert.name}${cert.issuer ? ' — ' + cert.issuer : ''}${cert.year ? ' (' + cert.year + ')' : ''}` : '';
-      replacements[`{CertName${idx}}`] = cert.name || '';
-      replacements[`{CertIssuer${idx}}`] = cert.issuer || '';
-      replacements[`{CertYear${idx}}`] = cert.year || '';
-      replacements[`{cert_name${idx}}`] = cert.name || '';
-      replacements[`{cert_issuer${idx}}`] = cert.issuer || '';
-    }
-    if (certifications[0]) {
-      replacements['{cert_name}'] = certifications[0].name || '';
-      replacements['{cert_issuer}'] = certifications[0].issuer || '';
-      replacements['{Certification}'] = certifications[0].name || '';
+    // Summary / Tagline
+    let yPos = 1.75;
+    if (summary) {
+      slide1.addText('PROFESSIONAL SUMMARY', {
+        x: 0.6, y: yPos, w: 8.8, h: 0.3,
+        fontSize: 11, fontFace: FONT_HEAD, bold: true,
+        color: ACCENT.replace('#',''), align: 'left'
+      });
+      yPos += 0.3;
+      slide1.addText(summary, {
+        x: 0.6, y: yPos, w: 8.8, h: 0.8,
+        fontSize: 10, fontFace: FONT_BODY, color: DARK,
+        align: 'left', valign: 'top', shrinkText: true
+      });
+      yPos += 0.85;
     }
 
-    // Achievements: support up to 8 entries
-    for (let i = 0; i < 8; i++) {
-      replacements[`{Achievement${i + 1}}`] = achievements[i] || '';
-    }
-
-    // Helper: merge split runs in a paragraph for reliable placeholder replacement
-    // PowerPoint splits text like {FULL NAME} across multiple <a:r><a:t>...</a:t></a:r> elements
-    function mergeRunsInParagraph(paragraphXml) {
-      // Extract all text content from <a:t> elements in this paragraph
-      const texts = [];
-      const textRegex = /<a:t[^>]*>([^<]*)<\/a:t>/g;
-      let m;
-      while ((m = textRegex.exec(paragraphXml)) !== null) {
-        texts.push(m[1]);
-      }
-      return texts.join('');
-    }
-
-    // Process slide XMLs
-    for (const [fileName, fileData] of Object.entries(zip.files)) {
-      if (fileName.startsWith('ppt/slides/slide') && fileName.endsWith('.xml')) {
-        let xml = await fileData.async('string');
-
-        // Phase 1: Merge split runs within paragraphs, then replace placeholders
-        // Match each <a:p>...</a:p> block
-        xml = xml.replace(/<a:p\b[^>]*>[\s\S]*?<\/a:p>/g, function(paragraphBlock) {
-          const mergedText = mergeRunsInParagraph(paragraphBlock);
-          // Check if merged text contains any placeholder
-          if (!/\{[^}]+\}/.test(mergedText)) return paragraphBlock;
-
-          // Apply all replacements to the merged text
-          let replaced = mergedText;
-          for (const [placeholder, value] of Object.entries(replacements)) {
-            if (replaced.includes(placeholder)) {
-              replaced = replaced.split(placeholder).join(escapeXml(value));
-            }
-          }
-
-          // If no change was made, return original
-          if (replaced === mergedText) return paragraphBlock;
-
-          // Rebuild: put all replaced text into the first <a:r>'s <a:t>, remove text from other runs
-          // Find the first <a:r> with an <a:t> and replace its content
-          let firstRunReplaced = false;
-          const result = paragraphBlock.replace(/<a:r\b[^>]*>([\s\S]*?)<\/a:r>/g, function(runBlock) {
-            if (!firstRunReplaced && /<a:t[^>]*>/.test(runBlock)) {
-              firstRunReplaced = true;
-              // Replace the <a:t>...</a:t> content in this run with the full replaced text
-              return runBlock.replace(/<a:t[^>]*>[^<]*<\/a:t>/, `<a:t>${replaced}</a:t>`);
-            }
-            // For subsequent runs that had text, empty their <a:t> content
-            if (/<a:t[^>]*>[^<]*<\/a:t>/.test(runBlock)) {
-              return runBlock.replace(/<a:t[^>]*>[^<]*<\/a:t>/, '<a:t></a:t>');
-            }
-            return runBlock;
-          });
-          return result;
+    // Skills on slide 1 if they exist
+    if (showSec('skills') && skills.length) {
+      slide1.addText('CORE COMPETENCIES', {
+        x: 0.6, y: yPos, w: 8.8, h: 0.3,
+        fontSize: 11, fontFace: FONT_HEAD, bold: true,
+        color: ACCENT.replace('#',''), align: 'left'
+      });
+      yPos += 0.35;
+      // Arrange skills in rows of 4
+      const skillCols = 4;
+      const colW = 8.8 / skillCols;
+      for (let i = 0; i < skills.length && i < 20; i++) {
+        const col = i % skillCols;
+        const row = Math.floor(i / skillCols);
+        slide1.addText('•  ' + skills[i], {
+          x: 0.6 + col * colW, y: yPos + row * 0.22,
+          w: colW, h: 0.22,
+          fontSize: 9, fontFace: FONT_BODY, color: DARK, align: 'left'
         });
+      }
+      yPos += Math.ceil(Math.min(skills.length, 20) / skillCols) * 0.22 + 0.15;
+    }
 
-        // Phase 2: Direct replacement for any remaining single-run placeholders
-        for (const [placeholder, value] of Object.entries(replacements)) {
-          const escaped = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          xml = xml.replace(new RegExp(escaped, 'g'), escapeXml(value));
+    // Education on slide 1 if room and data exists
+    if (showSec('education') && education.length && yPos < 5.8) {
+      slide1.addText('EDUCATION', {
+        x: 0.6, y: yPos, w: 8.8, h: 0.3,
+        fontSize: 11, fontFace: FONT_HEAD, bold: true,
+        color: ACCENT.replace('#',''), align: 'left'
+      });
+      yPos += 0.3;
+      education.forEach(ed => {
+        if (!ed.degree) return;
+        slide1.addText([
+          { text: ed.degree, options: { bold: true, fontSize: 10, color: DARK } },
+          { text: ed.school ? '  —  ' + ed.school : '', options: { fontSize: 10, color: GRAY } },
+          { text: ed.year ? '  (' + ed.year + ')' : '', options: { fontSize: 9, color: GRAY } }
+        ], { x: 0.6, y: yPos, w: 8.8, h: 0.22, fontFace: FONT_BODY, align: 'left' });
+        yPos += 0.24;
+      });
+      yPos += 0.1;
+    }
+
+    // Certifications on slide 1 if room
+    if (showSec('education') && certifications.length && certifications[0].name && yPos < 6.2) {
+      slide1.addText('CERTIFICATIONS', {
+        x: 0.6, y: yPos, w: 8.8, h: 0.3,
+        fontSize: 11, fontFace: FONT_HEAD, bold: true,
+        color: ACCENT.replace('#',''), align: 'left'
+      });
+      yPos += 0.3;
+      certifications.forEach(cert => {
+        if (!cert.name) return;
+        const certLine = cert.name + (cert.issuer ? ' — ' + cert.issuer : '') + (cert.year ? ' (' + cert.year + ')' : '');
+        slide1.addText('•  ' + certLine, {
+          x: 0.6, y: yPos, w: 8.8, h: 0.22,
+          fontSize: 9, fontFace: FONT_BODY, color: DARK, align: 'left'
+        });
+        yPos += 0.22;
+      });
+    }
+
+    // ========== EXPERIENCE SLIDES ==========
+    if (showSec('experience') && experiences.length) {
+      const filteredExps = experiences.filter(e => e.title || e.company);
+      let expSlide = null;
+      let ey = 0;
+      const EXP_MARGIN_TOP = 0.5;
+      const MAX_Y = 7.0;
+
+      function newExpSlide() {
+        expSlide = pptx.addSlide();
+        expSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT.replace('#','') } });
+        expSlide.addText('PROFESSIONAL EXPERIENCE', {
+          x: 0.6, y: 0.2, w: 8.8, h: 0.35,
+          fontSize: 14, fontFace: FONT_HEAD, bold: true,
+          color: ACCENT.replace('#',''), align: 'left'
+        });
+        ey = EXP_MARGIN_TOP + 0.2;
+      }
+      newExpSlide();
+
+      filteredExps.forEach((exp, idx) => {
+        // Estimate height needed: title line + company line + role_summary + bullets
+        const bulletCount = (exp.bullets || []).length;
+        const estHeight = 0.3 + 0.2 + (exp.role_summary ? 0.4 : 0) + bulletCount * 0.25 + 0.15;
+        if (ey + estHeight > MAX_Y && idx > 0) {
+          newExpSlide();
         }
 
-        // Phase 3: Replace static date placeholders with actual dates
-        for (let i = 0; i < 6; i++) {
-          const exp = experiences[i] || {};
+        // Job title + dates on same line
+        if (exp.title) {
+          const titleParts = [
+            { text: exp.title, options: { bold: true, fontSize: 11, color: DARK } }
+          ];
           if (exp.dates) {
-            xml = xml.replace(/MM\/YYYY\s*[–\-]\s*MM\/YYYY/, exp.dates);
+            titleParts.push({ text: '    ' + exp.dates, options: { fontSize: 10, color: GRAY } });
           }
+          expSlide.addText(titleParts, {
+            x: 0.6, y: ey, w: 8.8, h: 0.25,
+            fontFace: FONT_BODY, align: 'left'
+          });
+          ey += 0.25;
         }
 
-        // Phase 4: Clean up loop markers and empty placeholders
-        xml = xml.replace(/\{[^}]*\}/g, function(match) {
-          if (match.startsWith('{#') || match.startsWith('{/')) return '';
-          if (/^\{(Job|Skill|cert|Cert|Degree|School|Year|Company|Name|name|FULL|JOBTITLE|JobTitle|Phone|Email|Address|LinkedIn|Summary|Certification)\b/i.test(match)) return '';
-          return match;
-        });
+        // Company + location
+        if (exp.company) {
+          const companyLine = exp.company + (exp.location ? '  —  ' + exp.location : '');
+          expSlide.addText(companyLine, {
+            x: 0.6, y: ey, w: 8.8, h: 0.22,
+            fontSize: 10, fontFace: FONT_BODY, color: ACCENT.replace('#',''),
+            italic: true, align: 'left'
+          });
+          ey += 0.22;
+        }
 
-        // Phase 5: Remove empty <a:r> runs (leftover from merged placeholders) to avoid blank spacing
-        xml = xml.replace(/<a:r\b[^>]*>[\s\S]*?<a:t[^>]*><\/a:t>[\s\S]*?<\/a:r>/g, function(run) {
-          // Only remove if the <a:t> is truly empty (no text)
-          if (/<a:t[^>]*>[^<]+<\/a:t>/.test(run)) return run;
-          return '';
-        });
+        // Role summary
+        if (exp.role_summary) {
+          expSlide.addText(exp.role_summary, {
+            x: 0.6, y: ey, w: 8.8, h: 0.35,
+            fontSize: 9, fontFace: FONT_BODY, color: GRAY,
+            align: 'left', valign: 'top', shrinkText: true
+          });
+          ey += 0.35;
+        }
 
-        zip.file(fileName, xml);
-      }
+        // Bullets / accomplishments
+        if (exp.bullets && exp.bullets.length) {
+          exp.bullets.forEach(bullet => {
+            if (!bullet) return;
+            // Check if we need a new slide for this bullet
+            if (ey + 0.25 > MAX_Y) { newExpSlide(); }
+            expSlide.addText('•  ' + bullet, {
+              x: 0.8, y: ey, w: 8.4, h: 0.25,
+              fontSize: 9.5, fontFace: FONT_BODY, color: DARK,
+              align: 'left', valign: 'top', shrinkText: true
+            });
+            ey += 0.25;
+          });
+        }
+
+        // Separator between jobs
+        ey += 0.15;
+        if (idx < filteredExps.length - 1 && ey < MAX_Y - 0.1) {
+          expSlide.addShape(pptx.ShapeType.line, {
+            x: 0.6, y: ey, w: 8.8, h: 0,
+            line: { color: 'D8D8D8', width: 0.5, dashType: 'dash' }
+          });
+          ey += 0.15;
+        }
+      });
     }
 
-    // Generate and download
-    const blob = await zip.generateAsync({ type: 'blob' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-modern-resume.pptx';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    // ========== ACHIEVEMENTS SLIDE (conditional) ==========
+    if (showSec('achievements') && achievements.length && achievements.some(a => a)) {
+      const achSlide = pptx.addSlide();
+      achSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT.replace('#','') } });
+      achSlide.addText('KEY ACHIEVEMENTS', {
+        x: 0.6, y: 0.2, w: 8.8, h: 0.35,
+        fontSize: 14, fontFace: FONT_HEAD, bold: true,
+        color: ACCENT.replace('#',''), align: 'left'
+      });
+      let ay = 0.7;
+      achievements.forEach(ach => {
+        if (!ach) return;
+        achSlide.addText('★  ' + ach, {
+          x: 0.8, y: ay, w: 8.4, h: 0.3,
+          fontSize: 10, fontFace: FONT_BODY, color: DARK,
+          align: 'left', valign: 'top', shrinkText: true
+        });
+        ay += 0.32;
+      });
+    }
+
+    // ========== Footer on every slide ==========
+    pptx.slides.forEach(sl => {
+      sl.addText('Built with Career Solutions for Today', {
+        x: 0.6, y: 7.15, w: 8.8, h: 0.25,
+        fontSize: 7, fontFace: FONT_BODY, color: LIGHT_GRAY.replace('#',''),
+        align: 'center'
+      });
+    });
+
+    // Download
+    const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-modern-resume.pptx';
+    await pptx.writeFile({ fileName });
     showToast('Modern resume downloaded!');
   } catch(e) {
     console.error('PPTX export error:', e);
