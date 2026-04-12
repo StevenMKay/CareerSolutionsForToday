@@ -1171,7 +1171,8 @@
   </div>
 </div>
 
-<!-- CAREER PATH MODAL — COMMENTED OUT
+<!-- Career Path Modal (disabled — kept in file for future use) -->
+<template id="career-path-modal-template">
 <div id="career-path-modal" class="hidden fixed inset-0 z-50 items-center justify-center" style="background:rgba(0,0,0,0.5);backdrop-filter:blur(4px)">
   <div class="bg-white rounded-xl shadow-2xl w-full mx-4 overflow-hidden" style="max-width:640px;max-height:90vh;display:flex;flex-direction:column">
     <div class="p-4 border-b flex items-center justify-between" style="border-color:#E5E7EB;background:linear-gradient(135deg,#EEF2FF,#E0E7FF)">
@@ -1250,7 +1251,7 @@
     </div>
   </div>
 </div>
-END CAREER PATH MODAL -->
+</template>
 
 <!-- About Me Modal -->
 <div id="about-me-modal" class="hidden" onclick="if(event.target===this)closeAboutMe()" style="position:fixed;inset:0;z-index:1500;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)">
@@ -1723,30 +1724,54 @@ auth.onAuthStateChanged(async user => {
       } else {
         freeUsesCount = 0; singlePurchased = false; singlePurchaseDate = null; singlePurchaseBuilds = 0; aiUsesRemaining = 0; firstAnalysisDone = false;
       }
-    } catch(e) { freeUsesCount = 0; singlePurchased = false; singlePurchaseBuilds = 0; aiUsesRemaining = 0; }
-    // Handle upgrade return
+    } catch(e) { freeUsesCount = 0; singlePurchased = false; singlePurchaseDate = null; singlePurchaseBuilds = 0; aiUsesRemaining = 0; firstAnalysisDone = false; }
+    // Handle upgrade return (sessionStorage prevents refresh-replay)
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('upgraded') === '1') {
+    if (urlParams.get('upgraded') === '1' && !sessionStorage.getItem('_stripe_return_processed')) {
+      sessionStorage.setItem('_stripe_return_processed', '1');
       builderSubscribed = true;
       showToast('Subscription activated! All features unlocked.');
       window.history.replaceState({}, '', window.location.pathname);
     }
-    // Handle $1 single purchase return
-    if (urlParams.get('single_purchased') === '1') {
-      singlePurchased = true;
-      singlePurchaseDate = Date.now();
-      singlePurchaseBuilds += 1;
-      aiUsesRemaining += 3;
-      firstAnalysisDone = false;
-      _aiEnhanceAppliedForCurrentGen = false;
+    // Handle $1 single purchase return (sessionStorage + Firestore idempotency)
+    if (urlParams.get('single_purchased') === '1' && !sessionStorage.getItem('_stripe_return_processed')) {
+      sessionStorage.setItem('_stripe_return_processed', '1');
+      const sessionId = urlParams.get('session_id') || '';
+      // Prevent duplicate crediting: check Firestore for recent credit or matching session
+      let alreadyCredited = false;
       try {
-        await db.collection('builderUsage').doc(user.uid).set({
-          singlePurchase: true, singlePurchaseDate: firebase.firestore.FieldValue.serverTimestamp(),
-          singlePurchaseBuilds: singlePurchaseBuilds,
-          aiUsesRemaining: aiUsesRemaining, firstAnalysisDone: false, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-      } catch(e) { console.warn('Single purchase save error:', e); }
-      showToast('Purchase complete! You have ' + singlePurchaseBuilds + ' resume build' + (singlePurchaseBuilds !== 1 ? 's' : '') + ' available.');
+        const usageSnap = await db.collection('builderUsage').doc(user.uid).get();
+        if (usageSnap.exists) {
+          const ud = usageSnap.data();
+          if (sessionId && ud.lastStripeSessionId === sessionId) alreadyCredited = true;
+          // Also block if last credit was within 60 seconds (rapid duplicate protection)
+          const lastCredit = ud.lastCreditedAt?.toDate ? ud.lastCreditedAt.toDate().getTime() : 0;
+          if (Date.now() - lastCredit < 60000) alreadyCredited = true;
+        }
+      } catch(e) { /* proceed cautiously */ }
+      if (!alreadyCredited) {
+        singlePurchased = true;
+        singlePurchaseDate = Date.now();
+        singlePurchaseBuilds += 1;
+        aiUsesRemaining += 3;
+        firstAnalysisDone = false;
+        _aiEnhanceAppliedForCurrentGen = false;
+        try {
+          const creditData = {
+            singlePurchase: true, singlePurchaseDate: firebase.firestore.FieldValue.serverTimestamp(),
+            singlePurchaseBuilds: singlePurchaseBuilds,
+            aiUsesRemaining: aiUsesRemaining, firstAnalysisDone: false,
+            lastCreditedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          if (sessionId) creditData.lastStripeSessionId = sessionId;
+          await db.collection('builderUsage').doc(user.uid).set(creditData, { merge: true });
+        } catch(e) { console.warn('Single purchase save error:', e); }
+        showToast('Purchase complete! You have ' + singlePurchaseBuilds + ' resume build' + (singlePurchaseBuilds !== 1 ? 's' : '') + ' available.');
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (urlParams.has('upgraded') || urlParams.has('single_purchased')) {
+      // Clean up URL params even if already processed
       window.history.replaceState({}, '', window.location.pathname);
     }
     updateSubscriptionMenuBtn();
@@ -1759,8 +1784,10 @@ auth.onAuthStateChanged(async user => {
     freeUsesCount = 0;
     singlePurchased = false;
     singlePurchaseDate = null;
+    singlePurchaseBuilds = 0;
     aiUsesRemaining = 0;
     firstAnalysisDone = false;
+    sessionStorage.removeItem('_stripe_return_processed');
     document.getElementById('auth-gate').classList.remove('hidden');
     document.getElementById('user-info').classList.add('hidden');
     document.getElementById('btn-my-plans').classList.add('hidden');
@@ -1899,8 +1926,8 @@ function startNewPlan() {
       // Otherwise show paywall
       showPaywall();
     }).catch(() => {
-      // On error, fall back to simple check
-      if (freeUsesCount < 1 || (singlePurchased && isSinglePurchaseActive())) { _doStartNewPlan(); }
+      // On error, fall back to simple check — still enforce build count
+      if (freeUsesCount < 1) { _doStartNewPlan(); }
       else { showPaywall(); }
     });
   } else if (currentUser && !isOwner()) {
@@ -2836,8 +2863,7 @@ function renderRolePreview(d) {
 
 // ============ Paywall ============
 function isOwner() { return currentUser && currentUser.email && BYPASS_EMAILS.includes(currentUser.email.toLowerCase()); }
-function canUsePremium() { return isOwner() || builderSubscribed || isSinglePurchaseActive() || freeUsesCount < 1; }
-function hasSinglePurchaseBuildsRemaining() { return singlePurchased && isSinglePurchaseActive(); }
+function canUsePremium() { return isOwner() || builderSubscribed || (isSinglePurchaseActive() && aiUsesRemaining > 0) || freeUsesCount < 1; }
 function isSinglePurchaseActive() { if (!singlePurchased || !singlePurchaseDate) return false; return (Date.now() - singlePurchaseDate) < 30 * 24 * 60 * 60 * 1000; }
 function isFreeTrialActive(trialDate) { if (!trialDate) return false; return (Date.now() - trialDate) < 30 * 24 * 60 * 60 * 1000; }
 function canUseAI() { return isOwner() || builderSubscribed || aiUsesRemaining > 0; }
