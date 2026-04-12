@@ -1396,6 +1396,26 @@ async function getAuthHeaders(extra) {
   return headers;
 }
 
+// Handle server-side 401/403 responses from builder AI endpoints
+async function handleBuilderResponse(res) {
+  if (res.ok) return res;
+  if (res.status === 401) {
+    showToast('Please sign in to continue');
+    document.getElementById('signin-modal')?.classList.remove('hidden');
+    throw new Error('Authentication required — please sign in');
+  }
+  if (res.status === 403) {
+    const data = await res.json().catch(() => ({}));
+    if (data.code === 'QUOTA_EXCEEDED') {
+      showPaywall();
+      throw new Error(data.message || 'Usage limit reached');
+    }
+    throw new Error(data.error || 'Access denied');
+  }
+  const errData = await res.json().catch(() => ({ error: 'Server error' }));
+  throw new Error(errData.error || 'Server error ' + res.status);
+}
+
 // ============ User Menu ============
 function toggleUserMenu() {
   document.getElementById('user-menu').classList.toggle('open');
@@ -1553,7 +1573,7 @@ async function handleProfileResumeSelect(input) {
     // Parse with AI if possible
     try {
       const resp = await fetch(API_BASE + '/builder/parse-resume', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
+        method: 'POST', headers: await getAuthHeaders({'Content-Type':'application/json'}),
         body: JSON.stringify({ resume_text: text })
       });
       if (resp.ok) {
@@ -1567,7 +1587,7 @@ async function handleProfileResumeSelect(input) {
     formData.append('file', file);
     try {
       const resp = await fetch(API_BASE + '/builder/parse-resume', {
-        method: 'POST', body: formData
+        method: 'POST', headers: await getAuthHeaders(), body: formData
       });
       if (resp.ok) {
         const data = await resp.json();
@@ -2840,7 +2860,7 @@ async function researchRole() {
       headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ job_title: title, company: document.getElementById('job-company').value.trim(), job_description: document.getElementById('job-desc').value.trim() })
     });
-    if (!res.ok) { const errData = await res.json().catch(() => ({error:'Server error'})); throw new Error(errData.error || 'Server error ' + res.status); }
+    await handleBuilderResponse(res);
     const data = await res.json();
     STATE.roleResearch = data.role_research;
     STATE.roleResearch.job_title = title;
@@ -3085,7 +3105,7 @@ async function generateCareerPath(forceRefresh) {
   try {
     const res = await fetch(API_BASE + '/builder/career-path', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         current_title: currentRole,
         target_title: targetRole,
@@ -3095,7 +3115,7 @@ async function generateCareerPath(forceRefresh) {
         education: (STATE.resumeData?.education || []).map(e => e.degree || e.field || '')
       })
     });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Server error'); }
+    if (!res.ok) { await handleBuilderResponse(res); }
     const data = await res.json();
     _careerPathData = data;
     renderCareerPathResults(data);
@@ -3482,7 +3502,7 @@ async function generatePlan() {
       headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ resume_data: STATE.resumeData, role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections, job_description: document.getElementById('job-desc').value.trim(), plan_context: document.getElementById('plan-context').value.trim(), editing_plan_id: currentPlanId || '' })
     });
-    if (!res.ok) { const errData = await res.json().catch(() => ({error:'Server error'})); throw new Error(errData.error || 'Server error ' + res.status); }
+    await handleBuilderResponse(res);
     const data = await res.json();
     STATE.generated = data.generated;
     renderPreview(data.generated);
@@ -4111,6 +4131,10 @@ async function exportDOCX() {
             job_title: jobTitle
           })
         });
+        if (res.status === 401 || res.status === 403) {
+          await handleBuilderResponse(res);
+          return;
+        }
         if (res.ok) {
           const enhanced = await res.json();
           resumeData = { ...resumeData, ...enhanced.enhanced_data };
@@ -4284,6 +4308,10 @@ async function exportPPTX() {
             job_title: jobTitle
           })
         });
+        if (res.status === 401 || res.status === 403) {
+          await handleBuilderResponse(res);
+          return;
+        }
         if (res.ok) {
           const enhanced = await res.json();
           resumeData = { ...resumeData, ...enhanced.enhanced_data };
@@ -4768,6 +4796,10 @@ document.getElementById('ai-enhance-toggle').addEventListener('change', async fu
           job_title: jobTitle
         })
       });
+      if (res.status === 401 || res.status === 403) {
+        await handleBuilderResponse(res);
+        return;
+      }
       if (res.ok) {
         const enhanced = await res.json();
         const ed = enhanced.enhanced_data || {};
