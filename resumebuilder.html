@@ -1201,7 +1201,7 @@
       <label class="text-xs font-semibold block mb-2" style="color:#4B5563">Saved Resume</label>
       <div id="profile-resume-empty" class="flex items-center gap-3 p-3 rounded-lg" style="background:#F9FAFB">
         <i data-lucide="file-text" style="width:20px;height:20px;color:#CBD5E1"></i>
-        <p class="text-xs" style="color:#9CA3AF">No resume saved yet. Upload one when creating a plan and it will be saved here.</p>
+        <p class="text-xs" style="color:#9CA3AF">No resume saved yet. Upload a file or paste your resume text below.</p>
       </div>
       <div id="profile-resume-saved" class="hidden">
         <div class="flex items-center gap-3 p-3 rounded-lg" style="background:#EFF6FF">
@@ -1214,6 +1214,22 @@
             <button type="button" class="text-xs px-2 py-1 rounded border hover:bg-gray-50" style="border-color:#E5E7EB;color:#374151" onclick="document.getElementById('profile-resume-input').click()" data-testid="profile-update-resume-btn"><i data-lucide="refresh-cw" style="width:10px;height:10px"></i> Replace</button>
             <button type="button" class="text-xs px-2 py-1 rounded border hover:bg-red-50" style="border-color:#FCA5A5;color:#DC2626" onclick="removeProfileResume()" data-testid="profile-remove-resume-btn"><i data-lucide="x" style="width:10px;height:10px"></i></button>
           </div>
+        </div>
+      </div>
+      <div class="mt-3 flex flex-col sm:flex-row gap-2">
+        <button type="button" class="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1.5 hover:bg-gray-50 transition" style="border-color:#E5E7EB;color:#374151" onclick="document.getElementById('profile-resume-input').click()">
+          <i data-lucide="upload" style="width:12px;height:12px"></i> Upload File
+        </button>
+        <button type="button" class="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1.5 hover:bg-gray-50 transition" style="border-color:#E5E7EB;color:#374151" onclick="toggleProfileResumePaste()">
+          <i data-lucide="clipboard" style="width:12px;height:12px"></i> Paste Resume Text
+        </button>
+      </div>
+      <div id="profile-resume-paste-area" class="hidden mt-3">
+        <textarea class="input-field" id="profile-resume-text" placeholder="Paste your resume content here..." style="min-height:120px;font-size:0.8rem"></textarea>
+        <div class="flex justify-end mt-2">
+          <button type="button" class="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5 font-medium" style="background:#005EB8;color:#fff" onclick="parseProfileResumeText()">
+            <i data-lucide="sparkles" style="width:12px;height:12px"></i> Extract with AI
+          </button>
         </div>
       </div>
       <input type="file" id="profile-resume-input" accept=".pdf,.docx,.doc,.txt" style="display:none" onchange="handleProfileResumeSelect(this)">
@@ -1687,6 +1703,49 @@ async function handleProfileResumeSelect(input) {
   lucide.createIcons();
 }
 
+function toggleProfileResumePaste() {
+  const area = document.getElementById('profile-resume-paste-area');
+  area.classList.toggle('hidden');
+  if (!area.classList.contains('hidden')) {
+    document.getElementById('profile-resume-text').focus();
+    lucide.createIcons();
+  }
+}
+
+async function parseProfileResumeText() {
+  const text = document.getElementById('profile-resume-text').value.trim();
+  if (!text) { showToast('Please paste your resume text first'); return; }
+  _profileRawResumeText = text;
+  showToast('Extracting resume data...');
+  try {
+    const resp = await fetch(API_BASE + '/builder/parse-resume', {
+      method: 'POST', headers: await getAuthHeaders({'Content-Type':'application/json'}),
+      body: JSON.stringify({ resume_text: text })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.resume_data) {
+        _profileResumeData = data.resume_data;
+        document.getElementById('profile-resume-empty').classList.add('hidden');
+        document.getElementById('profile-resume-saved').classList.remove('hidden');
+        const rName = _profileResumeData.name || 'Resume';
+        const rTitle = _profileResumeData.current_title || '';
+        document.getElementById('profile-resume-name').textContent = rName + (rTitle ? ' — ' + rTitle : '');
+        const expCount = (_profileResumeData.experience || []).length;
+        const skillCount = (_profileResumeData.skills || []).length;
+        document.getElementById('profile-resume-summary').textContent = expCount + ' experience' + (expCount !== 1 ? 's' : '') + ', ' + skillCount + ' skill' + (skillCount !== 1 ? 's' : '');
+        document.getElementById('profile-resume-paste-area').classList.add('hidden');
+        showToast('Resume extracted! Click "Save Info" to keep.');
+        lucide.createIcons();
+        return;
+      }
+    }
+    showToast('Could not extract — text saved. Click "Save Info" to keep.');
+  } catch(e) {
+    showToast('Extract failed — text saved. Click "Save Info" to keep.');
+  }
+}
+
 function removeProfileResume() {
   _profileResumeData = null;
   _profileRawResumeText = '';
@@ -1734,6 +1793,33 @@ async function prefillContactFromProfile() {
     const cEmailFallback = document.getElementById('contact-email');
     if (cEmailFallback && !cEmailFallback.value && currentUser.email) cEmailFallback.value = currentUser.email;
   } catch(e) { console.debug('Prefill error:', e); }
+}
+
+// Auto-save contact info + resume data to profile (silent, no toast)
+async function autoSaveContactToProfile() {
+  if (!currentUser) return;
+  try {
+    const nameParts = (document.getElementById('contact-name').value || '').trim().split(' ');
+    const data = {
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      phone: document.getElementById('contact-phone')?.value?.trim() || '',
+      email: document.getElementById('contact-email')?.value?.trim() || '',
+      linkedin: document.getElementById('contact-linkedin')?.value?.trim() || '',
+      address: document.getElementById('contact-address')?.value?.trim() || '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    if (STATE.resumeData && Object.keys(STATE.resumeData).length) {
+      data.resumeData = STATE.resumeData;
+    }
+    if (STATE.rawResumeText) {
+      data.rawResumeText = STATE.rawResumeText;
+    }
+    if (STATE.photoUrl) {
+      data.photoUrl = STATE.photoUrl;
+    }
+    await db.collection('builderProfiles').doc(currentUser.uid).set(data, { merge: true });
+  } catch(e) { console.debug('Auto-save profile error:', e); }
 }
 
 // ============ Auth ============
@@ -2114,6 +2200,15 @@ function _doStartNewPlan() {
   goToStep(1);
   // Pre-fill contact info from saved profile (fields are empty so prefill will populate them)
   prefillContactFromProfile();
+  // Default first resume name to "My Main Resume" if user has no existing plans
+  if (currentUser) {
+    db.collection('plans').where('userId','==',currentUser.uid).limit(1).get().then(snap => {
+      if (snap.empty) {
+        const nameField = document.getElementById('resume-build-name');
+        if (nameField && !nameField.value) nameField.value = 'My Main Resume';
+      }
+    }).catch(() => {});
+  }
 }
 
 async function loadPlan(planId) {
@@ -2503,6 +2598,9 @@ function goToStep(n) {
   goToStepDirect(n);
 }
 function goToStepDirect(n) {
+  // Auto-save contact info to profile when leaving step 1
+  const leavingStep = [1,2,3,4].find(i => !document.getElementById('step-' + i).classList.contains('hidden'));
+  if (leavingStep === 1 && n !== 1) autoSaveContactToProfile();
   // Don't allow jumping to steps beyond the highest reached
   if (n > highestStepReached + 1) return;
   // If navigating to Preview without having generated a plan, show modal
@@ -3105,6 +3203,8 @@ async function parseResume() {
     // Auto-collapse the upload section now that resume is loaded
     collapseResumeUpload(fname, now);
     showToast('Resume extracted successfully!');
+    // Auto-save contact info + resume to profile
+    autoSaveContactToProfile();
   } catch(e) { document.getElementById('parse-status').innerHTML = `<span style="color:#B91C1C">Error: ${e.message}</span>`; }
   btn.disabled = false; btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Extract with AI'; lucide.createIcons();
 }
