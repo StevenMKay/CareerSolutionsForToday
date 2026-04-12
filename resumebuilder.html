@@ -2048,12 +2048,13 @@ async function showDashboard() {
     if (!activeDocs.length) { list.innerHTML = ''; empty.classList.remove('hidden'); return; }
     const planCount = activeDocs.length;
     const maxPlans = 5;
-    // Disable "New Plan" button if at limit (non-owners)
+    const effectiveMax = (!isOwnerUser && !isSubscribed) ? 1 : maxPlans;
+    // Disable "New Plan" button if at limit
     const newPlanBtn = document.querySelector('[data-testid="new-plan-btn"]');
     if (newPlanBtn) {
-      if (!isOwnerUser && planCount >= maxPlans) {
+      if (!isOwnerUser && planCount >= effectiveMax) {
         newPlanBtn.disabled = true;
-        newPlanBtn.title = 'Delete a plan to create a new one (max ' + maxPlans + ')';
+        newPlanBtn.title = effectiveMax === 1 ? 'Upgrade to create more resumes (limit 1)' : 'Delete a plan to create a new one (max ' + maxPlans + ')';
         newPlanBtn.style.opacity = '0.5';
         newPlanBtn.style.cursor = 'not-allowed';
       } else {
@@ -2131,21 +2132,22 @@ function startNewPlan() {
     // Check how many plans user already has
     db.collection('plans').where('userId','==',currentUser.uid).get().then(snap => {
       const planCount = snap.size;
-      // Max 5 plans for any user
-      if (planCount >= 5) {
-        showToast('You\'ve reached the max of 5 plans. Delete one to create a new one.');
+      // Free trial & $1 users: limit to 1 resume
+      if (planCount >= 1) {
+        showToast('Free and single-purchase plans are limited to 1 resume. Upgrade for unlimited resumes.');
+        showPaywall();
         return;
       }
       // Free trial: allow 1st plan if not used yet
       if (freeUsesCount < 1) { _doStartNewPlan(); return; }
-      // $1 per-build: allow if user has purchased more builds than current plan count
-      if (singlePurchased && isSinglePurchaseActive() && planCount < singlePurchaseBuilds) {
+      // $1 per-build: allow if user has purchased
+      if (singlePurchased && isSinglePurchaseActive()) {
         _doStartNewPlan(); return;
       }
       // Otherwise show paywall
       showPaywall();
     }).catch(() => {
-      // On error, fall back to simple check — still enforce build count
+      // On error, fall back to simple check
       if (freeUsesCount < 1) { _doStartNewPlan(); }
       else { showPaywall(); }
     });
