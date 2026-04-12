@@ -4382,41 +4382,81 @@ async function exportPPTX() {
       return (a.title || '') + (a.description ? ' \u2014 ' + a.description : '');
     });
 
-    // --- PptxGenJS Dynamic Generation ---
-    const ACCENT = STATE.color || '#104862';
-    const DARK = '#0E2841';
-    const GRAY = '#595959';
-    const LIGHT_GRAY = '#BFBFBF';
-    const WHITE = '#FFFFFF';
+    // --- PptxGenJS Dynamic Generation (Portrait / Document-style) ---
+    const ACCENT = (STATE.color || '#104862').replace('#','');
+    const DARK = '0E2841';
+    const GRAY = '595959';
+    const LIGHT_GRAY = 'BFBFBF';
+    const SEP_GRAY = 'D8D8D8';
     const FONT_HEAD = 'Arial';
     const FONT_BODY = 'Arial';
     const ss = STATE.sections || [];
     const showSec = (key) => ss.length === 0 || ss.includes(key);
 
     const pptx = new PptxGenJS();
-    pptx.layout = 'LAYOUT_WIDE';
+    pptx.defineLayout({ name: 'PORTRAIT', width: 7.5, height: 10 });
+    pptx.layout = 'PORTRAIT';
     pptx.author = 'Career Solutions for Today';
     pptx.title = (name || 'Resume') + ' — Resume';
 
-    // ========== SLIDE 1: Header / Contact / Summary ==========
-    const slide1 = pptx.addSlide();
-    // Accent top bar
-    slide1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT.replace('#','') } });
+    // --- Page geometry ---
+    const MX = 0.55;            // left / right margin
+    const CW = 7.5 - MX * 2;   // content width (6.4")
+    const PAGE_H = 10;
+    const FOOTER_Y = 9.55;
+    const MAX_Y = 9.3;          // stop content before footer
+
+    // --- Continuous-flow page manager ---
+    let curSlide = null;
+    let Y = 0;
+
+    function newPage() {
+      curSlide = pptx.addSlide();
+      // Accent top bar on every page
+      curSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT } });
+      Y = 0.35;
+      return curSlide;
+    }
+
+    function ensureRoom(need) {
+      if (!curSlide || Y + need > MAX_Y) newPage();
+    }
+
+    function addSectionLabel(label) {
+      ensureRoom(0.35);
+      curSlide.addText(label, {
+        x: MX, y: Y, w: CW, h: 0.28,
+        fontSize: 10, fontFace: FONT_HEAD, bold: true,
+        color: ACCENT, align: 'left', letterSpacing: 2
+      });
+      Y += 0.28;
+      // thin accent underline
+      curSlide.addShape(pptx.ShapeType.line, {
+        x: MX, y: Y, w: CW, h: 0,
+        line: { color: ACCENT, width: 0.75 }
+      });
+      Y += 0.12;
+    }
+
+    // ========== PAGE 1: HEADER ==========
+    newPage();
 
     // Name
-    slide1.addText(name.toUpperCase(), {
-      x: 0.6, y: 0.3, w: 8.8, h: 0.6,
-      fontSize: 28, fontFace: FONT_HEAD, bold: true,
-      color: DARK, align: 'left', valign: 'bottom'
+    curSlide.addText(name.toUpperCase(), {
+      x: MX, y: 0.25, w: CW, h: 0.5,
+      fontSize: 24, fontFace: FONT_HEAD, bold: true,
+      color: DARK, align: 'left', valign: 'bottom', letterSpacing: 1.5
     });
 
     // Title
+    Y = 0.78;
     if (currentTitle) {
-      slide1.addText(currentTitle, {
-        x: 0.6, y: 0.85, w: 8.8, h: 0.35,
-        fontSize: 14, fontFace: FONT_HEAD,
-        color: ACCENT.replace('#',''), align: 'left', valign: 'top'
+      curSlide.addText(currentTitle, {
+        x: MX, y: Y, w: CW, h: 0.28,
+        fontSize: 12, fontFace: FONT_HEAD,
+        color: ACCENT, align: 'left', valign: 'top'
       });
+      Y += 0.3;
     }
 
     // Contact bar
@@ -4426,222 +4466,197 @@ async function exportPPTX() {
     if (address) contactParts.push(address);
     if (linkedin) contactParts.push(linkedin);
     if (contactParts.length) {
-      slide1.addText(contactParts.join('   |   '), {
-        x: 0.6, y: 1.25, w: 8.8, h: 0.3,
-        fontSize: 9, fontFace: FONT_BODY, color: GRAY, align: 'left'
+      curSlide.addText(contactParts.join('   |   '), {
+        x: MX, y: Y, w: CW, h: 0.22,
+        fontSize: 8.5, fontFace: FONT_BODY, color: GRAY, align: 'left'
       });
+      Y += 0.28;
     }
 
-    // Divider line
-    slide1.addShape(pptx.ShapeType.line, {
-      x: 0.6, y: 1.6, w: 8.8, h: 0,
-      line: { color: LIGHT_GRAY.replace('#',''), width: 1 }
+    // Divider
+    curSlide.addShape(pptx.ShapeType.line, {
+      x: MX, y: Y, w: CW, h: 0,
+      line: { color: SEP_GRAY, width: 1 }
     });
+    Y += 0.2;
 
-    // Summary / Tagline
-    let yPos = 1.75;
+    // ========== PROFESSIONAL SUMMARY ==========
     if (summary) {
-      slide1.addText('PROFESSIONAL SUMMARY', {
-        x: 0.6, y: yPos, w: 8.8, h: 0.3,
-        fontSize: 11, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT.replace('#',''), align: 'left'
+      addSectionLabel('PROFESSIONAL SUMMARY');
+      // Estimate lines — rough 90 chars per line at 9.5pt in 6.4" width
+      const summaryLines = Math.ceil(summary.length / 90);
+      const summaryH = Math.max(0.35, Math.min(summaryLines * 0.18, 1.0));
+      ensureRoom(summaryH);
+      curSlide.addText(summary, {
+        x: MX, y: Y, w: CW, h: summaryH,
+        fontSize: 9.5, fontFace: FONT_BODY, color: DARK,
+        align: 'left', valign: 'top', lineSpacing: 14
       });
-      yPos += 0.3;
-      slide1.addText(summary, {
-        x: 0.6, y: yPos, w: 8.8, h: 0.8,
-        fontSize: 10, fontFace: FONT_BODY, color: DARK,
-        align: 'left', valign: 'top', shrinkText: true
-      });
-      yPos += 0.85;
+      Y += summaryH + 0.15;
     }
 
-    // Skills on slide 1 if they exist
-    if (showSec('skills') && skills.length) {
-      slide1.addText('CORE COMPETENCIES', {
-        x: 0.6, y: yPos, w: 8.8, h: 0.3,
-        fontSize: 11, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT.replace('#',''), align: 'left'
-      });
-      yPos += 0.35;
-      // Arrange skills in rows of 4
-      const skillCols = 4;
-      const colW = 8.8 / skillCols;
-      for (let i = 0; i < skills.length && i < 20; i++) {
-        const col = i % skillCols;
-        const row = Math.floor(i / skillCols);
-        slide1.addText('•  ' + skills[i], {
-          x: 0.6 + col * colW, y: yPos + row * 0.22,
-          w: colW, h: 0.22,
-          fontSize: 9, fontFace: FONT_BODY, color: DARK, align: 'left'
-        });
-      }
-      yPos += Math.ceil(Math.min(skills.length, 20) / skillCols) * 0.22 + 0.15;
-    }
-
-    // Education on slide 1 if room and data exists
-    if (showSec('education') && education.length && yPos < 5.8) {
-      slide1.addText('EDUCATION', {
-        x: 0.6, y: yPos, w: 8.8, h: 0.3,
-        fontSize: 11, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT.replace('#',''), align: 'left'
-      });
-      yPos += 0.3;
-      education.forEach(ed => {
-        if (!ed.degree) return;
-        slide1.addText([
-          { text: ed.degree, options: { bold: true, fontSize: 10, color: DARK } },
-          { text: ed.school ? '  —  ' + ed.school : '', options: { fontSize: 10, color: GRAY } },
-          { text: ed.year ? '  (' + ed.year + ')' : '', options: { fontSize: 9, color: GRAY } }
-        ], { x: 0.6, y: yPos, w: 8.8, h: 0.22, fontFace: FONT_BODY, align: 'left' });
-        yPos += 0.24;
-      });
-      yPos += 0.1;
-    }
-
-    // Certifications on slide 1 if room
-    if (showSec('education') && certifications.length && certifications[0].name && yPos < 6.2) {
-      slide1.addText('CERTIFICATIONS', {
-        x: 0.6, y: yPos, w: 8.8, h: 0.3,
-        fontSize: 11, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT.replace('#',''), align: 'left'
-      });
-      yPos += 0.3;
-      certifications.forEach(cert => {
-        if (!cert.name) return;
-        const certLine = cert.name + (cert.issuer ? ' — ' + cert.issuer : '') + (cert.year ? ' (' + cert.year + ')' : '');
-        slide1.addText('•  ' + certLine, {
-          x: 0.6, y: yPos, w: 8.8, h: 0.22,
-          fontSize: 9, fontFace: FONT_BODY, color: DARK, align: 'left'
-        });
-        yPos += 0.22;
-      });
-    }
-
-    // ========== EXPERIENCE SLIDES ==========
+    // ========== PROFESSIONAL EXPERIENCE ==========
     if (showSec('experience') && experiences.length) {
       const filteredExps = experiences.filter(e => e.title || e.company);
-      let expSlide = null;
-      let ey = 0;
-      const EXP_MARGIN_TOP = 0.5;
-      const MAX_Y = 7.0;
+      if (filteredExps.length) {
+        addSectionLabel('PROFESSIONAL EXPERIENCE');
 
-      function newExpSlide() {
-        expSlide = pptx.addSlide();
-        expSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT.replace('#','') } });
-        expSlide.addText('PROFESSIONAL EXPERIENCE', {
-          x: 0.6, y: 0.2, w: 8.8, h: 0.35,
-          fontSize: 14, fontFace: FONT_HEAD, bold: true,
-          color: ACCENT.replace('#',''), align: 'left'
-        });
-        ey = EXP_MARGIN_TOP + 0.2;
-      }
-      newExpSlide();
+        filteredExps.forEach((exp, idx) => {
+          // Estimate height needed
+          const bulletCount = (exp.bullets || []).length;
+          const estH = 0.28 + 0.22 + (exp.role_summary ? 0.35 : 0) + bulletCount * 0.22 + 0.12;
+          ensureRoom(Math.min(estH, 1.2)); // at least fit title + company + 2 bullets
 
-      filteredExps.forEach((exp, idx) => {
-        // Estimate height needed: title line + company line + role_summary + bullets
-        const bulletCount = (exp.bullets || []).length;
-        const estHeight = 0.3 + 0.2 + (exp.role_summary ? 0.4 : 0) + bulletCount * 0.25 + 0.15;
-        if (ey + estHeight > MAX_Y && idx > 0) {
-          newExpSlide();
-        }
-
-        // Job title + dates on same line
-        if (exp.title) {
-          const titleParts = [
-            { text: exp.title, options: { bold: true, fontSize: 11, color: DARK } }
-          ];
-          if (exp.dates) {
-            titleParts.push({ text: '    ' + exp.dates, options: { fontSize: 10, color: GRAY } });
-          }
-          expSlide.addText(titleParts, {
-            x: 0.6, y: ey, w: 8.8, h: 0.25,
-            fontFace: FONT_BODY, align: 'left'
-          });
-          ey += 0.25;
-        }
-
-        // Company + location
-        if (exp.company) {
-          const companyLine = exp.company + (exp.location ? '  —  ' + exp.location : '');
-          expSlide.addText(companyLine, {
-            x: 0.6, y: ey, w: 8.8, h: 0.22,
-            fontSize: 10, fontFace: FONT_BODY, color: ACCENT.replace('#',''),
-            italic: true, align: 'left'
-          });
-          ey += 0.22;
-        }
-
-        // Role summary
-        if (exp.role_summary) {
-          expSlide.addText(exp.role_summary, {
-            x: 0.6, y: ey, w: 8.8, h: 0.35,
-            fontSize: 9, fontFace: FONT_BODY, color: GRAY,
-            align: 'left', valign: 'top', shrinkText: true
-          });
-          ey += 0.35;
-        }
-
-        // Bullets / accomplishments
-        if (exp.bullets && exp.bullets.length) {
-          exp.bullets.forEach(bullet => {
-            if (!bullet) return;
-            // Check if we need a new slide for this bullet
-            if (ey + 0.25 > MAX_Y) { newExpSlide(); }
-            expSlide.addText('•  ' + bullet, {
-              x: 0.8, y: ey, w: 8.4, h: 0.25,
-              fontSize: 9.5, fontFace: FONT_BODY, color: DARK,
-              align: 'left', valign: 'top', shrinkText: true
+          // Job title — left aligned, dates right
+          if (exp.title) {
+            const titleParts = [
+              { text: exp.title, options: { bold: true, fontSize: 10.5, color: DARK } }
+            ];
+            if (exp.dates) {
+              titleParts.push({ text: '    ' + exp.dates, options: { fontSize: 9.5, color: GRAY, italic: true } });
+            }
+            curSlide.addText(titleParts, {
+              x: MX, y: Y, w: CW, h: 0.24,
+              fontFace: FONT_BODY, align: 'left'
             });
-            ey += 0.25;
-          });
-        }
+            Y += 0.24;
+          }
 
-        // Separator between jobs
-        ey += 0.15;
-        if (idx < filteredExps.length - 1 && ey < MAX_Y - 0.1) {
-          expSlide.addShape(pptx.ShapeType.line, {
-            x: 0.6, y: ey, w: 8.8, h: 0,
-            line: { color: 'D8D8D8', width: 0.5, dashType: 'dash' }
-          });
-          ey += 0.15;
-        }
-      });
+          // Company + location
+          if (exp.company) {
+            const companyLine = exp.company + (exp.location ? '  —  ' + exp.location : '');
+            curSlide.addText(companyLine, {
+              x: MX, y: Y, w: CW, h: 0.2,
+              fontSize: 9.5, fontFace: FONT_BODY, color: ACCENT, italic: true, align: 'left'
+            });
+            Y += 0.2;
+          }
+
+          // Role summary
+          if (exp.role_summary) {
+            const rsLines = Math.ceil(exp.role_summary.length / 95);
+            const rsH = Math.max(0.2, Math.min(rsLines * 0.16, 0.6));
+            ensureRoom(rsH);
+            curSlide.addText(exp.role_summary, {
+              x: MX, y: Y, w: CW, h: rsH,
+              fontSize: 9, fontFace: FONT_BODY, color: GRAY,
+              align: 'left', valign: 'top', lineSpacing: 13
+            });
+            Y += rsH + 0.04;
+          }
+
+          // Bullets
+          if (exp.bullets && exp.bullets.length) {
+            exp.bullets.forEach(bullet => {
+              if (!bullet) return;
+              ensureRoom(0.22);
+              const bLines = Math.ceil(bullet.length / 85);
+              const bH = Math.max(0.2, bLines * 0.16);
+              curSlide.addText('•  ' + bullet, {
+                x: MX + 0.15, y: Y, w: CW - 0.15, h: bH,
+                fontSize: 9, fontFace: FONT_BODY, color: DARK,
+                align: 'left', valign: 'top', lineSpacing: 13
+              });
+              Y += bH + 0.02;
+            });
+          }
+
+          // Separator between jobs (not after last)
+          Y += 0.08;
+          if (idx < filteredExps.length - 1 && Y < MAX_Y - 0.1) {
+            curSlide.addShape(pptx.ShapeType.line, {
+              x: MX, y: Y, w: CW, h: 0,
+              line: { color: SEP_GRAY, width: 0.5, dashType: 'dash' }
+            });
+            Y += 0.12;
+          }
+        });
+        Y += 0.1;
+      }
     }
 
-    // ========== ACHIEVEMENTS SLIDE (conditional) ==========
-    if (showSec('achievements') && achievements.length && achievements.some(a => a)) {
-      const achSlide = pptx.addSlide();
-      achSlide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.06, fill: { color: ACCENT.replace('#','') } });
-      achSlide.addText('KEY ACHIEVEMENTS', {
-        x: 0.6, y: 0.2, w: 8.8, h: 0.35,
-        fontSize: 14, fontFace: FONT_HEAD, bold: true,
-        color: ACCENT.replace('#',''), align: 'left'
+    // ========== CORE COMPETENCIES / SKILLS ==========
+    if (showSec('skills') && skills.length) {
+      addSectionLabel('CORE COMPETENCIES');
+      const skillCols = 3;
+      const colW = CW / skillCols;
+      const maxSkills = Math.min(skills.length, 21);
+      const skillRows = Math.ceil(maxSkills / skillCols);
+      ensureRoom(skillRows * 0.2 + 0.1);
+
+      for (let i = 0; i < maxSkills; i++) {
+        const col = i % skillCols;
+        const row = Math.floor(i / skillCols);
+        curSlide.addText('•  ' + skills[i], {
+          x: MX + col * colW, y: Y + row * 0.2,
+          w: colW, h: 0.2,
+          fontSize: 9, fontFace: FONT_BODY, color: DARK, align: 'left'
+        });
+      }
+      Y += skillRows * 0.2 + 0.15;
+    }
+
+    // ========== EDUCATION ==========
+    if (showSec('education') && education.length) {
+      addSectionLabel('EDUCATION');
+      education.forEach(ed => {
+        if (!ed.degree) return;
+        ensureRoom(0.24);
+        curSlide.addText([
+          { text: ed.degree, options: { bold: true, fontSize: 10, color: DARK } },
+          { text: ed.school ? '  —  ' + ed.school : '', options: { fontSize: 9.5, color: GRAY } },
+          { text: ed.year ? '  (' + ed.year + ')' : '', options: { fontSize: 9, color: GRAY } }
+        ], { x: MX, y: Y, w: CW, h: 0.22, fontFace: FONT_BODY, align: 'left' });
+        Y += 0.24;
       });
-      let ay = 0.7;
+      Y += 0.1;
+    }
+
+    // ========== CERTIFICATIONS ==========
+    if (showSec('education') && certifications.length && certifications[0].name) {
+      addSectionLabel('CERTIFICATIONS');
+      certifications.forEach(cert => {
+        if (!cert.name) return;
+        ensureRoom(0.22);
+        const certLine = cert.name + (cert.issuer ? ' — ' + cert.issuer : '') + (cert.year ? ' (' + cert.year + ')' : '');
+        curSlide.addText('•  ' + certLine, {
+          x: MX, y: Y, w: CW, h: 0.2,
+          fontSize: 9, fontFace: FONT_BODY, color: DARK, align: 'left'
+        });
+        Y += 0.22;
+      });
+      Y += 0.1;
+    }
+
+    // ========== KEY ACHIEVEMENTS ==========
+    if (showSec('achievements') && achievements.length && achievements.some(a => a)) {
+      addSectionLabel('KEY ACHIEVEMENTS');
       achievements.forEach(ach => {
         if (!ach) return;
-        achSlide.addText('★  ' + ach, {
-          x: 0.8, y: ay, w: 8.4, h: 0.3,
-          fontSize: 10, fontFace: FONT_BODY, color: DARK,
-          align: 'left', valign: 'top', shrinkText: true
+        ensureRoom(0.24);
+        const aLines = Math.ceil(ach.length / 85);
+        const aH = Math.max(0.2, aLines * 0.16);
+        curSlide.addText('★  ' + ach, {
+          x: MX + 0.1, y: Y, w: CW - 0.1, h: aH,
+          fontSize: 9, fontFace: FONT_BODY, color: DARK,
+          align: 'left', valign: 'top', lineSpacing: 13
         });
-        ay += 0.32;
+        Y += aH + 0.04;
       });
     }
 
-    // ========== Footer on every slide ==========
+    // ========== Footer on every page ==========
     pptx.slides.forEach(sl => {
       sl.addText('Built with Career Solutions for Today', {
-        x: 0.6, y: 7.15, w: 8.8, h: 0.25,
-        fontSize: 7, fontFace: FONT_BODY, color: LIGHT_GRAY.replace('#',''),
-        align: 'center'
+        x: MX, y: FOOTER_Y, w: CW, h: 0.2,
+        fontSize: 7, fontFace: FONT_BODY, color: LIGHT_GRAY, align: 'center'
       });
     });
 
     // Download
-    const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-modern-resume.pptx';
+    const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.pptx';
     await pptx.writeFile({ fileName });
-    showToast('Modern resume downloaded!');
+    showToast('Resume downloaded!');
   } catch(e) {
     console.error('PPTX export error:', e);
     showToast('Error generating PPTX: ' + e.message);
