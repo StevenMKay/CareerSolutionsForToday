@@ -2639,11 +2639,35 @@ async function unpublishPlan() {
   } catch(e) { showToast('Error unpublishing'); }
 }
 
-function copyShareLink() {
+async function copyShareLink() {
   const url = document.getElementById('share-url').textContent;
-  navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard!')).catch(() => {
+  const warnings = [];
+  if (isDirty) {
+    warnings.push('You have unsaved changes that are not reflected in the published link.');
+  }
+  if (currentPlanId) {
+    try {
+      const doc = await db.collection('plans').doc(currentPlanId).get();
+      if (doc.exists) {
+        const d = doc.data();
+        if (!d.published) {
+          warnings.push('This plan is currently unpublished — the link will not work for others.');
+        } else if (d.publishExpiresAt && new Date(d.publishExpiresAt) < new Date()) {
+          warnings.push('This published link has expired. Re-publish to generate a new active link.');
+        }
+      }
+    } catch(e) { /* proceed silently */ }
+  }
+  const doCopy = () => {
+    if (warnings.length) {
+      showInfoModal('Link Copied — Heads Up', warnings.join('<br><br>') + '<br><br><span style="font-size:0.8rem;color:#6B7280">The link was still copied to your clipboard.</span>');
+    } else {
+      showToast('Link copied to clipboard!');
+    }
+  };
+  navigator.clipboard.writeText(url).then(doCopy).catch(() => {
     const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    showToast('Link copied!');
+    doCopy();
   });
 }
 
