@@ -565,6 +565,12 @@
 
     <!-- RIGHT PANEL -->
     <div class="builder-right" id="right-panel">
+      <!-- Match Score -->
+      <div id="rp-match-score" style="display:none;margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;text-align:center">
+        <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748B;margin-bottom:6px">Resume Match Score</div>
+        <div id="rp-match-value" style="font-size:2rem;font-weight:800;color:#6EE7B7;line-height:1">—</div>
+        <div style="font-size:0.6rem;color:#64748B;margin-top:2px">out of 100</div>
+      </div>
       <div style="margin-bottom:10px">
         <h3 style="font-size:0.8rem;font-weight:700;color:#E2E8F0;margin:0 0 2px">Resume Analysis</h3>
         <p style="font-size:0.65rem;color:#64748B">AI-powered suggestions per section</p>
@@ -572,7 +578,7 @@
       <div id="right-panel-sections">
         <div class="rp-section" data-section="summary" id="rp-summary">
           <div class="rp-section-title">Summary <button class="rp-ai-btn" onclick="askAIForSection('summary')"><i data-lucide="sparkles" style="width:10px;height:10px"></i> Ask AI</button></div>
-          <div class="rp-section-body" id="rp-summary-body"><span style="color:#94A3B8;font-style:italic">Generate a plan to see your summary here</span></div>
+          <div class="rp-section-body" id="rp-summary-body"><span style="color:#64748B;font-style:italic">Generate a plan to see your summary here</span></div>
           <div class="rp-ai-suggestion" id="rp-summary-suggestion"></div>
         </div>
         <div class="rp-section" data-section="experience" id="rp-experience">
@@ -1701,16 +1707,43 @@ function renderLeftSectionToggles() {
   const container = document.getElementById('left-section-toggles');
   if (!container) return;
   const labels = {plan:'Plan',executive_summary:'Summary',kpis:'KPIs',success_criteria:'Success',experience:'Experience',skills:'Skills',education:'Education',achievements:'Achievements',leadership:'Leadership'};
+  const orderedKeys = STATE.sections.filter(k => labels[k]);
+  // Add any missing keys at the end
+  Object.keys(labels).forEach(k => { if (!orderedKeys.includes(k)) orderedKeys.push(k); });
   container.innerHTML = '';
-  Object.entries(labels).forEach(([key, label]) => {
+  orderedKeys.forEach((key) => {
     const isOn = STATE.sections.includes(key);
-    const btn = document.createElement('label');
-    btn.className = 'left-btn';
-    btn.style.cursor = 'pointer';
-    btn.style.fontSize = '0.7rem';
-    btn.innerHTML = `<input type="checkbox" class="w-3 h-3 rounded" style="accent-color:#818CF8" ${isOn?'checked':''} onchange="toggleSectionFromLeft('${key}',this.checked)"><span>${label}</span>`;
-    container.appendChild(btn);
+    const item = document.createElement('div');
+    item.className = 'left-btn';
+    item.style.cssText = 'cursor:grab;font-size:0.7rem;gap:6px;user-select:none;';
+    item.draggable = true;
+    item.dataset.section = key;
+    item.innerHTML = `<i data-lucide="grip-vertical" style="width:10px;height:10px;color:#64748B;flex-shrink:0"></i><input type="checkbox" class="w-3 h-3 rounded" style="accent-color:#818CF8;flex-shrink:0" ${isOn?'checked':''} onchange="toggleSectionFromLeft('${key}',this.checked)"><span style="flex:1">${labels[key]}</span>`;
+    // Drag events
+    item.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', key); item.style.opacity = '0.4'; });
+    item.addEventListener('dragend', () => { item.style.opacity = '1'; });
+    item.addEventListener('dragover', (e) => { e.preventDefault(); item.style.borderTop = '2px solid #93C5FD'; });
+    item.addEventListener('dragleave', () => { item.style.borderTop = ''; });
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.style.borderTop = '';
+      const draggedKey = e.dataTransfer.getData('text/plain');
+      if (draggedKey === key) return;
+      // Reorder STATE.sections
+      const newOrder = [];
+      orderedKeys.forEach(k => {
+        if (k === key) { newOrder.push(draggedKey); newOrder.push(k); }
+        else if (k !== draggedKey) newOrder.push(k);
+      });
+      STATE.sections = newOrder.filter(k => STATE.sections.includes(k));
+      renderLeftSectionToggles();
+      if (STATE.generated?.hero) renderPreview(STATE.generated);
+      renderSectionToggles();
+      markDirty();
+    });
+    container.appendChild(item);
   });
+  lucide.createIcons();
 }
 
 function toggleSectionFromLeft(section, on) {
@@ -1875,42 +1908,51 @@ function updateRightPanel() {
   
   // Summary
   const summEl = document.getElementById('rp-summary-body');
-  if (summEl) summEl.textContent = g.executive_summary || g.hero?.summary || 'No summary generated';
+  if (summEl) {
+    summEl.textContent = g.executive_summary || g.hero?.summary || 'No summary generated';
+    summEl.style.color = '#CBD5E1';
+  }
   
   // Experience
   const expEl = document.getElementById('rp-experience-body');
   if (expEl && g.experience?.length) {
-    expEl.innerHTML = g.experience.map(e => `<div style="margin-bottom:6px"><strong style="font-size:0.78rem;color:#0F172A">${e.title||''}</strong><br><span style="font-size:0.72rem;color:#64748B">${e.company||''} ${e.dates||''}</span></div>`).join('');
+    expEl.innerHTML = g.experience.map(e => `<div style="margin-bottom:8px"><strong style="font-size:0.78rem;color:#F1F5F9">${e.title||''}</strong><br><span style="font-size:0.72rem;color:#94A3B8">${e.company||''} ${e.dates||''}</span></div>`).join('');
   }
   
   // Skills
   const skillEl = document.getElementById('rp-skills-body');
   if (skillEl && g.skills?.length) {
-    skillEl.innerHTML = g.skills.map(s => `<span style="display:inline-block;padding:2px 8px;margin:2px;background:#EFF6FF;border-radius:4px;font-size:0.72rem;color:#1D4ED8">${s}</span>`).join('');
+    skillEl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:4px">' + g.skills.map(s => `<span style="display:inline-block;padding:3px 10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:4px;font-size:0.7rem;color:#C7D2FE;white-space:nowrap">${s}</span>`).join('') + '</div>';
   }
   
   // Education
   const eduEl = document.getElementById('rp-education-body');
   if (eduEl && g.education?.length) {
-    eduEl.innerHTML = g.education.map(e => `<div style="margin-bottom:4px;font-size:0.78rem"><strong>${e.degree||e.name||''}</strong> — ${e.school||e.institution||''}</div>`).join('');
+    eduEl.innerHTML = g.education.map(e => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${e.degree||e.name||''}</strong> — ${e.school||e.institution||''}</div>`).join('');
   }
   
   // Achievements
   const achEl = document.getElementById('rp-achievements-body');
   if (achEl && g.achievements?.length) {
-    achEl.innerHTML = `<ul style="padding-left:16px;margin:0">${g.achievements.map(a => `<li style="margin:3px 0;font-size:0.78rem">${a}</li>`).join('')}</ul>`;
+    achEl.innerHTML = `<ul style="padding-left:16px;margin:0;color:#CBD5E1">${g.achievements.map(a => {
+      if (typeof a === 'string') return `<li style="margin:3px 0;font-size:0.78rem">${a}</li>`;
+      return `<li style="margin:3px 0;font-size:0.78rem"><strong style="color:#F1F5F9">${a.title||a.name||''}</strong>${a.description ? ' — '+a.description : ''}</li>`;
+    }).join('')}</ul>`;
   }
   
   // Leadership
   const leadEl = document.getElementById('rp-leadership-body');
   if (leadEl && g.leadership?.length) {
-    leadEl.innerHTML = g.leadership.map(l => `<div style="margin-bottom:4px;font-size:0.78rem">${typeof l === 'string' ? l : (l.role || l.title || '')}</div>`).join('');
+    leadEl.innerHTML = g.leadership.map(l => {
+      if (typeof l === 'string') return `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1">${l}</div>`;
+      return `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${l.role||l.title||l.name||''}</strong>${l.description ? ' — '+l.description : ''}</div>`;
+    }).join('');
   }
   
   // KPIs
   const kpiEl = document.getElementById('rp-kpis-body');
   if (kpiEl && g.kpis?.length) {
-    kpiEl.innerHTML = g.kpis.map(k => `<div style="margin-bottom:4px;font-size:0.78rem"><strong>${k.metric||k.name||''}</strong>: ${k.target||k.value||''}</div>`).join('');
+    kpiEl.innerHTML = g.kpis.map(k => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${k.metric||k.name||''}</strong>: ${k.target||k.value||''}</div>`).join('');
   }
 }
 
@@ -5975,6 +6017,17 @@ function displayAnalysisResults(a) {
   // Also populate right panel analysis
   const rightContent = document.getElementById('right-analysis-content');
   if (rightContent) rightContent.innerHTML = h;
+  // Update match score
+  if (a.overall_score != null) {
+    const scoreEl = document.getElementById('rp-match-score');
+    const valEl = document.getElementById('rp-match-value');
+    if (scoreEl && valEl) {
+      scoreEl.style.display = 'block';
+      valEl.textContent = a.overall_score;
+      const sc = a.overall_score >= 80 ? '#6EE7B7' : a.overall_score >= 60 ? '#FCD34D' : '#FCA5A5';
+      valEl.style.color = sc;
+    }
+  }
 }
 
 // ============ Section Toggles on Preview Tab ============
