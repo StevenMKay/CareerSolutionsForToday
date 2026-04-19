@@ -2003,7 +2003,139 @@ async function askAIForSection(section) {
 }
 
 function applyAISuggestion(section) {
-  showToast('Suggestion noted! Edit your resume to incorporate these changes.');
+  const applyBtn = event?.target?.closest('.rp-apply-btn');
+  if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = 'Applying\u2026'; }
+
+  const sectionMap = { summary:'executive_summary', experience:'experience', skills:'skills', education:'education', achievements:'achievements', leadership:'leadership', kpis:'kpis' };
+  const previewKey = sectionMap[section] || section;
+  const container = document.getElementById('preview-container');
+  const previewCard = container?.querySelector('[data-section="' + previewKey + '"]');
+  if (!previewCard) {
+    showToast('Section not found in preview. Generate a plan first.');
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = 'Apply to Resume'; }
+    return;
+  }
+
+  const suggDiv = document.getElementById('rp-' + section + '-suggestion');
+  const suggestions = suggDiv?.innerText || '';
+  const jobTitle = document.getElementById('job-title')?.value || '';
+  const company = document.getElementById('job-company')?.value || '';
+  const jobDesc = document.getElementById('job-desc')?.value || '';
+
+  let currentContent, prompt;
+
+  if (section === 'summary') {
+    const el = previewCard.querySelector('.editable');
+    currentContent = el?.innerText || '';
+    prompt = 'You are a professional resume writer. Rewrite the following executive summary for someone applying for "' + jobTitle + '" at "' + company + '". Job description context: "' + jobDesc.substring(0,400) + '"\n\nIncorporate these improvements:\n' + suggestions + '\n\nCurrent summary:\n"' + currentContent + '"\n\nReturn ONLY the improved summary paragraph text. No labels, no quotes, no commentary.';
+  } else if (section === 'experience') {
+    const bullets = Array.from(previewCard.querySelectorAll('.bullet-text'));
+    currentContent = bullets.map(function(b){ return b.innerText; });
+    prompt = 'You are a professional resume writer. Improve these resume bullet points for someone applying for "' + jobTitle + '" at "' + company + '". Job description context: "' + jobDesc.substring(0,400) + '"\n\nIncorporate these improvements:\n' + suggestions + '\n\nCurrent bullets:\n' + currentContent.map(function(b,i){ return (i+1) + '. ' + b; }).join('\n') + '\n\nReturn a JSON array of improved bullet strings. Keep the same number of bullets (' + currentContent.length + '). Return ONLY the JSON array, nothing else.';
+  } else if (section === 'skills') {
+    const skills = Array.from(previewCard.querySelectorAll('.skill-text'));
+    currentContent = skills.map(function(s){ return s.innerText; });
+    prompt = 'You are a professional resume writer. Improve this skills list for someone applying for "' + jobTitle + '" at "' + company + '". Job description context: "' + jobDesc.substring(0,400) + '"\n\nIncorporate these improvements:\n' + suggestions + '\n\nCurrent skills: ' + currentContent.join(', ') + '\n\nReturn a JSON array of improved skill strings. You may rename skills but keep the same count (' + currentContent.length + '). Return ONLY the JSON array, nothing else.';
+  } else {
+    const items = Array.from(previewCard.querySelectorAll('.item-row'));
+    currentContent = items.map(function(el){ var s = el.querySelector('p.font-semibold, h4'); return s ? s.innerText : el.innerText.substring(0,120); });
+    prompt = 'You are a professional resume writer. Improve these ' + section + ' items for "' + jobTitle + '" at "' + company + '".\n\nIncorporate these improvements:\n' + suggestions + '\n\nCurrent items:\n' + currentContent.map(function(t,i){ return (i+1) + '. ' + t; }).join('\n') + '\n\nFor each item, return an improved version. Return a JSON array of strings. Keep the same count (' + currentContent.length + '). Return ONLY the JSON array, nothing else.';
+  }
+
+  const actionsHTML = '<span class="ai-actions export-hide" contenteditable="false"><button class="ai-action-btn reject" onclick="rejectAIChange(this)" title="Reject change">&#8617;</button><button class="ai-action-btn accept" onclick="acceptAIChange(this)" title="Accept change">&#10003;</button></span>';
+
+  fetch(ANALYSIS_API + '/api/builder-analyze', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ prompt: prompt, max_tokens: 800 })
+  }).then(function(r){ if (!r.ok) throw new Error('API error'); return r.json(); })
+  .then(function(data){
+    var result = (data.result || data.text || '').trim();
+    var changeCount = 0;
+
+    if (section === 'summary') {
+      var el = previewCard.querySelector('.editable');
+      if (el && result && result !== currentContent) {
+        el.setAttribute('data-original-text', currentContent);
+        el.textContent = result;
+        el.classList.add('ai-changed');
+        el.style.position = 'relative';
+        el.insertAdjacentHTML('beforeend', actionsHTML);
+        changeCount++;
+      }
+    } else if (section === 'experience') {
+      var parsed = JSON.parse(result.replace(/^```json?\n?/,'').replace(/\n?```$/,''));
+      var bulletEls = previewCard.querySelectorAll('.bullet-text');
+      parsed.forEach(function(text, i){
+        if (i < bulletEls.length && text && bulletEls[i].innerText !== text) {
+          var li = bulletEls[i].closest('li') || bulletEls[i].closest('.item-row');
+          if (li) {
+            li.setAttribute('data-original-text', bulletEls[i].innerText);
+            bulletEls[i].textContent = text;
+            li.classList.add('ai-changed');
+            li.insertAdjacentHTML('beforeend', actionsHTML);
+            changeCount++;
+          }
+        }
+      });
+    } else if (section === 'skills') {
+      var parsed = JSON.parse(result.replace(/^```json?\n?/,'').replace(/\n?```$/,''));
+      var skillEls = previewCard.querySelectorAll('.skill-text');
+      parsed.forEach(function(text, i){
+        if (i < skillEls.length && text && skillEls[i].innerText !== text) {
+          var row = skillEls[i].closest('.item-row');
+          if (row) {
+            row.setAttribute('data-original-text', skillEls[i].innerText);
+            skillEls[i].textContent = text;
+            row.classList.add('ai-changed');
+            row.insertAdjacentHTML('beforeend', actionsHTML);
+            changeCount++;
+          }
+        }
+      });
+    } else {
+      var parsed = JSON.parse(result.replace(/^```json?\n?/,'').replace(/\n?```$/,''));
+      var items = previewCard.querySelectorAll('.item-row');
+      parsed.forEach(function(text, i){
+        if (i < items.length && text) {
+          var strong = items[i].querySelector('p.font-semibold, h4');
+          var target = strong || items[i];
+          var origText = target.innerText;
+          if (origText !== text) {
+            items[i].setAttribute('data-original-text', origText);
+            target.textContent = text;
+            items[i].classList.add('ai-changed');
+            items[i].insertAdjacentHTML('beforeend', actionsHTML);
+            changeCount++;
+          }
+        }
+      });
+    }
+
+    if (changeCount > 0) {
+      var oldBar = container.querySelector('#ai-action-bar');
+      if (oldBar) oldBar.remove();
+      var totalChanges = container.querySelectorAll('.ai-changed').length;
+      var bar = document.createElement('div');
+      bar.className = 'ai-action-bar export-hide';
+      bar.id = 'ai-action-bar';
+      var isMobile = window.innerWidth <= 640;
+      var hintHTML = isMobile ? '<span class="block mt-1" style="color:#6B7280;font-size:0.65rem">Tap &#10003; to keep or &#8617; to reject each change</span>' : '';
+      bar.innerHTML = '<div><span class="ai-bar-text">&#10024; ' + totalChanges + ' AI change' + (totalChanges > 1 ? 's' : '') + '</span>' + hintHTML + '</div><div style="display:flex;gap:6px"><button class="ai-bar-accept" onclick="acceptAllAIChanges()">&#10003; Accept All</button><button class="ai-bar-reject" onclick="rejectAllAIChanges()">&#8617; Reject All</button></div>';
+      container.insertBefore(bar, container.firstChild);
+      // Scroll to the changed section
+      previewCard.scrollIntoView({ behavior:'smooth', block:'center' });
+      showToast(changeCount + ' change' + (changeCount > 1 ? 's' : '') + ' applied! Review in the preview.');
+      markDirty();
+    } else {
+      showToast('No changes needed \u2014 content is already optimal.');
+    }
+  }).catch(function(e){
+    console.error('Apply AI error:', e);
+    showToast('Could not apply suggestions. Try again.');
+  }).finally(function(){
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = 'Apply to Resume'; }
+  });
 }
 
 // Update right panel with resume data when preview renders
