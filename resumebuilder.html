@@ -160,17 +160,24 @@
   .photo-shape-shield{border-radius:50% 50% 50% 50% / 40% 40% 60% 60%}
   .photo-shape-hexagon{clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);border-radius:0;border:none}
   /* ── Item Action Buttons (delete ×, add +) ── */
-  .item-row{position:relative;padding-right:28px;min-width:0}
+  .item-row{position:relative;padding-right:50px;min-width:0}
   .item-row .drag-handle{display:flex;align-items:center;align-self:center}
   .skill-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
   /* Remove browser outline on editable items, use custom border instead */
   .item-row[contenteditable="true"]:focus{outline:none;box-shadow:0 0 0 2px rgba(59,130,246,0.3);border-radius:4px}
   .item-row .item-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;background:rgba(185,28,28,0.12);color:#B91C1C;border:none;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s;z-index:5;padding:0}
-  .item-row:hover .item-del{opacity:1}
+  .item-row .item-vis-toggle{position:absolute;right:26px;top:50%;transform:translateY(-50%);width:20px;height:20px;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.15s;z-index:5}
+  .item-row:hover .item-del,.item-row:hover .item-vis-toggle{opacity:1}
+  .item-hidden .item-vis-toggle{opacity:0.6}
   .item-del:hover{background:rgba(185,28,28,0.25)!important;color:#7F1D1D}
   .item-add{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:6px;border:1px dashed #D1D5DB;background:transparent;color:#6B7280;font-size:12px;cursor:pointer;transition:all 0.2s;margin-top:6px}
   .item-add:hover{border-color:var(--c-primary,#005EB8);color:var(--c-primary,#005EB8);background:color-mix(in srgb,var(--c-primary,#005EB8) 5%,transparent)}
   .export-hide{ display:inline-block; }
+  .item-hidden{ opacity:0.3; }
+  .item-hidden .bullet-text, .item-hidden .skill-text{ text-decoration:line-through; }
+  .item-vis-toggle{ background:none;border:none;cursor:pointer;padding:6px;color:#9CA3AF;font-size:14px;line-height:1;flex-shrink:0;transition:color 0.15s }
+  .item-vis-toggle:hover{ color:#4B5563 }
+  .item-hidden .item-vis-toggle{ color:#D1D5DB }
   /* ── Analysis Slide-Out Panel ── */
   .analysis-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.4);z-index:998;opacity:0;transition:opacity 0.3s;pointer-events:none;backdrop-filter:blur(4px)}
   .analysis-overlay.open{opacity:1;pointer-events:auto}
@@ -230,6 +237,10 @@
     .ai-changed.ai-tapped:hover .ai-actions{opacity:1;pointer-events:auto}
     .ai-changed.item-row{padding-right:28px}
     .ai-changed:not(.item-row){padding-right:0}
+    .item-row .item-vis-toggle,.item-row .item-del{opacity:1}
+    .item-row .item-vis-toggle{width:28px;height:28px;right:24px}
+    .item-row .item-del{width:28px;height:28px}
+    .item-row{padding-right:54px}
     .ai-action-bar{flex-direction:column;align-items:stretch;text-align:center}
     .ai-enhance-desc{display:none}
     #job-tracker-list .job-row{flex-direction:column;gap:0.5rem}
@@ -540,7 +551,7 @@
         <!-- Section 3: Target Role -->
         <div class="accordion-header" onclick="toggleAccordion(3)" data-testid="acc-3">
           <span class="acc-num pending" id="acc-dot-3">3</span>
-          <span class="acc-title">Target Role</span>
+          <span class="acc-title">Target Role <span id="acc-target-role-subtitle" style="font-weight:400;font-size:0.7rem;color:#64748B;margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45vw;display:inline-block;vertical-align:middle"></span></span>
           <svg class="acc-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="accordion-body" id="acc-body-3"></div>
@@ -807,6 +818,12 @@
           <span id="resume-file-info" class="text-[11px] font-medium px-2 py-0.5 rounded-full hidden" style="background:#F0F9FF;color:#0369A1"></span>
         </div>
         <div class="grid sm:grid-cols-2 gap-4 text-sm" id="resume-preview-content"></div>
+        <!-- Additional Resume Details -->
+        <div class="mt-4 pt-4" style="border-top:1px solid #E5E7EB">
+          <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Additional Resume Details <span class="font-normal" style="color:#9CA3AF">(optional)</span></label>
+          <p class="text-xs mb-2" style="color:#9CA3AF">Add any extra experience, accomplishments, skills, or context not captured in your uploaded resume. This will be included in your AI-generated plan and analysis.</p>
+          <textarea class="input-field" id="additional-resume-details" placeholder="e.g. I also have 3 years of volunteer board leadership at a nonprofit, PMP certification in progress, fluent in Spanish..." style="min-height:80px" data-testid="additional-details-input"></textarea>
+        </div>
         <div class="flex justify-end mt-4 gap-2">
           <!-- Career Path button commented out
           <button class="btn-secondary text-sm" onclick="openCareerPath()" data-testid="career-path-step1" style="color:#4F46E5;border-color:#C7D2FE"><i data-lucide="compass" style="width:14px;height:14px"></i> Career Path</button>
@@ -1912,25 +1929,41 @@ function setupTargetRoleWatcher() {
   if (titleEl) {
     titleEl.addEventListener('change', () => {
       markDirty();
+      updateTargetRoleSubtitle();
       const newRole = (titleEl.value || '') + '@' + (companyEl?.value || '');
       if (_lastSavedTargetRole && newRole !== _lastSavedTargetRole && STATE.generated?.hero) {
         promptNewVersion();
       }
     });
+    titleEl.addEventListener('input', updateTargetRoleSubtitle);
   }
   if (companyEl) {
     companyEl.addEventListener('change', () => {
       markDirty();
+      updateTargetRoleSubtitle();
       const newRole = (titleEl?.value || '') + '@' + (companyEl.value || '');
       if (_lastSavedTargetRole && newRole !== _lastSavedTargetRole && STATE.generated?.hero) {
         promptNewVersion();
       }
     });
+    companyEl.addEventListener('input', updateTargetRoleSubtitle);
   }
   // Track all input changes for dirty state
   document.querySelectorAll('#builder-wrapper input, #builder-wrapper textarea, #builder-wrapper select').forEach(el => {
     el.addEventListener('input', markDirty);
   });
+}
+
+function updateTargetRoleSubtitle() {
+  const sub = document.getElementById('acc-target-role-subtitle');
+  if (!sub) return;
+  const title = document.getElementById('job-title')?.value?.trim() || '';
+  const company = document.getElementById('job-company')?.value?.trim() || '';
+  if (title || company) {
+    sub.textContent = '— ' + (title || 'Untitled') + (company ? ' at ' + company : '');
+  } else {
+    sub.textContent = '';
+  }
 }
 
 // AI per-section suggestion function
@@ -1950,7 +1983,7 @@ async function askAIForSection(section) {
     
     const prompt = `You are a professional resume coach. The user is applying for "${jobTitle}" at "${company}". Job description: "${jobDesc.substring(0,500)}". Their current ${section} section reads: "${currentContent.substring(0,800)}". Provide 2-3 specific, actionable improvement suggestions for their ${section} section. Be concise and direct. Format as bullet points.`;
     
-    const resp = await fetch(API_BASE + '/builder/analyze', {
+    const resp = await fetch(ANALYSIS_API + '/api/builder-analyze', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({prompt, max_tokens: 400})
@@ -2939,6 +2972,7 @@ async function loadPlan(planId) {
     document.getElementById('job-company').value = d.company || '';
     document.getElementById('job-desc').value = d.jobDescription || '';
     document.getElementById('plan-context').value = d.planContext || '';
+    updateTargetRoleSubtitle();
     // Load application status
     setTimeout(loadAppStatus, 200);
     document.getElementById('contact-name').value = d.contactName || '';
@@ -2950,6 +2984,7 @@ async function loadPlan(planId) {
     document.getElementById('contact-website').value = d.contactWebsite || '';
     document.getElementById('contact-twitter').value = d.contactTwitter || '';
     document.getElementById('resume-build-name').value = d.resumeBuildName || '';
+    if (d.additionalResumeDetails) document.getElementById('additional-resume-details').value = d.additionalResumeDetails;
 
     // Populate manual entry fields from resume data
     if (STATE.resumeData && Object.keys(STATE.resumeData).length) {
@@ -3062,6 +3097,7 @@ async function savePlan() {
     company: document.getElementById('job-company').value || '',
     jobDescription: document.getElementById('job-desc').value || '',
     planContext: document.getElementById('plan-context').value || '',
+    additionalResumeDetails: document.getElementById('additional-resume-details')?.value || '',
     contactName: document.getElementById('contact-name').value || '',
     contactPhone: document.getElementById('contact-phone').value || '',
     contactEmail: document.getElementById('contact-email').value || '',
@@ -4626,7 +4662,7 @@ async function generatePlan() {
     const res = await fetch(API_BASE + '/builder/generate', {
       method: 'POST',
       headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ resume_data: STATE.resumeData, role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections, job_description: document.getElementById('job-desc').value.trim(), plan_context: document.getElementById('plan-context').value.trim(), editing_plan_id: currentPlanId || '' })
+      body: JSON.stringify({ resume_data: STATE.resumeData, role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections, job_description: document.getElementById('job-desc').value.trim(), plan_context: document.getElementById('plan-context').value.trim(), additional_details: (document.getElementById('additional-resume-details')?.value || '').trim(), editing_plan_id: currentPlanId || '' })
     });
     await handleBuilderResponse(res);
     const data = await res.json();
@@ -4982,7 +5018,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXPERIENCE ────
   if (STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map(e => `<div class="item-row"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map(b => `<li class="item-row flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map(e => `<div class="item-row"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map(b => `<li class="item-row flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
@@ -4996,7 +5032,7 @@ function renderPreview(g, targetId) {
     const skillStyle = S.sectionLabelStyle === 'terminal'
       ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
       : `border:${S.borderStyle};color:${S.textColor}`;
-    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`, '', 'skills');
+    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text">${s}</span><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`, '', 'skills');
   }
 
   // ──── EDUCATION & CERTS ────
@@ -5173,7 +5209,8 @@ function addBullet(addBtn, accent, textColor) {
   const li = document.createElement('li');
   li.className = 'item-row flex gap-3 text-sm';
   li.style.color = textColor;
-  li.innerHTML = `<span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" contenteditable="true">New bullet point</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button>`;
+  li.innerHTML = `<span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" contenteditable="true">New bullet point</span><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button>`;
+  lucide.createIcons({ nodes: [li] });
   ul.appendChild(li);
   li.querySelector('span[contenteditable]').focus();
   markDirty();
@@ -5186,7 +5223,7 @@ function addSkill(addBtn, accent, styleStr) {
   div.className = 'item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable';
   div.contentEditable = 'true';
   div.setAttribute('style', styleStr);
-  div.innerHTML = `<i data-lucide="check-circle" style="width:14px;height:14px;color:${accent};flex-shrink:0"></i><span class="skill-text">New Skill</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button>`;
+  div.innerHTML = `<i data-lucide="check-circle" style="width:14px;height:14px;color:${accent};flex-shrink:0"></i><span class="skill-text">New Skill</span><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button>`;
   grid.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
@@ -5222,8 +5259,22 @@ function addExperience(addBtn) {
 }
 
 // Strip action buttons from HTML before export
+function toggleItemVisibility(btn) {
+  const row = btn.closest('.item-row');
+  if (!row) return;
+  row.classList.toggle('item-hidden');
+  const icon = btn.querySelector('i[data-lucide]');
+  if (icon) {
+    const isHidden = row.classList.contains('item-hidden');
+    icon.setAttribute('data-lucide', isHidden ? 'eye-off' : 'eye');
+    lucide.createIcons({ nodes: [btn] });
+  }
+  markDirty();
+}
+
 function getCleanPreviewHTML() {
   const clone = document.getElementById('preview-container').cloneNode(true);
+  clone.querySelectorAll('.item-hidden').forEach(el => el.remove());
   clone.querySelectorAll('.export-hide').forEach(el => el.remove());
   clone.querySelectorAll('.ai-changed').forEach(el => el.classList.remove('ai-changed'));
   clone.querySelectorAll('.item-row').forEach(el => {
@@ -5410,6 +5461,7 @@ async function importLinkedInJob() {
     if (data.job_title) document.getElementById('job-title').value = data.job_title;
     if (data.company) document.getElementById('job-company').value = data.company;
     if (data.description) document.getElementById('job-desc').value = data.description;
+    updateTargetRoleSubtitle();
     statusEl.innerHTML = '<span style="color:#047857">Job details imported! Review and edit the fields below.</span>';
     showToast('Job details imported from LinkedIn!');
   } catch(e) {
@@ -5925,7 +5977,7 @@ function closeAnalysis() {
 async function analyzeResume() {
   if (!canUsePremium()) { showPaywall(); return; }
   const btn = document.querySelector('[data-testid="analyze-btn"]');
-  const origHTML = btn.innerHTML;
+  const origHTML = btn ? btn.innerHTML : '';
 
   // Check analysis cache first (including prefetch in-flight)
   const cacheKey = getAnalysisCacheKey();
@@ -5956,8 +6008,7 @@ async function analyzeResume() {
     await deductAIUse();
   }
 
-  btn.disabled = true;
-  btn.innerHTML = loaderHTML(14) + ' Analyzing...';
+  if (btn) { btn.disabled = true; btn.innerHTML = loaderHTML(14) + ' Analyzing...'; }
 
   openAnalysis();
   document.getElementById('analysis-content').innerHTML = '<div style="text-align:center;padding:60px 0">' + loaderHTML(40) + '<p style="color:rgba(255,255,255,0.6);margin-top:16px">Analyzing your resume...</p></div>';
@@ -5971,6 +6022,8 @@ async function analyzeResume() {
       resumeText = [r.name, r.current_title, r.summary, ...(r.experience || []).map(e => `${e.title} at ${e.company} (${e.dates})\n${(e.bullets || []).join('\n')}`), 'Skills: ' + (r.skills || []).join(', '), ...(r.education || []).map(e => `${e.degree} - ${e.school} ${e.year || ''}`)].join('\n\n');
     }
     if (!resumeText) throw new Error('No resume data available. Please parse a resume first.');
+    const _additionalDetails = (document.getElementById('additional-resume-details')?.value || '').trim();
+    if (_additionalDetails) resumeText += '\n\nAdditional Details:\n' + _additionalDetails;
 
     const formData = new FormData();
     formData.append('resume_text', resumeText);
@@ -6015,8 +6068,7 @@ async function analyzeResume() {
   } catch (e) {
     document.getElementById('analysis-content').innerHTML = `<div style="padding:30px;text-align:center"><p style="color:#ff8a80;margin-bottom:12px">Analysis failed</p><p style="color:rgba(255,255,255,0.6);font-size:0.9rem">${e.message}</p></div>`;
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = origHTML;
+    if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     lucide.createIcons();
   }
 }
@@ -6382,6 +6434,8 @@ async function prefetchAnalysis() {
       resumeText = [r.name, r.current_title, r.summary, ...(r.experience || []).map(e => `${e.title} at ${e.company} (${e.dates})\n${(e.bullets || []).join('\n')}`), 'Skills: ' + (r.skills || []).join(', '), ...(r.education || []).map(e => `${e.degree} - ${e.school} ${e.year || ''}`)].join('\n\n');
     }
     if (!resumeText) return;
+    const _additionalDetails = (document.getElementById('additional-resume-details')?.value || '').trim();
+    if (_additionalDetails) resumeText += '\n\nAdditional Details:\n' + _additionalDetails;
 
     const formData = new FormData();
     formData.append('resume_text', resumeText);
