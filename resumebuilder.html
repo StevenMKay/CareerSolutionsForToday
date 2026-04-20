@@ -2233,7 +2233,7 @@ function updateTargetRoleSubtitle() {
 // AI per-section suggestion function
 async function askAIForSection(section) {
   const btn = event?.target?.closest('.rp-ai-btn');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loader" style="width:12px;height:12px;display:inline-block"><span class="inner one" style="border-width:2px;border-bottom-color:#4F46E5"></span></span> Thinking...'; }
+  if (btn) { btn.disabled = true; }
   const suggDiv = document.getElementById('rp-' + section + '-suggestion');
   if (!suggDiv) return;
   
@@ -2268,7 +2268,7 @@ async function askAIForSection(section) {
 
 function applyAISuggestion(section) {
   const applyBtn = event?.target?.closest('.rp-apply-btn');
-  if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = 'Applying\u2026'; }
+  if (applyBtn) { applyBtn.disabled = true; }
 
   const sectionMap = { summary:'executive_summary', experience:'experience', skills:'skills', education:'education', achievements:'achievements', leadership:'leadership', kpis:'kpis' };
   const previewKey = sectionMap[section] || section;
@@ -2395,13 +2395,14 @@ function applyAISuggestion(section) {
       previewCard.scrollIntoView({ behavior:'smooth', block:'center' });
       showToast(changeCount + ' change' + (changeCount > 1 ? 's' : '') + ' applied! Review in the preview.');
       markDirty();
+      if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = 'Applied'; }
     } else {
       showToast('No changes needed \u2014 content is already optimal.');
+      if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = 'Apply to Resume'; }
     }
   }).catch(function(e){
     console.error('Apply AI error:', e);
     showToast('Could not apply suggestions. Try again.');
-  }).finally(function(){
     if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = 'Apply to Resume'; }
   });
 }
@@ -2576,10 +2577,27 @@ document.addEventListener('click', e => {
 function cancelSubscription() {
   if (!builderSubscribed && !ytMemberSubscribed) {
     window.open('https://buy.stripe.com/3cIaEY2Gjcyt7D08lG43S08', '_blank');
+  } else if (ytMemberSubscribed && !builderSubscribed) {
+    // YouTube member — send to YouTube memberships management page
+    window.open('https://www.youtube.com/paid_memberships', '_blank');
   } else {
-    if (confirm('To manage or cancel your subscription, we\'ll open an email to our support team. Continue?')) {
-      window.location.href = 'mailto:stevenk@careersolutionsfortoday.com?subject=Manage%20Subscription&body=Email%3A%20' + encodeURIComponent(currentUser?.email || '');
-    }
+    // Stripe subscriber — open Stripe Customer Portal
+    const email = currentUser?.email;
+    if (!email) { showToast('Please sign in first.'); return; }
+    fetch(API_BASE + '/builder/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.url) {
+        window.open(data.url, '_blank');
+      } else {
+        showToast(data.error || 'Could not open billing portal.');
+      }
+    })
+    .catch(() => showToast('Could not open billing portal. Try again later.'));
   }
 }
 
@@ -4128,9 +4146,13 @@ function updateGeneratePreviewBtn() {
   if (_needsReanalysis) {
     btn.style.background = '#D97706';
     btn.style.boxShadow = '0 2px 8px rgba(217,119,6,0.3)';
+    btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate New Plan & Analysis';
+    lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'});
   } else {
     btn.style.background = '#059669';
     btn.style.boxShadow = '0 2px 8px rgba(5,150,105,0.3)';
+    btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate Plan & Analyze';
+    lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'});
   }
 }
 function markDirty() {
