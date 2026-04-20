@@ -3281,16 +3281,32 @@ async function signInWithEmail() {
         setAuthLoading(false);
       }
     } else if (e.code === 'auth/invalid-credential') {
+      // Firebase now returns invalid-credential for both wrong password AND non-existent user.
+      // Check methods: empty = no account → create one; password = wrong password; google = use Google.
       const methods = await getSignInMethodsForEmailSafe(email);
       if (methods.includes('google.com') && !methods.includes('password')) {
         errEl.textContent = 'This email is registered with Google. Please use the "Sign in with Google" button above.';
-      } else if (methods.includes('password')) {
-        errEl.textContent = 'Incorrect email or password. Try again or click "Forgot password?"';
+        errEl.classList.remove('hidden');
+        setAuthLoading(false);
+      } else if (methods.length === 0) {
+        // No account exists — create one now
+        try { await auth.createUserWithEmailAndPassword(email, password); }
+        catch(e2) {
+          if (e2.code === 'auth/weak-password') {
+            errEl.textContent = 'Password must be at least 6 characters';
+          } else if (e2.code === 'auth/email-already-in-use') {
+            errEl.textContent = 'An account with this email already exists. Try your password or click "Forgot password?"';
+          } else {
+            errEl.textContent = e2.message;
+          }
+          errEl.classList.remove('hidden');
+          setAuthLoading(false);
+        }
       } else {
-        errEl.textContent = 'Incorrect email or password. Try again.';
+        errEl.textContent = 'Incorrect password. Try again or click "Forgot password?"';
+        errEl.classList.remove('hidden');
+        setAuthLoading(false);
       }
-      errEl.classList.remove('hidden');
-      setAuthLoading(false);
     } else if (e.code === 'auth/wrong-password') {
       errEl.textContent = 'Incorrect password. Try again or click "Forgot password?"';
       errEl.classList.remove('hidden');
