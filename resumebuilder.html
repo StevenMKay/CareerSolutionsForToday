@@ -3075,12 +3075,12 @@ auth.onAuthStateChanged(async user => {
     if (urlParams.get('upgraded') === '1' && !sessionStorage.getItem('_stripe_return_processed')) {
       sessionStorage.setItem('_stripe_return_processed', '1');
       builderSubscribed = true;
-      // Persist subscription in Firestore as safety net (webhook may be slow)
+      // Re-check via backend — triggers Stripe-to-Firestore sync if webhook was slow
       try {
-        await db.collection('builderSubscriptions').doc(user.email.toLowerCase()).set({
-          active: true, source: 'stripe', activatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-      } catch(e) { console.warn('Subscription safety-net write failed:', e); }
+        const confirmRes = await fetch(API_BASE + '/builder/check-subscription?email=' + encodeURIComponent(user.email));
+        const confirmData = await confirmRes.json();
+        if (confirmData.subscribed) builderSubscribed = true;
+      } catch(e) { /* already set to true above */ }
       showToast('Subscription activated! All features unlocked.');
       window.history.replaceState({}, '', window.location.pathname);
     }
