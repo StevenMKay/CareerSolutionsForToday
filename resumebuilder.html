@@ -1729,6 +1729,8 @@ let pendingNavCallback = null;
 let builderSubscribed = false;
 let ytMemberSubscribed = false;
 let hadPriorSubscription = false;
+let stripeCancelAtPeriodEnd = false;
+let stripePeriodEndDate = null;
 let freeUsesCount = 0;
 let singlePurchased = false;
 let singlePurchaseDate = null;
@@ -3092,7 +3094,9 @@ auth.onAuthStateChanged(async user => {
       builderSubscribed = subData.subscribed || false;
       ytMemberSubscribed = subData.ytMember || false;
       hadPriorSubscription = subData.hadSubscription || false;
-    } catch(e) { builderSubscribed = false; ytMemberSubscribed = false; hadPriorSubscription = false; }
+      stripeCancelAtPeriodEnd = subData.cancelAtPeriodEnd || false;
+      stripePeriodEndDate = subData.periodEndDate || null;
+    } catch(e) { builderSubscribed = false; ytMemberSubscribed = false; hadPriorSubscription = false; stripeCancelAtPeriodEnd = false; stripePeriodEndDate = null; }
     try {
       const usageDoc = await db.collection('builderUsage').doc(user.uid).get();
       if (usageDoc.exists) {
@@ -4636,15 +4640,28 @@ function showPaywall() {
     statusBanner.innerHTML = '<div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:#047857;font-weight:600;font-size:0.8rem">&#10003; Owner — Full Access</span></div>';
     if (subBtn) { subBtn.disabled = true; subBtn.innerHTML = '&#10003; Active'; subBtn.style.opacity = '0.5'; }
   } else if (builderSubscribed || ytMemberSubscribed) {
-    // Show badge only on the source they actually used
-    if (builderSubscribed && stripeBadge) stripeBadge.classList.remove('hidden');
+    // Show badge only on the source they actually used (but not if cancelled)
+    if (builderSubscribed && !stripeCancelAtPeriodEnd && stripeBadge) stripeBadge.classList.remove('hidden');
     if (ytMemberSubscribed && ytBadge) ytBadge.classList.remove('hidden');
     // Grey out the other option so they can't double-subscribe
     if (builderSubscribed && !ytMemberSubscribed && ytBox) { ytBox.style.opacity = '0.45'; ytBox.style.pointerEvents = 'none'; }
     if (ytMemberSubscribed && !builderSubscribed && stripeBox) { stripeBox.style.opacity = '0.45'; stripeBox.style.pointerEvents = 'none'; }
-    const planLabel = ytMemberSubscribed && !builderSubscribed ? 'YouTube Member' : 'Subscriber ($2.99/mo)';
-    statusBanner.innerHTML = '<div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:#005EB8;font-weight:600;font-size:0.8rem">&#10003; Current Plan: ' + planLabel + '</span></div>';
-    if (builderSubscribed && subBtn) { subBtn.disabled = true; subBtn.innerHTML = '&#10003; Current Plan'; subBtn.style.opacity = '0.5'; }
+    // Build status label
+    let planLabel, bannerBg, bannerBorder, bannerColor;
+    if (stripeCancelAtPeriodEnd && builderSubscribed) {
+      const endDate = stripePeriodEndDate ? new Date(stripePeriodEndDate).toLocaleDateString() : 'end of billing period';
+      planLabel = 'Cancelled — access until ' + endDate;
+      bannerBg = '#FEF3C7'; bannerBorder = '#FDE68A'; bannerColor = '#92400E';
+      // Don't show checkmark badge for cancelled
+      if (stripeBadge) stripeBadge.classList.add('hidden');
+      // Allow re-subscribing via Stripe (don't disable button)
+      if (subBtn) { subBtn.disabled = false; subBtn.innerHTML = 'Resubscribe'; subBtn.style.opacity = '1'; }
+    } else {
+      planLabel = ytMemberSubscribed && !builderSubscribed ? 'YouTube Member' : 'Subscriber ($2.99/mo)';
+      bannerBg = '#EFF6FF'; bannerBorder = '#BFDBFE'; bannerColor = '#005EB8';
+      if (builderSubscribed && subBtn) { subBtn.disabled = true; subBtn.innerHTML = '&#10003; Current Plan'; subBtn.style.opacity = '0.5'; }
+    }
+    statusBanner.innerHTML = '<div style="background:' + bannerBg + ';border:1px solid ' + bannerBorder + ';border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;display:flex;align-items:center;gap:0.5rem;justify-content:center"><span style="color:' + bannerColor + ';font-weight:600;font-size:0.8rem">' + (stripeCancelAtPeriodEnd ? '⚠ ' : '&#10003; ') + 'Current Plan: ' + planLabel + '</span></div>';
     if (ytMemberSubscribed) {
       const ytVerifyBtn = document.getElementById('yt-verify-btn');
       if (ytVerifyBtn) { ytVerifyBtn.disabled = true; ytVerifyBtn.innerHTML = '&#10003; Verified'; ytVerifyBtn.style.opacity = '0.5'; }
@@ -7480,8 +7497,13 @@ function updateSubscriptionMenuBtn() {
   const ico = document.getElementById('menu-sub-icon');
   if (!txt || !ico) return;
   if (builderSubscribed || ytMemberSubscribed) {
-    txt.textContent = 'Manage Subscription';
-    ico.setAttribute('data-lucide', 'credit-card');
+    if (stripeCancelAtPeriodEnd && builderSubscribed) {
+      txt.textContent = 'Cancelled — Resubscribe';
+      ico.setAttribute('data-lucide', 'alert-circle');
+    } else {
+      txt.textContent = 'Manage Subscription';
+      ico.setAttribute('data-lucide', 'credit-card');
+    }
   } else {
     txt.textContent = 'Subscribe';
     ico.setAttribute('data-lucide', 'star');
