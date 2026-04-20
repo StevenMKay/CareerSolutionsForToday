@@ -3075,6 +3075,12 @@ auth.onAuthStateChanged(async user => {
     if (urlParams.get('upgraded') === '1' && !sessionStorage.getItem('_stripe_return_processed')) {
       sessionStorage.setItem('_stripe_return_processed', '1');
       builderSubscribed = true;
+      // Persist subscription in Firestore as safety net (webhook may be slow)
+      try {
+        await db.collection('builderSubscriptions').doc(user.email.toLowerCase()).set({
+          active: true, source: 'stripe', activatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch(e) { console.warn('Subscription safety-net write failed:', e); }
       showToast('Subscription activated! All features unlocked.');
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -5119,8 +5125,16 @@ async function startCheckout() {
   if (!currentUser) { showToast('Please sign in first'); return; }
   const btn = document.getElementById('paywall-upgrade-btn');
   btn.disabled = true; btn.innerHTML = 'Redirecting...';
-  const checkoutUrl = 'https://buy.stripe.com/3cIaEY2Gjcyt7D08lG43S08?prefilled_email=' + encodeURIComponent(currentUser.email);
-  window.location.href = checkoutUrl;
+  try {
+    const res = await fetch(API_BASE + '/builder/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentUser.email })
+    });
+    const data = await res.json();
+    if (data.url) { window.location.href = data.url; }
+    else { throw new Error(data.error || 'Checkout failed'); }
+  } catch(e) { showToast('Error: ' + e.message); btn.disabled = false; btn.innerHTML = 'Start Free Trial'; }
 }
 
 async function verifyYouTubeMembership() {
