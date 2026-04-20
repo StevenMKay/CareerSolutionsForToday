@@ -3260,65 +3260,41 @@ async function signInWithEmail() {
   if (password.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; errEl.classList.remove('hidden'); return; }
   setAuthLoading(true);
   try {
-    await auth.signInWithEmailAndPassword(email, password);
-  } catch(e) {
-    if (e.code === 'auth/user-not-found') {
-      try { await auth.createUserWithEmailAndPassword(email, password); }
-      catch(e2) {
-        if (e2.code === 'auth/email-already-in-use') {
-          const methods = await getSignInMethodsForEmailSafe(email);
-          if (methods.includes('google.com') && !methods.includes('password')) {
-            errEl.textContent = 'This email is registered with Google. Please use the "Sign in with Google" button above.';
-          } else {
-            errEl.textContent = 'An account with this email already exists. Enter your password or use "Forgot password?" if you need to reset it.';
-          }
-        } else if (e2.code === 'auth/weak-password') {
-          errEl.textContent = 'Password must be at least 6 characters';
-        } else {
-          errEl.textContent = e2.message;
-        }
-        errEl.classList.remove('hidden');
-        setAuthLoading(false);
-      }
-    } else if (e.code === 'auth/invalid-credential') {
-      // Firebase now returns invalid-credential for both wrong password AND non-existent user.
-      // Check methods: empty = no account → create one; password = wrong password; google = use Google.
-      const methods = await getSignInMethodsForEmailSafe(email);
-      if (methods.includes('google.com') && !methods.includes('password')) {
-        errEl.textContent = 'This email is registered with Google. Please use the "Sign in with Google" button above.';
-        errEl.classList.remove('hidden');
-        setAuthLoading(false);
-      } else if (methods.length === 0) {
-        // No account exists — create one now
-        try { await auth.createUserWithEmailAndPassword(email, password); }
-        catch(e2) {
-          if (e2.code === 'auth/weak-password') {
-            errEl.textContent = 'Password must be at least 6 characters';
-          } else if (e2.code === 'auth/email-already-in-use') {
-            errEl.textContent = 'An account with this email already exists. Try your password or click "Forgot password?"';
-          } else {
-            errEl.textContent = e2.message;
-          }
-          errEl.classList.remove('hidden');
-          setAuthLoading(false);
-        }
-      } else {
-        errEl.textContent = 'Incorrect password. Try again or click "Forgot password?"';
-        errEl.classList.remove('hidden');
-        setAuthLoading(false);
-      }
-    } else if (e.code === 'auth/wrong-password') {
-      errEl.textContent = 'Incorrect password. Try again or click "Forgot password?"';
+    // Check sign-in methods first so we know what action to take without
+    // making a doomed signInWithPassword call (which logs a noisy 400 in console).
+    const methods = await getSignInMethodsForEmailSafe(email);
+
+    if (methods.includes('google.com') && !methods.includes('password')) {
+      // Account exists but only via Google OAuth
+      errEl.textContent = 'This email is registered with Google. Please use the "Sign in with Google" button above.';
       errEl.classList.remove('hidden');
       setAuthLoading(false);
+      return;
+    }
+
+    if (methods.length === 0) {
+      // No account yet — create one
+      await auth.createUserWithEmailAndPassword(email, password);
+      return; // onAuthStateChanged will take over
+    }
+
+    // Account exists with password — sign in normally
+    await auth.signInWithEmailAndPassword(email, password);
+
+  } catch(e) {
+    if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+      errEl.textContent = 'Incorrect password. Try again or click "Forgot password?"';
+    } else if (e.code === 'auth/weak-password') {
+      errEl.textContent = 'Password must be at least 6 characters';
+    } else if (e.code === 'auth/email-already-in-use') {
+      errEl.textContent = 'An account with this email already exists. Try your password or click "Forgot password?"';
     } else if (e.code === 'auth/too-many-requests') {
       errEl.textContent = 'Too many attempts. Please wait a moment and try again.';
-      errEl.classList.remove('hidden');
-      setAuthLoading(false);
     } else {
-      errEl.textContent = e.message; errEl.classList.remove('hidden');
-      setAuthLoading(false);
+      errEl.textContent = e.message;
     }
+    errEl.classList.remove('hidden');
+    setAuthLoading(false);
   }
 }
 document.addEventListener('DOMContentLoaded', () => {
