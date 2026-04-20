@@ -5122,8 +5122,10 @@ async function verifyYouTubeMembership() {
       // Open YouTube OAuth consent in popup
       const popup = window.open(data.url, 'yt-oauth', 'width=500,height=600,scrollbars=yes');
       // Listen for the callback message from popup
+      let _ytTimeout;
       const onMessage = async (event) => {
         if (event.data?.type === 'yt-membership-verified') {
+          clearTimeout(_ytTimeout);
           window.removeEventListener('message', onMessage);
           ytMemberSubscribed = true;
           showToast('YouTube membership verified! Full access granted.');
@@ -5133,17 +5135,15 @@ async function verifyYouTubeMembership() {
           btn.style.borderColor = '#047857'; btn.style.color = '#047857';
           lucide.createIcons();
         } else if (event.data?.type === 'yt-membership-failed') {
+          clearTimeout(_ytTimeout);
           window.removeEventListener('message', onMessage);
           showToast(event.data.message || 'YouTube membership not found. Please join first.');
           btn.disabled = false; btn.innerHTML = origHTML; lucide.createIcons();
         }
       };
       window.addEventListener('message', onMessage);
-      // Fallback: if popup closes without message (wrapped in try-catch for COOP)
-      const checkClosed = setInterval(() => {
-        try { if (popup && popup.closed) { clearInterval(checkClosed); window.removeEventListener('message', onMessage); btn.disabled = false; btn.innerHTML = origHTML; lucide.createIcons(); } } catch(e) { /* COOP blocks popup.closed — rely on timeout */ }
-      }, 1000);
-      setTimeout(() => { clearInterval(checkClosed); window.removeEventListener('message', onMessage); btn.disabled = false; btn.innerHTML = origHTML; lucide.createIcons(); }, 120000);
+      // Timeout fallback — resets button if user abandons the OAuth popup
+      _ytTimeout = setTimeout(() => { window.removeEventListener('message', onMessage); btn.disabled = false; btn.innerHTML = origHTML; lucide.createIcons(); }, 60000);
     } else {
       throw new Error(data.error || 'Could not start YouTube verification');
     }
