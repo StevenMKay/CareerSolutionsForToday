@@ -25,6 +25,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 <style>
   body{font-family:'Manrope',sans-serif;margin:0;background:url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/597eb3e588368fd1ef36529e77e8fb5f5b9ac1a8/photos/ResumeBackground.png') center/cover no-repeat fixed;background-color:#5b6b7d;color:#0A0A0A;min-height:100vh;display:flex;flex-direction:column}
+  @media(min-width:641px){body{background-size:120% auto}}
   h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}
   .step-dot{width:2.5rem;height:2.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;transition:all 0.3s;position:relative}
   .step-dot.active{background:var(--c-primary,#005EB8);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--c-primary,#005EB8) 20%,transparent)}
@@ -177,11 +178,14 @@
   .item-hidden .bullet-text, .item-hidden .skill-text{ text-decoration:line-through; }
   /* Action bar (floating above item on hover/tap) */
   .mobile-action-bar{position:absolute;left:50%;top:-34px;transform:translateX(-50%);display:none;gap:4px;z-index:20;background:#fff;padding:4px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.18);border:1px solid #E2E8F0;white-space:nowrap}
+  @media(max-width:640px){.mobile-action-bar{flex-wrap:wrap;justify-content:center;white-space:normal;max-width:220px}}
   .item-row.item-tapped > .mobile-action-bar{display:flex}
   .item-row:hover > .mobile-action-bar{display:flex}
   .mobile-action-bar .mab-btn{height:28px;border-radius:6px;padding:0 10px;font-size:11px;font-weight:600;border:1px solid;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;white-space:nowrap}
   /* Desktop: hide Edit button — click row directly to edit */
   @media(min-width:641px){.mobile-action-bar .mab-edit{display:none}}
+  /* Mobile: prevent direct contenteditable — user must tap Edit button */
+  @media(max-width:640px){.item-row[contenteditable="true"]{-webkit-user-modify:read-only;caret-color:transparent}.item-row .editable[contenteditable="true"]{-webkit-user-modify:read-only;caret-color:transparent}.item-row.item-editing [contenteditable="true"]{-webkit-user-modify:read-write!important;caret-color:auto!important}.item-row.item-editing[contenteditable="true"]{-webkit-user-modify:read-write!important;caret-color:auto!important}}
   /* Editable-tapped: action bar on non-item-row editables (Executive Summary etc.) */
   .editable-action-bar{position:absolute;left:50%;top:-34px;transform:translateX(-50%);display:none;gap:4px;z-index:20;background:#fff;padding:4px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.18);border:1px solid #E2E8F0;white-space:nowrap}
   .editable-tapped > .editable-action-bar{display:flex}
@@ -674,9 +678,13 @@
       <div class="right-panel-resize" id="right-panel-resize"></div>
       <!-- Match Score -->
       <div id="rp-match-score" style="display:none;margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;text-align:center">
-        <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin-bottom:6px">Resume Match Score</div>
+        <div id="rp-match-label" style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin-bottom:6px">Resume Match Score</div>
         <div id="rp-match-value" style="font-size:2rem;font-weight:800;color:#6EE7B7;line-height:1">—</div>
         <div style="font-size:0.6rem;color:#94A3B8;margin-top:2px">out of 100</div>
+        <div id="rp-match-original" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">
+          <div style="font-size:0.55rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#64748B">Before AI Enhancements</div>
+          <div id="rp-match-original-value" style="font-size:1.1rem;font-weight:700;color:#94A3B8;line-height:1.2">—</div>
+        </div>
       </div>
       <div style="margin-bottom:10px">
         <h3 style="font-size:0.8rem;font-weight:700;color:#F1F5F9;margin:0 0 2px">Resume Analysis</h3>
@@ -725,7 +733,7 @@
           <svg class="analysis-chevron" style="width:12px;height:12px;transition:transform 0.2s;flex-shrink:0;color:#94A3B8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 6 15 12 9 18"/></svg>
           Full AI Analysis
         </summary>
-        <div id="right-analysis-content" style="margin-top:8px;max-height:60vh;overflow-y:auto;-webkit-overflow-scrolling:touch">
+        <div id="right-analysis-content" style="margin-top:8px">
           <p style="color:#64748B;font-size:0.72rem;font-style:italic;text-align:center;padding:16px 0">Generate a plan to run full analysis</p>
         </div>
       </details>
@@ -1731,6 +1739,7 @@ let _aiEnhanceAppliedForCurrentGen = false;
 let analysisCache = null;
 let analysisCacheKey = null;
 let _preEnhanceGenerated = null;
+let _baselineMatchScore = null;
 const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills','education','achievements','leadership','success_criteria'];
 let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[] };
 
@@ -2328,7 +2337,9 @@ function applyAISuggestion(section) {
             li.setAttribute('data-original-text', bulletEls[i].innerText);
             bulletEls[i].textContent = text;
             li.classList.add('ai-changed');
-            li.insertAdjacentHTML('beforeend', actionsHTML);
+            // Rebuild action bar with Undo/Keep/Previous (no inline actionsHTML for item-rows)
+            var _bar = li.querySelector('.mobile-action-bar'); if (_bar) _bar.remove();
+            showMobileActionBar(li);
             changeCount++;
           }
         }
@@ -2343,7 +2354,8 @@ function applyAISuggestion(section) {
             row.setAttribute('data-original-text', skillEls[i].innerText);
             skillEls[i].textContent = text;
             row.classList.add('ai-changed');
-            row.insertAdjacentHTML('beforeend', actionsHTML);
+            var _bar = row.querySelector('.mobile-action-bar'); if (_bar) _bar.remove();
+            showMobileActionBar(row);
             changeCount++;
           }
         }
@@ -2360,7 +2372,8 @@ function applyAISuggestion(section) {
             items[i].setAttribute('data-original-text', origText);
             target.textContent = text;
             items[i].classList.add('ai-changed');
-            items[i].insertAdjacentHTML('beforeend', actionsHTML);
+            var _bar = items[i].querySelector('.mobile-action-bar'); if (_bar) _bar.remove();
+            showMobileActionBar(items[i]);
             changeCount++;
           }
         }
@@ -5263,22 +5276,19 @@ async function generatePlan() {
     goToStep(4);
     markDirty();
     _needsReanalysis = false;
+    _baselineMatchScore = null; // Reset for fresh comparison
+    // Hide the "Before AI" sub-section
+    const _origWrap = document.getElementById('rp-match-original');
+    if (_origWrap) _origWrap.style.display = 'none';
+    const _matchLabel = document.getElementById('rp-match-label');
+    if (_matchLabel) _matchLabel.textContent = 'Resume Match Score';
     updateGeneratePreviewBtn();
     showToast('Plan generated! Click any text to edit.');
     savePlan();
     await incrementUsage();
-    // Prefetch analysis immediately so it's ready when user clicks Analyze
-    prefetchAnalysis();
-    // Auto-expand Full AI Analysis in right panel and populate when ready
+    // Auto-expand Full AI Analysis in right panel (analyzeResume chained in onclick will populate it)
     const _aDetails = document.getElementById('analysis-details');
     if (_aDetails) _aDetails.open = true;
-    const _raContent = document.getElementById('right-analysis-content');
-    if (_raContent) _raContent.innerHTML = '<p style="color:#64748B;font-size:0.72rem;font-style:italic;text-align:center;padding:16px 0">Analysis running...</p>';
-    (async function _waitAndDisplayAnalysis() {
-      const _maxWait = 60; let _waited = 0;
-      while (_prefetchInFlight && _waited < _maxWait) { await new Promise(r => setTimeout(r, 1000)); _waited++; }
-      if (analysisCache) { displayAnalysisResults(analysisCache); }
-    })();
     // Reset AI-enhance tracking for new generation
     _aiEnhanceAppliedForCurrentGen = false;
     firstAnalysisDone = false;
@@ -6918,9 +6928,9 @@ async function analyzeResume() {
     analysisCache = data.analysis;
     analysisCacheKey = cacheKey;
     displayAnalysisResults(data.analysis);
-    markDirty();
-    _needsReanalysis = false;
-    updateGeneratePreviewBtn();
+    // Mark save state dirty without clearing the analysis cache we just set
+    isDirty = true;
+    updateSaveButtonState();
     // Mark first analysis done for AI use tracking
     if (!firstAnalysisDone && !isOwner() && !builderSubscribed && !ytMemberSubscribed) {
       firstAnalysisDone = true;
@@ -7046,6 +7056,8 @@ function displayAnalysisResults(a) {
       valEl.textContent = a.overall_score;
       const sc = a.overall_score >= 80 ? '#6EE7B7' : a.overall_score >= 60 ? '#FCD34D' : '#FCA5A5';
       valEl.style.color = sc;
+      // Store baseline score (first analysis after generation)
+      if (_baselineMatchScore == null) _baselineMatchScore = a.overall_score;
     }
   }
 }
@@ -7253,8 +7265,16 @@ function acceptAIChange(btn) {
   item.style.paddingRight = '';
   const actions = item.querySelector('.ai-actions');
   if (actions) actions.remove();
+  // Rebuild action bar without Undo/Keep/Previous
+  if (item.classList.contains('item-row')) {
+    const bar = item.querySelector('.mobile-action-bar');
+    if (bar) bar.remove();
+    showMobileActionBar(item);
+  }
   checkAIActionBar();
   markDirty();
+  // If all AI changes accepted, trigger enhanced score update
+  if (!document.querySelector('#preview-container .ai-changed')) triggerEnhancedScoreUpdate();
 }
 
 function rejectAIChange(btn) {
@@ -7288,16 +7308,24 @@ function rejectAIChange(btn) {
 
 function acceptAllAIChanges() {
   document.querySelectorAll('#preview-container .ai-changed').forEach(el => {
-    el.classList.remove('ai-changed');
+    el.classList.remove('ai-changed', 'ai-tapped');
     el.removeAttribute('data-original-text');
     el.removeAttribute('data-is-new');
     el.style.paddingRight = '';
     const actions = el.querySelector('.ai-actions');
     if (actions) actions.remove();
+    // Rebuild action bar without Undo/Keep/Previous
+    if (el.classList.contains('item-row')) {
+      const bar = el.querySelector('.mobile-action-bar');
+      if (bar) bar.remove();
+      showMobileActionBar(el);
+    }
   });
   checkAIActionBar();
   showToast('All AI changes accepted');
   markDirty();
+  // Trigger re-analysis to update match score with AI enhancements
+  triggerEnhancedScoreUpdate();
 }
 
 function rejectAllAIChanges() {
@@ -7316,6 +7344,56 @@ function checkAIActionBar() {
   const remaining = document.querySelectorAll('#preview-container .ai-changed').length;
   if (remaining === 0) bar.remove();
   else bar.querySelector('.ai-bar-text').textContent = '\u2728 ' + remaining + ' AI change' + (remaining > 1 ? 's' : '') + ' remaining';
+}
+
+// ============ Enhanced Score Update (after AI changes accepted) ============
+async function triggerEnhancedScoreUpdate() {
+  if (_baselineMatchScore == null) return; // no baseline to compare against
+  const container = document.getElementById('preview-container');
+  if (!container) return;
+  // Build resume text from current preview DOM
+  let resumeText = container.innerText?.substring(0, 6000) || '';
+  if (!resumeText.trim()) return;
+  try {
+    const formData = new FormData();
+    formData.append('resume_text', resumeText);
+    let jobDesc = document.getElementById('job-desc')?.value?.trim();
+    if (!jobDesc) {
+      const t = document.getElementById('job-title')?.value?.trim();
+      const c = document.getElementById('job-company')?.value?.trim();
+      if (t || c) jobDesc = 'Role: ' + (t || 'Not specified') + (c ? ' at ' + c : '');
+    }
+    if (jobDesc) formData.append('job_description', jobDesc);
+    const resp = await fetch(ANALYSIS_API + '/api/analyze-resume', { method: 'POST', body: formData });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const newScore = data.analysis?.overall_score;
+    if (newScore == null) return;
+    // Update main score display
+    const valEl = document.getElementById('rp-match-value');
+    const labelEl = document.getElementById('rp-match-label');
+    if (valEl) {
+      valEl.textContent = newScore;
+      const sc = newScore >= 80 ? '#6EE7B7' : newScore >= 60 ? '#FCD34D' : '#FCA5A5';
+      valEl.style.color = sc;
+    }
+    if (labelEl) labelEl.textContent = 'With AI Enhancements';
+    // Show original score below
+    const origWrap = document.getElementById('rp-match-original');
+    const origVal = document.getElementById('rp-match-original-value');
+    if (origWrap && origVal) {
+      origVal.textContent = _baselineMatchScore;
+      origWrap.style.display = 'block';
+    }
+    // Also update cached analysis for right panel
+    if (data.analysis) {
+      analysisCache = data.analysis;
+      analysisCacheKey = getAnalysisCacheKey();
+      displayAnalysisResults(data.analysis);
+    }
+  } catch (e) {
+    console.debug('Enhanced score update failed:', e);
+  }
 }
 
 // ============ Prefetch Analysis (silent background) ============
