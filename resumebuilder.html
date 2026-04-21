@@ -398,6 +398,8 @@
   .accordion-header .acc-title{font-size:0.875rem;font-weight:600;color:#0F172A;flex:1}
   .accordion-header .acc-chevron{width:16px;height:16px;color:#94A3B8;transition:transform 0.25s;flex-shrink:0}
   .accordion-header.active .acc-chevron{transform:rotate(180deg);color:var(--c-primary,#005EB8)}
+  @keyframes acc-glow-pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,94,184,0),0 1px 2px rgba(0,0,0,0.03)}50%{box-shadow:0 0 0 5px rgba(0,94,184,0.22),0 4px 18px rgba(0,94,184,0.18)}}
+  .accordion-header.onboard-glow{animation:acc-glow-pulse 1.8s ease-in-out infinite;border-color:var(--c-primary,#005EB8)!important}
   .accordion-body{overflow:hidden;transition:max-height 0.35s cubic-bezier(0.4,0,0.2,1);max-height:0}
   .accordion-body.open{max-height:none;overflow:visible}
   .accordion-body>.card{border-radius:0 0 10px 10px;margin-top:-5px;border-top:none}
@@ -2204,6 +2206,8 @@ async function saveVersionAndGenerate() {
   if (vmTitle || vmCompany) updateTargetRoleSubtitle();
   applyResumeBuildName(name, false);
   currentPlanId = null;
+  // New versions are not published — hide any existing share bar
+  hideShareBar();
   updateVersionBar(name);
   closeVersionModal();
   await generatePlan();
@@ -2215,6 +2219,8 @@ async function saveNewVersion() {
   applyResumeBuildName(name, false);
   // Clear currentPlanId so savePlan creates a NEW document
   currentPlanId = null;
+  // New versions are not published — hide any existing share bar
+  hideShareBar();
   updateVersionBar(name);
   closeVersionModal();
   await savePlan();
@@ -2252,16 +2258,6 @@ function switchVersion(id) {
   closeDrawers();
 }
 
-function markDirty() {
-  isDirty = true;
-  const badge = document.getElementById('version-bar-dirty');
-  if (badge) badge.style.display = 'inline-block';
-  const ibDirty = document.getElementById('info-bar-dirty');
-  if (ibDirty) ibDirty.style.display = 'inline-block';
-  // Track which step is dirty
-  if (activeAccordion) stepDirty[activeAccordion] = true;
-  updateStepDots();
-}
 function markClean() {
   isDirty = false;
   const badge = document.getElementById('version-bar-dirty');
@@ -2286,6 +2282,19 @@ function evaluateStepCompletion() {
   stepCompleted[3] = !!(document.getElementById('job-title')?.value?.trim());
   stepCompleted[4] = !!(STATE.generated && Object.keys(STATE.generated).length > 0 && STATE.generated.hero);
   stepCompleted[5] = stepCompleted[4]; // Preview is available if plan is generated
+}
+
+function updateOnboardingGlow() {
+  document.querySelectorAll('.accordion-header.onboard-glow').forEach(el => el.classList.remove('onboard-glow'));
+  if (localStorage.getItem('builderOnboarded')) return;
+  evaluateStepCompletion();
+  for (let i = 1; i <= 5; i++) {
+    if (!stepCompleted[i]) {
+      const h = document.querySelector('[data-testid="acc-' + i + '"]');
+      if (h) h.classList.add('onboard-glow');
+      break;
+    }
+  }
 }
 
 function updateStepDots(activeN) {
@@ -2337,17 +2346,9 @@ function updateStepDots(activeN) {
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     const panel = document.getElementById('right-panel');
-    if (panel) localStorage.setItem('rp-width', panel.style.width);
+    // width not persisted across page loads
   });
-  // Restore saved width on load
-  window.addEventListener('DOMContentLoaded', () => {
-    if (window.innerWidth <= 1024) return;
-    const saved = localStorage.getItem('rp-width');
-    if (saved) {
-      const panel = document.getElementById('right-panel');
-      if (panel) panel.style.width = saved;
-    }
-  });
+  // Width resets to CSS default on each page load
 })();
 
 // ============ Resume Version Dropdown ============
@@ -4546,7 +4547,7 @@ function updateGeneratePreviewBtn() {
   if (_needsReanalysis) {
     btn.style.background = '#D97706';
     btn.style.boxShadow = '0 2px 8px rgba(217,119,6,0.3)';
-    btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate New Plan & Analysis';
+    btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Refresh Plan & Analysis';
     lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'});
   } else {
     btn.style.background = '#059669';
@@ -4558,6 +4559,11 @@ function updateGeneratePreviewBtn() {
 function markDirty(options) {
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
+  const badge = document.getElementById('version-bar-dirty');
+  if (badge) badge.style.display = 'inline-block';
+  const ibDirty = document.getElementById('info-bar-dirty');
+  if (ibDirty) ibDirty.style.display = 'inline-block';
+  if (activeAccordion) stepDirty[activeAccordion] = true;
   if (needsReanalysis) {
     // Invalidate analysis cache since preview data changed
     analysisCache = null;
@@ -4566,6 +4572,7 @@ function markDirty(options) {
   }
   updateGeneratePreviewBtn();
   updateSaveButtonState();
+  updateStepDots();
 }
 function updateSaveButtonState() {
   const saveBtn = document.querySelector('[data-testid="save-plan-btn"]');
@@ -5704,6 +5711,9 @@ async function generatePlan() {
     markDirty({ needsReanalysis: false });
     _needsReanalysis = false;
     _baselineMatchScore = null; // Reset for fresh comparison
+    // Mark user as onboarded after first successful generation
+    localStorage.setItem('builderOnboarded', '1');
+    updateOnboardingGlow();
     // Hide the "Before AI" sub-section
     const _origWrap = document.getElementById('rp-match-original');
     if (_origWrap) _origWrap.style.display = 'none';
@@ -7291,15 +7301,13 @@ async function analyzeResume() {
   // Check analysis cache first (including prefetch in-flight)
   const cacheKey = getAnalysisCacheKey();
   if (analysisCache && analysisCacheKey === cacheKey) {
-    openAnalysis();
     displayAnalysisResults(analysisCache);
     showToast('Showing cached analysis (no tokens used)');
     return;
   }
   // If prefetch is already running for the same data, wait for it
   if (_prefetchInFlight) {
-    openAnalysis();
-    document.getElementById('analysis-content').innerHTML = '<div style="text-align:center;padding:60px 0">' + loaderHTML(40) + '<p style="color:rgba(255,255,255,0.6);margin-top:16px">Analysis in progress...</p></div>';
+    document.getElementById('right-analysis-content').innerHTML = '<div style="text-align:center;padding:20px 0">' + loaderHTML(32) + '<p style="color:#94A3B8;margin-top:12px;font-size:0.8rem">Analysis in progress...</p></div>';
     const waitForPrefetch = () => new Promise(resolve => {
       const check = setInterval(() => { if (!_prefetchInFlight) { clearInterval(check); resolve(); } }, 300);
     });
@@ -7319,8 +7327,7 @@ async function analyzeResume() {
 
   if (btn) { btn.disabled = true; btn.innerHTML = loaderHTML(14) + ' Analyzing...'; }
 
-  openAnalysis();
-  document.getElementById('analysis-content').innerHTML = '<div style="text-align:center;padding:60px 0">' + loaderHTML(40) + '<p style="color:rgba(255,255,255,0.6);margin-top:16px">Analyzing your resume...</p></div>';
+  document.getElementById('right-analysis-content').innerHTML = '<div style="text-align:center;padding:20px 0">' + loaderHTML(32) + '<p style="color:#94A3B8;margin-top:12px;font-size:0.8rem">Analyzing your resume...</p></div>';
 
   try {
     let resumeText = '';
@@ -7378,7 +7385,7 @@ async function analyzeResume() {
       } catch(e) { console.debug('Failed to save analysis score:', e); }
     }
   } catch (e) {
-    const ac = document.getElementById('analysis-content'); ac.textContent = ''; const wrap = document.createElement('div'); wrap.style.cssText = 'padding:30px;text-align:center'; const p1 = document.createElement('p'); p1.style.cssText = 'color:#ff8a80;margin-bottom:12px'; p1.textContent = 'Analysis failed'; const p2 = document.createElement('p'); p2.style.cssText = 'color:rgba(255,255,255,0.6);font-size:0.9rem'; p2.textContent = e.message; wrap.appendChild(p1); wrap.appendChild(p2); ac.appendChild(wrap);
+    const ac = document.getElementById('right-analysis-content'); ac.textContent = ''; const wrap = document.createElement('div'); wrap.style.cssText = 'padding:16px;text-align:center'; const p1 = document.createElement('p'); p1.style.cssText = 'color:#ff8a80;margin-bottom:8px;font-size:0.85rem'; p1.textContent = 'Analysis failed'; const p2 = document.createElement('p'); p2.style.cssText = 'color:#94A3B8;font-size:0.8rem'; p2.textContent = e.message; wrap.appendChild(p1); wrap.appendChild(p2); ac.appendChild(wrap);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     lucide.createIcons();
@@ -7401,7 +7408,7 @@ function toggleAPanel(elOrId) {
   icon.textContent = body.classList.contains('open') ? '▼' : '▶';
 }
 
-function getAScoreColor(s) { return s >= 80 ? '#4caf50' : s >= 60 ? '#ff9800' : '#f44336'; }
+function getAScoreColor(s) { return s >= 90 ? '#4caf50' : s >= 75 ? '#3B82F6' : s >= 60 ? '#ff9800' : '#f44336'; }
 
 function displayAnalysisResults(a) {
   if (!a) { document.getElementById('analysis-content').innerHTML = '<p style="color:#ff8a80;text-align:center;padding:30px">No analysis data returned.</p>'; return; }
@@ -7483,7 +7490,7 @@ function displayAnalysisResults(a) {
     if (scoreEl && valEl) {
       scoreEl.style.display = 'block';
       valEl.textContent = a.overall_score;
-      const sc = a.overall_score >= 80 ? '#6EE7B7' : a.overall_score >= 60 ? '#FCD34D' : '#FCA5A5';
+      const sc = a.overall_score >= 90 ? '#6EE7B7' : a.overall_score >= 75 ? '#93C5FD' : a.overall_score >= 60 ? '#FCD34D' : '#FCA5A5';
       valEl.style.color = sc;
       // Store baseline score (first analysis after generation)
       if (_baselineMatchScore == null) _baselineMatchScore = a.overall_score;
@@ -7568,10 +7575,17 @@ document.getElementById('ai-enhance-toggle').addEventListener('change', async fu
         if (ed.summary) STATE.generated.executive_summary = ed.summary;
         if (ed.experience?.length) STATE.generated.experience = ed.experience;
         if (ed.skills?.length) STATE.generated.skills = ed.skills;
+        // Expand Preview accordion so highlights are visible even if step is currently collapsed
+        if (activeAccordion !== 5) goToStep(4);
         renderPreview(STATE.generated);
         highlightAIChanges();
         showToast('Resume enhanced with job keywords!');
         markDirty();
+        // Show score comparison in right panel immediately after enhance
+        if (_baselineMatchScore == null && analysisCache?.overall_score != null) {
+          _baselineMatchScore = analysisCache.overall_score;
+        }
+        if (_baselineMatchScore != null) triggerEnhancedScoreUpdate();
       } else {
         showToast('AI enhancement failed \u2014 check budget or try again');
         this.checked = false;
@@ -7803,7 +7817,7 @@ async function triggerEnhancedScoreUpdate() {
     const labelEl = document.getElementById('rp-match-label');
     if (valEl) {
       valEl.textContent = newScore;
-      const sc = newScore >= 80 ? '#6EE7B7' : newScore >= 60 ? '#FCD34D' : '#FCA5A5';
+      const sc = newScore >= 90 ? '#6EE7B7' : newScore >= 75 ? '#93C5FD' : newScore >= 60 ? '#FCD34D' : '#FCA5A5';
       valEl.style.color = sc;
     }
     if (labelEl) labelEl.textContent = 'With AI Enhancements';
