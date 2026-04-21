@@ -1180,8 +1180,7 @@
       <div class="flex items-center justify-between pt-4 border-t" style="border-color:#E5E7EB">
         <button class="btn-secondary" onclick="goToStep(2)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
         <div class="flex items-center gap-3">
-          <button class="btn-primary" id="btn-generate" onclick="generatePlan()" data-testid="generate-btn"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate Plan</button>
-          <button class="btn-primary" onclick="goToStep(4)" style="background:#059669">Continue to Preview <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+          <button class="btn-primary" id="btn-generate" onclick="generatePlan()" data-testid="generate-btn" style="background:#059669;box-shadow:0 2px 8px rgba(5,150,105,0.3)"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate Plan &amp; Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
         </div>
       </div>
     </div>
@@ -2101,14 +2100,15 @@ const APP_STATUS_CONFIG = {
   withdrawn: {label:'Withdrawn', bg:'#F3F4F6', color:'#6B7280', icon:'log-out'}
 };
 
-function updateAppStatus() {
+function updateAppStatus(options) {
+  const silent = options && options.silent;
   const status = document.getElementById('app-status-select')?.value || 'not_applied';
   const date = document.getElementById('app-date')?.value || '';
   const url = document.getElementById('app-url')?.value || '';
   const notes = document.getElementById('app-notes')?.value || '';
   
   STATE.appStatus = {status, date, url, notes};
-  markDirty();
+  if (!silent) markDirty();
   
   // Update badge
   const badgeWrap = document.getElementById('app-status-badge');
@@ -2132,7 +2132,7 @@ function loadAppStatus() {
   if (date) document.getElementById('app-date').value = date;
   if (url) document.getElementById('app-url').value = url;
   if (notes) document.getElementById('app-notes').value = notes;
-  updateAppStatus();
+  updateAppStatus({silent: true});
 }
 
 // Mobile drawer functions
@@ -2293,6 +2293,11 @@ function switchVersion(id) {
 
 function markClean() {
   isDirty = false;
+  // Cancel any pending debounced dirty event from in-flight edits
+  if (typeof _inputDirtyTimer !== 'undefined' && _inputDirtyTimer) {
+    clearTimeout(_inputDirtyTimer);
+    _inputDirtyTimer = null;
+  }
   const badge = document.getElementById('version-bar-dirty');
   if (badge) badge.style.display = 'none';
   const ibDirty = document.getElementById('info-bar-dirty');
@@ -2303,6 +2308,59 @@ function markClean() {
   updateGeneratePreviewBtn();
   updateSaveButtonState();
   updateStepDots();
+}
+
+// Reset all analysis-related state + right-panel UI so stale data from a
+// previous plan/profile can't leak into a new builder session.
+function clearAnalysisUI() {
+  // Reset cached analysis + related flags
+  try { analysisCache = null; } catch(e) {}
+  try { analysisCacheKey = null; } catch(e) {}
+  _needsReanalysis = false;
+  _lastGenBtnState = null;
+  try { _baselineMatchScore = null; } catch(e) {}
+  try { _aiEnhanceAppliedForCurrentGen = false; } catch(e) {}
+
+  // Match score card
+  const matchBox = document.getElementById('rp-match-score');
+  if (matchBox) matchBox.style.display = 'none';
+  const mv = document.getElementById('rp-match-value'); if (mv) mv.textContent = '—';
+  const mov = document.getElementById('rp-match-original-value'); if (mov) mov.textContent = '—';
+  const mo = document.getElementById('rp-match-original'); if (mo) mo.style.display = 'none';
+  const ml = document.getElementById('rp-match-label'); if (ml) ml.textContent = 'Resume Match Score';
+
+  // Full analysis content (drawer + right panel)
+  const ac = document.getElementById('analysis-content');
+  if (ac) ac.innerHTML = '<p style="color:#94A3B8;text-align:center;padding:30px;font-size:0.85rem">Generate a plan to run full analysis.</p>';
+  const rac = document.getElementById('right-analysis-content');
+  if (rac) rac.innerHTML = '<p style="color:#64748B;font-size:0.72rem;font-style:italic;text-align:center;padding:16px 0">Generate a plan to run full analysis</p>';
+  const ad = document.getElementById('analysis-details');
+  if (ad) ad.open = false;
+
+  // Completion badges on nav icons
+  const aiw = document.getElementById('analyze-icon-wrap');
+  if (aiw) aiw.classList.remove('analysis-done');
+  const piw = document.getElementById('publish-icon-wrap');
+  if (piw) piw.classList.remove('analysis-done');
+
+  // Right-panel per-section bodies + stale AI suggestions
+  const rpDefaults = {
+    'rp-summary-body': 'Generate a plan to see your summary here',
+    'rp-experience-body': 'Generate a plan to see experience here',
+    'rp-skills-body': 'Generate a plan to see skills here',
+    'rp-education-body': 'Generate a plan to see education here',
+    'rp-achievements-body': 'Generate a plan to see achievements here',
+    'rp-leadership-body': 'Generate a plan to see leadership here',
+    'rp-kpis-body': 'Generate a plan to see KPIs here'
+  };
+  Object.keys(rpDefaults).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<span style="color:#94A3B8;font-style:italic">' + rpDefaults[id] + '</span>';
+  });
+  document.querySelectorAll('.rp-ai-suggestion').forEach(el => { el.innerHTML = ''; el.style.display = 'none'; });
+
+  // Reset generate-button state after caches cleared
+  try { updateGeneratePreviewBtn(); } catch(e) {}
 }
 
 // ============ Step Completion & Dirty Tracking ============
@@ -3610,6 +3668,14 @@ auth.onAuthStateChanged(async user => {
     aiUsesRemaining = 0;
     firstAnalysisDone = false;
     sessionStorage.removeItem('_stripe_return_processed');
+    // Purge per-user builder state so the next login starts clean
+    try { currentPlanId = null; } catch(e) {}
+    try { photoDataUrl = null; } catch(e) {}
+    try { selectedFile = null; } catch(e) {}
+    try {
+      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{} };
+    } catch(e) {}
+    try { clearAnalysisUI(); } catch(e) {}
     document.getElementById('auth-gate').style.display = '';
     document.getElementById('auth-gate').classList.remove('hidden');
     document.getElementById('user-info').classList.add('hidden');
@@ -3817,6 +3883,8 @@ function _doStartNewPlan() {
   currentPlanId = null;
   photoDataUrl = null;
   selectedFile = null;
+  // Wipe any stale analysis/right-panel UI from a prior plan or user
+  clearAnalysisUI();
   STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[] };
   setColor('#005EB8');
   renderJobTracker();
@@ -4591,10 +4659,14 @@ let _lastGenBtnState = null;
 function updateGeneratePreviewBtn() {
   const btn = document.getElementById('btn-generate-preview');
   if (!btn) return;
-  const targetState = _needsReanalysis ? 'refresh' : 'generate';
+  // Only show "Refresh" if a plan has actually been generated before.
+  // First-time users should always see "Generate Plan & Analyze".
+  const hasExistingPlan = !!(STATE && STATE.generated && Object.keys(STATE.generated).length > 0 && !STATE.generated.error);
+  const showRefresh = _needsReanalysis && hasExistingPlan;
+  const targetState = showRefresh ? 'refresh' : 'generate';
   if (_lastGenBtnState === targetState) return; // avoid redundant DOM writes + lucide rescan
   _lastGenBtnState = targetState;
-  if (_needsReanalysis) {
+  if (showRefresh) {
     btn.style.background = '#D97706';
     btn.style.boxShadow = '0 2px 8px rgba(217,119,6,0.3)';
     btn.innerHTML = '<i data-lucide="sparkles" style="width:16px;height:16px"></i> Refresh Plan & Analysis';
