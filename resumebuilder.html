@@ -413,6 +413,9 @@
   .rp-ai-btn:hover{background:rgba(99,102,241,0.3);border-color:rgba(99,102,241,0.5)}
   .rp-ai-suggestion{margin-top:6px;padding:8px;background:rgba(4,120,87,0.15);border:1px solid rgba(4,120,87,0.25);border-radius:6px;font-size:0.72rem;line-height:1.4;color:#6EE7B7;display:none}
   .rp-ai-suggestion.visible{display:block}
+  /* AI-suggested-content badge (shown when a section had no user-provided data) */
+  .rp-suggested-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(217,119,6,0.18);border:1px solid rgba(217,119,6,0.35);color:#FCD34D;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-left:6px;white-space:nowrap}
+  .rp-suggested-note{margin-bottom:6px;padding:6px 8px;background:rgba(217,119,6,0.1);border-left:2px solid #D97706;border-radius:4px;font-size:0.68rem;color:#FCD34D;line-height:1.35;font-style:italic}
   .rp-apply-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;border:none;background:#047857;color:#fff;font-size:0.65rem;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit;margin-top:4px}
   .rp-apply-btn:hover{background:#065F46}
   /* ── Mobile Drawers ── */
@@ -2358,6 +2361,8 @@ function clearAnalysisUI() {
     if (el) el.innerHTML = '<span style="color:#94A3B8;font-style:italic">' + rpDefaults[id] + '</span>';
   });
   document.querySelectorAll('.rp-ai-suggestion').forEach(el => { el.innerHTML = ''; el.style.display = 'none'; });
+  // Strip any "Suggested" badges from a prior generation
+  document.querySelectorAll('.rp-suggested-badge').forEach(el => el.remove());
 
   // Reset generate-button state after caches cleared
   try { updateGeneratePreviewBtn(); } catch(e) {}
@@ -2732,55 +2737,95 @@ function applyAISuggestion(section) {
 function updateRightPanel() {
   const g = STATE.generated;
   if (!g?.hero) return;
-  
+  const rd = STATE.resumeData || {};
+
+  // Helpers to flag sections whose content came from AI generation
+  // because the user's resume didn't include that section.
+  const hasArr = v => Array.isArray(v) && v.length > 0;
+  const hasStr = v => typeof v === 'string' && v.trim().length > 0;
+  const SUGGESTED_BADGE = '<span class="rp-suggested-badge" title="No resume details were provided for this section — content below is an AI suggestion based on your target role.">✨ Suggested</span>';
+  const SUGGESTED_NOTE = '<div class="rp-suggested-note">AI suggestion — no resume details provided for this section.</div>';
+  function setTitleBadge(sectionId, isSuggested) {
+    const sec = document.getElementById(sectionId);
+    if (!sec) return;
+    const titleEl = sec.querySelector('.rp-section-title');
+    if (!titleEl) return;
+    // Remove any prior badge
+    const prior = titleEl.querySelector('.rp-suggested-badge');
+    if (prior) prior.remove();
+    if (!isSuggested) return;
+    // Insert badge right after the label text (before the Ask AI button)
+    const aiBtn = titleEl.querySelector('.rp-ai-btn');
+    const badge = document.createElement('span');
+    badge.className = 'rp-suggested-badge';
+    badge.title = 'No resume details were provided for this section — content below is an AI suggestion based on your target role.';
+    badge.innerHTML = '✨ Suggested';
+    if (aiBtn) titleEl.insertBefore(badge, aiBtn); else titleEl.appendChild(badge);
+  }
+
   // Summary
+  const summarySuggested = !hasStr(rd.summary) && hasStr(g.executive_summary || g.hero?.summary);
   const summEl = document.getElementById('rp-summary-body');
   if (summEl) {
-    summEl.textContent = g.executive_summary || g.hero?.summary || 'No summary generated';
+    const body = g.executive_summary || g.hero?.summary || 'No summary generated';
+    summEl.innerHTML = (summarySuggested ? SUGGESTED_NOTE : '') + '<div>' + body + '</div>';
     summEl.style.color = '#CBD5E1';
   }
-  
+  setTitleBadge('rp-summary', summarySuggested);
+
   // Experience
+  const expSuggested = !hasArr(rd.experience) && hasArr(g.experience);
   const expEl = document.getElementById('rp-experience-body');
   if (expEl && g.experience?.length) {
-    expEl.innerHTML = g.experience.map(e => `<div style="margin-bottom:8px"><strong style="font-size:0.78rem;color:#F1F5F9">${e.title||''}</strong><br><span style="font-size:0.72rem;color:#94A3B8">${e.company||''} ${e.dates||''}</span></div>`).join('');
+    expEl.innerHTML = (expSuggested ? SUGGESTED_NOTE : '') + g.experience.map(e => `<div style="margin-bottom:8px"><strong style="font-size:0.78rem;color:#F1F5F9">${e.title||''}</strong><br><span style="font-size:0.72rem;color:#94A3B8">${e.company||''} ${e.dates||''}</span></div>`).join('');
   }
-  
+  setTitleBadge('rp-experience', expSuggested);
+
   // Skills
+  const skillsSuggested = !hasArr(rd.skills) && hasArr(g.skills);
   const skillEl = document.getElementById('rp-skills-body');
   if (skillEl && g.skills?.length) {
-    skillEl.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:4px;overflow:hidden">' + g.skills.map(s => `<span style="display:inline-block;padding:3px 10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:4px;font-size:0.7rem;color:#C7D2FE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${s}</span>`).join('') + '</div>';
+    skillEl.innerHTML = (skillsSuggested ? SUGGESTED_NOTE : '') + '<div style="display:flex;flex-wrap:wrap;gap:4px;overflow:hidden">' + g.skills.map(s => `<span style="display:inline-block;padding:3px 10px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.25);border-radius:4px;font-size:0.7rem;color:#C7D2FE;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">${s}</span>`).join('') + '</div>';
   }
-  
-  // Education
+  setTitleBadge('rp-skills', skillsSuggested);
+
+  // Education (user-provided education OR certifications count as "provided")
+  const eduSuggested = !hasArr(rd.education) && !hasArr(rd.certifications) && hasArr(g.education);
   const eduEl = document.getElementById('rp-education-body');
   if (eduEl && g.education?.length) {
-    eduEl.innerHTML = g.education.map(e => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${e.degree||e.name||''}</strong> — ${e.school||e.institution||''}</div>`).join('');
+    eduEl.innerHTML = (eduSuggested ? SUGGESTED_NOTE : '') + g.education.map(e => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${e.degree||e.name||''}</strong> — ${e.school||e.institution||''}</div>`).join('');
   }
-  
+  setTitleBadge('rp-education', eduSuggested);
+
   // Achievements
+  const achSuggested = !hasArr(rd.achievements) && hasArr(g.achievements);
   const achEl = document.getElementById('rp-achievements-body');
   if (achEl && g.achievements?.length) {
-    achEl.innerHTML = `<ul style="padding-left:16px;margin:0;color:#CBD5E1">${g.achievements.map(a => {
+    achEl.innerHTML = (achSuggested ? SUGGESTED_NOTE : '') + `<ul style="padding-left:16px;margin:0;color:#CBD5E1">${g.achievements.map(a => {
       if (typeof a === 'string') return `<li style="margin:3px 0;font-size:0.78rem">${a}</li>`;
       return `<li style="margin:3px 0;font-size:0.78rem"><strong style="color:#F1F5F9">${a.title||a.name||''}</strong>${a.description ? ' — '+a.description : ''}</li>`;
     }).join('')}</ul>`;
   }
-  
+  setTitleBadge('rp-achievements', achSuggested);
+
   // Leadership
+  const leadSuggested = !hasArr(rd.leadership) && hasArr(g.leadership);
   const leadEl = document.getElementById('rp-leadership-body');
   if (leadEl && g.leadership?.length) {
-    leadEl.innerHTML = g.leadership.map(l => {
+    leadEl.innerHTML = (leadSuggested ? SUGGESTED_NOTE : '') + g.leadership.map(l => {
       if (typeof l === 'string') return `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1">${l}</div>`;
       return `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${l.role||l.title||l.name||''}</strong>${l.description ? ' — '+l.description : ''}</div>`;
     }).join('');
   }
-  
-  // KPIs
+  setTitleBadge('rp-leadership', leadSuggested);
+
+  // KPIs (KPIs are always AI-suggested targets for the plan — not usually on resumes)
+  const kpiSuggested = !hasArr(rd.kpis) && hasArr(g.kpis);
   const kpiEl = document.getElementById('rp-kpis-body');
   if (kpiEl && g.kpis?.length) {
-    kpiEl.innerHTML = g.kpis.map(k => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${k.metric||k.name||''}</strong>: ${k.target||k.value||''}</div>`).join('');
+    kpiEl.innerHTML = (kpiSuggested ? SUGGESTED_NOTE : '') + g.kpis.map(k => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${k.metric||k.name||''}</strong>: ${k.target||k.value||''}</div>`).join('');
   }
+  setTitleBadge('rp-kpis', kpiSuggested);
 }
 
 // ============ Helpers ============
