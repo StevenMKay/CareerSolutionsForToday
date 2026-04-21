@@ -3525,6 +3525,37 @@ auth.onAuthStateChanged(async user => {
   currentUser = user;
   resetSubscriptionStateReady();
   setAuthLoading(false);
+  // CRITICAL: purge the previous user's in-memory state synchronously BEFORE
+  // any awaits. Otherwise a new sign-in inherits builderSubscribed, STATE,
+  // analysisCache, etc. from the prior user during the async gap, which leaks
+  // their data and bypasses the paywall.
+  if (user) {
+    builderSubscribed = false;
+    ytMemberSubscribed = false;
+    hadPriorSubscription = false;
+    stripeCancelAtPeriodEnd = false;
+    stripePeriodEndDate = null;
+    freeUsesCount = 0;
+    singlePurchased = false;
+    singlePurchaseDate = null;
+    singlePurchaseBuilds = 0;
+    aiUsesRemaining = 0;
+    firstAnalysisDone = false;
+    try { currentPlanId = null; } catch(e) {}
+    try { photoDataUrl = null; } catch(e) {}
+    try { selectedFile = null; } catch(e) {}
+    try {
+      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{} };
+    } catch(e) {}
+    try { clearAnalysisUI(); } catch(e) {}
+    // Hide any stale builder preview DOM from the prior user
+    try {
+      const _bw = document.getElementById('builder-wrapper');
+      if (_bw) _bw.classList.add('hidden');
+      const _ib0 = document.getElementById('info-bar');
+      if (_ib0) _ib0.style.display = 'none';
+    } catch(e) {}
+  }
   // Track page loads for non-owner throttling
   if (user && !BYPASS_EMAILS.includes((user.email || '').toLowerCase())) {
     if (!throttleCheck('page')) {
