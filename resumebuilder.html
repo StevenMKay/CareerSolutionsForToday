@@ -8767,6 +8767,54 @@ function _renderFormatAccuratePreview(g, containerId){
   if (typeof updateRightPanel === 'function') { try { updateRightPanel(); } catch(_){} }
 }
 
+// User-triggered refresh of the Document-mode live preview. Re-renders using the
+// current STATE.generated, selected export template, and resolved accent color —
+// no re-export or AI call required.
+window.refreshDocumentPreview = function(btn){
+  try {
+    if (!STATE.generated || !Object.keys(STATE.generated).length) {
+      if (typeof showToast === 'function') showToast('No resume content yet. Generate or load a resume first.', 'info');
+      return;
+    }
+    // Briefly show a loading state on the button for visual feedback
+    let originalHTML = null;
+    if (btn && btn.innerHTML) {
+      originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.style.opacity = '0.7';
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg> Refreshing…';
+    }
+    // Figure out which containers are currently showing the format-accurate preview
+    // and re-render each one. Typical ids: preview-container (main), preview-container-export.
+    const ids = ['preview-container', 'preview-container-export'];
+    let rendered = 0;
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // Only refresh if this container is in Document mode with a format selected
+      // (otherwise the normal renderPreview handles it).
+      try {
+        if ((STATE._previewMode || 'web') === 'doc' && STATE.previewFormat) {
+          _renderFormatAccuratePreview(STATE.generated, id);
+          rendered++;
+        } else {
+          renderPreview(STATE.generated, id);
+          rendered++;
+        }
+      } catch(_){}
+    });
+    if (typeof showToast === 'function' && rendered > 0) {
+      showToast('Preview updated', 'success');
+    }
+    if (btn && originalHTML != null) {
+      setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; btn.style.opacity = ''; }, 350);
+    }
+  } catch (err) {
+    try { console.warn('refreshDocumentPreview failed', err); } catch(_){}
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+  }
+};
+
 function renderPreview(g, targetId) {
   const containerId = targetId || 'preview-container';
   // Hide empty-state placeholder in Build & Style right pane once we have content
