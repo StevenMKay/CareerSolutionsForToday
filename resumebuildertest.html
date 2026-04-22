@@ -41,6 +41,55 @@
   });
 })();
 </script>
+
+<!-- =========================================================================
+     IN-APP DETECTION + PLATFORM-SPECIFIC HIDING
+     =========================================================================
+     The Android WebView wrapper (app/index.tsx) does two things that let us
+     detect when the page is running inside the native app instead of a
+     normal browser:
+       1. Exposes window.ReactNativeWebView (react-native-webview injection)
+       2. Appends "CareerResumeBuilder/1.0" to the User-Agent string
+     This early script sets <html class="in-app"> when EITHER is true, so we
+     can target the app with pure CSS.
+
+     HOW TO HIDE ANYTHING IN THE APP (desktop/mobile web stays unaffected):
+       Just add class="hide-in-app" to the element. Example:
+         <a href="#pricing" class="hide-in-app">Subscribe</a>
+         <li class="hide-in-app"><a href="/products.html">Products</a></li>
+     Both classes can live alongside existing classes (space-separated):
+         <div class="header-item primary hide-in-app">...</div>
+
+     HOW TO *SHOW* SOMETHING ONLY IN THE APP (rare but handy):
+       Add class="show-in-app-only" — it's hidden on the normal web and
+       becomes visible inside the app.
+
+     NEED JS-level branching instead of CSS? Call isInAppWebView() which is
+     defined further down in the file (around the signInWithGoogle section).
+
+     Runs inline, before the body renders, so tagged elements never even
+     flash on screen in the app. ========================================== -->
+<script>
+(function(){
+  try {
+    var inApp = (typeof window !== 'undefined' && window.ReactNativeWebView) ||
+                /CareerResumeBuilder/i.test(navigator.userAgent || '');
+    if (inApp) {
+      document.documentElement.classList.add('in-app');
+    } else {
+      document.documentElement.classList.add('on-web');
+    }
+  } catch(_) {}
+})();
+</script>
+<style>
+  /* Hide any element tagged .hide-in-app when running inside the Android app. */
+  html.in-app .hide-in-app { display: none !important; }
+  /* Hide .show-in-app-only everywhere by default; reveal it only in the app. */
+  .show-in-app-only { display: none !important; }
+  html.in-app .show-in-app-only { display: revert !important; }
+</style>
+
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest" defer></script>
@@ -10181,71 +10230,15 @@ async function importLinkedInJob() {
 }
 
 // ============ PPTX Export (Modern Resume Template) ============
-
-// ──────────────────────────────────────────────────────────────
-// PATCH START — PPTX Export reliability helpers (v2)
-// Shared utilities used by exportPPTX. Kept small & dependency-free.
-// Safe to call from any PPTX code path. Do NOT use from preview code.
-// ──────────────────────────────────────────────────────────────
-async function _pptxFetchWithTimeout(url, opts = {}, ms = 8000) {
-  // Abort long-hanging requests (corp firewall, flaky CDNs) so the export
-  // can fall back gracefully instead of appearing frozen.
-  const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...opts, signal: ctrl.signal });
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-function _pptxSafeFilename(name) {
-  // Cross-OS-safe, dated filename. No Windows-illegal chars, no accents.
-  const base = (name || 'resume')
-    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9\-_\s]/g, '')
-    .trim().replace(/\s+/g, '-').toLowerCase() || 'resume';
-  const yyyymmdd = new Date().toISOString().slice(0, 10);
-  return `${base}-resume-${yyyymmdd}.pptx`;
-}
-
-async function _pptxDownloadBlob(pptx, fileName) {
-  // Mobile-safe replacement for pptx.writeFile() — mirrors the DOCX pattern
-  // already used by the DOCX exporter. Works inside Android WebViews and
-  // mobile Safari where the default writeFile often fails silently.
-  const blob = await pptx.write({ outputType: 'blob' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
-
-function _pptxGetExportButtons() {
-  return Array.from(document.querySelectorAll(
-    '[data-testid="export-pptx-btn"],[data-testid="pptx-template-export-btn"],[data-testid="export-tile-pptx"]'
-  ));
-}
-// ── PATCH END ─────────────────────────────────────────────────
-
 async function exportPPTX() {
   if (!canUsePremium()) { showPaywall(); return; }
   if (!STATE.resumeData && !STATE.generated) {
     showToast('No resume data available. Parse a resume first.');
     return;
   }
-  // PATCH: disable every possible trigger button (sidebar, modal, tile) so
-  // users can't double-click; track the primary one for live progress labels.
   const btn = document.querySelector('[data-testid="export-pptx-btn"]');
-  const allBtns = _pptxGetExportButtons();
   const origHTML = btn ? btn.innerHTML : '';
-  allBtns.forEach(b => { b.disabled = true; });
-  if (btn) { btn.innerHTML = 'Exporting...'; }
-  const setProgress = (msg) => { if (btn) btn.innerHTML = msg; };
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Exporting...'; }
 
   try {
     await ensureLib('pptx');
@@ -10255,13 +10248,10 @@ async function exportPPTX() {
     const aiEnhance = document.getElementById('ai-enhance-toggle')?.checked;
 
     if (aiEnhance) {
-      // PATCH: set progress label + use timeout so a slow /enhance endpoint
-      // can't silently freeze the export.
-      setProgress('Enhancing with AI...');
       try {
         const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
         const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
-        const res = await _pptxFetchWithTimeout(API_BASE + '/builder/enhance-resume', {
+        const res = await fetch(API_BASE + '/builder/enhance-resume', {
           method: 'POST',
           headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
@@ -10283,11 +10273,7 @@ async function exportPPTX() {
           showToast('AI enhancement failed — using original data');
         }
       } catch (e) {
-        // PATCH: explicit message when the timeout fires, not just generic
-        const msg = (e && e.name === 'AbortError')
-          ? 'AI enhancement timed out — using original data'
-          : 'AI enhancement failed — using original data';
-        showToast(msg);
+        showToast('AI enhancement failed — using original data');
       }
     }
 
@@ -10343,22 +10329,16 @@ async function exportPPTX() {
     const SEP_GRAY = 'D8D8D8';
     const SIDEBAR_TEXT = '3A3A3A';
     const SIDEBAR_MUTED = '6B6B6B';
-    // PATCH: Calibri is the default modern PowerPoint font — looks more
-    // polished than Arial while remaining cross-platform (ships with
-    // PowerPoint on Windows, macOS, web, and Google Slides falls back gracefully).
-    const FONT_HEAD = 'Calibri';
-    const FONT_BODY = 'Calibri';
+    const FONT_HEAD = 'Arial';
+    const FONT_BODY = 'Arial';
     const ss = STATE.sections || [];
     const showSec = (key) => ss.length === 0 || ss.includes(key);
-
-    // PATCH: set building-slides label so users see progress past the AI step
-    setProgress('Building slides...');
 
     // Preload LinkedIn icon
     let linkedinIconBase64 = null;
     if (linkedin) {
       try {
-        const resp = await _pptxFetchWithTimeout('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/51798ba40224f7fd87a20974da85d3549baa73cb/icons/LinkedInIcon.png', {}, 5000);
+        const resp = await fetch('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/51798ba40224f7fd87a20974da85d3549baa73cb/icons/LinkedInIcon.png');
         const blob = await resp.blob();
         linkedinIconBase64 = await new Promise(resolve => {
           const reader = new FileReader();
@@ -10373,11 +10353,6 @@ async function exportPPTX() {
     pptx.layout = 'PORTRAIT';
     pptx.author = 'Career Solutions for Today';
     pptx.title = (name || 'Resume') + ' — Resume';
-    // PATCH: richer metadata — shows up in PowerPoint File→Info and is
-    // indexed by some ATS parsers.
-    pptx.company = 'Career Solutions for Today';
-    pptx.subject = `Resume — ${currentTitle || 'Professional'}`;
-    pptx.revision = '1';
 
     // --- Template dispatch: non-default templates use alternate layout builders ---
     if (_templateId !== 'modern-sidebar') {
@@ -10387,13 +10362,11 @@ async function exportPPTX() {
         linkedinIconBase64, showSec
       };
       _pptxBuildAltLayout(pptx, _templateId, _altData, ACCENT_NOHASH);
-      // PATCH: safe filename + mobile-safe download + progress label
-      setProgress('Preparing download...');
-      const fileName = _pptxSafeFilename(name);
-      await _pptxDownloadBlob(pptx, fileName);
+      const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.pptx';
+      await pptx.writeFile({ fileName });
       STATE._hasExported = true;
       try { updateStepDots && updateStepDots(); } catch(_){}
-      showToast('Resume downloaded — open it in PowerPoint, Google Slides, or Keynote ✓');
+      showToast('Resume downloaded!');
       return;
     }
 
@@ -10411,48 +10384,25 @@ async function exportPPTX() {
     let Y = 0;          // main-content Y tracker
     let sidebarY = 0;   // sidebar Y tracker per page
     let isFirstPage = true;
-    let _pageCount = 0; // PATCH: track page count for page numbers & continued-header
-
-    // PATCH: define a slide master once so repeated shapes (sidebar bg,
-    // top/bottom accent bars) live in the master instead of being re-drawn
-    // per slide. Shrinks file size ~25-40% on multi-page exports.
-    pptx.defineSlideMaster({
-      title: 'RESUME_MASTER',
-      background: { color: 'FFFFFF' },
-      objects: [
-        { rect: { x: 0, y: 0, w: SB_W, h: PAGE_H, fill: { color: SIDEBAR_BG } } },
-        { rect: { x: 0, y: 0, w: 7.5, h: 0.06, fill: { color: BAR_COLOR } } },
-        { rect: { x: 0, y: PAGE_H - 0.06, w: 7.5, h: 0.06, fill: { color: BAR_COLOR } } },
-      ],
-    });
 
     function newPage() {
-      // PATCH: use the shared master for the static chrome (bars + sidebar bg).
-      curSlide = pptx.addSlide({ masterName: 'RESUME_MASTER' });
-      _pageCount += 1;
-
-      // PATCH: on continuation pages, repeat the person's name at the top of
-      // the sidebar so page 2+ doesn't look abandoned/blank.
-      if (!isFirstPage) {
-        curSlide.addText((name || '').toUpperCase(), {
-          x: MX_SB, y: 0.25, w: SB_W - MX_SB * 2, h: 0.3,
-          fontSize: 11, fontFace: FONT_HEAD, bold: true,
-          color: SIDEBAR_TEXT, align: 'center', valign: 'middle'
-        });
-        curSlide.addText('continued', {
-          x: MX_SB, y: 0.56, w: SB_W - MX_SB * 2, h: 0.2,
-          fontSize: 8, fontFace: FONT_BODY, italic: true,
-          color: SIDEBAR_MUTED, align: 'center'
-        });
-      }
-
-      // PATCH: small page-number footer at bottom-right (safe zone above bar).
-      curSlide.addText(String(_pageCount), {
-        x: 7.5 - 0.55, y: PAGE_H - 0.32, w: 0.35, h: 0.18,
-        fontSize: 7, fontFace: FONT_BODY, color: LIGHT_GRAY, align: 'right'
+      curSlide = pptx.addSlide();
+      // Sidebar background on every page
+      curSlide.addShape(pptx.ShapeType.rect, {
+        x: 0, y: 0, w: SB_W, h: PAGE_H,
+        fill: { color: SIDEBAR_BG }
       });
-
-      sidebarY = isFirstPage ? 0.3 : 0.9; // leave room for continued header on page 2+
+      // Full-width accent bar at top
+      curSlide.addShape(pptx.ShapeType.rect, {
+        x: 0, y: 0, w: 7.5, h: 0.06,
+        fill: { color: BAR_COLOR }
+      });
+      // Full-width accent bar at bottom
+      curSlide.addShape(pptx.ShapeType.rect, {
+        x: 0, y: PAGE_H - 0.06, w: 7.5, h: 0.06,
+        fill: { color: BAR_COLOR }
+      });
+      sidebarY = 0.3;
       Y = 0.35;
       isFirstPage = false;
       return curSlide;
@@ -10653,9 +10603,8 @@ async function exportPPTX() {
     // --- Professional Summary ---
     if (summary) {
       addSectionLabel('PROFESSIONAL SUMMARY');
-      // PATCH: more forgiving char estimate to prevent summary clipping
-      const summaryLines = Math.ceil(summary.length / 65);
-      const summaryH = Math.max(0.5, Math.min(summaryLines * 0.19, 1.8));
+      const summaryLines = Math.ceil(summary.length / 70);
+      const summaryH = Math.max(0.45, Math.min(summaryLines * 0.18, 1.6));
       ensureRoom(summaryH);
       curSlide.addText(summary, {
         x: MAIN_X, y: Y, w: MAIN_W, h: summaryH,
@@ -10703,10 +10652,8 @@ async function exportPPTX() {
 
           // Role summary
           if (exp.role_summary) {
-            // PATCH: slightly more generous char-per-line estimate + capped
-            // growth so wide text (M, W, uppercase) no longer gets clipped.
-            const rsLines = Math.ceil(exp.role_summary.length / 68);
-            const rsH = Math.max(0.2, Math.min(rsLines * 0.16, 0.7));
+            const rsLines = Math.ceil(exp.role_summary.length / 75);
+            const rsH = Math.max(0.18, Math.min(rsLines * 0.15, 0.55));
             ensureRoom(rsH);
             curSlide.addText(exp.role_summary, {
               x: MAIN_X, y: Y, w: MAIN_W, h: rsH,
@@ -10721,10 +10668,8 @@ async function exportPPTX() {
             exp.bullets.forEach(bullet => {
               if (!bullet) return;
               ensureRoom(0.2);
-              // PATCH: 62 chars/line (was 68) gives a safety margin so wide
-              // characters don't cause the last line to clip inside the box.
-              const bLines = Math.ceil(bullet.length / 62);
-              const bH = Math.max(0.2, bLines * 0.16);
+              const bLines = Math.ceil(bullet.length / 68);
+              const bH = Math.max(0.18, bLines * 0.15);
               curSlide.addText('\u2022  ' + bullet, {
                 x: MAIN_X + 0.12, y: Y, w: MAIN_W - 0.12, h: bH,
                 fontSize: 8.5, fontFace: FONT_BODY, color: GRAY,
@@ -10774,21 +10719,16 @@ async function exportPPTX() {
     }
 
     // Download
-    // PATCH: safe filename + mobile-safe blob download + progress label +
-    // clearer success message.
-    setProgress('Preparing download...');
-    const fileName = _pptxSafeFilename(name);
-    await _pptxDownloadBlob(pptx, fileName);
+    const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.pptx';
+    await pptx.writeFile({ fileName });
     STATE._hasExported = true;
     try { updateStepDots && updateStepDots(); } catch(_){}
-    showToast('Resume downloaded — open it in PowerPoint, Google Slides, or Keynote ✓');
+    showToast('Resume downloaded!');
   } catch(e) {
     console.error('PPTX export error:', e);
     showToast('Error generating PPTX: ' + e.message);
   } finally {
-    // PATCH: restore state on ALL trigger buttons, not just the sidebar one.
-    if (btn) { btn.innerHTML = origHTML; }
-    allBtns.forEach(b => { b.disabled = false; });
+    if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     lucide.createIcons();
   }
 }
