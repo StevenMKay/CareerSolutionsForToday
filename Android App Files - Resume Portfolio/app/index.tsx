@@ -21,20 +21,23 @@ WebBrowser.maybeCompleteAuthSession();
 const APP_URL = "https://careersolutionsfortoday.com/resumebuilder.html";
 
 // ---- Google OAuth client IDs -------------------------------------------------
-// WEB client ID: Firebase Web App → used to exchange the returned idToken
-// with Firebase Auth via GoogleAuthProvider.credential(idToken). This is the
-// same value already used by resumebuilder.html's web sign-in.
+// WEB client ID (client_type 3 in google-services.json): used as the audience
+// for the returned id_token so firebase.auth can consume it via
+// GoogleAuthProvider.credential(idToken). This is the same value the web app
+// already uses for desktop/browser Google sign-in.
 const GOOGLE_WEB_CLIENT_ID =
   "834959161768-k3ko0h4os7u1g8npd19uaf0e0gp8sftl.apps.googleusercontent.com";
 
-// ANDROID client ID: created automatically by Firebase after an SHA-1
-// fingerprint is registered on the Android app. Until the user registers both
-// the upload-key SHA-1 AND the Play-App-Signing SHA-1 in Firebase, this will
-// be an empty string and expo-auth-session falls back to webClientId only
-// (less seamless but still functional). Populate via EAS env var once
-// available — see .env.example.
+// ANDROID client ID (client_type 1): matches the app's package name +
+// signing-key SHA-1. Play Store re-signs the AAB with Google's App Signing
+// key, so the fingerprint users' devices actually present is
+// 9E:4F:03:F9:F3:36:... — which maps to this client ID in Firebase. Builds
+// installed from the Play Store (internal / closed / open / production
+// tracks) all use this client. Sideloaded APKs signed with the upload key
+// (SHA 44:EA:75:...) would need the other Android client — not used here.
 const GOOGLE_ANDROID_CLIENT_ID =
-  process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "";
+  process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
+  "834959161768-ktgisshuadkl9uvkta07pifp6dgfcbvn.apps.googleusercontent.com";
 
 // Hosts that must be opened in the system browser (not inside the WebView)
 // because OAuth / Checkout redirects don't work inside embedded WebViews.
