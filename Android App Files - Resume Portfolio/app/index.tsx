@@ -27,6 +27,41 @@ function shouldOpenExternally(url: string): boolean {
   return EXTERNAL_HOSTS.some((host) => url.includes(host));
 }
 
+// Injected into the WebView at document-start so errors thrown inside
+// resumebuilder.html (the hosted web app) are forwarded to the RN layer via
+// window.ReactNativeWebView.postMessage. Paired with the onMessage handler
+// below, which logs them with the [WEBVIEW-ERROR] tag.
+const WEBVIEW_ERROR_BRIDGE_JS = `
+(function(){
+  if (window.__rnErrBridge) return;
+  window.__rnErrBridge = true;
+  function send(p){
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({__rnError:true, payload:p}));
+      }
+    } catch(_){}
+  }
+  window.addEventListener('error', function(e){
+    send({
+      message: (e && e.message) || 'Unknown error',
+      source: e && e.filename,
+      lineno: e && e.lineno,
+      colno: e && e.colno,
+      stack: e && e.error && e.error.stack
+    });
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason;
+    send({
+      message: (r && r.message) || String(r || 'Unhandled rejection'),
+      stack: r && r.stack
+    });
+  });
+  true;
+})();
+`;
+
 export default function Index() {
   const webviewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
@@ -129,6 +164,38 @@ export default function Index() {
             mixedContentMode="always"
             javaScriptCanOpenWindowsAutomatically
             cacheEnabled
+            // Inject the error bridge as early as possible so errors during
+            // initial HTML parse are also captured. `true;` at the tail is
+            // required by react-native-webview.
+            injectedJavaScriptBeforeContentLoaded={WEBVIEW_ERROR_BRIDGE_JS}
+            // Receives JSON-encoded messages from the WebView. The bridge
+            // sends {__rnError:true, payload:{...}}; everything else is
+            // ignored so this doesn't conflict with other postMessage users.
+            onMessage={(event) => {
+              try {
+                const data = JSON.parse(event.nativeEvent?.data || "{}");
+                if (data && data.__rnError && data.payload) {
+                  const p = data.payload;
+                  // eslint-disable-next-line no-console
+                  console.warn(
+                    `[WEBVIEW-ERROR] ${p.message || "unknown"}` +
+                      (p.source ? ` @ ${p.source}:${p.lineno ?? "?"}:${p.colno ?? "?"}` : "") +
+                      (p.stack ? `\n${p.stack}` : "")
+                  );
+                }
+              } catch (_) {
+                // Ignore non-JSON messages from the page.
+              }
+            }}
+            // Android-only: if the WebView renderer process dies (usually
+            // OOM on older devices) reload instead of letting the native
+            // view become a black rectangle. Returning true tells the OS we
+            // handled the crash.
+            onContentProcessDidTerminate={() => {
+              // eslint-disable-next-line no-console
+              console.warn("[RN-ERROR] webview | fatal=1 | renderer terminated; reloading");
+              setReloadKey((k) => k + 1);
+            }}
             onLoadStart={() => setLoading(true)}
             onLoadEnd={() => setLoading(false)}
             onError={(e) => {
