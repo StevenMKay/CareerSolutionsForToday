@@ -12,39 +12,27 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
-import * as Google from "expo-auth-session/providers/google";
-
-// Finalize any in-flight auth session (needed after redirect back from
-// Google). Safe to call unconditionally on every platform.
-WebBrowser.maybeCompleteAuthSession();
+import {
+  GoogleSignin,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 
 const APP_URL = "https://careersolutionsfortoday.com/resumebuilder.html";
 
-// ---- Google OAuth client IDs -------------------------------------------------
-// WEB client ID (client_type 3 in google-services.json): used as the audience
-// for the returned id_token so firebase.auth can consume it via
-// GoogleAuthProvider.credential(idToken). This is the same value the web app
-// already uses for desktop/browser Google sign-in.
+// ---- Google Sign-In config ---------------------------------------------------
+// We use the official Google Play Services SDK (native account picker), NOT a
+// browser-based OAuth flow. The webClientId is the Firebase Web OAuth client
+// (client_type 3 in google-services.json) — it's what the id_token is issued
+// FOR, so firebase.auth can consume it via GoogleAuthProvider.credential().
+// The Android client ID isn't passed in code: the SDK reads it from
+// google-services.json at link time based on the app's signing SHA-1.
 const GOOGLE_WEB_CLIENT_ID =
   "834959161768-k3ko0h4os7u1g8npd19uaf0e0gp8sftl.apps.googleusercontent.com";
 
-// ANDROID client ID (client_type 1): matches the app's package name +
-// signing-key SHA-1. Play Store re-signs the AAB with Google's App Signing
-// key, so the fingerprint users' devices actually present is
-// 9E:4F:03:F9:F3:36:... — which maps to this client ID in Firebase. Builds
-// installed from the Play Store (internal / closed / open / production
-// tracks) all use this client. Sideloaded APKs signed with the upload key
-// (SHA 44:EA:75:...) would need the other Android client — not used here.
-const GOOGLE_ANDROID_CLIENT_ID =
-  process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
-  "834959161768-ktgisshuadkl9uvkta07pifp6dgfcbvn.apps.googleusercontent.com";
-
 // Hosts that must be opened in the system browser (not inside the WebView)
-// because OAuth / Checkout redirects don't work inside embedded WebViews.
-// NOTE: accounts.google.com stays here ONLY for the legacy web-popup
-// fallback. Native Google sign-in uses expo-auth-session (custom tab) and
-// completes entirely outside the WebView.
+// because their redirects don't work inside embedded WebViews. Google sign-in
+// no longer needs accounts.google.com here — the native SDK handles it —
+// but it's kept in case resumebuilder.html ever links there directly.
 const EXTERNAL_HOSTS = [
   "accounts.google.com",
   "checkout.stripe.com",
@@ -98,72 +86,77 @@ export default function Index() {
   const [reloadKey, setReloadKey] = useState(0);
 
   // ----- Native Google sign-in -----------------------------------------------
-  // Uses expo-auth-session's Google provider. Returns an idToken we hand off
-  // to the WebView, which calls firebase.auth.signInWithCredential() against
-  // the already-initialized Firebase app. This avoids the WebView-hostile
-  // signInWithPopup → signInWithRedirect fallback that triggers the
-  // "missing initial state" error.
-  // Build the redirect URI explicitly so Google and the Android manifest
-  // intent-filter agree on the exact value. For Android Google OAuth clients
-  // the required form is:
-  //   com.googleusercontent.apps.<reversed-client-id>:/oauthredirect
-  // This is registered as a <intent-filter> scheme via app.json (the reversed
-  // client ID is the second entry in the scheme array). Without pinning the
-  // redirect URI here expo-auth-session can emit a proxy URL (auth.expo.io)
-  // in production builds, which Google rejects or sends to a dead web page.
-  const googleRedirectUri = AuthSession.makeRedirectUri({
-    native:
-      "com.googleusercontent.apps.834959161768-ktgisshuadkl9uvkta07pifp6dgfcbvn:/oauthredirect",
-  });
-
-  const [, googleAuthResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    ...(GOOGLE_ANDROID_CLIENT_ID
-      ? { androidClientId: GOOGLE_ANDROID_CLIENT_ID }
-      : {}),
-    redirectUri: googleRedirectUri,
-  });
-
+  // Uses the official Google Play Services SDK (@react-native-google-signin).
+  // This shows Android's native account picker — no browser, no Chrome Custom
+  // Tabs, no redirect URIs. The SDK reads the Android OAuth client info from
+  // google-services.json at link time and matches it against the app's
+  // signing SHA-1. The webClientId below tells Google which audience to issue
+  // the id_token for; that id_token is then handed to the WebView, which
+  // calls firebase.auth.signInWithCredential(GoogleAuthProvider.credential())
+  // to complete the Firebase session.
   useEffect(() => {
-    if (!googleAuthResponse) return;
-    if (googleAuthResponse.type === "success") {
-      const idToken = (googleAuthResponse.params as { id_token?: string })
-        ?.id_token;
-      if (idToken) {
-        // Deliver the token to the hosted web app. resumebuilder.html
-        // defines window.__handleNativeGoogleIdToken which completes the
-        // Firebase sign-in using GoogleAuthProvider.credential(idToken).
-        const js = `
-          try {
-            if (typeof window.__handleNativeGoogleIdToken === 'function') {
-              window.__handleNativeGoogleIdToken(${JSON.stringify(idToken)});
-            }
-          } catch (e) {}
-          true;
-        `;
-        webviewRef.current?.injectJavaScript(js);
-      } else {
-        webviewRef.current?.injectJavaScript(
-          `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, 'No idToken returned'); } catch(e){} true;`
-        );
-      }
-    } else if (
-      googleAuthResponse.type === "error" ||
-      googleAuthResponse.type === "cancel" ||
-      googleAuthResponse.type === "dismiss"
-    ) {
-      const errMsg =
-        googleAuthResponse.type === "error"
-          ? (googleAuthResponse as { error?: { message?: string } }).error
-              ?.message || "Google sign-in failed"
-          : "Google sign-in cancelled";
-      webviewRef.current?.injectJavaScript(
-        `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
-          errMsg
-        )}); } catch(e){} true;`
-      );
+    try {
+      GoogleSignin.configure({
+        webClientId: GOOGLE_WEB_CLIENT_ID,
+        offlineAccess: false,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[RN-ERROR] GoogleSignin.configure failed", e);
     }
-  }, [googleAuthResponse]);
+  }, []);
+
+  const runNativeGoogleSignIn = useCallback(async () => {
+    const injectResult = (idToken: string | null, errorMsg?: string) => {
+      const payload = idToken
+        ? `window.__handleNativeGoogleIdToken(${JSON.stringify(idToken)});`
+        : `window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
+            errorMsg || "Google sign-in failed"
+          )});`;
+      webviewRef.current?.injectJavaScript(
+        `try { ${payload} } catch(e){} true;`
+      );
+    };
+
+    try {
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+      // signOut first to always force the account picker (otherwise the SDK
+      // silently reuses the last-signed-in account which can confuse users
+      // who have multiple Google accounts on the device).
+      try {
+        await GoogleSignin.signOut();
+      } catch (_) {
+        // ignore — no previous session
+      }
+      const result = (await GoogleSignin.signIn()) as unknown as {
+        idToken?: string;
+        data?: { idToken?: string };
+      };
+      // v13 returns { data: { idToken } }; older versions return { idToken }.
+      const idToken = result?.data?.idToken || result?.idToken || null;
+      if (!idToken) {
+        injectResult(null, "Google didn't return an ID token. Try again.");
+        return;
+      }
+      injectResult(idToken);
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      let msg = e?.message || "Google sign-in failed";
+      if (e?.code === statusCodes.SIGN_IN_CANCELLED) {
+        msg = "Sign-in cancelled";
+      } else if (e?.code === statusCodes.IN_PROGRESS) {
+        msg = "Sign-in already in progress";
+      } else if (e?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        msg = "Google Play Services not available on this device";
+      }
+      // eslint-disable-next-line no-console
+      console.warn("[RN-ERROR] native google signin failed", e);
+      injectResult(null, msg);
+    }
+  }, []);
+
 
   // Safety net: hide loader after 6s even if onLoadEnd doesn't fire
   useEffect(() => {
@@ -279,35 +272,10 @@ export default function Index() {
                       (p.stack ? `\n${p.stack}` : "")
                   );
                 } else if (data && data.type === "google-signin-request") {
-                  // WebView asked us to run native Google auth. Force Chrome
-                  // Custom Tabs so the Google OAuth redirect hands control
-                  // straight back to the app. If the user's default browser
-                  // is Edge/Samsung/Firefox those browsers treat the
-                  // returned com.googleusercontent.apps.*:/oauthredirect as
-                  // an "open external app" navigation (shows a confirmation
-                  // prompt and can strand the user on google.com). Chrome
-                  // Custom Tabs is the only browser that implements the
-                  // silent handoff spec.
-                  const launchWith = async (browserPackage?: string) => {
-                    try {
-                      return await promptGoogleAsync(
-                        browserPackage ? { browserPackage } : undefined
-                      );
-                    } catch (err) {
-                      throw err;
-                    }
-                  };
-                  launchWith("com.android.chrome")
-                    .catch(() => launchWith(undefined))
-                    .catch((err) => {
-                      // eslint-disable-next-line no-console
-                      console.warn("[RN-ERROR] google auth prompt failed", err);
-                      webviewRef.current?.injectJavaScript(
-                        `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
-                          (err && err.message) || "Google sign-in failed"
-                        )}); } catch(e){} true;`
-                      );
-                    });
+                  // WebView asked us to run native Google sign-in. Uses the
+                  // Play Services SDK (in-app account picker dialog) — no
+                  // browser involved, no redirect URIs, no user prompts.
+                  runNativeGoogleSignIn();
                 }
               } catch (_) {
                 // Ignore non-JSON messages from the page.
