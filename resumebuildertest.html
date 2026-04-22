@@ -3528,6 +3528,11 @@ async function optimizeForJob() {
   setTimeout(()=>optimizeAdvanceStep(4), 5000);
 
   try {
+    // STEP A: Run the full resume analyzer first so analysisCache + right-panel analysis populate.
+    // This is the same backend call the "Analyze" button uses; it also ensures the match-score card
+    // and insights panels reflect the current resume + JD even before optimize applies any changes.
+    try { await analyzeResume(); } catch(e) { console.warn('[optimize] pre-analyze failed (continuing):', e); }
+
     const baseline = __deepCloneResume(STATE.resumeData);
     const resp = await fetch(API_BASE + '/builder/optimize', {
       method: 'POST',
@@ -3579,6 +3584,26 @@ async function optimizeForJob() {
       appliedCount: applied
     };
 
+    // Update analysisCache so the Optimize step match-score card + analysis panels render.
+    // /builder/optimize returns `data.analysis` + scores; merge into the existing analysisCache
+    // (populated by the pre-analyze step above) so we preserve the full insights shape.
+    try {
+      const base = (analysisCache && typeof analysisCache === 'object') ? analysisCache : {};
+      const merged = Object.assign({}, base, data.analysis || {});
+      if (typeof data.improved_score === 'number') merged.resume_match_score = data.improved_score;
+      if (typeof data.original_score === 'number' && merged.original_score == null) merged.original_score = data.original_score;
+      if (data.recruiter_first_impression && !merged.overall_assessment && !merged.overall_summary) {
+        merged.overall_assessment = data.recruiter_first_impression;
+      }
+      if (data.strategist_note && !merged.interview_likelihood) {
+        merged.interview_likelihood = data.strategist_note;
+      }
+      analysisCache = merged;
+      _needsReanalysis = false;
+    } catch(e) { console.warn('analysisCache sync after optimize failed:', e); }
+    try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
+    try { displayAnalysisResults && displayAnalysisResults(analysisCache, _interviewPrepCache); } catch(_){}
+
     // Update Match Score card
     const msCard = document.getElementById('rp-match-score');
     const msVal = document.getElementById('rp-match-value');
@@ -3593,6 +3618,13 @@ async function optimizeForJob() {
     // Re-render preview if renderer exists
     try { if (typeof generateAndRenderPreview === 'function') { generateAndRenderPreview(); } else if (typeof renderPreview === 'function') { renderPreview(); } else if (typeof updatePreview === 'function') { updatePreview(); } } catch(_){}
     try { markDirty(); } catch(_){}
+
+    // Auto-persist optimization session so analysis/changes survive reload.
+    // Use JSON round-trip to strip any `undefined` values Firestore would reject.
+    try {
+      STATE.optimizationSession = JSON.parse(JSON.stringify(STATE.optimizationSession));
+    } catch(_){}
+    try { if (currentUser && currentPlanId) { await savePlan(); } } catch(e) { console.warn('Auto-save after optimize failed:', e); }
 
     hideOptimizeProgress();
     showOptimizeResult(STATE.optimizationSession);
@@ -5163,6 +5195,8 @@ async function loadPlan(planId) {
     // Restore analysis cache so user doesn't re-run unnecessarily
     analysisCache = d.analysisData || null;
     analysisCacheKey = d.analysisCacheKey || null;
+    // Restore optimization session (match score, accepted/discarded changes, revert baseline)
+    STATE.optimizationSession = d.optimizationSession || null;
     setColor(STATE.color);
 
     // Populate form fields
@@ -5342,6 +5376,7 @@ async function savePlan() {
     appStatus: STATE.appStatus || {},
     analysisData: analysisCache || null,
     analysisCacheKey: analysisCacheKey || '',
+    optimizationSession: STATE.optimizationSession || null,
     hasExported: !!STATE._hasExported,
     published: !!STATE._isPublished,
     previewMode: STATE._previewMode || 'web',
