@@ -3585,17 +3585,32 @@ async function optimizeForJob() {
     };
 
     // Update analysisCache so the Optimize step match-score card + analysis panels render.
-    // /builder/optimize returns `data.analysis` + scores; merge into the existing analysisCache
-    // (populated by the pre-analyze step above) so we preserve the full insights shape.
+    // /builder/optimize returns a lean `data.analysis`; the pre-analyze step already populated
+    // analysisCache with the full /builder/analyze-resume shape. Prefer the richer analyzer
+    // values and only fill gaps from optimize so we never clobber keyword_matches, gaps,
+    // score_breakdown, interview_prep, benchmark, etc.
     try {
       const base = (analysisCache && typeof analysisCache === 'object') ? analysisCache : {};
-      const merged = Object.assign({}, base, data.analysis || {});
-      if (typeof data.improved_score === 'number') merged.resume_match_score = data.improved_score;
+      const extra = data.analysis || {};
+      const merged = Object.assign({}, base);
+      const _nonEmpty = v => {
+        if (v == null || v === '') return false;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === 'object') return Object.keys(v).length > 0;
+        return true;
+      };
+      // Fill gaps from optimize response without overwriting richer analyzer data
+      Object.keys(extra).forEach(k => { if (!_nonEmpty(merged[k]) && _nonEmpty(extra[k])) merged[k] = extra[k]; });
+      // Always overlay the post-optimize score + assessment fields
+      if (typeof data.improved_score === 'number') {
+        merged.resume_match_score = data.improved_score;
+        merged.overall_score = data.improved_score;
+      }
       if (typeof data.original_score === 'number' && merged.original_score == null) merged.original_score = data.original_score;
-      if (data.recruiter_first_impression && !merged.overall_assessment && !merged.overall_summary) {
+      if (data.recruiter_first_impression && !_nonEmpty(merged.overall_assessment) && !_nonEmpty(merged.overall_summary)) {
         merged.overall_assessment = data.recruiter_first_impression;
       }
-      if (data.strategist_note && !merged.interview_likelihood) {
+      if (data.strategist_note && !_nonEmpty(merged.interview_likelihood)) {
         merged.interview_likelihood = data.strategist_note;
       }
       analysisCache = merged;
@@ -3617,7 +3632,8 @@ async function optimizeForJob() {
 
     // Re-render preview if renderer exists
     try { if (typeof generateAndRenderPreview === 'function') { generateAndRenderPreview(); } else if (typeof renderPreview === 'function') { renderPreview(); } else if (typeof updatePreview === 'function') { updatePreview(); } } catch(_){}
-    try { markDirty(); } catch(_){}
+    // Pass needsReanalysis:false so markDirty doesn't wipe the analysisCache we just populated
+    try { markDirty({ needsReanalysis: false }); } catch(_){}
 
     // Auto-persist optimization session so analysis/changes survive reload.
     // Use JSON round-trip to strip any `undefined` values Firestore would reject.
