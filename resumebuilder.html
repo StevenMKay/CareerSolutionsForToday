@@ -9747,10 +9747,19 @@ async function exportPPTX() {
       return (a.title || '') + (a.description ? ' \u2014 ' + a.description : '');
     });
 
+    // --- Template + Accent resolution ---
+    // Priority: explicit PPTX color picker → selected template default → Design-step color → fallback
+    const _templateId = STATE.exportTemplate || 'modern-sidebar';
+    const _tmpl = (typeof PPTX_TEMPLATES !== 'undefined') ? PPTX_TEMPLATES.find(t => t.id === _templateId) : null;
+    const _accentHex = (STATE.pptxColor && /^#[0-9A-Fa-f]{6}$/.test(STATE.pptxColor))
+      ? STATE.pptxColor
+      : ((_tmpl && _tmpl.accent) || STATE.color || '#0B487A');
+    const ACCENT_NOHASH = _accentHex.replace('#','').toUpperCase();
+
     // --- PptxGenJS Dynamic Generation (Portrait / Sidebar Layout) ---
-    const ACCENT = (STATE.color || '#104862').replace('#','');
-    const BAR_COLOR = '0B487A';
-    const SECTION_TITLE = '0B487A';
+    const ACCENT = ACCENT_NOHASH;
+    const BAR_COLOR = ACCENT_NOHASH;
+    const SECTION_TITLE = ACCENT_NOHASH;
     const SIDEBAR_BG = 'E8E8E8';
     const DARK = '0E2841';
     const GRAY = '595959';
@@ -9782,6 +9791,22 @@ async function exportPPTX() {
     pptx.layout = 'PORTRAIT';
     pptx.author = 'Career Solutions for Today';
     pptx.title = (name || 'Resume') + ' — Resume';
+
+    // --- Template dispatch: non-default templates use alternate layout builders ---
+    if (_templateId !== 'modern-sidebar') {
+      const _altData = {
+        name, phone, email, address, linkedin, currentTitle, summary,
+        skills, experiences, education, certifications, achievements,
+        linkedinIconBase64, showSec
+      };
+      _pptxBuildAltLayout(pptx, _templateId, _altData, ACCENT_NOHASH);
+      const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.pptx';
+      await pptx.writeFile({ fileName });
+      STATE._hasExported = true;
+      try { updateStepDots && updateStepDots(); } catch(_){}
+      showToast('Resume downloaded!');
+      return;
+    }
 
     // --- Page geometry ---
     const SB_W = 2.3;           // sidebar width
@@ -10149,6 +10174,575 @@ async function exportPPTX() {
 function escapeXml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// ============ Alternate PPTX Layouts ============
+// Shared pager for multi-page content. onNewPage(slide, pptx) returns starting Y.
+function _pptxPager(pptx, onNewPage, maxY) {
+  const state = { slide: null, Y: 0 };
+  const MAX_Y = maxY || 9.5;
+  function newPage() {
+    state.slide = pptx.addSlide();
+    state.Y = onNewPage ? onNewPage(state.slide, pptx) : 0.3;
+    return state.slide;
+  }
+  function ensure(h) { if (!state.slide || state.Y + h > MAX_Y) newPage(); }
+  return { state, newPage, ensure, MAX_Y };
+}
+
+function _pptxBuildAltLayout(pptx, templateId, data, accent) {
+  switch (templateId) {
+    case 'classic-serif': return _pptxClassicSerif(pptx, data, accent);
+    case 'creative-bold': return _pptxCreativeBold(pptx, data, accent);
+    case 'minimal':       return _pptxMinimal(pptx, data, accent);
+    case 'two-column':    return _pptxTwoColumn(pptx, data, accent);
+    case 'tech-mono':     return _pptxTechMono(pptx, data, accent);
+    default:              return _pptxClassicSerif(pptx, data, accent);
+  }
+}
+
+// -------- CLASSIC SERIF (centered serif header, single column, ATS-friendly) --------
+function _pptxClassicSerif(pptx, d, accent) {
+  const DARK='1F2937', GRAY='4B5563';
+  const FONT='Georgia';
+  const MX=0.6, MW=7.5-1.2;
+  let isFirst = true;
+  const pager = _pptxPager(pptx, (slide) => {
+    if (isFirst) {
+      slide.addText((d.name||'').toUpperCase(), { x:MX, y:0.45, w:MW, h:0.55, fontSize:26, fontFace:FONT, bold:true, color:DARK, align:'center', letterSpacing:4 });
+      let yy = 1.05;
+      if (d.currentTitle) { slide.addText(d.currentTitle, { x:MX, y:yy, w:MW, h:0.3, fontSize:12, fontFace:FONT, italic:true, color:accent, align:'center' }); yy += 0.32; }
+      const cp = [];
+      if (d.phone) cp.push(d.phone);
+      if (d.email) cp.push(d.email);
+      if (d.address) cp.push(d.address);
+      if (d.linkedin) cp.push('LinkedIn');
+      if (cp.length) { slide.addText(cp.join('  \u00B7  '), { x:MX, y:yy, w:MW, h:0.25, fontSize:9.5, fontFace:FONT, color:GRAY, align:'center' }); yy += 0.28; }
+      slide.addShape(pptx.ShapeType.line, { x:MX, y:yy+0.05, w:MW, h:0, line:{color:accent, width:1} });
+      isFirst = false; return yy + 0.25;
+    }
+    return 0.5;
+  });
+  function sec(t) {
+    pager.ensure(0.45);
+    pager.state.slide.addText(t.toUpperCase(), { x:MX, y:pager.state.Y, w:MW, h:0.28, fontSize:11, fontFace:FONT, bold:true, color:accent, letterSpacing:3 });
+    pager.state.Y += 0.3;
+    pager.state.slide.addShape(pptx.ShapeType.line, { x:MX, y:pager.state.Y, w:MW, h:0, line:{color:accent, width:0.5} });
+    pager.state.Y += 0.1;
+  }
+  pager.newPage();
+  if (d.summary) {
+    sec('Summary');
+    const h = Math.max(0.45, Math.min(Math.ceil(d.summary.length/90) * 0.18, 1.8));
+    pager.ensure(h);
+    pager.state.slide.addText(d.summary, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:10, fontFace:FONT, color:DARK, lineSpacing:14, valign:'top' });
+    pager.state.Y += h + 0.15;
+  }
+  if (d.showSec('experience') && d.experiences.length) {
+    const exps = d.experiences.filter(e => e.title || e.company);
+    if (exps.length) {
+      sec('Professional Experience');
+      exps.forEach(exp => {
+        pager.ensure(0.5);
+        if (exp.title) {
+          const parts = [{ text: exp.title, options:{ bold:true, fontSize:11, color:DARK } }];
+          if (exp.dates) parts.push({ text: '   ' + exp.dates, options:{ fontSize:9.5, italic:true, color:GRAY } });
+          pager.state.slide.addText(parts, { x:MX, y:pager.state.Y, w:MW, h:0.25, fontFace:FONT });
+          pager.state.Y += 0.25;
+        }
+        if (exp.company) {
+          pager.state.slide.addText(exp.company + (exp.location ? '  \u2014  ' + exp.location : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:10, fontFace:FONT, italic:true, color:accent });
+          pager.state.Y += 0.22;
+        }
+        if (exp.role_summary) {
+          const rsH = Math.max(0.2, Math.ceil(exp.role_summary.length/85) * 0.16);
+          pager.ensure(rsH);
+          pager.state.slide.addText(exp.role_summary, { x:MX, y:pager.state.Y, w:MW, h:rsH, fontSize:9.5, fontFace:FONT, color:GRAY, italic:true, lineSpacing:13 });
+          pager.state.Y += rsH + 0.04;
+        }
+        (exp.bullets||[]).forEach(b => {
+          if (!b) return;
+          const bH = Math.max(0.2, Math.ceil(b.length/75) * 0.16);
+          pager.ensure(bH);
+          pager.state.slide.addText('\u2022  ' + b, { x:MX+0.15, y:pager.state.Y, w:MW-0.15, h:bH, fontSize:9.5, fontFace:FONT, color:DARK, lineSpacing:13 });
+          pager.state.Y += bH + 0.02;
+        });
+        pager.state.Y += 0.14;
+      });
+    }
+  }
+  if (d.showSec('education') && d.education.length) {
+    sec('Education');
+    d.education.forEach(ed => {
+      if (!ed.degree) return;
+      pager.ensure(0.4);
+      pager.state.slide.addText(ed.degree, { x:MX, y:pager.state.Y, w:MW, h:0.22, fontSize:10.5, fontFace:FONT, bold:true, color:DARK });
+      pager.state.Y += 0.22;
+      if (ed.school) {
+        pager.state.slide.addText(ed.school + (ed.year ? '  \u2014  ' + ed.year : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:10, fontFace:FONT, italic:true, color:GRAY });
+        pager.state.Y += 0.22;
+      }
+      pager.state.Y += 0.05;
+    });
+  }
+  if (d.showSec('skills') && d.skills.length) {
+    sec('Core Competencies');
+    const txt = d.skills.slice(0,30).join('   \u00B7   ');
+    const h = Math.max(0.25, Math.ceil(txt.length/100) * 0.18);
+    pager.ensure(h);
+    pager.state.slide.addText(txt, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:10, fontFace:FONT, color:DARK, lineSpacing:14 });
+    pager.state.Y += h + 0.1;
+  }
+  if (d.showSec('education') && d.certifications.length && d.certifications[0].name) {
+    sec('Certifications');
+    d.certifications.forEach(c => {
+      if (!c.name) return;
+      pager.ensure(0.22);
+      pager.state.slide.addText(c.name + (c.issuer ? '  \u2014  ' + c.issuer : '') + (c.year ? '  (' + c.year + ')' : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:10, fontFace:FONT, color:DARK });
+      pager.state.Y += 0.22;
+    });
+  }
+  if (d.showSec('achievements') && d.achievements.length && d.achievements.some(a=>a)) {
+    sec('Key Achievements');
+    d.achievements.forEach(a => {
+      if (!a) return;
+      const h = Math.max(0.2, Math.ceil(a.length/80) * 0.16);
+      pager.ensure(h);
+      pager.state.slide.addText('\u2022  ' + a, { x:MX+0.15, y:pager.state.Y, w:MW-0.15, h:h, fontSize:10, fontFace:FONT, color:DARK, lineSpacing:13 });
+      pager.state.Y += h + 0.03;
+    });
+  }
+}
+
+// -------- CREATIVE BOLD (full-width color band + bold headers) --------
+function _pptxCreativeBold(pptx, d, accent) {
+  const DARK='0F172A', GRAY='475569', WHITE='FFFFFF';
+  const FONT='Arial';
+  const MX=0.5, MW=7.5-1;
+  let isFirst = true;
+  const pager = _pptxPager(pptx, (slide) => {
+    if (isFirst) {
+      slide.addShape(pptx.ShapeType.rect, { x:0, y:0, w:7.5, h:1.9, fill:{color:accent} });
+      slide.addText((d.name||'').toUpperCase(), { x:MX, y:0.25, w:MW, h:0.7, fontSize:28, fontFace:FONT, bold:true, color:WHITE, letterSpacing:2 });
+      if (d.currentTitle) slide.addText(d.currentTitle, { x:MX, y:0.95, w:MW, h:0.35, fontSize:14, fontFace:FONT, color:WHITE });
+      const cp=[];
+      if (d.phone) cp.push(d.phone); if (d.email) cp.push(d.email); if (d.address) cp.push(d.address); if (d.linkedin) cp.push('LinkedIn');
+      if (cp.length) slide.addText(cp.join('   \u2022   '), { x:MX, y:1.4, w:MW, h:0.3, fontSize:10, fontFace:FONT, color:WHITE });
+      isFirst = false; return 2.15;
+    }
+    slide.addShape(pptx.ShapeType.rect, { x:0, y:0, w:7.5, h:0.15, fill:{color:accent} });
+    return 0.4;
+  });
+  function sec(t) {
+    pager.ensure(0.5);
+    pager.state.slide.addShape(pptx.ShapeType.rect, { x:MX, y:pager.state.Y+0.04, w:0.18, h:0.22, fill:{color:accent} });
+    pager.state.slide.addText(t.toUpperCase(), { x:MX+0.3, y:pager.state.Y, w:MW-0.3, h:0.3, fontSize:13, fontFace:FONT, bold:true, color:DARK, letterSpacing:2 });
+    pager.state.Y += 0.36;
+  }
+  pager.newPage();
+  if (d.summary) {
+    sec('Summary');
+    const h = Math.max(0.4, Math.min(Math.ceil(d.summary.length/85) * 0.18, 1.6));
+    pager.ensure(h);
+    pager.state.slide.addText(d.summary, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:10, fontFace:FONT, color:DARK, lineSpacing:14, valign:'top' });
+    pager.state.Y += h + 0.15;
+  }
+  if (d.showSec('experience') && d.experiences.length) {
+    const exps = d.experiences.filter(e => e.title || e.company);
+    if (exps.length) {
+      sec('Experience');
+      exps.forEach(exp => {
+        pager.ensure(0.5);
+        if (exp.title) {
+          const parts = [{ text:exp.title, options:{ bold:true, fontSize:11.5, color:DARK } }];
+          if (exp.dates) parts.push({ text:'   '+exp.dates, options:{ fontSize:9.5, color:GRAY } });
+          pager.state.slide.addText(parts, { x:MX, y:pager.state.Y, w:MW, h:0.25, fontFace:FONT });
+          pager.state.Y += 0.25;
+        }
+        if (exp.company) {
+          pager.state.slide.addText(exp.company + (exp.location ? '  \u2014  ' + exp.location : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:10, fontFace:FONT, bold:true, color:accent });
+          pager.state.Y += 0.22;
+        }
+        if (exp.role_summary) {
+          const rsH = Math.max(0.2, Math.ceil(exp.role_summary.length/85) * 0.16);
+          pager.ensure(rsH);
+          pager.state.slide.addText(exp.role_summary, { x:MX, y:pager.state.Y, w:MW, h:rsH, fontSize:9.5, fontFace:FONT, color:GRAY, italic:true, lineSpacing:13 });
+          pager.state.Y += rsH + 0.04;
+        }
+        (exp.bullets||[]).forEach(b => {
+          if (!b) return;
+          const bH = Math.max(0.2, Math.ceil(b.length/75) * 0.16);
+          pager.ensure(bH);
+          pager.state.slide.addText([{ text:'\u25B6 ', options:{color:accent, bold:true} }, { text:b, options:{color:DARK} }], { x:MX+0.1, y:pager.state.Y, w:MW-0.1, h:bH, fontSize:9.5, fontFace:FONT, lineSpacing:13 });
+          pager.state.Y += bH + 0.02;
+        });
+        pager.state.Y += 0.12;
+      });
+    }
+  }
+  if (d.showSec('skills') && d.skills.length) {
+    sec('Skills');
+    const txt = d.skills.slice(0,30).join('   /   ');
+    const h = Math.max(0.3, Math.ceil(txt.length/95) * 0.18);
+    pager.ensure(h);
+    pager.state.slide.addText(txt, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:10, fontFace:FONT, bold:true, color:accent, lineSpacing:14 });
+    pager.state.Y += h + 0.1;
+  }
+  if (d.showSec('education') && d.education.length) {
+    sec('Education');
+    d.education.forEach(ed => {
+      if (!ed.degree) return;
+      pager.ensure(0.4);
+      pager.state.slide.addText(ed.degree, { x:MX, y:pager.state.Y, w:MW, h:0.22, fontSize:11, fontFace:FONT, bold:true, color:DARK });
+      pager.state.Y += 0.22;
+      if (ed.school) {
+        pager.state.slide.addText(ed.school + (ed.year ? '  \u2014  ' + ed.year : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:10, fontFace:FONT, color:GRAY });
+        pager.state.Y += 0.22;
+      }
+      pager.state.Y += 0.05;
+    });
+  }
+  if (d.showSec('education') && d.certifications.length && d.certifications[0].name) {
+    sec('Certifications');
+    d.certifications.forEach(c => {
+      if (!c.name) return;
+      pager.ensure(0.22);
+      pager.state.slide.addText(c.name + (c.issuer ? '  \u2014  ' + c.issuer : '') + (c.year ? '  (' + c.year + ')' : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:10, fontFace:FONT, color:DARK });
+      pager.state.Y += 0.22;
+    });
+  }
+  if (d.showSec('achievements') && d.achievements.length && d.achievements.some(a=>a)) {
+    sec('Key Achievements');
+    d.achievements.forEach(a => {
+      if (!a) return;
+      const h = Math.max(0.2, Math.ceil(a.length/80) * 0.16);
+      pager.ensure(h);
+      pager.state.slide.addText([{ text:'\u25B6 ', options:{color:accent, bold:true} }, { text:a, options:{color:DARK} }], { x:MX+0.1, y:pager.state.Y, w:MW-0.1, h:h, fontSize:10, fontFace:FONT, lineSpacing:13 });
+      pager.state.Y += h + 0.03;
+    });
+  }
+}
+
+// -------- MINIMAL (pure B&W, heavy whitespace) --------
+function _pptxMinimal(pptx, d, accent) {
+  const BLACK='111827', GRAY='6B7280';
+  const FONT='Helvetica';
+  const MX=0.7, MW=7.5-1.4;
+  let isFirst = true;
+  const pager = _pptxPager(pptx, (slide) => {
+    if (isFirst) {
+      slide.addText(d.name||'', { x:MX, y:0.6, w:MW, h:0.55, fontSize:24, fontFace:FONT, bold:true, color:BLACK, letterSpacing:1 });
+      if (d.currentTitle) slide.addText(d.currentTitle, { x:MX, y:1.15, w:MW, h:0.3, fontSize:11, fontFace:FONT, color:GRAY });
+      const cp=[];
+      if (d.phone) cp.push(d.phone); if (d.email) cp.push(d.email); if (d.address) cp.push(d.address); if (d.linkedin) cp.push('LinkedIn');
+      if (cp.length) slide.addText(cp.join('  \u2022  '), { x:MX, y:1.5, w:MW, h:0.25, fontSize:9, fontFace:FONT, color:GRAY });
+      isFirst = false; return 2.0;
+    }
+    return 0.5;
+  });
+  function sec(t) {
+    pager.ensure(0.4);
+    pager.state.slide.addText(t.toUpperCase(), { x:MX, y:pager.state.Y, w:MW, h:0.25, fontSize:9.5, fontFace:FONT, bold:true, color:BLACK, letterSpacing:3 });
+    pager.state.Y += 0.28;
+  }
+  pager.newPage();
+  if (d.summary) {
+    sec('Summary');
+    const h = Math.max(0.4, Math.min(Math.ceil(d.summary.length/88) * 0.18, 1.6));
+    pager.ensure(h);
+    pager.state.slide.addText(d.summary, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:10, fontFace:FONT, color:BLACK, lineSpacing:14 });
+    pager.state.Y += h + 0.15;
+  }
+  if (d.showSec('experience') && d.experiences.length) {
+    const exps = d.experiences.filter(e => e.title || e.company);
+    if (exps.length) {
+      sec('Experience');
+      exps.forEach(exp => {
+        pager.ensure(0.5);
+        if (exp.title) {
+          const parts = [{ text:exp.title, options:{ bold:true, fontSize:10.5, color:BLACK } }];
+          if (exp.dates) parts.push({ text:'   '+exp.dates, options:{ fontSize:9.5, color:GRAY } });
+          pager.state.slide.addText(parts, { x:MX, y:pager.state.Y, w:MW, h:0.22, fontFace:FONT });
+          pager.state.Y += 0.22;
+        }
+        if (exp.company) {
+          pager.state.slide.addText(exp.company + (exp.location ? ', ' + exp.location : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:9.5, fontFace:FONT, color:GRAY });
+          pager.state.Y += 0.22;
+        }
+        if (exp.role_summary) {
+          const rsH = Math.max(0.2, Math.ceil(exp.role_summary.length/85) * 0.16);
+          pager.ensure(rsH);
+          pager.state.slide.addText(exp.role_summary, { x:MX, y:pager.state.Y, w:MW, h:rsH, fontSize:9.5, fontFace:FONT, color:GRAY, lineSpacing:13 });
+          pager.state.Y += rsH + 0.04;
+        }
+        (exp.bullets||[]).forEach(b => {
+          if (!b) return;
+          const bH = Math.max(0.2, Math.ceil(b.length/75) * 0.16);
+          pager.ensure(bH);
+          pager.state.slide.addText('\u2014  ' + b, { x:MX+0.1, y:pager.state.Y, w:MW-0.1, h:bH, fontSize:9.5, fontFace:FONT, color:BLACK, lineSpacing:13 });
+          pager.state.Y += bH + 0.02;
+        });
+        pager.state.Y += 0.12;
+      });
+    }
+  }
+  if (d.showSec('education') && d.education.length) {
+    sec('Education');
+    d.education.forEach(ed => {
+      if (!ed.degree) return;
+      pager.ensure(0.4);
+      pager.state.slide.addText(ed.degree + (ed.school ? ', ' + ed.school : '') + (ed.year ? '  (' + ed.year + ')' : ''), { x:MX, y:pager.state.Y, w:MW, h:0.22, fontSize:10, fontFace:FONT, color:BLACK });
+      pager.state.Y += 0.24;
+    });
+  }
+  if (d.showSec('skills') && d.skills.length) {
+    sec('Skills');
+    const txt = d.skills.slice(0,30).join(', ');
+    const h = Math.max(0.25, Math.ceil(txt.length/95) * 0.18);
+    pager.ensure(h);
+    pager.state.slide.addText(txt, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:9.5, fontFace:FONT, color:BLACK, lineSpacing:14 });
+    pager.state.Y += h + 0.1;
+  }
+  if (d.showSec('education') && d.certifications.length && d.certifications[0].name) {
+    sec('Certifications');
+    d.certifications.forEach(c => {
+      if (!c.name) return;
+      pager.ensure(0.22);
+      pager.state.slide.addText(c.name + (c.issuer ? ', ' + c.issuer : '') + (c.year ? '  (' + c.year + ')' : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:9.5, fontFace:FONT, color:BLACK });
+      pager.state.Y += 0.22;
+    });
+  }
+  if (d.showSec('achievements') && d.achievements.length && d.achievements.some(a=>a)) {
+    sec('Achievements');
+    d.achievements.forEach(a => {
+      if (!a) return;
+      const h = Math.max(0.2, Math.ceil(a.length/80) * 0.16);
+      pager.ensure(h);
+      pager.state.slide.addText('\u2014  ' + a, { x:MX+0.1, y:pager.state.Y, w:MW-0.1, h:h, fontSize:9.5, fontFace:FONT, color:BLACK, lineSpacing:13 });
+      pager.state.Y += h + 0.03;
+    });
+  }
+}
+
+// -------- TWO COLUMN (single page, 40/60 split for dense histories) --------
+function _pptxTwoColumn(pptx, d, accent) {
+  const DARK='0F172A', GRAY='475569';
+  const FONT='Arial';
+  const LEFT_X=0.3, LEFT_W=2.5, RIGHT_X=3.0, RIGHT_W=7.5-RIGHT_X-0.3;
+  const MAX_Y=9.6;
+  const slide = pptx.addSlide();
+  slide.addShape(pptx.ShapeType.rect, { x:0, y:0, w:7.5, h:0.12, fill:{color:accent} });
+  slide.addText((d.name||'').toUpperCase(), { x:LEFT_X, y:0.25, w:7.5-LEFT_X-0.3, h:0.45, fontSize:22, fontFace:FONT, bold:true, color:DARK, letterSpacing:2 });
+  let hy = 0.7;
+  if (d.currentTitle) { slide.addText(d.currentTitle, { x:LEFT_X, y:hy, w:7.5-LEFT_X-0.3, h:0.28, fontSize:11, fontFace:FONT, color:accent, bold:true }); hy += 0.3; }
+  const cp=[];
+  if (d.phone) cp.push(d.phone); if (d.email) cp.push(d.email); if (d.address) cp.push(d.address); if (d.linkedin) cp.push('LinkedIn');
+  if (cp.length) { slide.addText(cp.join('  \u2022  '), { x:LEFT_X, y:hy, w:7.5-LEFT_X-0.3, h:0.25, fontSize:9, fontFace:FONT, color:GRAY }); hy += 0.28; }
+  hy += 0.1;
+  slide.addShape(pptx.ShapeType.line, { x:LEFT_X, y:hy, w:7.5-LEFT_X-0.3, h:0, line:{color:'D1D5DB', width:0.5} });
+  hy += 0.15;
+  let LY = hy, RY = hy;
+  function lSec(t) {
+    if (LY > MAX_Y-0.3) return;
+    slide.addText(t.toUpperCase(), { x:LEFT_X, y:LY, w:LEFT_W, h:0.22, fontSize:9, fontFace:FONT, bold:true, color:accent, letterSpacing:2 });
+    LY += 0.24;
+    slide.addShape(pptx.ShapeType.line, { x:LEFT_X, y:LY, w:LEFT_W, h:0, line:{color:accent, width:0.5} });
+    LY += 0.08;
+  }
+  function rSec(t) {
+    if (RY > MAX_Y-0.3) return;
+    slide.addText(t.toUpperCase(), { x:RIGHT_X, y:RY, w:RIGHT_W, h:0.25, fontSize:10, fontFace:FONT, bold:true, color:accent, letterSpacing:2 });
+    RY += 0.27;
+    slide.addShape(pptx.ShapeType.line, { x:RIGHT_X, y:RY, w:RIGHT_W, h:0, line:{color:accent, width:0.6} });
+    RY += 0.1;
+  }
+  if (d.showSec('skills') && d.skills.length) {
+    lSec('Skills');
+    d.skills.slice(0,20).forEach(s => {
+      if (LY > MAX_Y-0.2) return;
+      slide.addText('\u2022  ' + s, { x:LEFT_X, y:LY, w:LEFT_W, h:0.18, fontSize:8.5, fontFace:FONT, color:DARK });
+      LY += 0.19;
+    });
+    LY += 0.1;
+  }
+  if (d.showSec('education') && d.education.length) {
+    lSec('Education');
+    d.education.forEach(ed => {
+      if (!ed.degree || LY > MAX_Y-0.3) return;
+      slide.addText(ed.degree, { x:LEFT_X, y:LY, w:LEFT_W, h:0.2, fontSize:9, fontFace:FONT, bold:true, color:DARK });
+      LY += 0.2;
+      if (ed.school) {
+        slide.addText(ed.school + (ed.year ? '  \u2014  ' + ed.year : ''), { x:LEFT_X, y:LY, w:LEFT_W, h:0.18, fontSize:8.5, fontFace:FONT, color:GRAY });
+        LY += 0.2;
+      }
+      LY += 0.05;
+    });
+  }
+  if (d.showSec('education') && d.certifications.length && d.certifications[0].name) {
+    lSec('Certifications');
+    d.certifications.forEach(c => {
+      if (!c.name || LY > MAX_Y-0.25) return;
+      slide.addText(c.name, { x:LEFT_X, y:LY, w:LEFT_W, h:0.18, fontSize:9, fontFace:FONT, bold:true, color:DARK });
+      LY += 0.18;
+      const detail = (c.issuer||'') + (c.year ? '  ('+c.year+')' : '');
+      if (detail) { slide.addText(detail, { x:LEFT_X, y:LY, w:LEFT_W, h:0.16, fontSize:8.5, fontFace:FONT, color:GRAY }); LY += 0.18; }
+      LY += 0.04;
+    });
+  }
+  if (d.showSec('achievements') && d.achievements.length && d.achievements.some(a=>a)) {
+    lSec('Achievements');
+    d.achievements.forEach(a => {
+      if (!a || LY > MAX_Y-0.2) return;
+      const h = Math.max(0.18, Math.ceil(a.length/32) * 0.14);
+      slide.addText('\u2022  ' + a, { x:LEFT_X, y:LY, w:LEFT_W, h:h, fontSize:8, fontFace:FONT, color:DARK, lineSpacing:11 });
+      LY += h + 0.04;
+    });
+  }
+  if (d.summary) {
+    rSec('Summary');
+    const h = Math.max(0.4, Math.min(Math.ceil(d.summary.length/72) * 0.17, 1.5));
+    slide.addText(d.summary, { x:RIGHT_X, y:RY, w:RIGHT_W, h:h, fontSize:9.5, fontFace:FONT, color:DARK, lineSpacing:13.5 });
+    RY += h + 0.15;
+  }
+  if (d.showSec('experience') && d.experiences.length) {
+    const exps = d.experiences.filter(e => e.title || e.company);
+    if (exps.length) {
+      rSec('Experience');
+      exps.forEach(exp => {
+        if (RY > MAX_Y-0.3) return;
+        if (exp.title) {
+          const parts = [{ text:exp.title, options:{ bold:true, fontSize:10, color:DARK } }];
+          if (exp.dates) parts.push({ text:'   '+exp.dates, options:{ fontSize:9, color:GRAY, italic:true } });
+          slide.addText(parts, { x:RIGHT_X, y:RY, w:RIGHT_W, h:0.22, fontFace:FONT });
+          RY += 0.22;
+        }
+        if (exp.company) {
+          slide.addText(exp.company + (exp.location ? '  \u2014  ' + exp.location : ''), { x:RIGHT_X, y:RY, w:RIGHT_W, h:0.2, fontSize:9, fontFace:FONT, italic:true, color:accent });
+          RY += 0.22;
+        }
+        if (exp.role_summary) {
+          const rsH = Math.max(0.18, Math.ceil(exp.role_summary.length/75) * 0.15);
+          slide.addText(exp.role_summary, { x:RIGHT_X, y:RY, w:RIGHT_W, h:rsH, fontSize:8.5, fontFace:FONT, color:GRAY, lineSpacing:12 });
+          RY += rsH + 0.03;
+        }
+        (exp.bullets||[]).slice(0,4).forEach(b => {
+          if (!b || RY > MAX_Y-0.2) return;
+          const bH = Math.max(0.18, Math.ceil(b.length/68) * 0.15);
+          slide.addText('\u2022  ' + b, { x:RIGHT_X+0.1, y:RY, w:RIGHT_W-0.1, h:bH, fontSize:8.5, fontFace:FONT, color:DARK, lineSpacing:12 });
+          RY += bH + 0.02;
+        });
+        RY += 0.1;
+      });
+    }
+  }
+}
+
+// -------- TECH MONO (dark background, monospace, code-style markers) --------
+function _pptxTechMono(pptx, d, accent) {
+  const BG='0F172A', TEXT='E2E8F0', MUTED='94A3B8';
+  const MONO='Consolas';
+  const MX=0.5, MW=7.5-1;
+  let isFirst = true;
+  const pager = _pptxPager(pptx, (slide) => {
+    slide.background = { color: BG };
+    if (isFirst) {
+      slide.addText('~/resume $', { x:MX, y:0.35, w:MW, h:0.3, fontSize:11, fontFace:MONO, color:accent });
+      slide.addText(d.name||'', { x:MX, y:0.65, w:MW, h:0.55, fontSize:24, fontFace:MONO, bold:true, color:TEXT, letterSpacing:1 });
+      if (d.currentTitle) slide.addText('// ' + d.currentTitle, { x:MX, y:1.2, w:MW, h:0.3, fontSize:11, fontFace:MONO, color:MUTED });
+      const cp=[];
+      if (d.phone) cp.push(d.phone); if (d.email) cp.push(d.email); if (d.address) cp.push(d.address); if (d.linkedin) cp.push('LinkedIn');
+      if (cp.length) slide.addText(cp.join('  |  '), { x:MX, y:1.55, w:MW, h:0.25, fontSize:9, fontFace:MONO, color:MUTED });
+      isFirst = false; return 2.05;
+    }
+    return 0.5;
+  });
+  function sec(t) {
+    pager.ensure(0.45);
+    pager.state.slide.addText('## ' + t.toUpperCase(), { x:MX, y:pager.state.Y, w:MW, h:0.3, fontSize:12, fontFace:MONO, bold:true, color:accent, letterSpacing:1 });
+    pager.state.Y += 0.34;
+  }
+  pager.newPage();
+  if (d.summary) {
+    sec('summary');
+    const h = Math.max(0.4, Math.min(Math.ceil(d.summary.length/90) * 0.18, 1.7));
+    pager.ensure(h);
+    pager.state.slide.addText(d.summary, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:9.5, fontFace:MONO, color:TEXT, lineSpacing:14 });
+    pager.state.Y += h + 0.15;
+  }
+  if (d.showSec('experience') && d.experiences.length) {
+    const exps = d.experiences.filter(e => e.title || e.company);
+    if (exps.length) {
+      sec('experience');
+      exps.forEach(exp => {
+        pager.ensure(0.5);
+        if (exp.title) {
+          const parts = [{ text:'> ', options:{color:accent, bold:true} }, { text:exp.title, options:{bold:true, color:TEXT} }];
+          if (exp.dates) parts.push({ text:'   ['+exp.dates+']', options:{color:MUTED} });
+          pager.state.slide.addText(parts, { x:MX, y:pager.state.Y, w:MW, h:0.25, fontSize:10.5, fontFace:MONO });
+          pager.state.Y += 0.25;
+        }
+        if (exp.company) {
+          pager.state.slide.addText('  @ ' + exp.company + (exp.location ? '  \u2014  ' + exp.location : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:9.5, fontFace:MONO, color:accent });
+          pager.state.Y += 0.22;
+        }
+        if (exp.role_summary) {
+          const rsH = Math.max(0.18, Math.ceil(exp.role_summary.length/85) * 0.16);
+          pager.ensure(rsH);
+          pager.state.slide.addText(exp.role_summary, { x:MX+0.15, y:pager.state.Y, w:MW-0.15, h:rsH, fontSize:9, fontFace:MONO, color:MUTED, lineSpacing:13 });
+          pager.state.Y += rsH + 0.04;
+        }
+        (exp.bullets||[]).forEach(b => {
+          if (!b) return;
+          const bH = Math.max(0.2, Math.ceil(b.length/75) * 0.16);
+          pager.ensure(bH);
+          pager.state.slide.addText([{ text:'- ', options:{color:accent} }, { text:b, options:{color:TEXT} }], { x:MX+0.15, y:pager.state.Y, w:MW-0.15, h:bH, fontSize:9.5, fontFace:MONO, lineSpacing:13 });
+          pager.state.Y += bH + 0.02;
+        });
+        pager.state.Y += 0.12;
+      });
+    }
+  }
+  if (d.showSec('skills') && d.skills.length) {
+    sec('skills');
+    const txt = '[' + d.skills.slice(0,30).join(', ') + ']';
+    const h = Math.max(0.3, Math.ceil(txt.length/90) * 0.18);
+    pager.ensure(h);
+    pager.state.slide.addText(txt, { x:MX, y:pager.state.Y, w:MW, h:h, fontSize:9.5, fontFace:MONO, color:TEXT, lineSpacing:14 });
+    pager.state.Y += h + 0.1;
+  }
+  if (d.showSec('education') && d.education.length) {
+    sec('education');
+    d.education.forEach(ed => {
+      if (!ed.degree) return;
+      pager.ensure(0.4);
+      pager.state.slide.addText([{ text:'> ', options:{color:accent} }, { text:ed.degree, options:{bold:true, color:TEXT} }], { x:MX, y:pager.state.Y, w:MW, h:0.22, fontSize:10, fontFace:MONO });
+      pager.state.Y += 0.22;
+      if (ed.school) {
+        pager.state.slide.addText('  ' + ed.school + (ed.year ? '  ('+ed.year+')' : ''), { x:MX, y:pager.state.Y, w:MW, h:0.2, fontSize:9.5, fontFace:MONO, color:MUTED });
+        pager.state.Y += 0.22;
+      }
+      pager.state.Y += 0.05;
+    });
+  }
+  if (d.showSec('education') && d.certifications.length && d.certifications[0].name) {
+    sec('certifications');
+    d.certifications.forEach(c => {
+      if (!c.name) return;
+      pager.ensure(0.22);
+      pager.state.slide.addText('- ' + c.name + (c.issuer ? '  \u2014  ' + c.issuer : '') + (c.year ? '  ('+c.year+')' : ''), { x:MX+0.1, y:pager.state.Y, w:MW-0.1, h:0.2, fontSize:9.5, fontFace:MONO, color:TEXT });
+      pager.state.Y += 0.22;
+    });
+  }
+  if (d.showSec('achievements') && d.achievements.length && d.achievements.some(a=>a)) {
+    sec('achievements');
+    d.achievements.forEach(a => {
+      if (!a) return;
+      const h = Math.max(0.2, Math.ceil(a.length/80) * 0.16);
+      pager.ensure(h);
+      pager.state.slide.addText([{ text:'* ', options:{color:accent, bold:true} }, { text:a, options:{color:TEXT} }], { x:MX+0.1, y:pager.state.Y, w:MW-0.1, h:h, fontSize:9.5, fontFace:MONO, lineSpacing:13 });
+      pager.state.Y += h + 0.03;
+    });
+  }
 }
 
 // ============ Resume Analysis (Slide-Out Panel) ============
