@@ -612,6 +612,23 @@
   .sub-acc-body{display:none;padding:12px 14px 14px}
   .sub-acc-body.open{display:block}
   .sub-acc.open .sub-acc-body{display:block}
+  /* Optimize step: uniform trailing spacing across all sub-accs */
+  #optimize-subs .sub-acc-body > *:last-child{margin-bottom:0}
+  /* Optimize step: light-purple emphasis on the primary Run Optimization header */
+  #optimize-subs .sub-acc[data-sub="opt-run"] .sub-acc-head{background:#EDE9FE}
+  #optimize-subs .sub-acc[data-sub="opt-run"] .sub-acc-num{background:#DDD6FE;color:#6D28D9}
+  #optimize-subs .sub-acc[data-sub="opt-run"].open .sub-acc-head{background:#DDD6FE}
+  #optimize-subs .sub-acc[data-sub="opt-run"].open .sub-acc-num{background:#7C3AED;color:#fff}
+  /* Keep the "Last run" date visible even when collapsed on mobile */
+  @media(max-width:640px){
+    #optimize-subs .sub-acc[data-sub="opt-run"] .sub-acc-meta,
+    #optimize-subs .sub-acc[data-sub="opt-results"] .sub-acc-meta.complete{
+      font-size:0.66rem;color:#6B7280;width:auto;height:auto;min-width:0;
+      padding:2px 7px;border-radius:999px;background:#F1F5F9
+    }
+    #optimize-subs .sub-acc[data-sub="opt-results"] .sub-acc-meta.complete{background:#DCFCE7;color:#166534}
+    #optimize-subs .sub-acc[data-sub="opt-run"] .sub-acc-meta.complete{background:#EDE9FE;color:#6D28D9}
+  }
   /* Denser form fields inside About Me sub-accordions only */
   #about-me-subs .sub-acc-body .grid{gap:10px}
   #about-me-subs .sub-acc-body .mb-4{margin-bottom:10px}
@@ -1893,8 +1910,6 @@
           <button type="button" class="text-xs font-medium hover:underline" style="color:#6B7280" onclick="document.getElementById('opt-not-applied-list').classList.toggle('hidden')">Toggle</button>
         </div>
         <p class="text-xs mb-2" style="color:#6B7280">We skipped these suggestions because they didn't raise your match score.</p>
-        <ul id="opt-not-applied-list" class="hidden space-y-1 text-xs"></ul>
-      </div>
         <ul id="opt-not-applied-list" class="hidden space-y-1 text-xs"></ul>
       </div>
 
@@ -3305,6 +3320,8 @@ async function saveVersionAndGenerate() {
   currentPlanId = null;
   // New versions are not published — hide any existing share bar
   hideShareBar();
+  // Reset Optimize-step state so the new version doesn't inherit "already ran"
+  try { resetOptimizeStateForNewVersion(); } catch(_){}
   updateVersionBar(name);
   closeVersionModal();
   await generatePlan();
@@ -3318,10 +3335,28 @@ async function saveNewVersion() {
   currentPlanId = null;
   // New versions are not published — hide any existing share bar
   hideShareBar();
+  // Reset Optimize-step state so the new version doesn't inherit "already ran"
+  try { resetOptimizeStateForNewVersion(); } catch(_){}
   updateVersionBar(name);
   closeVersionModal();
   await savePlan();
   showToast('Version "' + name + '" saved!');
+}
+
+// Clear Optimize-step state when creating a new resume version so the meta
+// chips, banners, and score widgets don't carry over from the previous version.
+function resetOptimizeStateForNewVersion() {
+  try { STATE._optimizeApplied = false; } catch(_){}
+  try { STATE._optimizeAppliedAt = null; } catch(_){}
+  try { STATE.optimizationSession = null; } catch(_){}
+  try { analysisCache = null; } catch(_){}
+  try { analysisCacheKey = null; } catch(_){}
+  try { _interviewPrepCache = null; } catch(_){}
+  try { if (typeof stepCompleted !== 'undefined') stepCompleted[5] = false; } catch(_){}
+  try { if (typeof stepPct !== 'undefined') stepPct[5] = 0; } catch(_){}
+  try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
+  try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
+  try { updateStepDots && updateStepDots(); } catch(_){}
 }
 
 function updateVersionBar(name) {
@@ -4114,6 +4149,7 @@ async function optimizeForJob() {
 function showOptimizeResult(s) {
   if (!s) return;
   try { STATE._optimizeApplied = true; } catch(_){}
+  try { STATE._optimizeAppliedAt = Date.now(); } catch(_){}
   let d = document.getElementById('optimize-result-drawer');
   if (d) d.remove();
   d = document.createElement('div');
@@ -4173,6 +4209,34 @@ function refreshOptimizeStepUI() {
   const jd = (document.getElementById('job-desc')?.value || '').trim();
   const warn = document.getElementById('opt-cta-warning');
   if (warn) warn.classList.toggle('hidden', !!jd);
+
+  // Update sub-accordion meta chips (score in header, last-run date on opt-run)
+  const setOptMeta = (key, text, cls) => {
+    const el = document.getElementById('sub-meta-opt-' + key);
+    if (!el) return;
+    el.textContent = text || '';
+    el.className = 'sub-acc-meta' + (cls ? ' ' + cls : '');
+  };
+  try {
+    const a = (typeof analysisCache !== 'undefined') ? analysisCache : null;
+    const score = a ? ((typeof a.resume_match_score === 'number') ? a.resume_match_score
+                    : (typeof a.overall_score === 'number') ? a.overall_score : null) : null;
+    if (score != null) setOptMeta('results', score + '/100', 'complete');
+    else setOptMeta('results', '', '');
+  } catch(_){}
+  try {
+    const ts = STATE._optimizeAppliedAt;
+    if (ts) {
+      const dt = new Date(ts);
+      const isMobile = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+      const fmt = isMobile
+        ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        : 'Last run: ' + dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      setOptMeta('run', fmt, 'complete');
+    } else {
+      setOptMeta('run', '', '');
+    }
+  } catch(_){}
 
   // Match score card from analysisCache
   const mc = document.getElementById('opt-match-card');
@@ -4266,6 +4330,7 @@ function revertAllOptimizations(fromDrawer) {
   if (fromDrawer) closeOptimizeResult();
   showToast('Reverted all AI changes');
   try { STATE._optimizeApplied = false; } catch(_){}
+  try { STATE._optimizeAppliedAt = null; } catch(_){}
   try { markDirty(); } catch(_){}
   try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
 }
@@ -5672,6 +5737,8 @@ async function loadPlan(planId) {
     if (d.interviewPrep) { try { _interviewPrepCache = d.interviewPrep; } catch(_){} }
     // Restore optimization session (match score, accepted/discarded changes, revert baseline)
     STATE.optimizationSession = d.optimizationSession || null;
+    STATE._optimizeApplied = !!d.optimizeApplied;
+    STATE._optimizeAppliedAt = d.optimizeAppliedAt || null;
     setColor(STATE.color);
 
     // Populate form fields
@@ -5853,6 +5920,8 @@ async function savePlan() {
     analysisCacheKey: analysisCacheKey || '',
     interviewPrep: _interviewPrepCache || null,
     optimizationSession: STATE.optimizationSession || null,
+    optimizeApplied: !!STATE._optimizeApplied,
+    optimizeAppliedAt: STATE._optimizeAppliedAt || null,
     hasExported: !!STATE._hasExported,
     published: !!STATE._isPublished,
     previewMode: STATE._previewMode || 'web',
