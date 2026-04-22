@@ -529,7 +529,8 @@
   .acc-pct.partial{background:#FEF3C7;color:#92400E}
   /* ── Horizontal Top Stepper ── */
   /* ── Top Stepper (chevron, full-width primary navigation) ── */
-  .top-stepper{display:flex;align-items:stretch;gap:0;padding:14px 0 16px;margin:0 0 14px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity;border-bottom:1px solid #F1F5F9;width:100%}
+  .top-stepper{display:flex;align-items:stretch;gap:0;padding:14px 0 16px;margin:0 0 14px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity;border-bottom:1px solid #F1F5F9;width:100%;position:sticky;top:56px;z-index:20;background:#FAFBFC;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  @media (max-width:640px){ .top-stepper{top:48px;padding:8px 0 10px} }
   .top-stepper::-webkit-scrollbar{display:none}
   .top-stepper .ts-step{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:12px 26px 12px 32px;margin-right:-14px;background:#F8FAFC;border:none;cursor:pointer;font-family:inherit;font-size:0.88rem;line-height:1.2;color:#64748B;font-weight:600;white-space:normal;text-align:center;flex:1 1 0;min-width:0;min-height:64px;scroll-snap-align:start;transition:background 0.2s,color 0.2s,transform 0.15s;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 50%,calc(100% - 16px) 100%,0 100%,16px 50%)}
   .top-stepper .ts-step:first-child{clip-path:polygon(0 0,calc(100% - 16px) 0,100% 50%,calc(100% - 16px) 100%,0 100%);padding-left:22px}
@@ -1285,12 +1286,17 @@
               ondrop="event.preventDefault();this.classList.remove('dragover');handlePhotoDrop(event)"
               style="width:56px;height:56px;flex-shrink:0">
               <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="handlePhotoSelect(this)">
+              <input type="file" id="photo-input-camera" accept="image/*" capture="user" style="display:none" onchange="handlePhotoSelect(this)">
               <div id="photo-placeholder" class="text-center"><i data-lucide="camera" style="width:18px;height:18px;color:#9CA3AF"></i></div>
               <img id="photo-preview-img" class="hidden" src="" alt="Photo">
             </div>
             <div>
               <p class="text-xs font-semibold" style="color:#4B5563">Profile Photo <span class="font-normal" style="color:#9CA3AF">(optional)</span></p>
               <p class="text-[11px]" style="color:#9CA3AF">Click to add a photo. You can change shape &amp; size later in Build &amp; Style.</p>
+              <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <button type="button" class="text-[11px] font-semibold px-2 py-1 rounded border" style="border-color:#E5E7EB;color:#374151;background:#fff;cursor:pointer;min-height:28px;display:inline-flex;align-items:center;gap:4px" onclick="event.stopPropagation();document.getElementById('photo-input').click()" data-testid="photo-upload-btn"><i data-lucide="upload" style="width:11px;height:11px"></i> Upload</button>
+                <button type="button" class="text-[11px] font-semibold px-2 py-1 rounded border" style="border-color:#E5E7EB;color:#374151;background:#fff;cursor:pointer;min-height:28px;display:inline-flex;align-items:center;gap:4px" onclick="event.stopPropagation();openCameraCapture()" data-testid="photo-camera-btn"><i data-lucide="camera" style="width:11px;height:11px"></i> Take Photo</button>
+              </div>
               <!-- Hidden shape/size controls for compatibility -->
               <div style="display:none" data-testid="photo-shape-options">
                 <button type="button" class="photo-shape-btn active" onclick="setPhotoShape('circle',this)" data-testid="photo-shape-circle"></button>
@@ -1604,9 +1610,8 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-4 border-t" style="border-color:#E5E7EB">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-4 border-t" style="border-color:#E5E7EB">
         <button class="btn-secondary" style="min-height:44px;justify-content:center" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Target Role</button>
-        <button class="btn-primary" id="btn-generate" onclick="generatePlan()" data-testid="generate-btn" style="background:#059669;box-shadow:0 2px 8px rgba(5,150,105,0.3);min-height:44px;justify-content:center"><i data-lucide="sparkles" style="width:16px;height:16px"></i> Generate Plan</button>
         <button class="btn-primary" onclick="toggleAccordion(5)" style="background:#0F172A;min-height:44px;justify-content:center">Continue to Optimize <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
       </div>
       </div><!-- /bs-left -->
@@ -3503,6 +3508,15 @@ async function optimizeForJob() {
     if (jdField) { jdField.focus(); jdField.scrollIntoView({behavior:'smooth',block:'center'}); }
     return;
   }
+  // Guard: if a prior optimization has already been applied, confirm before running again.
+  // Running twice on the same resume can over-edit bullets and reset the baseline snapshot.
+  if (STATE.optimizationSession && STATE.optimizationSession.sessionId) {
+    const s = STATE.optimizationSession;
+    const prevScore = (s.improvedScore != null) ? s.improvedScore : (s.originalScore != null ? s.originalScore : null);
+    const scoreLine = prevScore != null ? ('\n\nCurrent match score: ' + prevScore + '/100.') : '';
+    const ok = confirm('You already ran "Optimize for This Role" on this resume.' + scoreLine + '\n\nRunning again will:\n  • Re-analyze against the current resume + job description\n  • Replace the previous optimization session\n  • Keep your current edits (the new baseline will be your current resume)\n\nContinue?');
+    if (!ok) return;
+  }
   // Ensure resume data exists. If user hasn't generated yet, build a minimal snapshot from form.
   if (!STATE.resumeData || (!STATE.resumeData.experience && !STATE.resumeData.summary)) {
     try { if (typeof collectResumeFromForm === 'function') { STATE.resumeData = collectResumeFromForm(); } } catch(_){}
@@ -3615,9 +3629,14 @@ async function optimizeForJob() {
       }
       analysisCache = merged;
       _needsReanalysis = false;
+      // Key the cache to the current resume+JD so analyzeResume() won't mistakenly overwrite
+      // this merged analysisCache with a stale pre-optimize version next time it runs.
+      try { analysisCacheKey = getAnalysisCacheKey(); } catch(_){}
     } catch(e) { console.warn('analysisCache sync after optimize failed:', e); }
     try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
     try { displayAnalysisResults && displayAnalysisResults(analysisCache, _interviewPrepCache); } catch(_){}
+    // Auto-open the full analysis drawer so interview prep / ATS / risks / fixes are visible.
+    try { openAnalysis && openAnalysis(); } catch(_){}
 
     // Update Match Score card
     const msCard = document.getElementById('rp-match-score');
@@ -5752,6 +5771,16 @@ function goToStepDirect(n) {
 // ============ Photo ============
 let cropperInstance = null;
 
+// Opens the device camera for a selfie. Falls back to regular file picker on desktops
+// without a camera or when the `capture` attribute isn't supported.
+function openCameraCapture() {
+  try {
+    const camInput = document.getElementById('photo-input-camera');
+    if (camInput) { camInput.value = ''; camInput.click(); return; }
+  } catch(_){}
+  try { document.getElementById('photo-input').click(); } catch(_){}
+}
+
 async function handlePhotoSelect(input) {
   if (!input.files[0]) return;
   await ensureLib('cropper');
@@ -5800,12 +5829,14 @@ function applyCrop() {
   cropperInstance.destroy(); cropperInstance = null;
   document.getElementById('crop-modal').classList.add('hidden');
   document.getElementById('photo-input').value = '';
+  const _cam = document.getElementById('photo-input-camera'); if (_cam) _cam.value = '';
 }
 
 function cancelCrop() {
   if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
   document.getElementById('crop-modal').classList.add('hidden');
   document.getElementById('photo-input').value = '';
+  const _cam2 = document.getElementById('photo-input-camera'); if (_cam2) _cam2.value = '';
   window._profileCropMode = false;
 }
 
