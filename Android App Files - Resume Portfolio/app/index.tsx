@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 
 // Finalize any in-flight auth session (needed after redirect back from
@@ -102,11 +103,25 @@ export default function Index() {
   // the already-initialized Firebase app. This avoids the WebView-hostile
   // signInWithPopup → signInWithRedirect fallback that triggers the
   // "missing initial state" error.
+  // Build the redirect URI explicitly so Google and the Android manifest
+  // intent-filter agree on the exact value. For Android Google OAuth clients
+  // the required form is:
+  //   com.googleusercontent.apps.<reversed-client-id>:/oauthredirect
+  // This is registered as a <intent-filter> scheme via app.json (the reversed
+  // client ID is the second entry in the scheme array). Without pinning the
+  // redirect URI here expo-auth-session can emit a proxy URL (auth.expo.io)
+  // in production builds, which Google rejects or sends to a dead web page.
+  const googleRedirectUri = AuthSession.makeRedirectUri({
+    native:
+      "com.googleusercontent.apps.834959161768-ktgisshuadkl9uvkta07pifp6dgfcbvn:/oauthredirect",
+  });
+
   const [, googleAuthResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
     clientId: GOOGLE_WEB_CLIENT_ID,
     ...(GOOGLE_ANDROID_CLIENT_ID
       ? { androidClientId: GOOGLE_ANDROID_CLIENT_ID }
       : {}),
+    redirectUri: googleRedirectUri,
   });
 
   useEffect(() => {
