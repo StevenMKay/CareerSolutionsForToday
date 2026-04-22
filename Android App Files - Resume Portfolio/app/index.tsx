@@ -279,16 +279,35 @@ export default function Index() {
                       (p.stack ? `\n${p.stack}` : "")
                   );
                 } else if (data && data.type === "google-signin-request") {
-                  // WebView asked us to run native Google auth.
-                  promptGoogleAsync().catch((err) => {
-                    // eslint-disable-next-line no-console
-                    console.warn("[RN-ERROR] google auth prompt failed", err);
-                    webviewRef.current?.injectJavaScript(
-                      `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
-                        (err && err.message) || "Google sign-in failed"
-                      )}); } catch(e){} true;`
-                    );
-                  });
+                  // WebView asked us to run native Google auth. Force Chrome
+                  // Custom Tabs so the Google OAuth redirect hands control
+                  // straight back to the app. If the user's default browser
+                  // is Edge/Samsung/Firefox those browsers treat the
+                  // returned com.googleusercontent.apps.*:/oauthredirect as
+                  // an "open external app" navigation (shows a confirmation
+                  // prompt and can strand the user on google.com). Chrome
+                  // Custom Tabs is the only browser that implements the
+                  // silent handoff spec.
+                  const launchWith = async (browserPackage?: string) => {
+                    try {
+                      return await promptGoogleAsync(
+                        browserPackage ? { browserPackage } : undefined
+                      );
+                    } catch (err) {
+                      throw err;
+                    }
+                  };
+                  launchWith("com.android.chrome")
+                    .catch(() => launchWith(undefined))
+                    .catch((err) => {
+                      // eslint-disable-next-line no-console
+                      console.warn("[RN-ERROR] google auth prompt failed", err);
+                      webviewRef.current?.injectJavaScript(
+                        `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
+                          (err && err.message) || "Google sign-in failed"
+                        )}); } catch(e){} true;`
+                      );
+                    });
                 }
               } catch (_) {
                 // Ignore non-JSON messages from the page.
