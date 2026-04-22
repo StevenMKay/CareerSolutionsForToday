@@ -12,11 +12,35 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+
+// Finalize any in-flight auth session (needed after redirect back from
+// Google). Safe to call unconditionally on every platform.
+WebBrowser.maybeCompleteAuthSession();
 
 const APP_URL = "https://careersolutionsfortoday.com/resumebuilder.html";
 
+// ---- Google OAuth client IDs -------------------------------------------------
+// WEB client ID: Firebase Web App → used to exchange the returned idToken
+// with Firebase Auth via GoogleAuthProvider.credential(idToken). This is the
+// same value already used by resumebuilder.html's web sign-in.
+const GOOGLE_WEB_CLIENT_ID =
+  "834959161768-k3ko0h4os7u1g8npd19uaf0e0gp8sftl.apps.googleusercontent.com";
+
+// ANDROID client ID: created automatically by Firebase after an SHA-1
+// fingerprint is registered on the Android app. Until the user registers both
+// the upload-key SHA-1 AND the Play-App-Signing SHA-1 in Firebase, this will
+// be an empty string and expo-auth-session falls back to webClientId only
+// (less seamless but still functional). Populate via EAS env var once
+// available — see .env.example.
+const GOOGLE_ANDROID_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "";
+
 // Hosts that must be opened in the system browser (not inside the WebView)
 // because OAuth / Checkout redirects don't work inside embedded WebViews.
+// NOTE: accounts.google.com stays here ONLY for the legacy web-popup
+// fallback. Native Google sign-in uses expo-auth-session (custom tab) and
+// completes entirely outside the WebView.
 const EXTERNAL_HOSTS = [
   "accounts.google.com",
   "checkout.stripe.com",
@@ -68,6 +92,60 @@ export default function Index() {
   const [error, setError] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // ----- Native Google sign-in -----------------------------------------------
+  // Uses expo-auth-session's Google provider. Returns an idToken we hand off
+  // to the WebView, which calls firebase.auth.signInWithCredential() against
+  // the already-initialized Firebase app. This avoids the WebView-hostile
+  // signInWithPopup → signInWithRedirect fallback that triggers the
+  // "missing initial state" error.
+  const [, googleAuthResponse, promptGoogleAsync] = Google.useIdTokenAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    ...(GOOGLE_ANDROID_CLIENT_ID
+      ? { androidClientId: GOOGLE_ANDROID_CLIENT_ID }
+      : {}),
+  });
+
+  useEffect(() => {
+    if (!googleAuthResponse) return;
+    if (googleAuthResponse.type === "success") {
+      const idToken = (googleAuthResponse.params as { id_token?: string })
+        ?.id_token;
+      if (idToken) {
+        // Deliver the token to the hosted web app. resumebuilder.html
+        // defines window.__handleNativeGoogleIdToken which completes the
+        // Firebase sign-in using GoogleAuthProvider.credential(idToken).
+        const js = `
+          try {
+            if (typeof window.__handleNativeGoogleIdToken === 'function') {
+              window.__handleNativeGoogleIdToken(${JSON.stringify(idToken)});
+            }
+          } catch (e) {}
+          true;
+        `;
+        webviewRef.current?.injectJavaScript(js);
+      } else {
+        webviewRef.current?.injectJavaScript(
+          `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, 'No idToken returned'); } catch(e){} true;`
+        );
+      }
+    } else if (
+      googleAuthResponse.type === "error" ||
+      googleAuthResponse.type === "cancel" ||
+      googleAuthResponse.type === "dismiss"
+    ) {
+      const errMsg =
+        googleAuthResponse.type === "error"
+          ? (googleAuthResponse as { error?: { message?: string } }).error
+              ?.message || "Google sign-in failed"
+          : "Google sign-in cancelled";
+      webviewRef.current?.injectJavaScript(
+        `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
+          errMsg
+        )}); } catch(e){} true;`
+      );
+    }
+  }, [googleAuthResponse]);
 
   // Safety net: hide loader after 6s even if onLoadEnd doesn't fire
   useEffect(() => {
@@ -182,6 +260,17 @@ export default function Index() {
                       (p.source ? ` @ ${p.source}:${p.lineno ?? "?"}:${p.colno ?? "?"}` : "") +
                       (p.stack ? `\n${p.stack}` : "")
                   );
+                } else if (data && data.type === "google-signin-request") {
+                  // WebView asked us to run native Google auth.
+                  promptGoogleAsync().catch((err) => {
+                    // eslint-disable-next-line no-console
+                    console.warn("[RN-ERROR] google auth prompt failed", err);
+                    webviewRef.current?.injectJavaScript(
+                      `try { window.__handleNativeGoogleIdToken && window.__handleNativeGoogleIdToken(null, ${JSON.stringify(
+                        (err && err.message) || "Google sign-in failed"
+                      )}); } catch(e){} true;`
+                    );
+                  });
                 }
               } catch (_) {
                 // Ignore non-JSON messages from the page.

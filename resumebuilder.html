@@ -5237,25 +5237,55 @@ function setAuthLoading(loading) {
 function signInWithGoogle() {
   // Google's OAuth flow requires a shared browser session to complete. Inside
   // the Android RN WebView that doesn't work: Google blocks OAuth in embedded
-  // WebViews entirely, and our wrapper routes accounts.google.com to the
-  // system browser — which has a separate sessionStorage, triggering
-  // Firebase's "missing initial state" error on return.
+  // WebViews entirely, and signInWithPopup silently falls back to
+  // signInWithRedirect which returns to the system browser (different
+  // sessionStorage) — producing Firebase's "missing initial state" error.
   //
-  // Until we ship native Google sign-in via expo-auth-session (returns an
-  // idToken we can feed to firebase.auth.GoogleAuthProvider.credential), gate
-  // the popup on web-only. Email + password sign-in works inside the app
-  // without any of these constraints.
+  // Inside the app we hand the flow off to native code (expo-auth-session),
+  // which opens Chrome Custom Tabs, returns an idToken, and calls
+  // window.__handleNativeGoogleIdToken() below. That function completes the
+  // Firebase sign-in using GoogleAuthProvider.credential(idToken).
   //
   // On the normal web (desktop + mobile browsers) isInAppWebView() is false
-  // and Google sign-in works exactly as before — zero behavior change there.
+  // and the signInWithPopup flow runs unchanged — zero behavior change there.
   if (isInAppWebView()) {
-    showToast('Google sign-in is coming to the app soon. For now please sign in with email & password below.');
+    try {
+      setAuthLoading(true);
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'google-signin-request' }));
+    } catch (err) {
+      setAuthLoading(false);
+      showToast('Google sign-in unavailable. Please use email & password.');
+    }
     return;
   }
   setAuthLoading(true);
   const provider = new firebase.auth.GoogleAuthProvider();
   auth.signInWithPopup(provider).catch(e => { showToast('Sign-in failed: ' + e.message); setAuthLoading(false); });
 }
+
+// Called by the RN wrapper (app/index.tsx) after native Google auth
+// completes. `idToken` is the Google-issued ID token; we exchange it for a
+// Firebase session via GoogleAuthProvider.credential(). If `errorMsg` is
+// truthy the native flow failed or was cancelled.
+window.__handleNativeGoogleIdToken = function(idToken, errorMsg) {
+  try {
+    if (errorMsg || !idToken) {
+      setAuthLoading(false);
+      showToast(errorMsg || 'Google sign-in was cancelled.');
+      return;
+    }
+    const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+    auth.signInWithCredential(credential)
+      .then(() => { /* onAuthStateChanged handles UI */ })
+      .catch((e) => {
+        setAuthLoading(false);
+        showToast('Sign-in failed: ' + (e && e.message ? e.message : 'unknown error'));
+      });
+  } catch (e) {
+    setAuthLoading(false);
+    showToast('Sign-in failed: ' + (e && e.message ? e.message : 'unknown error'));
+  }
+};
 
 // Returns true when the page is running inside the Career Resume Builder
 // Android WebView (as opposed to a normal browser). Two independent signals:
