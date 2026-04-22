@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5235,9 +5235,38 @@ function setAuthLoading(loading) {
 }
 
 function signInWithGoogle() {
+  // Google's OAuth flow requires a shared browser session to complete. Inside
+  // the Android RN WebView that doesn't work: Google blocks OAuth in embedded
+  // WebViews entirely, and our wrapper routes accounts.google.com to the
+  // system browser — which has a separate sessionStorage, triggering
+  // Firebase's "missing initial state" error on return.
+  //
+  // Until we ship native Google sign-in via expo-auth-session (returns an
+  // idToken we can feed to firebase.auth.GoogleAuthProvider.credential), gate
+  // the popup on web-only. Email + password sign-in works inside the app
+  // without any of these constraints.
+  //
+  // On the normal web (desktop + mobile browsers) isInAppWebView() is false
+  // and Google sign-in works exactly as before — zero behavior change there.
+  if (isInAppWebView()) {
+    showToast('Google sign-in is coming to the app soon. For now please sign in with email & password below.');
+    return;
+  }
   setAuthLoading(true);
   const provider = new firebase.auth.GoogleAuthProvider();
   auth.signInWithPopup(provider).catch(e => { showToast('Sign-in failed: ' + e.message); setAuthLoading(false); });
+}
+
+// Returns true when the page is running inside the Career Resume Builder
+// Android WebView (as opposed to a normal browser). Two independent signals:
+//   1. window.ReactNativeWebView is injected by react-native-webview
+//   2. Our RN wrapper appends "CareerResumeBuilder/1.0" to the UA string
+function isInAppWebView() {
+  try {
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) return true;
+    if (typeof navigator !== 'undefined' && /CareerResumeBuilder/i.test(navigator.userAgent || '')) return true;
+  } catch (_) {}
+  return false;
 }
 
 async function getSignInMethodsForEmailSafe(email) {
