@@ -529,8 +529,8 @@
   .acc-pct.partial{background:#FEF3C7;color:#92400E}
   /* ── Horizontal Top Stepper ── */
   /* ── Top Stepper (chevron, full-width primary navigation) ── */
-  .top-stepper{display:flex;align-items:stretch;gap:0;padding:0;margin:0 0 14px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity;width:100%;position:sticky;top:56px;z-index:20;background:transparent}
-  @media (max-width:640px){ .top-stepper{top:48px} }
+  .top-stepper{display:flex;align-items:stretch;gap:0;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity;position:sticky;top:56px;z-index:20;background:rgba(15,23,42,0.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.08);box-shadow:0 2px 10px rgba(0,0,0,0.25);width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);margin-top:-12px;margin-bottom:14px;padding:10px max(20px, calc(50vw - 550px)) 12px}
+  @media (max-width:640px){ .top-stepper{top:48px;padding:8px max(14px, calc(50vw - 550px)) 10px;margin-top:-12px;margin-bottom:10px} }
   .top-stepper::-webkit-scrollbar{display:none}
   .top-stepper .ts-step{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:12px 26px 12px 32px;margin-right:-14px;background:#F8FAFC;border:none;cursor:pointer;font-family:inherit;font-size:0.88rem;line-height:1.2;color:#64748B;font-weight:600;white-space:normal;text-align:center;flex:1 1 0;min-width:0;min-height:64px;scroll-snap-align:start;transition:background 0.2s,color 0.2s,transform 0.15s;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 50%,calc(100% - 16px) 100%,0 100%,16px 50%)}
   .top-stepper .ts-step:first-child{clip-path:polygon(0 0,calc(100% - 16px) 0,100% 50%,calc(100% - 16px) 100%,0 100%);padding-left:22px}
@@ -549,7 +549,7 @@
   .top-stepper .ts-pct{position:absolute;top:6px;right:32px;font-size:0.64rem;font-weight:700;color:inherit;background:rgba(255,255,255,0.3);padding:1px 7px;border-radius:999px;letter-spacing:0.02em;line-height:1.2;flex-shrink:0}
   .top-stepper .ts-step:not(.active):not(.done):not(.modified) .ts-pct{background:#fff;color:#94A3B8;border:1px solid #E2E8F0}
   @media(max-width:900px){
-    .top-stepper{gap:0;padding:0;overflow-x:auto;scroll-snap-type:x mandatory}
+    .top-stepper{gap:0;overflow-x:auto;scroll-snap-type:x mandatory}
     .top-stepper .ts-step{flex:0 0 130px;padding:10px 16px 10px 20px;font-size:0.74rem;margin-right:-10px;min-height:54px}
     .top-stepper .ts-step:first-child{padding-left:14px}
     .top-stepper .ts-dot{width:17px;height:17px;font-size:0.58rem;top:4px;left:20px}
@@ -557,7 +557,6 @@
     .top-stepper .ts-pct{top:4px;right:20px;font-size:0.56rem;padding:1px 5px}
   }
   @media(max-width:480px){
-    .top-stepper{padding:8px 0 10px;margin:0 0 10px}
     .top-stepper .ts-step{flex:0 0 112px;padding:9px 14px 9px 18px;min-height:50px;margin-right:-8px}
     .top-stepper .ts-step:first-child{padding-left:12px}
     .top-stepper .ts-dot{width:15px;height:15px;font-size:0.54rem;top:3px;left:16px;border-width:1px}
@@ -807,7 +806,7 @@
 </div>
 
 <!-- Builder -->
-<div id="builder-wrapper" class="hidden" style="flex:1;width:100%">
+<div id="builder-wrapper" class="hidden" style="flex:1;width:100%;overflow-x:clip">
   <!-- Mobile drawer toggles -->
   <button class="mobile-drawer-toggle" id="left-drawer-btn" style="left:12px;bottom:20px;background:#10B981;color:#fff" title="Sections & Resume Analysis" onclick="toggleLeftDrawer()"><i data-lucide="panel-left" style="width:16px;height:16px"></i></button>
   <div class="mobile-drawer-overlay" id="drawer-overlay" onclick="closeDrawers()"></div>
@@ -2536,6 +2535,91 @@ let analysisCache = null;
 let analysisCacheKey = null;
 let _preEnhanceGenerated = null;
 let _baselineMatchScore = null;
+
+// ============ AI Trace (console diagnostics) ============
+// Logs a clean, collapsible breakdown of every AI request: what was sent, what came back,
+// and — for optimize — the before/after scores + role being targeted.
+// Enable/disable at runtime: window.__AI_TRACE = true|false (default: true).
+// Quiet it with: localStorage.setItem('_aiTraceOff','1').
+window.__AI_TRACE = (localStorage.getItem('_aiTraceOff') !== '1');
+const _AIT_STYLES = {
+  hdr:   'color:#fff;background:linear-gradient(135deg,#6366F1,#8B5CF6);padding:2px 8px;border-radius:4px;font-weight:700',
+  send:  'color:#fff;background:#0EA5E9;padding:1px 6px;border-radius:3px;font-weight:700',
+  recv:  'color:#fff;background:#10B981;padding:1px 6px;border-radius:3px;font-weight:700',
+  err:   'color:#fff;background:#DC2626;padding:1px 6px;border-radius:3px;font-weight:700',
+  meta:  'color:#64748B',
+  score: 'color:#7C3AED;font-weight:700',
+  up:    'color:#059669;font-weight:700',
+  down:  'color:#DC2626;font-weight:700',
+  role:  'color:#0A2F6B;font-weight:700'
+};
+function _aitEnabled(){ return !!window.__AI_TRACE; }
+function _aitSummarizeResume(r){
+  if (!r || typeof r !== 'object') return null;
+  return {
+    name: r.name || '',
+    current_title: r.current_title || '',
+    summary_len: (r.summary||'').length,
+    experience_count: Array.isArray(r.experience) ? r.experience.length : 0,
+    skills_count: Array.isArray(r.skills) ? r.skills.length : 0,
+    education_count: Array.isArray(r.education) ? r.education.length : 0
+  };
+}
+function aiTraceSend(label, payload) {
+  if (!_aitEnabled()) return;
+  try {
+    const role = (payload && (payload.job_title || payload.jobTitle)) || (document.getElementById('job-title')?.value || '').trim() || '(none)';
+    const company = (payload && (payload.company)) || (document.getElementById('job-company')?.value || '').trim() || '';
+    const jd = (payload && (payload.job_description || payload.jobDescription || '')) || (document.getElementById('job-desc')?.value || '').trim() || '';
+    console.groupCollapsed('%cAI %c→ SEND %c' + label + '  %crole: ' + role + (company ? ' @ ' + company : ''),
+      _AIT_STYLES.hdr, _AIT_STYLES.send, 'color:#0F172A;font-weight:700', _AIT_STYLES.role);
+    console.log('%cTarget role:', _AIT_STYLES.meta, role + (company ? ' @ ' + company : ''));
+    console.log('%cJD length:', _AIT_STYLES.meta, jd ? jd.length + ' chars' : '(empty)');
+    if (jd) console.log('%cJD preview:', _AIT_STYLES.meta, jd.slice(0, 220) + (jd.length > 220 ? '…' : ''));
+    if (payload?.resume_data) console.log('%cResume summary:', _AIT_STYLES.meta, _aitSummarizeResume(payload.resume_data));
+    else if (payload?.resume_text) console.log('%cResume text length:', _AIT_STYLES.meta, payload.resume_text.length + ' chars');
+    console.log('%cFull payload:', _AIT_STYLES.meta, payload);
+    console.groupEnd();
+  } catch(e) { console.debug('[aiTraceSend] error:', e); }
+}
+function aiTraceReceive(label, data, extra) {
+  if (!_aitEnabled()) return;
+  try {
+    const a = data?.analysis || data || {};
+    const score = (a.resume_match_score != null) ? a.resume_match_score : (a.overall_score != null ? a.overall_score : null);
+    console.groupCollapsed('%cAI %c← RECV %c' + label + '  %cscore: ' + (score != null ? score + '/100' : 'n/a'),
+      _AIT_STYLES.hdr, _AIT_STYLES.recv, 'color:#0F172A;font-weight:700', _AIT_STYLES.score);
+    if (data?.original_score != null || data?.improved_score != null) {
+      const before = data.original_score, after = data.improved_score, delta = data.delta;
+      const arrow = (delta > 0) ? ' ▲ ' : (delta < 0 ? ' ▼ ' : ' = ');
+      const styleDelta = delta > 0 ? _AIT_STYLES.up : (delta < 0 ? _AIT_STYLES.down : _AIT_STYLES.meta);
+      console.log('%cBefore: %c' + before + '/100%c   After: %c' + after + '/100%c  %c' + arrow + 'Δ' + (delta != null ? (delta > 0 ? '+' : '') + delta : ''),
+        _AIT_STYLES.meta, _AIT_STYLES.score, _AIT_STYLES.meta, _AIT_STYLES.score, _AIT_STYLES.meta, styleDelta);
+      console.log('%cAccepted changes:', _AIT_STYLES.meta, (data.accepted_changes || []).length,
+        '%cDiscarded:', _AIT_STYLES.meta, (data.discarded_changes || []).length);
+      if (data.decision) console.log('%cDecision:', _AIT_STYLES.meta, data.decision);
+    }
+    if (a.score_breakdown) console.log('%cScore breakdown:', _AIT_STYLES.meta, a.score_breakdown);
+    if (Array.isArray(a.top_risks)) console.log('%cTop risks (' + a.top_risks.length + '):', _AIT_STYLES.meta, a.top_risks);
+    if (Array.isArray(a.top_fixes)) console.log('%cTop fixes (' + a.top_fixes.length + '):', _AIT_STYLES.meta, a.top_fixes);
+    if (data?.interview_prep) {
+      const ip = data.interview_prep;
+      console.log('%cInterview prep:', _AIT_STYLES.meta,
+        { likely: (ip.likely_questions||[]).length, high_risk: (ip.high_risk_questions||[]).length, high_impact: (ip.high_impact_questions||[]).length });
+    }
+    if (extra && typeof extra === 'object') console.log('%cExtra:', _AIT_STYLES.meta, extra);
+    console.log('%cFull response:', _AIT_STYLES.meta, data);
+    console.groupEnd();
+  } catch(e) { console.debug('[aiTraceReceive] error:', e); }
+}
+function aiTraceError(label, err, meta) {
+  if (!_aitEnabled()) return;
+  console.groupCollapsed('%cAI %c✕ ERROR %c' + label, _AIT_STYLES.hdr, _AIT_STYLES.err, 'color:#DC2626;font-weight:700');
+  console.error(err);
+  if (meta) console.log('%cMeta:', _AIT_STYLES.meta, meta);
+  console.groupEnd();
+}
+
 const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills','education','achievements','volunteering','leadership','success_criteria'];
 let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar' };
 
@@ -3606,22 +3690,27 @@ async function optimizeForJob() {
     try { await analyzeResume(); } catch(e) { console.warn('[optimize] pre-analyze failed (continuing):', e); }
 
     const baseline = __deepCloneResume(STATE.resumeData);
+    const _optPayload = {
+      resume_data: STATE.resumeData,
+      job_description: jd,
+      job_title: jobTitle,
+      company: company
+    };
+    aiTraceSend('POST /builder/optimize', _optPayload);
+    const _optT0 = performance.now();
     const resp = await fetch(API_BASE + '/builder/optimize', {
       method: 'POST',
       headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + idToken },
       signal: __optimizeAbortController.signal,
-      body: JSON.stringify({
-        resume_data: STATE.resumeData,
-        job_description: jd,
-        job_title: jobTitle,
-        company: company
-      })
+      body: JSON.stringify(_optPayload)
     });
     if (!resp.ok) {
       const errTxt = await resp.text().catch(()=>'');
+      aiTraceError('POST /builder/optimize', new Error('HTTP ' + resp.status + ' ' + errTxt.slice(0,200)), { role: jobTitle, company });
       throw new Error('Server error ' + resp.status + ' ' + errTxt.slice(0,200));
     }
     const data = await resp.json();
+    aiTraceReceive('POST /builder/optimize', data, { role: jobTitle, company, elapsed_ms: Math.round(performance.now() - _optT0) });
     if (!data || !data.success) throw new Error(data?.error || 'Unexpected response');
 
     // Apply accepted changes to STATE.resumeData
@@ -9586,18 +9675,24 @@ async function analyzeResume() {
     let data = null;
     try {
       const authHdrs = await getAuthHeaders({ 'Content-Type': 'application/json' });
+      const _anPayload = { resume_text: resumeText, job_description: jobDesc || '', job_title: _targetTitle, company: _targetCompany };
+      aiTraceSend('POST /builder/analyze-resume', _anPayload);
+      const _anT0 = performance.now();
       const resp2 = await fetch(API_BASE + '/builder/analyze-resume', {
         method: 'POST',
         headers: authHdrs,
-        body: JSON.stringify({ resume_text: resumeText, job_description: jobDesc || '', job_title: _targetTitle, company: _targetCompany })
+        body: JSON.stringify(_anPayload)
       });
       if (resp2.ok) {
         data = await resp2.json();
+        aiTraceReceive('POST /builder/analyze-resume', data, { role: _targetTitle, company: _targetCompany, elapsed_ms: Math.round(performance.now() - _anT0) });
       } else {
         console.debug('[analyze] v2 backend returned', resp2.status, '— falling back to legacy analyzer');
+        aiTraceError('POST /builder/analyze-resume', new Error('HTTP ' + resp2.status), { role: _targetTitle, company: _targetCompany });
       }
     } catch (e) {
       console.debug('[analyze] v2 backend failed, falling back:', e.message);
+      aiTraceError('POST /builder/analyze-resume', e, { role: _targetTitle, company: _targetCompany });
     }
     if (!data || !data.analysis) {
       const resp = await fetch(`${ANALYSIS_API}/api/analyze-resume`, { method: 'POST', body: formData });
