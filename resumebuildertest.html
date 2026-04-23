@@ -14316,7 +14316,7 @@ function openPrivacyForReview() {
 
   function render(){
     const step = STEPS[idx];
-    if (!step) return end(false);
+    if (!step) return end(true);
     const titleEl = document.getElementById('rb-tour-title');
     const bodyEl = document.getElementById('rb-tour-body');
     const labelEl = document.getElementById('rb-tour-step-label');
@@ -14335,7 +14335,7 @@ function openPrivacyForReview() {
   }
 
   function next(){
-    if (idx >= STEPS.length - 1){ return end(false); }
+    if (idx >= STEPS.length - 1){ return end(true); }
     idx += 1;
     render();
   }
@@ -14508,6 +14508,25 @@ function openPrivacyForReview() {
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+  function hasMeaningfulChanges(){
+    try {
+      const sess = (window.STATE && window.STATE.optimizationSession) || {};
+      const changes = Array.isArray(sess.acceptedChanges) ? sess.acceptedChanges : [];
+      if (!changes.length) return false;
+      // Count changes where original and improved actually differ in a non-trivial way.
+      const real = changes.filter(c => {
+        const o = (c && (c.original || c.before || '') || '').toString().trim();
+        const n = (c && (c.improved || c.after || '') || '').toString().trim();
+        if (!n) return false;
+        if (o === n) return false;
+        // Treat single-char whitespace/punct tweaks as non-meaningful.
+        if (Math.abs(n.length - o.length) < 3 && n.replace(/\s+/g,' ') === o.replace(/\s+/g,' ')) return false;
+        return true;
+      });
+      return real.length > 0;
+    } catch(_) { return false; }
+  }
+
   function renderSuggestionsInDrawer(){
     const drawer = document.getElementById('optimize-drawer-body');
     if (!drawer) return;
@@ -14585,6 +14604,8 @@ function openPrivacyForReview() {
     const drawer = document.getElementById('optimize-drawer-body');
     if (!drawer) return;
     if (drawer.querySelector('[data-rb-ba-cta]')) return;
+    // Only show CTA when there is real before/after content to compare.
+    if (!hasMeaningfulChanges()) return;
     // The action row has "Keep changes" + "Revert"; we append a full-width CTA above it.
     const actionRow = drawer.querySelector('[style*="display:flex"][style*="gap:8px"]');
     const scroll = drawer.querySelector('[style*="overflow-y"]') || drawer;
@@ -14696,7 +14717,8 @@ function openPrivacyForReview() {
       d.style.cssText = 'position:fixed;inset:0;z-index:10046;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px);animation:fadeIn .18s ease-out';
       const hasShare = !(typeof IS_ANDROID_APP !== 'undefined' && IS_ANDROID_APP);
       d.innerHTML =
-        '<div style="width:100%;max-width:440px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 25px 80px -10px rgba(15,23,42,0.45),0 0 0 1px rgba(255,255,255,0.08);animation:modalPopIn .22s cubic-bezier(.2,.9,.3,1.2)">' +
+        '<div style="width:100%;max-width:440px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 25px 80px -10px rgba(15,23,42,0.45),0 0 0 1px rgba(255,255,255,0.08);animation:modalPopIn .22s cubic-bezier(.2,.9,.3,1.2);position:relative">' +
+          '<button type="button" id="rb-exp-x" aria-label="Close" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:10px;background:#F8FAFC;border:1px solid #E2E8F0;color:#64748B;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;font-family:inherit;z-index:2">&times;</button>' +
           '<div style="padding:22px 22px 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #F1F5F9">' +
             '<div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#DCFCE7,#DBEAFE);display:flex;align-items:center;justify-content:center"><i data-lucide="check-circle-2" style="width:24px;height:24px;color:#16A34A"></i></div>' +
             '<div><div style="font-size:1.05rem;font-weight:800;color:#0F172A;letter-spacing:-.01em">Your resume is exported and ready</div><div style="font-size:0.76rem;color:#64748B;margin-top:2px">' + (fmt ? fmt + ' · ' : '') + (filename ? filename : 'Check your downloads') + '</div></div>' +
@@ -14710,16 +14732,23 @@ function openPrivacyForReview() {
           '</div>' +
           '<div style="padding:10px 22px 18px;display:flex;flex-direction:column;gap:8px">' +
             (hasShare ? '<button type="button" id="rb-exp-share" style="padding:11px 14px;border-radius:10px;border:none;background:linear-gradient(135deg,#0A2F6B,#005EB8);color:#fff;font-size:0.88rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px"><i data-lucide="share-2" style="width:15px;height:15px"></i> Share your resume link</button>' : '') +
-            '<div style="display:flex;gap:8px">' +
+            (hasShare ? '<div style="font-size:0.7rem;color:#94A3B8;text-align:center;margin-top:-2px">Optional — your file is already saved to your device.</div>' : '') +
+            '<div style="display:flex;gap:8px;margin-top:4px">' +
               '<button type="button" id="rb-exp-another" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid #E2E8F0;background:#fff;color:#475569;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit">Export another format</button>' +
-              '<button type="button" id="rb-exp-close" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid #E2E8F0;background:#F8FAFC;color:#475569;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit">Close</button>' +
+              '<button type="button" id="rb-exp-close" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid #E2E8F0;background:#F8FAFC;color:#475569;font-size:0.82rem;font-weight:700;cursor:pointer;font-family:inherit">Done</button>' +
             '</div>' +
           '</div>' +
         '</div>';
       document.body.appendChild(d);
       d.addEventListener('click', (e) => { if (e.target === d){ d.remove(); } });
       const byId = (id) => document.getElementById(id);
-      const _close = () => { try { d.remove(); } catch(_){} };
+      const _close = () => {
+        try { document.removeEventListener('keydown', _onKey); } catch(_){}
+        try { d.remove(); } catch(_){}
+      };
+      const _onKey = (e) => { if (e.key === 'Escape') _close(); };
+      document.addEventListener('keydown', _onKey);
+      byId('rb-exp-x') && byId('rb-exp-x').addEventListener('click', _close);
       byId('rb-exp-close') && byId('rb-exp-close').addEventListener('click', _close);
       byId('rb-exp-another') && byId('rb-exp-another').addEventListener('click', () => {
         _close();
