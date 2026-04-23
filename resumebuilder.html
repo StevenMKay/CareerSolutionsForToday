@@ -88,6 +88,15 @@
   /* Hide .show-in-app-only everywhere by default; reveal it only in the app. */
   .show-in-app-only { display: none !important; }
   html.in-app .show-in-app-only { display: revert !important; }
+  /* Google Play policy: no Stripe purchase UI inside the Android app.
+     Hide all monetization entry points when running in the app wrapper. */
+  html.in-app [data-testid="menu-view-plans"],
+  html.in-app [data-testid="menu-cancel-sub"],
+  html.in-app #menu-sub-btn,
+  html.in-app #paywall-upgrade-btn,
+  html.in-app #paywall-lifetime-btn,
+  html.in-app #paywall-modal .paywall-price-tag,
+  html.in-app #stripe-plan-box .paywall-price-cta { display: none !important; }
 </style>
 
 <script src="https://cdn.tailwindcss.com"></script>
@@ -2960,6 +2969,17 @@ let lifetimePurchased = false;
 // Stripe Payment Links (hosted Checkout). Price/trial configured in Stripe Dashboard.
 const STRIPE_MONTHLY_LINK = 'https://buy.stripe.com/5kQ8wQ2Gjcyt7D0bxS43S09';
 const STRIPE_LIFETIME_LINK = 'https://buy.stripe.com/6oUaEY0yb2XT6yW8lG43S0a';
+// Detect Android/app WebView (Google Play app wrapper). Play policy requires
+// digital-goods purchases inside the Android app to use Google Play Billing,
+// not Stripe. Until Play Billing is implemented, hide pricing UI inside the
+// app and direct users to the web to manage plans. This uses the same
+// detection as the .in-app CSS class set by the early inline script.
+const IS_ANDROID_APP = (function(){
+  try {
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) return true;
+    return /CareerResumeBuilder/i.test(navigator.userAgent || '');
+  } catch(e) { return false; }
+})();
 let subscriptionStateLoaded = false;
 let _resolveSubscriptionStateLoaded = null;
 let _subscriptionStateLoadedPromise = new Promise(resolve => { _resolveSubscriptionStateLoaded = resolve; });
@@ -7693,6 +7713,7 @@ async function deductAIUse() {
 }
 
 function showPaywall() {
+  if (IS_ANDROID_APP) { showAndroidWebPurchaseNotice(); return; }
   const modal = document.getElementById('paywall-modal');
   // Update current plan status banner
   let statusBanner = document.getElementById('paywall-plan-status');
@@ -8173,6 +8194,7 @@ function clearDiffHighlights() {
 }
 
 async function startCheckout() {
+  if (IS_ANDROID_APP) { showAndroidWebPurchaseNotice(); return; }
   if (!currentUser) { showToast('Please sign in first'); return; }
   if (lifetimePurchased) { showToast('You already have Lifetime access — no subscription needed.'); return; }
   const btn = document.getElementById('paywall-upgrade-btn');
@@ -8182,12 +8204,36 @@ async function startCheckout() {
 }
 
 async function startLifetimeCheckout() {
+  if (IS_ANDROID_APP) { showAndroidWebPurchaseNotice(); return; }
   if (!currentUser) { showToast('Please sign in first'); return; }
   if (lifetimePurchased) { showToast('You already have Lifetime access.'); return; }
   const btn = document.getElementById('paywall-lifetime-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting...'; }
   try { localStorage.setItem('_builderLifetimePending', String(Date.now())); } catch(e) {}
   window.location.href = buildStripeLink(STRIPE_LIFETIME_LINK);
+}
+
+// Shown inside the Android app when the user hits a paywall. We cannot process
+// payment inside the WebView (Google Play Billing policy), so we explain that
+// plans are managed on the website. No link is shown that would open the web
+// browser directly to a purchase page.
+function showAndroidWebPurchaseNotice() {
+  try {
+    const existing = document.getElementById('android-paywall-notice');
+    if (existing) { existing.style.display = 'flex'; return; }
+    const overlay = document.createElement('div');
+    overlay.id = 'android-paywall-notice';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;padding:1rem;';
+    overlay.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;padding:1.5rem;box-shadow:0 20px 40px rgba(0,0,0,0.25);text-align:center;font-family:inherit">'
+      + '<div style="width:56px;height:56px;border-radius:50%;background:#EFF6FF;display:inline-flex;align-items:center;justify-content:center;margin-bottom:0.75rem"><span style="font-size:28px">\u2139\uFE0F</span></div>'
+      + '<h3 style="margin:0 0 0.5rem;font-size:1.1rem;color:#0F172A">Plans are managed on the web</h3>'
+      + '<p style="margin:0 0 1.25rem;color:#475569;font-size:0.9rem;line-height:1.5">To view or manage your subscription, please sign in at <strong>careersolutionsfortoday.com</strong> on any web browser. All features you\'ve already unlocked will continue to work in this app.</p>'
+      + '<button id="android-paywall-close-btn" style="background:#2563EB;color:#fff;border:none;border-radius:8px;padding:0.6rem 1.25rem;font-weight:600;font-size:0.9rem;cursor:pointer">Got it</button>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    document.getElementById('android-paywall-close-btn').onclick = () => { overlay.style.display = 'none'; };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.style.display = 'none'; });
+  } catch(e) { alert('Please visit careersolutionsfortoday.com on the web to manage your plan.'); }
 }
 
 // Appends client_reference_id (Firebase UID) + prefilled_email to the Stripe
