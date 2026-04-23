@@ -1155,7 +1155,11 @@
         </div>
 
         <!-- 1. Personal Information -->
-        <div class="sub-acc" data-sub="contact">
+        <!-- NOTE: keep .open in sync on BOTH the wrapper (.sub-acc) and the
+             body (.sub-acc-body). toggleSubAcc reads state from the wrapper;
+             if only the body has .open, the first click will no-op because
+             the wrapper looks "closed" and needs two clicks to collapse. -->
+        <div class="sub-acc open" data-sub="contact">
           <button type="button" class="sub-acc-head" onclick="toggleSubAcc(this,true)">
             <span class="sub-acc-num"><i data-lucide="user" style="width:14px;height:14px"></i></span>
             <span class="sub-acc-title">Personal Information</span>
@@ -7480,9 +7484,13 @@ function toggleSubAcc(btn, exclusive) {
   // of sub-accordions at once across all steps.
   const acc = btn.closest('.sub-acc');
   if (!acc) return;
-  const willOpen = !acc.classList.contains('open');
-  acc.classList.toggle('open', willOpen);
   const body = acc.querySelector('.sub-acc-body');
+  // Treat "open" as true if EITHER the wrapper or the body already has .open.
+  // This prevents the "two clicks to collapse" bug that appears when markup
+  // has a mismatched initial state (e.g., body.open but wrapper without it).
+  const isOpen = acc.classList.contains('open') || (body && body.classList.contains('open'));
+  const willOpen = !isOpen;
+  acc.classList.toggle('open', willOpen);
   if (body) body.classList.toggle('open', willOpen);
   // Mark About Me as user-touched so smartExpandAboutMeSub stops auto-opening
   // sub-accs this session.
@@ -14282,7 +14290,10 @@ function openPrivacyForReview() {
   /* Onboarding refinement: softened backdrop blur (was 4px) and spotlight
      outer dim (was 0.58) so users can still see the UI behind. Mobile uses
      near-zero blur to prevent Android WebView jank. */
-  #rb-tour-backdrop{position:absolute;inset:0;background:rgba(15,23,42,0.42);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);animation:fadeIn .18s ease-out}
+  /* PATCH (walkthrough visibility fix): blur removed entirely + dim reduced
+     so users can SEE what the purple spotlight is pointing at. The
+     spotlight's own box-shadow already handles contrast. */
+  #rb-tour-backdrop{position:absolute;inset:0;background:rgba(15,23,42,0.28);backdrop-filter:none;-webkit-backdrop-filter:none;animation:fadeIn .18s ease-out}
   #rb-tour-spotlight{position:absolute;pointer-events:none;border-radius:14px;box-shadow:0 0 0 9999px rgba(15,23,42,0.38),0 0 0 3px rgba(124,58,237,0.85),0 8px 32px rgba(124,58,237,0.35);transition:all .28s cubic-bezier(.2,.9,.3,1.2);display:none}
   #rb-tour-card{position:absolute;width:340px;max-width:calc(100vw - 32px);background:#fff;border-radius:16px;box-shadow:0 25px 80px -10px rgba(15,23,42,0.45),0 0 0 1px rgba(255,255,255,0.08);animation:modalPopIn .22s cubic-bezier(.2,.9,.3,1.2);overflow:hidden}
   #rb-tour-card .rb-tour-head{padding:14px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #F1F5F9}
@@ -14305,7 +14316,8 @@ function openPrivacyForReview() {
     #rb-tour-card{left:12px!important;right:12px!important;bottom:12px!important;top:auto!important;width:auto;max-width:none}
     #rb-tour-spotlight{display:none!important}
     /* Near-zero blur on Android WebView / mobile Safari for perf + legibility. */
-    #rb-tour-backdrop{backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px)}
+    /* PATCH: remove mobile blur entirely (matches desktop). */
+    #rb-tour-backdrop{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(15,23,42,0.22)}
   }
   /* Post-optimize suggestions rail */
   .rb-sugg-rail{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
@@ -14438,30 +14450,57 @@ function openPrivacyForReview() {
       s.style.display = 'none';
       return;
     }
-    try {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } catch(_){}
-    const r = el.getBoundingClientRect();
-    const pad = 8;
-    // Spotlight
-    s.style.display = 'block';
-    s.style.left = (r.left - pad) + 'px';
-    s.style.top = (r.top - pad) + 'px';
-    s.style.width = (r.width + pad*2) + 'px';
-    s.style.height = (r.height + pad*2) + 'px';
-    // Card: prefer below; fall back to above if not enough space
-    const cw = c.offsetWidth || 340;
-    const ch = c.offsetHeight || 180;
-    const spaceBelow = window.innerHeight - (r.bottom + 14);
-    let top = r.bottom + 14;
-    if (spaceBelow < ch + 16) top = Math.max(16, r.top - ch - 14);
-    let left = r.left + r.width/2 - cw/2;
-    left = Math.max(16, Math.min(left, window.innerWidth - cw - 16));
-    top = Math.max(16, Math.min(top, window.innerHeight - ch - 16));
-    c.style.left = left + 'px';
-    c.style.top = top + 'px';
-    c.style.right = '';
-    c.style.bottom = '';
+    // PATCH (spotlight-accuracy fix): the previous version used
+    // `scrollIntoView({behavior:'smooth'})` immediately followed by
+    // `getBoundingClientRect()`. The smooth-scroll animation takes 300-500ms
+    // but the rect was read on the very next line, giving PRE-scroll coords
+    // and drawing the spotlight at the wrong place.
+    //
+    // New approach:
+    //   1. Instant scroll (auto) so coords are correct on the next paint.
+    //   2. Hide spotlight during transition to avoid a visible "jump".
+    //   3. Draw once on the next frame, then re-measure ~250ms later to
+    //      catch any residual accordion-expand animation.
+    //   4. Install a one-shot scroll/resize listener so if layout shifts
+    //      between frames, the spotlight follows the target.
+    try { el.scrollIntoView({ behavior: 'auto', block: 'center' }); } catch(_){}
+    const drawAt = () => {
+      const rr = el.getBoundingClientRect();
+      // Guard: if the element has zero size (still collapsing), centre-card
+      // fallback until it settles.
+      if (rr.width < 2 || rr.height < 2) {
+        s.style.display = 'none';
+        c.style.left = Math.max(16, (window.innerWidth - (c.offsetWidth||340)) / 2) + 'px';
+        c.style.top  = Math.max(16, (window.innerHeight - (c.offsetHeight||180)) / 2) + 'px';
+        return;
+      }
+      const pad = 8;
+      s.style.display = 'block';
+      s.style.left = (rr.left - pad) + 'px';
+      s.style.top  = (rr.top - pad) + 'px';
+      s.style.width  = (rr.width + pad*2) + 'px';
+      s.style.height = (rr.height + pad*2) + 'px';
+      const cw = c.offsetWidth || 340;
+      const ch = c.offsetHeight || 180;
+      const spaceBelow = window.innerHeight - (rr.bottom + 14);
+      let top = rr.bottom + 14;
+      if (spaceBelow < ch + 16) top = Math.max(16, rr.top - ch - 14);
+      let left = rr.left + rr.width/2 - cw/2;
+      left = Math.max(16, Math.min(left, window.innerWidth - cw - 16));
+      top  = Math.max(16, Math.min(top,  window.innerHeight - ch - 16));
+      c.style.left = left + 'px';
+      c.style.top  = top  + 'px';
+      c.style.right = '';
+      c.style.bottom = '';
+    };
+
+    // First paint — after layout settles from the scrollIntoView().
+    requestAnimationFrame(drawAt);
+    // Second paint — catches accordion expand / animated reveals
+    // (~300ms is typical for height-transition panels).
+    setTimeout(drawAt, 280);
+    // Third paint — final safety net for slow content (images loading etc.)
+    setTimeout(drawAt, 600);
   }
 
   function renderDots(){
@@ -14487,13 +14526,15 @@ function openPrivacyForReview() {
     renderDots();
     if (typeof step.action === 'function'){ try { step.action(); } catch(_){} }
     // Wait a frame so accordion open animations settle before we position.
-    // Extra 120ms handles the sub-acc expand transitions that can race the
-    // first rAF (Phase V fix for the previously broken step 4).
+    // PATCH: extended from 120ms to 250ms to reliably catch accordion
+    // height-transitions (typical ~300ms). Combined with position()'s
+    // triple-draw (frame / 280ms / 600ms), the spotlight will end up on
+    // the right element even when the panel is mid-expand.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       setTimeout(() => {
         const el = firstVisible(step.anchor || []);
         position(el);
-      }, 120);
+      }, 250);
     }));
   }
 
