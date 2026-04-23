@@ -11361,7 +11361,23 @@ function buildExportModel(opts) {
   };
 
   // ---- Normalized content ----
-  const summary = (enh && enh.summary) || base.summary || (generated.hero && generated.hero.tagline) || generated.executive_summary || '';
+  let summary = (enh && enh.summary) || base.summary || (generated.hero && generated.hero.tagline) || generated.executive_summary || '';
+  // Enforce 500-char recruiter spec at export time. Trims at last sentence
+  // boundary that fits; falls back to hard cut + ellipsis if no boundary.
+  // STATE fields are left untouched so the editor still shows the full text.
+  if (typeof summary === 'string' && summary.length > 500) {
+    const original = summary;
+    const slice = summary.slice(0, 500);
+    const lastStop = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+    summary = (lastStop > 200) ? slice.slice(0, lastStop + 1) : slice.replace(/\s+\S*$/, '') + '\u2026';
+    if (!STATE._summaryTrimWarned) {
+      STATE._summaryTrimWarned = true;
+      console.warn('[SUMMARY] Trimmed ' + original.length + ' \u2192 ' + summary.length + ' chars for export (500-char spec).');
+      try { if (typeof showToast === 'function') showToast('Summary trimmed to 500 chars for export. Edit the summary to keep your preferred version.', 'warning'); } catch(_){}
+    }
+  } else if (typeof summary === 'string' && summary.length <= 500) {
+    STATE._summaryTrimWarned = false;
+  }
   const experience = _normalizeExperience(pick('experience') || []);
   const skills = (pick('skills') || []).filter(Boolean);
   const education = _normalizeEducation(base.education || generated.education || []);
@@ -11421,23 +11437,9 @@ function buildExportModel(opts) {
     source: (STATE.useEnhanced && STATE.enhancedData) ? 'enhanced' : 'original'
   };
 
-  // Summary length guard — flag (but do not trim) summaries exceeding the
-  // 500-char spec. The backend caps new generations; this catches legacy
-  // cached summaries and manual edits so exports don't silently overflow.
-  try {
-    if (typeof summary === 'string' && summary.length > 500 && !STATE._summaryOverLimitWarned) {
-      STATE._summaryOverLimitWarned = true;
-      console.warn('[SUMMARY] ' + summary.length + ' chars — exceeds 500-char recruiter spec. Exports will paginate, but consider shortening.');
-      try {
-        if (typeof showToast === 'function') {
-          showToast('Summary is ' + summary.length + ' chars (max 500). Exports still work — shorten for best results.', 'warning');
-        }
-      } catch(_){}
-    }
-    if (typeof summary === 'string' && summary.length <= 500) {
-      STATE._summaryOverLimitWarned = false;
-    }
-  } catch(_){}
+  // Summary length guard — the actual trim happens earlier (before the model
+  // is assembled) so all exporters, previews, and validators see the same
+  // ≤500-char string. Nothing to do here.
 
   STATE._exportModelCache = model;
   STATE._exportModelDirty = false;
