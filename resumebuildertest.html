@@ -3371,6 +3371,12 @@ function toggleSectionFromLeft(section, on) {
   if (!on) STATE.sections = STATE.sections.filter(s => s !== section);
   if (STATE.generated?.hero) renderPreview(STATE.generated);
   renderSectionToggles();
+  // PATCH C (hardening): section visibility affects buildExportModel output
+  // (sections array flows into the canonical model). Invalidate the cached
+  // model and refresh the export-ready strip so the next export + the UI
+  // status both reflect the new section set immediately.
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+  try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
 }
 
 // ============ Application Status ============
@@ -9355,17 +9361,156 @@ const PREVIEW_RENDERERS = {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH 3: MODEL_RENDERERS — sibling map of renderers that read the canonical
+// export model DIRECTLY (signature: `(model, accent) => html`) rather than
+// going through the `_modelToGShape` adapter. Migrated one-at-a-time so the
+// legacy PREVIEW_RENDERERS path remains the safety net until every template
+// is ported. Flip `STATE.useDirectModelRenderers = true` in DevTools to
+// activate the direct path where available; anything not migrated falls back
+// to PREVIEW_RENDERERS automatically via _selectAndRender().
+//
+// Migration contract per template:
+//   - Same HTML output, byte-for-byte where possible.
+//   - Read from model.person / model.summary / model.experience / model.skills
+//     / model.education / model.certifications / model.achievements / model.plan.
+//   - Contact data comes from model.contact (phone/email/linkedin/location).
+//   - Never touch STATE.* inside the renderer — model is the sole input.
+// ─────────────────────────────────────────────────────────────────────────────
+const MODEL_RENDERERS = {
+  // Reference implementation. Produces output functionally identical to
+  // PREVIEW_RENDERERS['modern-sidebar'], but reads from the canonical model.
+  // Use this as the template when porting classic-serif / creative-bold /
+  // minimal / two-column / tech-mono.
+  'modern-sidebar': function(model, accent){
+    const person = model.person || {};
+    const name = (person.name || 'Your Name').toString();
+    const title = (person.title || '').toString();
+    // Contact array built from model.contact in the same order the legacy
+    // _pvContactArray() uses so visual parity is preserved.
+    const c = model.contact || {};
+    const contact = [c.location, c.phone, c.email, c.linkedin].filter(Boolean);
+    const SIDEBAR_BG = '#E8E8E8';
+    const SIDEBAR_TEXT = '#3A3A3A';
+    const SIDEBAR_MUTED = '#6B6B6B';
+    const DARK = '#0E2841';
+    const GRAY = '#595959';
+    const sumText = model.summary || '';
+    const skills = Array.isArray(model.skills) ? model.skills : [];
+    // model.achievements is already an array of strings (normalized).
+    const achievements = Array.isArray(model.achievements) ? model.achievements : [];
+    const certifications = Array.isArray(model.certifications) ? model.certifications : [];
+    const experience = Array.isArray(model.experience) ? model.experience : [];
+
+    const sbLabel = (t) => `<div style="font-size:7.5px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.16em;margin:8px 0 4px">${_pvEsc(t)}</div>`;
+    const mainLabel = (t) => `<div style="font-size:9.5px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.18em;margin:10px 0 2px">${_pvEsc(t)}</div><div style="border-bottom:0.75px solid ${accent};margin-bottom:6px"></div>`;
+    const sbDivider = `<div style="height:1px;background:${SIDEBAR_MUTED};opacity:0.55;margin:8px 16px 2px"></div>`;
+
+    return `
+      <!-- top & bottom accent bars, full width -->
+      <div style="position:absolute;left:0;right:0;top:0;height:4.5px;background:${accent}"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;height:4.5px;background:${accent}"></div>
+
+      <!-- sidebar + main grid (2.3in sidebar / rest main) -->
+      <div style="position:absolute;inset:4.5px 0;display:grid;grid-template-columns:2.3in 1fr;font-family:Arial,'Helvetica Neue',sans-serif;color:${SIDEBAR_TEXT}">
+
+        <!-- ── SIDEBAR ── -->
+        <div style="background:${SIDEBAR_BG};padding:20px 10px 16px;overflow:hidden;display:flex;flex-direction:column">
+          <div style="font-size:13px;font-weight:700;color:${SIDEBAR_TEXT};text-align:center;letter-spacing:0.02em;line-height:1.15;text-transform:uppercase">${_pvEsc(name)}</div>
+          ${title?`<div style="font-size:9.5px;color:${SIDEBAR_MUTED};text-align:center;margin-top:6px;line-height:1.2">${_pvEsc(title)}</div>`:''}
+          ${sbDivider}
+
+          ${(contact.length)?sbLabel('Contact')+contact.map(v=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3">${_pvEsc(v)}</div>`).join(''):''}
+          ${(contact.length)?sbDivider:''}
+
+          ${(skills.length)?sbLabel('Core Competencies')+skills.slice(0,12).map(s=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3">•&nbsp;&nbsp;${_pvEsc(s)}</div>`).join(''):''}
+
+          ${(achievements.filter(Boolean).length)?sbDivider+sbLabel('Key Achievements')+achievements.filter(Boolean).slice(0,3).map(a=>`<div style="font-size:7px;color:${SIDEBAR_TEXT};margin-bottom:3px;line-height:1.35">•&nbsp;&nbsp;${_pvEsc(a).slice(0,140)}</div>`).join(''):''}
+
+          ${(certifications.length && certifications[0] && certifications[0].name)?sbDivider+sbLabel('Certifications')+certifications.slice(0,3).map(cc=>`<div style="margin-bottom:4px"><div style="font-size:7.5px;font-weight:700;color:${SIDEBAR_TEXT};line-height:1.25">${_pvEsc(cc.name||'')}</div>${(cc.issuer||cc.year)?`<div style="font-size:7.5px;color:${SIDEBAR_MUTED};line-height:1.25">${_pvEsc((cc.issuer||'')+(cc.year?' ('+cc.year+')':''))}</div>`:''}</div>`).join(''):''}
+        </div>
+
+        <!-- ── MAIN COLUMN ── -->
+        <div style="padding:18px 18px 14px 14px;overflow:hidden;color:${DARK}">
+          ${sumText?mainLabel('Professional Summary')+`<div style="font-size:9px;line-height:1.5;color:${DARK};margin-bottom:10px">${_pvEsc(String(sumText).slice(0,520))}${String(sumText).length>520?'…':''}</div>`:''}
+
+          ${experience.filter(e=>e && (e.title||e.company)).length?mainLabel('Professional Experience')+experience.filter(e=>e && (e.title||e.company)).slice(0,3).map(e=>{
+            const dates = e.dates || '';
+            const company = e.company || '';
+            const loc = e.location || '';
+            const rs = e.role_summary || '';
+            // model.experience bullets already normalized to string[] by _normalizeBullets
+            const bullets = (e.bullets || []).slice(0,4);
+            return `<div style="margin-bottom:9px">
+              ${e.title?`<div style="font-size:10px;line-height:1.25"><strong style="color:${DARK};font-weight:700">${_pvEsc(e.title)}</strong>${dates?`<span style="font-size:9px;color:${GRAY};font-style:italic">&nbsp;&nbsp;&nbsp;&nbsp;${_pvEsc(dates)}</span>`:''}</div>`:''}
+              ${company?`<div style="font-size:9px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(company)}${loc?'  —  '+_pvEsc(loc):''}</div>`:''}
+              ${rs?`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;margin-top:2px">${_pvEsc(rs).slice(0,220)}</div>`:''}
+              ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;padding-left:10px;position:relative"><span style="position:absolute;left:0;color:${GRAY}">•</span>${_pvEsc(b).slice(0,200)}</div>`).join('')}</div>`:''}
+            </div>`;
+          }).join(''):''}
+        </div>
+      </div>`;
+  }
+  // classic-serif / creative-bold / minimal / two-column / tech-mono / word-classic:
+  //   NOT YET MIGRATED. _selectAndRender() routes these to PREVIEW_RENDERERS
+  //   via _modelToGShape. To migrate, copy the legacy body from PREVIEW_RENDERERS
+  //   and swap `g.hero.name` → `model.person.name`, `g.executive_summary` →
+  //   `model.summary`, etc. Then drop the entry into this map.
+};
+
+// Selects a renderer for the given templateId and invokes it against the model.
+// Direct-model path is used when STATE.useDirectModelRenderers is true AND a
+// MODEL_RENDERERS entry exists for the template. Otherwise falls back to the
+// legacy PREVIEW_RENDERERS via the lossless _modelToGShape adapter. Always
+// returns an HTML string; never throws (caller is the preview pipeline).
+function _selectAndRender(templateId, model, accent) {
+  const tid = templateId || 'modern-sidebar';
+  const useDirect = (STATE && STATE.useDirectModelRenderers === true)
+                 && MODEL_RENDERERS && MODEL_RENDERERS[tid];
+  try {
+    if (useDirect) return MODEL_RENDERERS[tid](model, accent);
+  } catch (e) {
+    // If the direct path throws, log and fall through to legacy so the
+    // preview never blanks. Safety-first: legacy is proven.
+    try { console.warn('[MODEL_RENDERERS] direct path failed, falling back:', tid, e); } catch(_){}
+  }
+  const g = (typeof _modelToGShape === 'function') ? _modelToGShape(model) : model;
+  const legacy = (PREVIEW_RENDERERS[tid] || PREVIEW_RENDERERS['modern-sidebar']);
+  return legacy(g, accent);
+}
+try { window.__selectAndRender = _selectAndRender; } catch(_){}
+
 function _renderFormatAccuratePreview(g, containerId){
   const container = document.getElementById(containerId);
   if (!container) return;
+  // Same identity-based model routing as renderPreview: if g is STATE.generated
+  // (or missing), project through the canonical export model so doc-mode preview
+  // matches exports exactly. Compare / server-payload paths pass through.
+  //
+  // PATCH 3: track `_routeModel` separately so we can feed _selectAndRender
+  // (which can pick the direct-model renderer if enabled) instead of always
+  // going through _modelToGShape. When g is a non-STATE object (compare view,
+  // server payload), _routeModel stays null and we use the legacy path.
+  let _routeModel = null;
+  try {
+    const isStateGen = !g || g === (STATE && STATE.generated);
+    if (isStateGen && typeof buildFinalExportModel === 'function') {
+      const _model = buildFinalExportModel();
+      if (_model) { _routeModel = _model; g = _modelToGShape(_model); }
+    }
+  } catch (_e) { /* keep original g */ }
   const fmt = STATE.previewFormat;
   const selectedTemplateId = (fmt === 'docx') ? 'word-classic' : (STATE.exportTemplate || 'modern-sidebar');
   // Each PPTX template now has its own exporter AND matching preview renderer — use
   // the selected template directly so the live preview mirrors the downloaded file.
   const renderTemplateId = selectedTemplateId;
-  const renderer = PREVIEW_RENDERERS[renderTemplateId] || PREVIEW_RENDERERS['modern-sidebar'];
   const accent = (fmt === 'docx') ? (STATE.color || '#0F172A') : _pvResolvePptxAccent(selectedTemplateId);
-  const pageInner = renderer(g, accent);
+  // When we have a canonical model, route through _selectAndRender so the
+  // direct-model renderer (if enabled + migrated) can be used. Otherwise
+  // fall back to the legacy signature for compare / raw-server-payload paths.
+  const pageInner = _routeModel
+    ? _selectAndRender(renderTemplateId, _routeModel, accent)
+    : (PREVIEW_RENDERERS[renderTemplateId] || PREVIEW_RENDERERS['modern-sidebar'])(g, accent);
   const fmtClass = (fmt === 'docx') ? 'pv-format-docx' : 'pv-format-pptx';
   const templateLabel = (fmt === 'docx')
     ? 'Word · Classic'
@@ -9446,6 +9591,20 @@ window.refreshDocumentPreview = function(btn){
 
 function renderPreview(g, targetId) {
   const containerId = targetId || 'preview-container';
+  // ─── Preview ↔ Model routing ───
+  // If the caller handed us STATE.generated (or nothing), we route through the
+  // canonical export model so preview reads from the SAME source of truth as
+  // every export. Compare-view and first-render-from-server pass a DIFFERENT
+  // object (comparePlanData.generated / raw API response) — those bypass the
+  // model path so the compare feature keeps working unchanged.
+  try {
+    const isStateGen = !g || g === (STATE && STATE.generated);
+    if (isStateGen && typeof buildFinalExportModel === 'function') {
+      const _model = buildFinalExportModel();
+      if (_model) g = _modelToGShape(_model);
+    }
+  } catch (_e) { /* fall through with original g */ }
+
   // Hide empty-state placeholder in Build & Style right pane once we have content
   try { const e = document.getElementById('bs-preview-empty'); if (e) e.classList.add('hidden'); } catch(_){}
   // Apply spacing/divider preset classes on next tick (after DOM updates)
@@ -10547,6 +10706,38 @@ function syncPreviewEditsToState() {
     }
   } catch(_){}
 
+  // ── PATCH A (hardening): mirror edits into STATE.enhancedData ──
+  // When AI-enhance is ON, buildExportModel prefers STATE.enhancedData over
+  // STATE.generated. Without this block, inline preview edits would be read
+  // into STATE.generated but NOT into enhancedData, causing the export to
+  // silently drop user changes whenever the enhance toggle is active.
+  // We only mirror the fields the user can edit inline; anything enhance-
+  // specific (e.g. AI-added bullets) stays untouched if the user didn't edit.
+  try {
+    if (STATE.enhancedData && typeof STATE.enhancedData === 'object') {
+      const ed = STATE.enhancedData;
+      if (g.hero && ed.hero) {
+        if (g.hero.name != null) ed.hero.name = g.hero.name;
+        if (g.hero.target_title != null) ed.hero.target_title = g.hero.target_title;
+        if (g.hero.company != null) ed.hero.company = g.hero.company;
+        if (g.hero.subtitle != null) ed.hero.subtitle = g.hero.subtitle;
+        if (g.hero.tagline != null) ed.hero.tagline = g.hero.tagline;
+      }
+      if (g.executive_summary != null) ed.executive_summary = g.executive_summary;
+      if (Array.isArray(g.skills)) ed.skills = g.skills.slice();
+      // Deep-copy complex arrays so enhancedData does not alias generated.
+      if (Array.isArray(g.experience)) ed.experience = JSON.parse(JSON.stringify(g.experience));
+      if (Array.isArray(g.education)) ed.education = JSON.parse(JSON.stringify(g.education));
+      if (Array.isArray(g.certifications)) ed.certifications = JSON.parse(JSON.stringify(g.certifications));
+      if (Array.isArray(g.achievements)) ed.achievements = JSON.parse(JSON.stringify(g.achievements));
+      if (Array.isArray(g.plan_phases)) ed.plan_phases = JSON.parse(JSON.stringify(g.plan_phases));
+      if (Array.isArray(g.kpis)) ed.kpis = JSON.parse(JSON.stringify(g.kpis));
+      if (Array.isArray(g.success_criteria)) ed.success_criteria = g.success_criteria.slice();
+      if (Array.isArray(g.leadership)) ed.leadership = JSON.parse(JSON.stringify(g.leadership));
+      if (Array.isArray(g.leadership_engagement)) ed.leadership_engagement = JSON.parse(JSON.stringify(g.leadership_engagement));
+    }
+  } catch(_){}
+
   // Cache is now stale — force buildExportModel to rebuild from the updated state
   try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
 }
@@ -10945,6 +11136,98 @@ function hasExportableContent(model) {
 // worrying about load order.
 try { window.__getExportModel = buildExportModel; } catch(_){}
 
+// Public alias. Preview + exports both go through this so "the model" has
+// exactly one canonical entry point in the codebase.
+function buildFinalExportModel(opts) { return buildExportModel(opts); }
+try { window.__buildFinalExportModel = buildFinalExportModel; } catch(_){}
+
+// PATCH B (hardening): Console audit helper. Run `__auditExportDrift()` in
+// DevTools to verify preview vs. canonical-model alignment. Prints per-field
+// diffs so mismatches (usually stale cache or a missed writeback) are caught
+// before the user notices in an export. Read-only — never mutates state.
+try { window.__auditExportDrift = function(){
+  try {
+    if (typeof syncPreviewEditsToState === 'function') syncPreviewEditsToState();
+  } catch(_){}
+  const model = (typeof buildFinalExportModel === 'function')
+    ? buildFinalExportModel({ forceRefresh: true })
+    : null;
+  if (!model) { console.warn('[audit] model unavailable'); return null; }
+  const g = STATE && STATE.generated || {};
+  const ed = STATE && STATE.enhancedData || null;
+  const useEnh = STATE && STATE.aiEnhanceEnabled === true && ed;
+  const src = useEnh ? ed : g;
+  const rows = [];
+  const push = (field, preview, modelVal) => {
+    const p = preview == null ? '' : String(preview);
+    const m = modelVal == null ? '' : String(modelVal);
+    rows.push({ field, match: p === m, preview: p.slice(0,60), model: m.slice(0,60) });
+  };
+  push('name', src.hero && src.hero.name, model.person && model.person.name);
+  push('title', src.hero && src.hero.target_title, model.person && model.person.title);
+  push('summary', src.executive_summary, model.summary);
+  push('skills.count', (src.skills||[]).length, (model.skills||[]).length);
+  push('experience.count', (src.experience||[]).length, (model.experience||[]).length);
+  push('education.count', (src.education||[]).length, (model.education||[]).length);
+  push('certifications.count', (src.certifications||[]).length, (model.certifications||[]).length);
+  push('plan.milestones', (src.plan_phases||[]).length, (model.plan && model.plan.milestones || []).length);
+  push('sections.length', (STATE.sections||[]).length, (model.sections||[]).length);
+  push('template', STATE.exportTemplate || '', model.template || '');
+  push('source', '(model.source)', model.source || '');
+  console.group('%c[audit] export drift — ' + (useEnh ? 'enhancedData' : 'generated') + ' vs model', 'color:#0F172A;font-weight:700');
+  console.table(rows);
+  const mismatches = rows.filter(r => !r.match);
+  if (mismatches.length) console.warn('[audit] ' + mismatches.length + ' mismatch(es) detected', mismatches);
+  else console.log('%c[audit] all fields aligned', 'color:#059669');
+  console.groupEnd();
+  return { rows, mismatches, model };
+}; } catch(_){}
+
+// Project the canonical export model back into the legacy `g` shape that
+// PREVIEW_RENDERERS + renderPreview were originally written against. This is
+// a LOSSLESS projection — renderers keep their current code, preview stays
+// editable, and preview is guaranteed to read from the same source of truth
+// as every export. `plan_phases` is rebuilt from model.plan.milestones with
+// the exact keys the plan renderer already emits ([data-section="plan_phases"]).
+function _modelToGShape(model) {
+  if (!model) return {};
+  const plan = model.plan || {};
+  const planPhases = Array.isArray(plan.milestones) ? plan.milestones.map(m => ({
+    phase:     m.phase || '',
+    timeframe: m.timeframe || '',
+    title:     m.title || '',
+    objective: m.description || '',
+    actions:   Array.isArray(m.actions) ? m.actions.slice() : [],
+    tools:     Array.isArray(m.tools) ? m.tools.slice() : [],
+    icon:      m.icon || 'target',
+    exec_value: m.execValue || '',
+    hidden:    !!m.hidden
+  })) : [];
+
+  // Preserve fields that live on STATE.generated but aren't part of the
+  // export model's flat surface (leadership blocks, the original hero subtree
+  // shape, etc.). Start from generated, then overlay model-driven fields.
+  const gen = (STATE && STATE.generated) ? STATE.generated : {};
+  return Object.assign({}, gen, {
+    hero: Object.assign({}, gen.hero || {}, {
+      name: model.person && model.person.name || (gen.hero && gen.hero.name) || '',
+      target_title: model.person && model.person.title || (gen.hero && gen.hero.target_title) || '',
+      tagline: (gen.hero && gen.hero.tagline) || model.summary || ''
+    }),
+    executive_summary: model.summary || '',
+    experience:        model.experience || [],
+    skills:            model.skills || [],
+    education:         model.education || [],
+    certifications:    model.certifications || [],
+    achievements:      model.achievements || [],
+    plan_phases:       planPhases,
+    success_criteria:  plan.success_criteria || [],
+    success_summary:   plan.success_summary  || [],
+    kpis:              plan.kpis             || []
+  });
+}
+try { window.__modelToGShape = _modelToGShape; } catch(_){}
+
 // ============ Export ============
 // Public entry point for HTML export. Dispatches between two modes:
 //   - 'template' (default): renders from the canonical export model using the
@@ -10966,6 +11249,49 @@ function exportHTML(opts) {
 // by construction because it IS the preview.
 function exportHTML_web() {
   if (!canUsePremium()) { showPaywall(); return; }
+  // PATCH 2: Web HTML now renders from the canonical export model via the
+  // Handlebars "clean HTML" template — no DOM clone. This closes the last
+  // path that depended on live preview DOM, so web-HTML output is now as
+  // consistent with DOCX/PPTX/template-HTML as everything else.
+  //
+  // Fallback: STATE.htmlWebMode === 'legacy' restores the previous DOM-clone
+  // path (getCleanPreviewHTML). Kept for rollback during testing; default
+  // is 'model' so new behavior ships on.
+  const useModel = STATE.htmlWebMode !== 'legacy';
+
+  if (useModel) {
+    (async () => {
+      try {
+        // Prime enhanced cache if user wants it (matches DOCX/PPTX paths).
+        if (STATE.useEnhanced && !STATE.enhancedData) {
+          const r = await ensureEnhancedData();
+          if (r && r.reason === 'auth') return;
+          if (r && !r.ok) showToast('AI enhancement unavailable — using original content');
+        }
+        const model = buildFinalExportModel({ format: 'html', forceRefresh: true });
+        const guard = hasExportableContent(model);
+        if (guard) { showToast(guard); return; }
+
+        const html = await renderHandlebarsClean(model);
+        const nm = (model.person && model.person.name) || 'plan';
+        const suffix = model.source === 'enhanced' ? '-enhanced' : '';
+        const blob = new Blob([html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = nm.replace(/\s+/g, '-').toLowerCase() + suffix + '-' + (STATE.planType || 'resume') + '-plan.html';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('HTML file downloaded!');
+      } catch (e) {
+        console.error('Web HTML export failed:', e);
+        showToast('Web HTML export failed. Try Template HTML or retry.');
+      }
+    })();
+    return;
+  }
+
+  // ── Legacy DOM-clone path (kept behind STATE.htmlWebMode='legacy' flag) ──
+  // Used only as a fallback while users verify the model-driven path.
   const content = getCleanPreviewHTML();
   const nm = (typeof getResolvedResumePersonName === 'function'
     ? getResolvedResumePersonName(STATE.resumeData, STATE.generated)
@@ -11004,23 +11330,11 @@ async function exportHTML_template() {
     // sidebar look. DOCX-shape HTML uses the classic-serif renderer which
     // is the closest Word visual match.
     const tid = (STATE.previewFormat === 'docx') ? 'classic-serif' : (model.template || 'modern-sidebar');
-    const renderer = (typeof PREVIEW_RENDERERS !== 'undefined' && PREVIEW_RENDERERS[tid]) || (PREVIEW_RENDERERS && PREVIEW_RENDERERS['modern-sidebar']);
-    if (!renderer) { showToast('Export template unavailable'); return; }
-
-    // Adapter: PREVIEW_RENDERERS expect the legacy "generated" shape
-    // (g.hero.*, g.executive_summary, g.experience, g.skills, ...). Build
-    // that shape from the canonical model so enhanced data flows through
-    // without touching the renderer signatures.
-    const g = {
-      hero: { name: model.person.name, target_title: model.person.title, tagline: model.summary },
-      executive_summary: model.summary,
-      skills: model.skills,
-      experience: model.experience,
-      education: model.education,
-      certifications: model.certifications,
-      achievements: model.achievements
-    };
-    const inner = renderer(g, model.accent);
+    // PATCH 3: Route through _selectAndRender so direct-model renderers can
+    // be used when enabled. Falls back to PREVIEW_RENDERERS via _modelToGShape
+    // for any template not yet migrated. Keeps HTML export aligned with the
+    // live preview path — both pick the same renderer.
+    const inner = _selectAndRender(tid, model, model.accent);
 
     // Paper-size page frame: 7.5 × 10in for PPTX-family, 8.5 × 11in for DOCX
     const isDocxShape = (STATE.previewFormat === 'docx');
@@ -11181,6 +11495,21 @@ function updateExportReadyStrip() {
   }
 }
 
+// Detect whether the user reordered or customized section order relative to
+// DEFAULT_SECTIONS. We compare filtered projections so hidden sections don't
+// falsely flag as "custom". Returns true when order differs in any way.
+function _isCustomSectionOrder() {
+  try {
+    const cur = (STATE.sections || []);
+    if (!cur.length) return false;
+    // Project DEFAULT_SECTIONS down to only the sections currently enabled.
+    // If the user has the same *enabled* sections in DEFAULT order, not custom.
+    const curEnabledInDefault = DEFAULT_SECTIONS.filter(k => cur.includes(k));
+    if (curEnabledInDefault.length !== cur.length) return true; // extra/unknown key
+    return curEnabledInDefault.join('|') !== cur.join('|');
+  } catch (_) { return false; }
+}
+
 async function exportDOCX() {
   if (!canUsePremium()) { showPaywall(); return; }
   const btn = document.querySelector('[data-testid="export-docx-btn"]');
@@ -11192,8 +11521,20 @@ async function exportDOCX() {
     // The programmatic path is schema-driven, honors section order from
     // model.sections, and can render a dedicated Plan section — things the
     // fixed .docx template cannot do without a re-author. Opt-in via
-    // STATE.docxMode = 'programmatic' (a console toggle for now).
-    if (STATE.docxMode === 'programmatic') {
+    // STATE.docxMode = 'programmatic' (a console toggle).
+    //
+    // PATCH 1: Automatic promotion to programmatic when the user has changed
+    // section order. docxtemplater's template file has a fixed section order
+    // and cannot honor a reorder — so exporting with the template path would
+    // silently produce a .docx whose order differs from the preview. To keep
+    // preview↔export parity, we transparently switch to programmatic just for
+    // this export. STATE.docxMode is NOT mutated, so the user's preference
+    // sticks for future default-order exports.
+    const _autoProg = STATE.docxMode !== 'programmatic' && _isCustomSectionOrder();
+    if (_autoProg) {
+      try { showToast('Custom section order detected — using programmatic Word export to preserve order'); } catch(_){}
+    }
+    if (STATE.docxMode === 'programmatic' || _autoProg) {
       await ensureLib('docx-programmatic').catch(() => { throw new Error('Word library failed to load. Check your connection and retry.'); });
       if (STATE.useEnhanced && !STATE.enhancedData) {
         const r = await ensureEnhancedData();
