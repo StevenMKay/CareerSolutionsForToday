@@ -3080,7 +3080,7 @@ function aiTraceError(label, err, meta) {
 }
 
 const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills','education','achievements','volunteering','leadership','success_criteria'];
-let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null };
 
 // ============ Rate Throttling (non-owner) ============
 const _throttle = { ai: [], page: [] };
@@ -5520,7 +5520,7 @@ auth.onAuthStateChanged(async user => {
     try { photoDataUrl = null; } catch(e) {}
     try { selectedFile = null; } catch(e) {}
     try {
-      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{}, exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{}, exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null };
     } catch(e) {}
     try { clearAnalysisUI(); } catch(e) {}
     // Hide any stale builder preview DOM from the prior user
@@ -5707,7 +5707,7 @@ auth.onAuthStateChanged(async user => {
     try { photoDataUrl = null; } catch(e) {}
     try { selectedFile = null; } catch(e) {}
     try {
-      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{}, exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{}, exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null };
     } catch(e) {}
     try { clearAnalysisUI(); } catch(e) {}
     document.getElementById('auth-gate').style.display = '';
@@ -5921,7 +5921,7 @@ function _doStartNewPlan() {
   selectedFile = null;
   // Wipe any stale analysis/right-panel UI from a prior plan or user
   clearAnalysisUI();
-  STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+  STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null };
   setColor('#005EB8');
   renderJobTracker();
   document.getElementById('resume-text').value = '';
@@ -6819,13 +6819,6 @@ function updateGeneratePreviewBtn() {
 function markDirty(options) {
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
-  // Any edit to the resume invalidates the cached export model so the next
-  // preview/export rebuild picks up the new data (inline edits, field changes,
-  // section toggles, etc.). Kept deliberately cheap — just sets a flag.
-  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
-  // Also refresh the export-ready strip so the stale-preview warning appears
-  // immediately when the user is looking at Step 5.
-  try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
   const badge = document.getElementById('version-bar-dirty');
   if (badge) badge.style.display = 'inline-block';
   const ibDirty = document.getElementById('info-bar-dirty');
@@ -10183,408 +10176,132 @@ function getCleanPreviewHTML() {
   return clone.innerHTML;
 }
 
-// ============ Export Model (single source of truth) ============
-// One canonical object that the live preview AND every exporter (HTML/DOCX/PPTX)
-// read from. Eliminates drift where the preview renders one thing and the
-// downloaded file contains another. Cached on STATE._exportModelCache and
-// invalidated via invalidateExportModel() on any data-affecting edit.
-//
-// Shape:
-//   {
-//     person:     { name, title, address },
-//     contact:    { phone, email, linkedin, github, website, twitter, location },
-//     summary:    string,
-//     experience: [{ title, company, location, dates, role_summary, bullets[] }],
-//     skills:     [string],
-//     education:  [{ degree, school, year }],
-//     certifications: [{ name, issuer, year }],
-//     achievements:   [string],
-//     sections:   [string]         // ordered, filtered
-//     template:   string           // selected export template id
-//     accent:     string           // #RRGGBB
-//     format:     'docx'|'pptx'|'html'   // current export target (for preview matching)
-//     source:     'original'|'enhanced'  // which content variant is active
-//   }
-
-function invalidateExportModel() {
-  try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
-}
-
-// Normalize a bullet list into plain strings. Some upstream paths store bullets
-// as {text} / {action}; the export must get a flat string[] every time.
-function _normalizeBullets(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(b => typeof b === 'string' ? b : ((b && (b.text || b.action)) || '')).filter(Boolean);
-}
-
-// Normalize an experience list so preview + all exporters read identical fields.
-function _normalizeExperience(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(e => ({
-    title: e.title || '',
-    company: e.company || '',
-    location: e.location || '',
-    dates: e.dates || e.timeframe || '',
-    role_summary: e.role_summary || '',
-    bullets: _normalizeBullets(e.bullets || e.actions || e.key_actions || [])
-  }));
-}
-function _normalizeEducation(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(e => ({ degree: e.degree || '', school: e.school || '', year: e.year || '' }));
-}
-function _normalizeCertifications(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(c => ({ name: c.name || '', issuer: c.issuer || '', year: c.year || '' }));
-}
-function _normalizeAchievements(arr) {
-  if (!Array.isArray(arr)) return [];
-  return arr.map(a => typeof a === 'string' ? a : ((a && a.title ? a.title : '') + (a && a.description ? ' — ' + a.description : ''))).filter(Boolean);
-}
-
-// Run AI enhancement ONCE per session and cache the response on STATE.
-// Subsequent calls return the cache instead of re-hitting the server.
-// Returns { ok:true, data } on success, { ok:false, reason } on failure.
-async function ensureEnhancedData() {
-  if (STATE.enhancedData) return { ok: true, data: STATE.enhancedData };
-  const base = STATE.resumeData || {};
-  try {
-    const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
-    const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
-    const res = await fetch(API_BASE + '/builder/enhance-resume', {
-      method: 'POST',
-      headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        experience: base.experience || [],
-        skills: base.skills || [],
-        summary: base.summary || '',
-        job_description: jobDesc,
-        job_title: jobTitle
-      })
-    });
-    if (res.status === 401 || res.status === 403) {
-      await handleBuilderResponse(res);
-      return { ok: false, reason: 'auth' };
-    }
-    if (!res.ok) return { ok: false, reason: 'http-' + res.status };
-    const json = await res.json();
-    STATE.enhancedData = json.enhanced_data || json;
-    invalidateExportModel();
-    return { ok: true, data: STATE.enhancedData };
-  } catch (e) {
-    return { ok: false, reason: 'network', error: e };
-  }
-}
-
-// Build (or return cached) canonical export model. Reads current STATE +
-// contact DOM inputs + enhanced cache when useEnhanced is on. Does NOT fetch
-// the enhanced data here — callers call ensureEnhancedData() first if they
-// want to guarantee the enhanced copy is present.
-function buildExportModel(opts) {
-  const o = opts || {};
-  if (!o.forceRefresh && STATE._exportModelCache && !STATE._exportModelDirty) {
-    return STATE._exportModelCache;
-  }
-
-  const base = STATE.resumeData || {};
-  const generated = STATE.generated || {};
-  // When AI-enhance is active AND we've already cached enhanced data, prefer
-  // enhanced fields over base. If enhance hasn't run yet, fall back silently
-  // to original (preview can still render).
-  const enh = (STATE.useEnhanced && STATE.enhancedData) ? STATE.enhancedData : null;
-  const pick = (key) => (enh && enh[key] != null ? enh[key] : (base[key] != null ? base[key] : (generated[key] != null ? generated[key] : undefined)));
-
-  // ---- Person + Contact ----
-  const name = (typeof getResolvedResumePersonName === 'function')
-    ? getResolvedResumePersonName(base, generated)
-    : (base.name || (generated.hero && generated.hero.name) || '');
-  const title = base.current_title || (generated.hero && generated.hero.target_title) || '';
-  const address = (typeof getContactLocation === 'function' ? getContactLocation() : '') || base.address || base.location || '';
-
-  const gv = (id) => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
-  const contact = {
-    phone:    gv('contact-phone')    || base.phone    || '',
-    email:    gv('contact-email')    || base.email    || '',
-    linkedin: gv('contact-linkedin') || base.linkedin || '',
-    github:   gv('contact-github')   || base.github   || '',
-    website:  gv('contact-website')  || base.website  || '',
-    twitter:  gv('contact-twitter')  || base.twitter  || '',
-    location: address
-  };
-
-  // ---- Normalized content ----
-  const summary = (enh && enh.summary) || base.summary || (generated.hero && generated.hero.tagline) || generated.executive_summary || '';
-  const experience = _normalizeExperience(pick('experience') || []);
-  const skills = (pick('skills') || []).filter(Boolean);
-  const education = _normalizeEducation(base.education || generated.education || []);
-  const certifications = _normalizeCertifications(base.certifications || generated.certifications || []);
-  const achievements = _normalizeAchievements(base.achievements || generated.achievements || []);
-
-  // ---- Template + Accent ----
-  const format = o.format || 'pptx';
-  let template = STATE.exportTemplate || 'modern-sidebar';
-  let accent;
-  if (format === 'docx') {
-    template = 'word-classic';
-    accent = STATE.color || '#0F172A';
-  } else if (format === 'html' && (STATE.htmlExportMode || 'template') === 'web') {
-    template = 'web-cards';
-    accent = STATE.color || '#005EB8';
-  } else {
-    // pptx or html-template both use the selected PPTX template
-    accent = (STATE.pptxColor && /^#[0-9A-Fa-f]{6}$/.test(STATE.pptxColor))
-      ? STATE.pptxColor
-      : ((typeof PPTX_TEMPLATES !== 'undefined' && (PPTX_TEMPLATES.find(t=>t.id===template)||{}).accent) || STATE.color || '#0B487A');
-  }
-
-  // ---- Sections (ordered + filtered per STATE.sections) ----
-  const sections = Array.isArray(STATE.sections) ? STATE.sections.slice() : [...DEFAULT_SECTIONS];
-
-  const model = {
-    person: { name, title, address },
-    contact,
-    summary,
-    experience,
-    skills,
-    education,
-    certifications,
-    achievements,
-    sections,
-    template,
-    accent,
-    format,
-    source: (STATE.useEnhanced && STATE.enhancedData) ? 'enhanced' : 'original'
-  };
-
-  STATE._exportModelCache = model;
-  STATE._exportModelDirty = false;
-  return model;
-}
-
-// Dev-only drift detector. Runs on localhost only so it's silent in production.
-// Pass in (a) the model that the preview rendered from, and (b) the model the
-// exporter is about to write. Logs mismatches as `[EXPORT-DRIFT]`.
-function validateExportModel(previewModel, exportModel) {
-  try {
-    if (!/localhost|127\.0\.0\.1/.test(location.hostname)) return;
-    if (!previewModel || !exportModel) return;
-    const keys = ['summary','template','accent','source'];
-    keys.forEach(k => {
-      if (JSON.stringify(previewModel[k]) !== JSON.stringify(exportModel[k])) {
-        // eslint-disable-next-line no-console
-        console.warn('[EXPORT-DRIFT] field mismatch:', k, { preview: previewModel[k], export: exportModel[k] });
-      }
-    });
-    if ((previewModel.experience||[]).length !== (exportModel.experience||[]).length) {
-      // eslint-disable-next-line no-console
-      console.warn('[EXPORT-DRIFT] experience count mismatch:', { preview: previewModel.experience.length, export: exportModel.experience.length });
-    }
-    if ((previewModel.sections||[]).join('|') !== (exportModel.sections||[]).join('|')) {
-      // eslint-disable-next-line no-console
-      console.warn('[EXPORT-DRIFT] sections order mismatch:', { preview: previewModel.sections, export: exportModel.sections });
-    }
-  } catch(_){}
-}
-
-// Content guard: block export when there's clearly nothing to write. Returns
-// null when OK, otherwise a user-facing error message.
-function hasExportableContent(model) {
-  if (!model) return 'No resume data available. Parse a resume first.';
-  const hasName = model.person && model.person.name;
-  const hasExp = (model.experience || []).some(e => e.title || e.company);
-  const hasSummary = (model.summary || '').trim().length > 0;
-  if (!hasName && !hasExp && !hasSummary) return 'Add at least a name and one experience entry before exporting.';
-  return null;
-}
-
-// Expose a getter for other code (preview renderers) to pull the model without
-// worrying about load order.
-try { window.__getExportModel = buildExportModel; } catch(_){}
-
 // ============ Export ============
-// Public entry point for HTML export. Dispatches between two modes:
-//   - 'template' (default): renders from the canonical export model using the
-//     currently selected PPTX/Word template shape, wrapped in a paper-sized
-//     page frame. Matches the downloaded DOCX/PPTX visually.
-//   - 'web': legacy interactive card view (clones #preview-container). Good
-//     for sharing in a browser but diverges from DOCX/PPTX.
-// Callers pick via STATE.htmlExportMode or runExport('html', { mode }).
-function exportHTML(opts) {
-  if (!canUsePremium()) { showPaywall(); return; }
-  const mode = (opts && opts.mode) || STATE.htmlExportMode || 'template';
-  if (mode === 'web') return exportHTML_web();
-  return exportHTML_template();
-}
-
-// Legacy HTML export: clones the live preview DOM. Kept for "Web HTML" mode —
-// the interactive browser-friendly variant that preserves hover/editable
-// styling. Does NOT go through the canonical export model; matches preview
-// by construction because it IS the preview.
-function exportHTML_web() {
+function exportHTML() {
   if (!canUsePremium()) { showPaywall(); return; }
   const content = getCleanPreviewHTML();
-  const nm = (typeof getResolvedResumePersonName === 'function'
-    ? getResolvedResumePersonName(STATE.resumeData, STATE.generated)
-    : '') || (STATE.generated && STATE.generated.hero && STATE.generated.hero.name) || 'plan';
-  const suffix = STATE.useEnhanced && STATE.enhancedData ? '-enhanced' : '';
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${nm} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"><\/script><style>body{font-family:'Manrope',sans-serif;background:#F8F9FB;color:#0A0A0A;margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}.card{background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.5rem}.editable:hover{outline:none}.editable:focus{outline:none}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div><script>lucide.createIcons();<\/script></body></html>`;
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>${STATE.generated.hero?.name || 'Plan'} — ${STATE.planType} Plan</title><script src="https://cdn.tailwindcss.com"><\/script><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"><script src="https://unpkg.com/lucide@latest"><\/script><style>body{font-family:'Manrope',sans-serif;background:#F8F9FB;color:#0A0A0A;margin:0;padding:2rem}h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}.card{background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:1.5rem}.editable:hover{outline:none}.editable:focus{outline:none}</style></head><body><div class="max-w-4xl mx-auto space-y-6">${content}</div><script>lucide.createIcons();<\/script></body></html>`;
   const blob = new Blob([html], { type: 'text/html' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = nm.replace(/\s+/g, '-').toLowerCase() + suffix + '-' + STATE.planType + '-plan.html';
+  a.download = (getResolvedResumePersonName(STATE.resumeData, STATE.generated) || STATE.generated.hero?.name || 'plan').replace(/\s+/g, '-').toLowerCase() + '-' + STATE.planType + '-plan.html';
   a.click();
   showToast('HTML file downloaded!');
 }
 
-// Template HTML export: renders from the canonical export model using the
-// same PREVIEW_RENDERERS block that drives the format-accurate live preview,
-// wrapped in a paper-sized page frame. This is the "what you see is what
-// you get" HTML path — identical layout to the selected Word/PowerPoint
-// template.
-async function exportHTML_template() {
-  if (!canUsePremium()) { showPaywall(); return; }
-  try {
-    // Prime enhanced data if user asked for it
-    if (STATE.useEnhanced && !STATE.enhancedData) {
-      const r = await ensureEnhancedData();
-      if (!r.ok && r.reason !== 'auth') {
-        showToast('AI enhancement unavailable — using original content');
-      }
-    }
-    const model = buildExportModel({ format: 'html', forceRefresh: true });
-    const guard = hasExportableContent(model);
-    if (guard) { showToast(guard); return; }
-
-    // Pick the renderer: template-HTML uses PPTX-shape renderers when the
-    // user has selected a PPTX template; otherwise fall back to the modern
-    // sidebar look. DOCX-shape HTML uses the classic-serif renderer which
-    // is the closest Word visual match.
-    const tid = (STATE.previewFormat === 'docx') ? 'classic-serif' : (model.template || 'modern-sidebar');
-    const renderer = (typeof PREVIEW_RENDERERS !== 'undefined' && PREVIEW_RENDERERS[tid]) || (PREVIEW_RENDERERS && PREVIEW_RENDERERS['modern-sidebar']);
-    if (!renderer) { showToast('Export template unavailable'); return; }
-
-    // Adapter: PREVIEW_RENDERERS expect the legacy "generated" shape
-    // (g.hero.*, g.executive_summary, g.experience, g.skills, ...). Build
-    // that shape from the canonical model so enhanced data flows through
-    // without touching the renderer signatures.
-    const g = {
-      hero: { name: model.person.name, target_title: model.person.title, tagline: model.summary },
-      executive_summary: model.summary,
-      skills: model.skills,
-      experience: model.experience,
-      education: model.education,
-      certifications: model.certifications,
-      achievements: model.achievements
-    };
-    const inner = renderer(g, model.accent);
-
-    // Paper-size page frame: 7.5 × 10in for PPTX-family, 8.5 × 11in for DOCX
-    const isDocxShape = (STATE.previewFormat === 'docx');
-    const pageW = isDocxShape ? '8.5in' : '7.5in';
-    const pageH = isDocxShape ? '11in'  : '10in';
-
-    const title = (model.person.name || 'Resume') + ' — ' + (model.person.title || 'Resume');
-    const suffix = model.source === 'enhanced' ? '-enhanced' : '';
-    const filename = (model.person.name || 'resume').replace(/\s+/g,'-').toLowerCase() + suffix + '-resume.html';
-
-    const html = `<!DOCTYPE html>
-<html lang="en"><head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>${_pvEsc(title)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #E5E7EB; }
-  body { font-family: 'Manrope', 'Arial', sans-serif; color: #0A0A0A; padding: 24px 16px; }
-  .pv-page { position: relative; width: ${pageW}; height: ${pageH}; background: #fff; margin: 0 auto 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; page-break-after: always; }
-  @media print {
-    body { background: #fff; padding: 0; }
-    .pv-page { box-shadow: none; margin: 0; }
-    @page { size: ${pageW} ${pageH}; margin: 0; }
-  }
-</style>
-</head><body>
-  <div class="pv-page">${inner}</div>
-</body></html>`;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    showToast('HTML file downloaded!');
-  } catch (e) {
-    console.error('Template HTML export error:', e);
-    showToast('HTML export failed: ' + (e.message || 'unknown error'));
-  }
-}
-
 async function exportDOCX() {
   if (!canUsePremium()) { showPaywall(); return; }
+  if (!STATE.resumeData && !STATE.generated) {
+    showToast('No resume data available. Parse a resume first.');
+    return;
+  }
   const btn = document.querySelector('[data-testid="export-docx-btn"]');
-  const origHTML = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = 'Preparing Word document…'; }
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Exporting...';
 
   try {
-    await ensureLib('docx').catch(() => { throw new Error('Word library failed to load. Check your connection and retry.'); });
+    await ensureLib('docx');
+    // Decide data source: original resume data or AI-enhanced
+    let resumeData = STATE.resumeData || {};
+    const generated = STATE.generated || {};
+    const aiEnhance = document.getElementById('ai-enhance-toggle')?.checked;
 
-    // Prime AI-enhanced content once (cached). Preview + PPTX + HTML share the
-    // same cache so the downloaded doc matches what the user saw on screen.
-    if (STATE.useEnhanced && !STATE.enhancedData) {
-      const r = await ensureEnhancedData();
-      if (r.reason === 'auth') return;
-      if (!r.ok) showToast('AI enhancement unavailable — using original content');
+    if (aiEnhance) {
+      try {
+        const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
+        const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
+        const res = await fetch(API_BASE + '/builder/enhance-resume', {
+          method: 'POST',
+          headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            experience: resumeData.experience || [],
+            skills: resumeData.skills || [],
+            summary: resumeData.summary || '',
+            job_description: jobDesc,
+            job_title: jobTitle
+          })
+        });
+        if (res.status === 401 || res.status === 403) {
+          await handleBuilderResponse(res);
+          return;
+        }
+        if (res.ok) {
+          const enhanced = await res.json();
+          resumeData = { ...resumeData, ...enhanced.enhanced_data };
+        } else {
+          showToast('AI enhancement failed — using original data');
+        }
+      } catch (e) {
+        showToast('AI enhancement failed — using original data');
+      }
     }
-
-    const model = buildExportModel({ format: 'docx', forceRefresh: true });
-    const guard = hasExportableContent(model);
-    if (guard) { showToast(guard); return; }
-
-    // Honor section visibility by emitting empty arrays/strings for hidden
-    // sections so the .docx template's loops collapse to nothing. Section
-    // ORDER inside the .docx is fixed by the template file (short-term
-    // limitation — planned programmatic `docx` library migration will fix).
-    const showSec = (k) => !model.sections.length || model.sections.includes(k);
-    const experience = showSec('experience') ? model.experience : [];
-    const skills = showSec('skills') ? model.skills : [];
-    const education = showSec('education') ? model.education.map(e => ({
-      degree: e.degree, year: e.year, school: e.school
-    })) : [];
-    const certifications = showSec('education') ? model.certifications.map(c => ({
-      cert_name: c.name, cert_date: c.year, cert_issuer: c.issuer
-    })) : [];
 
     // Fetch the template
     const templateResp = await fetch('resume-template.docx');
     if (!templateResp.ok) throw new Error('Could not load resume template file (HTTP ' + templateResp.status + ')');
     const templateArrayBuffer = await templateResp.arrayBuffer();
-    const zip = new PizZip(templateArrayBuffer);
-    const doc = new window.docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
-    // 3-column skill split for the template's skills table
+    // Load into PizZip and docxtemplater
+    const zip = new PizZip(templateArrayBuffer);
+    const doc = new window.docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+    });
+
+    // Build data from resume data + contact fields
+    const contactPhone = document.getElementById('contact-phone')?.value || resumeData.phone || '';
+    const contactEmail = document.getElementById('contact-email')?.value || resumeData.email || '';
+    const name = getResolvedResumePersonName(resumeData, generated);
+    const address = getContactLocation() || resumeData.address || '';
+
+    // Build experience array
+    const experience = (resumeData.experience || generated.experience || []).map(e => ({
+      company: e.company || '',
+      location: e.location || '',
+      title: e.title || '',
+      dates: e.dates || e.timeframe || '',
+      role_summary: e.role_summary || '',
+      bullets: (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || ''))
+    }));
+
+    // Build skills array (flat strings for the loop)
+    const skills = resumeData.skills || generated.skills || [];
+
+    // Build education array
+    const education = (resumeData.education || generated.education || []).map(e => ({
+      degree: e.degree || '',
+      year: e.year || '',
+      school: e.school || ''
+    }));
+
+    // Build certifications array
+    const certifications = (resumeData.certifications || []).map(c => ({
+      cert_name: c.name || '',
+      cert_date: c.year || '',
+      cert_issuer: c.issuer || ''
+    }));
+
+    // Split skills into 3 columns for DOCX table layout
+    // Column 1 gets skills 0,3,6... Column 2 gets 1,4,7... Column 3 gets 2,5,8...
     const skillCol1 = skills.filter((_, i) => i % 3 === 0).map(s => '• ' + s).join('\n');
     const skillCol2 = skills.filter((_, i) => i % 3 === 1).map(s => '• ' + s).join('\n');
     const skillCol3 = skills.filter((_, i) => i % 3 === 2).map(s => '• ' + s).join('\n');
 
     const data = {
-      name: (model.person.name || '').toUpperCase(),
-      address_line_1: model.contact.location || '',
+      name: name.toUpperCase(),
+      address_line_1: address,
       address_line_2: '',
-      phone: model.contact.phone || '',
-      email: model.contact.email || '',
-      summary: showSec('executive_summary') ? (model.summary || '') : '',
+      phone: contactPhone,
+      email: contactEmail,
+      summary: resumeData.summary || generated.executive_summary || '',
       skills: skills,
       skillCol1: skillCol1,
       skillCol2: skillCol2,
       skillCol3: skillCol3,
       experience: experience,
       education: education,
-      certifications: certifications,
-      // Order hint for future template hooks — not consumed by current .docx,
-      // but exposed so the template can start honoring it without code changes.
-      sectionOrder: model.sections.join('|')
+      certifications: certifications
     };
 
     doc.render(data);
@@ -10594,23 +10311,19 @@ async function exportDOCX() {
       mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     });
 
-    const suffix = model.source === 'enhanced' ? '-enhanced' : '';
+    // Trigger download
     const a = document.createElement('a');
     a.href = URL.createObjectURL(out);
-    a.download = (model.person.name || 'resume').replace(/\s+/g, '-').toLowerCase() + suffix + '-resume.docx';
+    a.download = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.docx';
     a.click();
     URL.revokeObjectURL(a.href);
     showToast('Word document downloaded!');
-    STATE._hasExported = true;
-    try { updateStepDots && updateStepDots(); } catch(_){}
   } catch (e) {
     console.error('DOCX export error:', e);
-    const msg = /template/i.test(String(e.message||'')) ? e.message
-      : (/library/i.test(String(e.message||'')) ? e.message
-      : 'Word export failed. Try again or export as HTML.');
-    showToast(msg);
+    showToast('Error generating Word document: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
     lucide.createIcons();
   }
 }
@@ -10657,43 +10370,90 @@ async function importLinkedInJob() {
 // ============ PPTX Export (Modern Resume Template) ============
 async function exportPPTX() {
   if (!canUsePremium()) { showPaywall(); return; }
+  if (!STATE.resumeData && !STATE.generated) {
+    showToast('No resume data available. Parse a resume first.');
+    return;
+  }
   const btn = document.querySelector('[data-testid="export-pptx-btn"]');
   const origHTML = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = 'Preparing PowerPoint…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Exporting...'; }
 
   try {
-    await ensureLib('pptx').catch(() => { throw new Error('PowerPoint library failed to load. Check your connection and retry.'); });
+    await ensureLib('pptx');
+    // Decide data source: original resume data or AI-enhanced (mirrors DOCX flow)
+    let resumeData = STATE.resumeData || {};
+    const generated = STATE.generated || {};
+    const aiEnhance = document.getElementById('ai-enhance-toggle')?.checked;
 
-    // Prime AI-enhanced content once (cached). Preview + DOCX + HTML share
-    // the same cache so the downloaded deck matches what the user saw.
-    if (STATE.useEnhanced && !STATE.enhancedData) {
-      const r = await ensureEnhancedData();
-      if (r.reason === 'auth') return;
-      if (!r.ok) showToast('AI enhancement unavailable — using original content');
+    if (aiEnhance) {
+      try {
+        const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
+        const jobTitle = document.getElementById('job-title')?.value?.trim() || '';
+        const res = await fetch(API_BASE + '/builder/enhance-resume', {
+          method: 'POST',
+          headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            experience: resumeData.experience || [],
+            skills: resumeData.skills || [],
+            summary: resumeData.summary || '',
+            job_description: jobDesc,
+            job_title: jobTitle
+          })
+        });
+        if (res.status === 401 || res.status === 403) {
+          await handleBuilderResponse(res);
+          return;
+        }
+        if (res.ok) {
+          const enhanced = await res.json();
+          resumeData = { ...resumeData, ...enhanced.enhanced_data };
+        } else {
+          showToast('AI enhancement failed — using original data');
+        }
+      } catch (e) {
+        showToast('AI enhancement failed — using original data');
+      }
     }
 
-    const model = buildExportModel({ format: 'pptx', forceRefresh: true });
-    const guard = hasExportableContent(model);
-    if (guard) { showToast(guard); return; }
+    // Build data from resumeData first, generated as fallback (mirrors DOCX)
+    const name = getResolvedResumePersonName(resumeData, generated);
+    const phone = document.getElementById('contact-phone')?.value || resumeData.phone || '';
+    const email = document.getElementById('contact-email')?.value || resumeData.email || '';
+    const address = getContactLocation() || resumeData.address || resumeData.location || '';
+    const linkedin = document.getElementById('contact-linkedin')?.value || resumeData.linkedin || '';
+    const currentTitle = resumeData.current_title || generated.hero?.target_title || '';
+    const summary = generated.hero?.tagline || resumeData.summary || generated.executive_summary || '';
+    const skills = resumeData.skills || generated.skills || [];
+    const experiences = (resumeData.experience || generated.experience || []).map(e => ({
+      company: e.company || '',
+      location: e.location || '',
+      title: e.title || '',
+      dates: e.dates || e.timeframe || '',
+      role_summary: e.role_summary || '',
+      bullets: (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || ''))
+    }));
+    const education = (resumeData.education || generated.education || []).map(e => ({
+      degree: e.degree || '',
+      school: e.school || '',
+      year: e.year || ''
+    }));
+    const certifications = (resumeData.certifications || generated.certifications || []).map(c => ({
+      name: c.name || '',
+      issuer: c.issuer || '',
+      year: c.year || ''
+    }));
+    const achievements = (resumeData.achievements || generated.achievements || []).map(a => {
+      if (typeof a === 'string') return a;
+      return (a.title || '') + (a.description ? ' \u2014 ' + a.description : '');
+    });
 
-    // Map canonical model → variables the existing pptxgenjs code below reads.
-    // Keeping names stable minimizes diff in the (large) renderer block.
-    const name = model.person.name || '';
-    const phone = model.contact.phone;
-    const email = model.contact.email;
-    const address = model.contact.location;
-    const linkedin = model.contact.linkedin;
-    const currentTitle = model.person.title;
-    const summary = model.summary;
-    const skills = model.skills;
-    const experiences = model.experience;
-    const education = model.education;
-    const certifications = model.certifications;
-    const achievements = model.achievements;
-
-    // --- Template + Accent resolution (read from canonical model) ---
-    const _templateId = model.template || 'modern-sidebar';
-    const _accentHex = model.accent || '#0B487A';
+    // --- Template + Accent resolution ---
+    // Priority: explicit PPTX color picker → selected template default → Design-step color → fallback
+    const _templateId = STATE.exportTemplate || 'modern-sidebar';
+    const _tmpl = (typeof PPTX_TEMPLATES !== 'undefined') ? PPTX_TEMPLATES.find(t => t.id === _templateId) : null;
+    const _accentHex = (STATE.pptxColor && /^#[0-9A-Fa-f]{6}$/.test(STATE.pptxColor))
+      ? STATE.pptxColor
+      : ((_tmpl && _tmpl.accent) || STATE.color || '#0B487A');
     const ACCENT_NOHASH = _accentHex.replace('#','').toUpperCase();
 
     // --- PptxGenJS Dynamic Generation (Portrait / Sidebar Layout) ---
@@ -10709,7 +10469,7 @@ async function exportPPTX() {
     const SIDEBAR_MUTED = '6B6B6B';
     const FONT_HEAD = 'Arial';
     const FONT_BODY = 'Arial';
-    const ss = model.sections || [];
+    const ss = STATE.sections || [];
     const showSec = (key) => ss.length === 0 || ss.includes(key);
 
     // Preload LinkedIn icon
@@ -10740,8 +10500,7 @@ async function exportPPTX() {
         linkedinIconBase64, showSec
       };
       _pptxBuildAltLayout(pptx, _templateId, _altData, ACCENT_NOHASH);
-      const _sfx = model.source === 'enhanced' ? '-enhanced' : '';
-      const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + _sfx + '-resume.pptx';
+      const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.pptx';
       await pptx.writeFile({ fileName });
       STATE._hasExported = true;
       try { updateStepDots && updateStepDots(); } catch(_){}
@@ -11098,16 +10857,14 @@ async function exportPPTX() {
     }
 
     // Download
-    const _sfx = model.source === 'enhanced' ? '-enhanced' : '';
-    const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + _sfx + '-resume.pptx';
+    const fileName = (name || 'resume').replace(/\s+/g, '-').toLowerCase() + '-resume.pptx';
     await pptx.writeFile({ fileName });
     STATE._hasExported = true;
     try { updateStepDots && updateStepDots(); } catch(_){}
     showToast('Resume downloaded!');
   } catch(e) {
     console.error('PPTX export error:', e);
-    const msg = /library/i.test(String(e.message||'')) ? e.message : 'PowerPoint export failed. Try again or export as HTML.';
-    showToast(msg);
+    showToast('Error generating PPTX: ' + e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     lucide.createIcons();
