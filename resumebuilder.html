@@ -5575,10 +5575,10 @@ auth.onAuthStateChanged(async user => {
       lifetimePurchased = subData.lifetime || false;
     } catch(e) { builderSubscribed = false; ytMemberSubscribed = false; hadPriorSubscription = false; stripeCancelAtPeriodEnd = false; stripePeriodEndDate = null; lifetimePurchased = false; }
     // Firestore fallback for lifetime flag in case backend endpoint isn't updated yet.
-    if (!lifetimePurchased) {
+    if (!lifetimePurchased && user.email) {
       try {
-        const profSnap = await db.collection('builderProfiles').doc(user.uid).get();
-        if (profSnap.exists && profSnap.data().lifetimePurchased === true) lifetimePurchased = true;
+        const subSnap = await db.collection('builderSubscriptions').doc(user.email.toLowerCase()).get();
+        if (subSnap.exists && subSnap.data().lifetime === true) lifetimePurchased = true;
       } catch(e) {}
     }
     markSubscriptionStateReady();
@@ -5614,24 +5614,15 @@ auth.onAuthStateChanged(async user => {
     if (urlParams.get('lifetime_purchased') === '1' && !sessionStorage.getItem('_stripe_lifetime_processed')) {
       sessionStorage.setItem('_stripe_lifetime_processed', '1');
       lifetimePurchased = true;
+      // Ask the backend to confirm + auto-cancel any active monthly with proration.
+      // The Stripe webhook will also write this, so this is a safety net only.
       try {
-        await db.collection('builderProfiles').doc(user.uid).set({
-          lifetimePurchased: true,
-          lifetimePurchasedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-      } catch(e) { console.warn('Lifetime save error:', e); }
-      // If they already had an active monthly, ask backend to cancel+prorate
-      // so they aren't double-charged. Safe to call even if no sub exists.
-      if (builderSubscribed) {
-        try {
-          await fetch(API_BASE + '/builder/cancel-for-lifetime', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: user.email, uid: user.uid })
-          });
-        } catch(e) { console.warn('Cancel-for-lifetime request failed:', e); }
-      }
+        await fetch(API_BASE + '/builder/confirm-lifetime', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email, uid: user.uid })
+        });
+      } catch(e) { console.warn('confirm-lifetime request failed:', e); }
       showToast('Lifetime access activated — enjoy!');
       window.history.replaceState({}, '', window.location.pathname);
     }
