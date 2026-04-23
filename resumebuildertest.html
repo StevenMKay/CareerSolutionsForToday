@@ -3371,10 +3371,10 @@ function toggleSectionFromLeft(section, on) {
   if (!on) STATE.sections = STATE.sections.filter(s => s !== section);
   if (STATE.generated?.hero) renderPreview(STATE.generated);
   renderSectionToggles();
-  // PATCH C (hardening): section visibility affects buildExportModel output
-  // (sections array flows into the canonical model). Invalidate the cached
-  // model and refresh the export-ready strip so the next export + the UI
-  // status both reflect the new section set immediately.
+  // Section visibility affects buildExportModel output (sections array flows
+  // into the canonical model). Invalidate the cached model and refresh the
+  // export-ready strip so the next export + the UI status both reflect the
+  // new section set immediately.
   try { invalidateExportModel && invalidateExportModel(); } catch(_){}
   try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
 }
@@ -9362,16 +9362,27 @@ const PREVIEW_RENDERERS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PATCH 3: MODEL_RENDERERS — sibling map of renderers that read the canonical
-// export model DIRECTLY (signature: `(model, accent) => html`) rather than
-// going through the `_modelToGShape` adapter. Migrated one-at-a-time so the
-// legacy PREVIEW_RENDERERS path remains the safety net until every template
-// is ported. Flip `STATE.useDirectModelRenderers = true` in DevTools to
-// activate the direct path where available; anything not migrated falls back
-// to PREVIEW_RENDERERS automatically via _selectAndRender().
+// MODEL_RENDERERS — optional sibling map of renderers that read the canonical
+// export model DIRECTLY (signature: `(model, accent) => html`).
 //
-// Migration contract per template:
-//   - Same HTML output, byte-for-byte where possible.
+// Architecture note (intentional, stable):
+//   - `buildFinalExportModel` is the single canonical source of truth for
+//     preview + every export path.
+//   - `_modelToGShape` is the APPROVED, lossless adapter that projects the
+//     canonical model into the legacy `g` shape used by PREVIEW_RENDERERS.
+//     It is NOT a temporary shim; the adapter path is the stable default.
+//   - PREVIEW_RENDERERS is the primary render path and is considered stable.
+//   - MODEL_RENDERERS is an OPT-IN escape hatch for cases where a template
+//     needs to read the model directly (e.g. a concrete bug surfaced by the
+//     adapter projection). Toggle `STATE.useDirectModelRenderers = true` to
+//     activate the direct path where an entry exists.
+//   - Additional templates should only be added here if a real bug or
+//     data-fidelity issue requires it. Do not port templates for cleanup
+//     alone — duplicating inline-styled HTML adds drift risk with no
+//     functional benefit.
+//
+// Conventions for any entry that IS added here:
+//   - Match existing PREVIEW_RENDERERS output as closely as reasonable.
 //   - Read from model.person / model.summary / model.experience / model.skills
 //     / model.education / model.certifications / model.achievements / model.plan.
 //   - Contact data comes from model.contact (phone/email/linkedin/location).
@@ -9379,9 +9390,8 @@ const PREVIEW_RENDERERS = {
 // ─────────────────────────────────────────────────────────────────────────────
 const MODEL_RENDERERS = {
   // Reference implementation. Produces output functionally identical to
-  // PREVIEW_RENDERERS['modern-sidebar'], but reads from the canonical model.
-  // Use this as the template when porting classic-serif / creative-bold /
-  // minimal / two-column / tech-mono.
+  // PREVIEW_RENDERERS['modern-sidebar'], read directly from the canonical
+  // model. Serves as a working example of the direct-model pattern.
   'modern-sidebar': function(model, accent){
     const person = model.person || {};
     const name = (person.name || 'Your Name').toString();
@@ -9451,18 +9461,20 @@ const MODEL_RENDERERS = {
         </div>
       </div>`;
   }
-  // classic-serif / creative-bold / minimal / two-column / tech-mono / word-classic:
-  //   NOT YET MIGRATED. _selectAndRender() routes these to PREVIEW_RENDERERS
-  //   via _modelToGShape. To migrate, copy the legacy body from PREVIEW_RENDERERS
-  //   and swap `g.hero.name` → `model.person.name`, `g.executive_summary` →
-  //   `model.summary`, etc. Then drop the entry into this map.
+  // Other templates (classic-serif / creative-bold / minimal / two-column /
+  // tech-mono / word-classic) intentionally have NO entry here. They are
+  // rendered by PREVIEW_RENDERERS through the lossless `_modelToGShape`
+  // adapter — the approved stable path. Add an entry here only if a concrete
+  // bug or fidelity issue requires it.
 };
 
 // Selects a renderer for the given templateId and invokes it against the model.
-// Direct-model path is used when STATE.useDirectModelRenderers is true AND a
-// MODEL_RENDERERS entry exists for the template. Otherwise falls back to the
-// legacy PREVIEW_RENDERERS via the lossless _modelToGShape adapter. Always
-// returns an HTML string; never throws (caller is the preview pipeline).
+// Default path: PREVIEW_RENDERERS via the lossless `_modelToGShape` adapter —
+// this is the stable, approved rendering path and is used unless explicitly
+// opted out of. When `STATE.useDirectModelRenderers === true` AND a
+// MODEL_RENDERERS entry exists for the template, the direct-model path is
+// used instead. Always returns an HTML string; never throws (caller is the
+// preview pipeline).
 function _selectAndRender(templateId, model, accent) {
   const tid = templateId || 'modern-sidebar';
   const useDirect = (STATE && STATE.useDirectModelRenderers === true)
@@ -9470,9 +9482,9 @@ function _selectAndRender(templateId, model, accent) {
   try {
     if (useDirect) return MODEL_RENDERERS[tid](model, accent);
   } catch (e) {
-    // If the direct path throws, log and fall through to legacy so the
-    // preview never blanks. Safety-first: legacy is proven.
-    try { console.warn('[MODEL_RENDERERS] direct path failed, falling back:', tid, e); } catch(_){}
+    // If a direct-model renderer throws, fall through to the adapter path so
+    // the preview never blanks. The adapter path is the stable default.
+    try { console.warn('[MODEL_RENDERERS] direct path failed, falling back to adapter:', tid, e); } catch(_){}
   }
   const g = (typeof _modelToGShape === 'function') ? _modelToGShape(model) : model;
   const legacy = (PREVIEW_RENDERERS[tid] || PREVIEW_RENDERERS['modern-sidebar']);
@@ -9487,7 +9499,7 @@ function _renderFormatAccuratePreview(g, containerId){
   // (or missing), project through the canonical export model so doc-mode preview
   // matches exports exactly. Compare / server-payload paths pass through.
   //
-  // PATCH 3: track `_routeModel` separately so we can feed _selectAndRender
+  // Track `_routeModel` separately so we can feed _selectAndRender
   // (which can pick the direct-model renderer if enabled) instead of always
   // going through _modelToGShape. When g is a non-STATE object (compare view,
   // server payload), _routeModel stays null and we use the legacy path.
@@ -10706,7 +10718,7 @@ function syncPreviewEditsToState() {
     }
   } catch(_){}
 
-  // ── PATCH A (hardening): mirror edits into STATE.enhancedData ──
+  // ── Mirror edits into STATE.enhancedData ──
   // When AI-enhance is ON, buildExportModel prefers STATE.enhancedData over
   // STATE.generated. Without this block, inline preview edits would be read
   // into STATE.generated but NOT into enhancedData, causing the export to
@@ -11136,12 +11148,14 @@ function hasExportableContent(model) {
 // worrying about load order.
 try { window.__getExportModel = buildExportModel; } catch(_){}
 
-// Public alias. Preview + exports both go through this so "the model" has
-// exactly one canonical entry point in the codebase.
+// Canonical source of truth for preview + every export path (DOCX template,
+// DOCX programmatic, PPTX, HTML template, HTML web, Handlebars). Every
+// consumer reads from this one entry point so there is exactly one model.
+// Do not add alternate model builders — extend buildExportModel instead.
 function buildFinalExportModel(opts) { return buildExportModel(opts); }
 try { window.__buildFinalExportModel = buildFinalExportModel; } catch(_){}
 
-// PATCH B (hardening): Console audit helper. Run `__auditExportDrift()` in
+// Console audit helper. Run `__auditExportDrift()` in
 // DevTools to verify preview vs. canonical-model alignment. Prints per-field
 // diffs so mismatches (usually stale cache or a missed writeback) are caught
 // before the user notices in an export. Read-only — never mutates state.
@@ -11183,12 +11197,13 @@ try { window.__auditExportDrift = function(){
   return { rows, mismatches, model };
 }; } catch(_){}
 
-// Project the canonical export model back into the legacy `g` shape that
-// PREVIEW_RENDERERS + renderPreview were originally written against. This is
-// a LOSSLESS projection — renderers keep their current code, preview stays
-// editable, and preview is guaranteed to read from the same source of truth
-// as every export. `plan_phases` is rebuilt from model.plan.milestones with
-// the exact keys the plan renderer already emits ([data-section="plan_phases"]).
+// Approved lossless adapter: projects the canonical export model into the
+// legacy `g` shape that PREVIEW_RENDERERS + renderPreview consume. This is a
+// stable, intentional part of the architecture — NOT a temporary shim.
+// Renderers keep their current code, preview stays editable, and preview is
+// guaranteed to read from the same source of truth as every export.
+// `plan_phases` is rebuilt from model.plan.milestones with the exact keys the
+// plan renderer emits ([data-section="plan_phases"]).
 function _modelToGShape(model) {
   if (!model) return {};
   const plan = model.plan || {};
@@ -11243,20 +11258,15 @@ function exportHTML(opts) {
   return exportHTML_template();
 }
 
-// Legacy HTML export: clones the live preview DOM. Kept for "Web HTML" mode —
-// the interactive browser-friendly variant that preserves hover/editable
-// styling. Does NOT go through the canonical export model; matches preview
-// by construction because it IS the preview.
+// Web HTML export. Renders from the canonical export model via the
+// Handlebars "clean HTML" template — no live-preview DOM clone. Produces
+// output consistent with DOCX / PPTX / template-HTML: same model, same data,
+// same section ordering.
 function exportHTML_web() {
   if (!canUsePremium()) { showPaywall(); return; }
-  // PATCH 2: Web HTML now renders from the canonical export model via the
-  // Handlebars "clean HTML" template — no DOM clone. This closes the last
-  // path that depended on live preview DOM, so web-HTML output is now as
-  // consistent with DOCX/PPTX/template-HTML as everything else.
-  //
-  // Fallback: STATE.htmlWebMode === 'legacy' restores the previous DOM-clone
-  // path (getCleanPreviewHTML). Kept for rollback during testing; default
-  // is 'model' so new behavior ships on.
+  // Default path is model-driven. The legacy DOM-clone fallback below is
+  // preserved behind STATE.htmlWebMode === 'legacy' as an operational
+  // rollback switch; do not rely on it in new code.
   const useModel = STATE.htmlWebMode !== 'legacy';
 
   if (useModel) {
@@ -11330,10 +11340,11 @@ async function exportHTML_template() {
     // sidebar look. DOCX-shape HTML uses the classic-serif renderer which
     // is the closest Word visual match.
     const tid = (STATE.previewFormat === 'docx') ? 'classic-serif' : (model.template || 'modern-sidebar');
-    // PATCH 3: Route through _selectAndRender so direct-model renderers can
-    // be used when enabled. Falls back to PREVIEW_RENDERERS via _modelToGShape
-    // for any template not yet migrated. Keeps HTML export aligned with the
-    // live preview path — both pick the same renderer.
+    // Route through _selectAndRender. By default this uses PREVIEW_RENDERERS
+    // via the lossless _modelToGShape adapter (the stable, approved path).
+    // If a MODEL_RENDERERS entry exists and STATE.useDirectModelRenderers is
+    // true, the direct-model path is used instead. Either way, HTML export
+    // stays aligned with the live preview — both resolve to the same renderer.
     const inner = _selectAndRender(tid, model, model.accent);
 
     // Paper-size page frame: 7.5 × 10in for PPTX-family, 8.5 × 11in for DOCX
@@ -11523,7 +11534,7 @@ async function exportDOCX() {
     // fixed .docx template cannot do without a re-author. Opt-in via
     // STATE.docxMode = 'programmatic' (a console toggle).
     //
-    // PATCH 1: Automatic promotion to programmatic when the user has changed
+    // Automatic promotion to programmatic when the user has changed
     // section order. docxtemplater's template file has a fixed section order
     // and cannot honor a reorder — so exporting with the template path would
     // silently produce a .docx whose order differs from the preview. To keep
