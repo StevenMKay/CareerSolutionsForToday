@@ -4403,6 +4403,91 @@ function optimizeAdvanceStep(n) {
 function hideOptimizeProgress() {
   const m = document.getElementById('optimize-progress-modal'); if (m) m.remove();
 }
+
+// ============ Extract Progress (premium animation matching Optimize) ============
+// ISS-003: users reported extract hung silently — this replaces the tiny toast
+// with a real progress modal so they can see what's happening + have a Cancel.
+let _extractAbortCtl = null;
+function showExtractProgress() {
+  let m = document.getElementById('extract-progress-modal');
+  if (m) m.remove();
+  m = document.createElement('div');
+  m.id = 'extract-progress-modal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:10050;background:radial-gradient(ellipse at center, rgba(30,27,75,0.78), rgba(10,15,30,0.92));display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)';
+  m.innerHTML = '\
+    <style>\
+      @keyframes xtGradientSpin { to { transform: rotate(360deg); } }\
+      @keyframes xtPulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.55); } 50% { box-shadow: 0 0 0 14px rgba(59,130,246,0); } }\
+      @keyframes xtShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }\
+      @keyframes xtBarSweep { 0% { transform: translateX(-40%); } 100% { transform: translateX(260%); } }\
+      @keyframes xtDotPop { 0% { transform: scale(0.6); opacity:0; } 100% { transform: scale(1); opacity:1; } }\
+      .xt-ring-wrap { position:relative; width:84px; height:84px; margin:0 auto 14px; }\
+      .xt-ring-wrap::before { content:""; position:absolute; inset:-3px; border-radius:50%; background:conic-gradient(from 0deg, #3B82F6, #06B6D4, #10B981, #F59E0B, #3B82F6); animation: xtGradientSpin 2.6s linear infinite; filter: blur(0.4px); }\
+      .xt-ring-wrap::after { content:""; position:absolute; inset:3px; border-radius:50%; background:#0B1220; }\
+      .xt-ring-core { position:absolute; inset:10px; border-radius:50%; background:linear-gradient(145deg,#1E293B,#0B1220); display:flex; align-items:center; justify-content:center; z-index:2; animation: xtPulseGlow 2s ease-out infinite; }\
+      .xt-ring-core i { width:28px; height:28px; color:#93C5FD; }\
+      .xt-title-row { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:6px; }\
+      .xt-title { font-family:"Outfit",sans-serif; font-size:1.05rem; font-weight:800; background: linear-gradient(90deg,#93C5FD,#67E8F9,#93C5FD); background-size: 200% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; animation: xtShimmer 3.2s linear infinite; }\
+      .xt-sub { font-size:0.78rem; color:#94A3B8; margin:0 0 18px; text-align:center; }\
+      .xt-steps { list-style:none; padding:0; margin:0 0 18px; display:flex; flex-direction:column; gap:10px; }\
+      .xt-steps li { display:flex; align-items:center; gap:10px; font-size:0.85rem; color:#CBD5E1; transition: opacity 0.3s, color 0.3s; }\
+      .xt-steps li.xt-done { color:#A7F3D0; }\
+      .xt-steps li.xt-active { color:#F0F9FF; }\
+      .xt-steps li.xt-pending { opacity:0.45; }\
+      .xt-dot { width:26px; height:26px; min-width:26px; border-radius:50%; background:#1E293B; color:#94A3B8; display:inline-flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:700; position:relative; transition: all 0.3s; flex-shrink:0; }\
+      .xt-dot.xt-dot-done { background:linear-gradient(135deg,#10B981,#059669); color:#fff; box-shadow:0 2px 8px rgba(16,185,129,0.4); animation: xtDotPop 0.3s ease-out; }\
+      .xt-dot.xt-dot-active { background:linear-gradient(135deg,#3B82F6,#06B6D4); color:#fff; animation: xtPulseGlow 1.6s ease-out infinite; }\
+      .xt-dot.xt-dot-active::before { content:""; position:absolute; inset:-3px; border-radius:50%; border:2px solid transparent; border-top-color:#67E8F9; border-right-color:rgba(103,232,249,0.5); animation: xtGradientSpin 0.9s linear infinite; }\
+      .xt-bar { height:4px; border-radius:999px; background:rgba(148,163,184,0.15); overflow:hidden; position:relative; margin-bottom:14px; }\
+      .xt-bar-fill { position:absolute; inset:0; width:18%; background:linear-gradient(90deg,#3B82F6,#06B6D4,#10B981); border-radius:999px; transition: width 0.6s cubic-bezier(0.65,0,0.35,1); }\
+      .xt-bar-sheen { position:absolute; top:0; bottom:0; width:40%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent); animation: xtBarSweep 1.8s linear infinite; }\
+    </style>\
+    <div style="width:100%;max-width:440px;background:linear-gradient(160deg,rgba(15,23,42,0.96),rgba(30,58,138,0.96));border:1px solid rgba(59,130,246,0.4);border-radius:20px;padding:26px;color:#E2E8F0;box-shadow:0 30px 80px -20px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.04) inset">\
+      <div class="xt-ring-wrap"><div class="xt-ring-core"><i data-lucide="file-search"></i></div></div>\
+      <div class="xt-title-row"><span class="xt-title">Extracting your resume</span></div>\
+      <p class="xt-sub">Reading the document and structuring each section.</p>\
+      <div class="xt-bar"><div class="xt-bar-fill" id="xt-bar-fill"></div><div class="xt-bar-sheen"></div></div>\
+      <ul id="extract-steps" class="xt-steps">\
+        <li data-step="1" class="xt-pending"><span class="xt-dot">1</span>Preparing document</li>\
+        <li data-step="2" class="xt-pending"><span class="xt-dot">2</span>Reading layout and text</li>\
+        <li data-step="3" class="xt-pending"><span class="xt-dot">3</span>Identifying sections and roles</li>\
+        <li data-step="4" class="xt-pending"><span class="xt-dot">4</span>Structuring your resume data</li>\
+      </ul>\
+      <div style="text-align:right"><button type="button" onclick="cancelExtract()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:#CBD5E1;font-size:0.75rem;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit;transition:all 0.18s" onmouseover="this.style.background=\'rgba(255,255,255,0.08)\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'transparent\';this.style.color=\'#CBD5E1\'">Cancel</button></div>\
+    </div>';
+  document.body.appendChild(m);
+  try { lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'}); } catch(_){}
+  extractAdvanceStep(1);
+}
+function extractAdvanceStep(n) {
+  const ul = document.getElementById('extract-steps'); if (!ul) return;
+  const total = 4;
+  ul.querySelectorAll('li').forEach(li => {
+    const s = +li.getAttribute('data-step');
+    const dot = li.querySelector('.xt-dot');
+    li.classList.remove('xt-pending','xt-active','xt-done');
+    if (dot) dot.classList.remove('xt-dot-done','xt-dot-active');
+    if (s < n) { li.classList.add('xt-done'); if (dot) { dot.classList.add('xt-dot-done'); dot.innerHTML = '&#10003;'; } }
+    else if (s === n) { li.classList.add('xt-active'); if (dot) { dot.classList.add('xt-dot-active'); dot.innerHTML = String(s); } }
+    else { li.classList.add('xt-pending'); if (dot) { dot.innerHTML = String(s); } }
+  });
+  const bar = document.getElementById('xt-bar-fill');
+  if (bar) {
+    const pct = Math.max(12, Math.min(100, Math.round(((n - 0.25) / total) * 100)));
+    bar.style.width = pct + '%';
+  }
+}
+function hideExtractProgress() {
+  const m = document.getElementById('extract-progress-modal'); if (m) m.remove();
+  _extractAbortCtl = null;
+}
+function cancelExtract() {
+  try { if (_extractAbortCtl) _extractAbortCtl.abort(); } catch(_){}
+  hideExtractProgress();
+  showToast('Extraction canceled');
+  const btn = document.getElementById('btn-parse');
+  if (btn) { btn.disabled = false; btn.innerHTML = 'Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i>'; try { lucide.createIcons(); } catch(_){} }
+}
 let __optimizeAbortController = null;
 function cancelOptimize() {
   if (__optimizeAbortController) { try { __optimizeAbortController.abort(); } catch(_){} }
@@ -7997,7 +8082,10 @@ async function parseResume() {
   if (btn) { btn.disabled = true; btn.innerHTML = 'Extracting...'; }
   const parseStatusEl = document.getElementById('parse-status');
   if (parseStatusEl) parseStatusEl.textContent = 'Extracting resume…';
-  showToast('Extracting resume…');
+  // ISS-003: premium progress modal + abort/timeout so extract never hangs silently.
+  showExtractProgress();
+  _extractAbortCtl = new AbortController();
+  const extractTimeout = setTimeout(() => { try { _extractAbortCtl && _extractAbortCtl.abort(); } catch(_){} }, 120000);
   try {
     let res;
     const authHdrs = await getAuthHeaders();
@@ -8005,16 +8093,21 @@ async function parseResume() {
       const fd = new FormData(); fd.append('file', selectedFile);
       // If PDF, render pages to images client-side for vision-based layout parsing
       if (selectedFile.name.toLowerCase().endsWith('.pdf')) {
+        extractAdvanceStep(2);
         try {
           const pageImages = await renderPdfToImages(selectedFile);
           if (pageImages.length) fd.append('page_images_json', JSON.stringify(pageImages));
         } catch (imgErr) { console.warn('PDF image rendering skipped:', imgErr.message); }
       }
-      res = await fetch(API_BASE + '/builder/parse-resume', { method: 'POST', headers: authHdrs, body: fd });
+      extractAdvanceStep(3);
+      res = await fetch(API_BASE + '/builder/parse-resume', { method: 'POST', headers: authHdrs, body: fd, signal: _extractAbortCtl.signal });
     } else {
+      extractAdvanceStep(2);
       const fd = new FormData(); fd.append('text', text);
-      res = await fetch(API_BASE + '/builder/parse-resume', { method: 'POST', headers: authHdrs, body: fd });
+      extractAdvanceStep(3);
+      res = await fetch(API_BASE + '/builder/parse-resume', { method: 'POST', headers: authHdrs, body: fd, signal: _extractAbortCtl.signal });
     }
+    extractAdvanceStep(4);
     await handleBuilderResponse(res);
     const data = await res.json();
     if (data.error) { throw new Error(data.error); }
@@ -8056,14 +8149,21 @@ async function parseResume() {
   } catch(e) {
     console.error('[parseResume] extraction failed:', e);
     const ps = document.getElementById('parse-status');
+    const aborted = (e && (e.name === 'AbortError' || /aborted|abort/i.test(e.message || '')));
+    const userMsg = aborted
+      ? 'Extraction timed out. Please try a smaller file or paste the text instead.'
+      : (e && e.message ? e.message : 'Extraction failed');
     if (ps) {
       ps.textContent = '';
       const sp = document.createElement('span');
       sp.style.color = '#B91C1C';
-      sp.textContent = 'Error: ' + (e && e.message ? e.message : 'Extraction failed');
+      sp.textContent = 'Error: ' + userMsg;
       ps.appendChild(sp);
     }
-    showToast('Extraction failed: ' + (e && e.message ? e.message : 'Unknown error'));
+    showToast('Extraction failed: ' + userMsg);
+  } finally {
+    clearTimeout(extractTimeout);
+    hideExtractProgress();
   }
   if (btn) {
     btn.disabled = false;
