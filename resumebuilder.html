@@ -5018,6 +5018,22 @@ async function optimizeForJob() {
     try {
       STATE.optimizationSession = JSON.parse(JSON.stringify(STATE.optimizationSession));
     } catch(_){}
+    // ISS-STATUS: Stamp the analyzed-role fingerprint + optimize score BEFORE
+    // savePlan() so the dashboard/versions pills flip from "Analysis Needed"
+    // to "Optimized" immediately (and so the score badge appears without a
+    // separate Analyze click). Non-fatal if the direct update fails — the
+    // following savePlan() will still carry these fields via planData.
+    try {
+      if (currentUser && currentPlanId) {
+        const _optStamp = {
+          lastAnalyzedJobTitle: document.getElementById('job-title')?.value || '',
+          lastAnalyzedCompany:  document.getElementById('job-company')?.value || '',
+          lastAnalyzedJdHash:   _jdHash(document.getElementById('job-desc')?.value || '')
+        };
+        if (typeof data.improved_score === 'number') _optStamp.analysisScore = data.improved_score;
+        await db.collection('plans').doc(currentPlanId).update(_optStamp);
+      }
+    } catch(e) { console.debug('Optimize stamp failed (will retry via savePlan):', e); }
     try { if (currentUser && currentPlanId) { await savePlan(); } } catch(e) { console.warn('Auto-save after optimize failed:', e); }
 
     hideOptimizeProgress();
@@ -6474,6 +6490,58 @@ let _dashboardDocs = [];
 let _dashboardIsOwner = false;
 let _dashboardIsSubscribed = false;
 let _THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+
+// ISS-STATUS: Unified analysis-status helper. Shared by the dashboard plan-card
+// renderer and `renderVersionsModalList()` so the badge label never drifts
+// between the two surfaces. Returns one of four shapes:
+//   null           — no `d.generated` yet; no pill rendered
+//   { key:'needed',   label:'Analysis Needed',        bg:'#FEF3C7', color:'#D97706', ... }
+//   { key:'stale',    label:'Re-analysis Recommended', bg:'#FEF3C7', color:'#B45309', ... }
+//   { key:'complete', label:'Optimized'|'Analysis Complete', bg:'#D1FAE5', color:'#047857', ... }
+//
+// "Stale" is defined as any of jobTitle / company / jobDescription having
+// drifted since the last analyze-or-optimize run. We compare a stable hash of
+// the job description (via `_jdHash`) rather than the full text so reloads
+// and Firestore string-normalization can't trigger false positives.
+function _jdHash(s) {
+  const str = String(s || '').replace(/\s+/g, ' ').trim();
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return 'jd_' + (h >>> 0).toString(36) + '_' + str.length;
+}
+function _computePlanAnalysisStatus(d) {
+  if (!d || !d.generated || !Object.keys(d.generated).length) return null;
+  const hasOptimize = !!(d.optimizationSession && (d.optimizationSession.sessionId || d.optimizationSession.appliedAt));
+  const hasAnalyze  = (d.analysisScore != null) || !!(d.analysisData && Object.keys(d.analysisData).length);
+  // If neither signal exists, the user has generated a resume but never
+  // analyzed it. That's the only legitimate "Analysis Needed" state.
+  if (!hasOptimize && !hasAnalyze) {
+    return { key:'needed', label:'Analysis Needed', bg:'#FEF3C7', color:'#D97706',
+             title:'Run AI Analysis to score this resume' };
+  }
+  // Compare current inputs to whatever was stamped by the last analyze/optimize run.
+  // When `lastAnalyzedJobTitle/Company` is missing (older plans), treat role as
+  // matching so we don't regress those cards to "Re-analyze".
+  const curT = (d.jobTitle || '').trim();
+  const curC = (d.company  || '').trim();
+  const curJdH = _jdHash(d.jobDescription || '');
+  const lastT = (d.lastAnalyzedJobTitle || '').trim();
+  const lastC = (d.lastAnalyzedCompany  || '').trim();
+  const lastJdH = d.lastAnalyzedJdHash || null;
+  const haveStamp = !!(lastT || lastC || lastJdH);
+  const roleMatches = !haveStamp || (curT === lastT && curC === lastC);
+  const jdMatches   = !lastJdH   || (curJdH === lastJdH);
+  if (!roleMatches || !jdMatches) {
+    return { key:'stale', label:'Re-analysis Recommended', bg:'#FEF3C7', color:'#B45309',
+             title: !roleMatches
+               ? 'Target role changed since last analysis — re-run to refresh score'
+               : 'Job description changed since last analysis — re-run to refresh score' };
+  }
+  return { key:'complete', label: hasOptimize ? 'Optimized' : 'Analysis Complete',
+           bg:'#D1FAE5', color:'#047857',
+           title: hasOptimize ? 'Last optimize matches current role + JD' : 'Last analysis matches current role + JD' };
+}
+
 async function showDashboard() {
   document.getElementById('dashboard').classList.remove('hidden');
   document.getElementById('builder-wrapper').classList.add('hidden');
@@ -6553,10 +6621,15 @@ function renderPlanCards(docs) {
         countdownBadge = `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${cdBg};color:${cdColor}" title="Resume expires in ${daysLeft} days">${daysLeft}d left</span>`;
       }
 
-      // Analysis needed: target role changed since last analysis
-      const currentRole = (d.jobTitle || '') + '|' + (d.company || '');
-      const lastAnalyzedRole = (d.lastAnalyzedJobTitle || '') + '|' + (d.lastAnalyzedCompany || '');
-      const analysisNeeded = d.generated && Object.keys(d.generated).length > 0 && currentRole !== lastAnalyzedRole;
+      // Unified analysis-status pill (shared with Versions modal). The helper
+      // returns null when no generated content exists yet; a "needed" pill when
+      // generated exists but analysis has never run; a "stale" pill when the
+      // role/company/jobDescription has drifted since the last analyze/optimize
+      // run; and a "complete" pill (labeled "Optimized" when there's an
+      // optimizationSession, else "Analysis Complete") when the last run
+      // matches current inputs.
+      const analysisStatus = _computePlanAnalysisStatus(d);
+      const analysisNeeded = !!(analysisStatus && (analysisStatus.key === 'needed' || analysisStatus.key === 'stale'));
 
       // Score badge
       const score = d.analysisScore;
@@ -6577,7 +6650,7 @@ function renderPlanCards(docs) {
             <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:#EFF6FF;color:#005EB8">${planType}</span>
             ${d.published ? '<span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:#D1FAE5;color:#047857">Published</span>' : ''}
             ${score != null ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${scoreColor}20;color:${scoreColor}" title="Analysis Score">${score}/100</span>` : ''}
-            ${analysisNeeded ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:#FEF3C7;color:#D97706" title="Target role changed — re-run analysis">⚠ Analysis Needed</span>' : ''}
+            ${analysisStatus ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded-full" style="background:${analysisStatus.bg};color:${analysisStatus.color}" title="${analysisStatus.title}">${analysisStatus.key==='needed'?'⚠ ':''}${analysisStatus.label}</span>` : ''}
             ${countdownBadge}
           </div>
           <div class="flex items-center gap-1.5">
@@ -6742,6 +6815,14 @@ async function loadPlan(planId) {
     currentPlanId = planId;
     STATE.resumeData = d.resumeData || {};
     STATE.roleResearch = d.roleResearch || {};
+    // ISS-STATUS: rehydrate the role-research freshness hash from the
+    // top-level sibling field so _refreshRoleResearchFreshness() sees a
+    // "Ready" match instead of flagging stored research as outdated.
+    try {
+      if (STATE.roleResearch && Object.keys(STATE.roleResearch).length && d.roleResearchHash) {
+        STATE.roleResearch._hash = d.roleResearchHash;
+      }
+    } catch(_){}
     STATE.planType = d.planType || '90-day';
     STATE.sections = d.sections || [...DEFAULT_SECTIONS];
     STATE.generated = d.generated || {};
@@ -7015,6 +7096,19 @@ async function savePlan() {
     optimizationSession: STATE.optimizationSession || null,
     optimizeApplied: !!STATE._optimizeApplied,
     optimizeAppliedAt: STATE._optimizeAppliedAt || null,
+    // ISS-STATUS: carry the analyzed-role fingerprint + JD hash in every save
+    // so the unified analysis-status pill stays accurate across reloads.
+    // Only stamped when analysis/optimize signals exist; otherwise left blank
+    // so plans that never ran analysis correctly read "Analysis Needed".
+    ...((analysisCache || STATE.optimizationSession) ? {
+      lastAnalyzedJobTitle: document.getElementById('job-title')?.value || '',
+      lastAnalyzedCompany:  document.getElementById('job-company')?.value || '',
+      lastAnalyzedJdHash:   _jdHash(document.getElementById('job-desc')?.value || '')
+    } : {}),
+    // Role-research freshness hash promoted to a top-level field so it
+    // survives Firestore sanitization (underscored `_hash` inside roleResearch
+    // may be stripped). Consumed by loadPlan() to rehydrate STATE.roleResearch._hash.
+    roleResearchHash: (STATE.roleResearch && STATE.roleResearch._hash) || '',
     hasExported: !!STATE._hasExported,
     published: !!STATE._isPublished,
     previewMode: STATE._previewMode || 'web',
@@ -8869,6 +8963,12 @@ async function _autoSaveRoleResearch() {
     if (!STATE || !STATE.roleResearch || !Object.keys(STATE.roleResearch).length) return;
     const patch = {
       roleResearch: STATE.roleResearch,
+      // Promote the freshness hash to a top-level field. `sanitizeForFirestore`
+      // may strip underscored keys (`_hash`, `_savedAt`) from nested objects,
+      // which would break reload-side freshness detection. A sibling
+      // `roleResearchHash` column is safe from that normalization and is what
+      // `loadPlan()` uses to rehydrate `STATE.roleResearch._hash`.
+      roleResearchHash: (STATE.roleResearch && STATE.roleResearch._hash) || '',
       jobTitle: document.getElementById('job-title')?.value || '',
       company: document.getElementById('job-company')?.value || '',
       jobDescription: document.getElementById('job-desc')?.value || '',
@@ -9667,21 +9767,44 @@ function _updateJumpButton() {
   btn.disabled = !hasVisibleDiff;
 }
 
-// Show / hide the doc-mode hint. Document-mode PREVIEW_RENDERERS do not emit
-// [data-section] hooks, so inline highlights can't land on them. We expose a
-// one-click "Switch to Web preview" escape hatch instead, and keep the
-// Changes tab as the source of truth either way.
+// Show / hide the doc-mode hint and toggle the Show Differences checkbox's
+// disabled state based on actual hook presence in the rendered preview
+// containers. This replaces the earlier mode-based heuristic: some document
+// renderers (`modern-sidebar`, `classic-serif`, `word-classic`) now emit
+// `data-section` hooks and highlights land correctly, while others still
+// lack hooks. We detect reality at paint time and react accordingly, so the
+// checkbox is never left active-but-inert.
 function _updateDocModeHint() {
   const step = document.getElementById('step-export');
   if (!step) return;
   const c = (window.STATE && STATE.compare) || {};
-  const isDoc = (STATE._previewMode || 'web') === 'doc';
   const hasDiffData = !!(c.diff && (c.diff.added.length || c.diff.removed.length || c.diff.changed.length));
-  // Only show the hint when compare is active, Show differences is on, diff
-  // data exists, AND we're in Document mode (where data-section hooks are
-  // absent). In Web mode or when the user turns off Show differences, hide.
-  const shouldShow = !!c.active && !!c.diffEnabled && hasDiffData && isDoc;
+  // Count live section hooks across both compare containers.
+  const hookCount = document.querySelectorAll(
+    '#preview-container-export [data-section], #preview-container-export-b [data-section]'
+  ).length;
+  const hasHooks = hookCount > 0;
+  // Hint is visible only when compare is active + diff data exists + the
+  // active renderer lacks section hooks. In that case we also disable the
+  // Show Differences checkbox to prevent dead-UI confusion.
+  const shouldShow = !!c.active && hasDiffData && !hasHooks;
   step.classList.toggle('pv-doc-no-hooks', shouldShow);
+  const hint = document.getElementById('compare-doc-mode-hint');
+  if (hint) {
+    hint.innerHTML = 'Highlights aren\'t available in this document layout. '
+      + '<button type="button" onclick="setPreviewMode(\'web\')" '
+      + 'style="background:none;border:0;color:#78350F;text-decoration:underline;cursor:pointer;padding:0;font:inherit">'
+      + 'Switch to Web preview</button> to see them, or use the Changes tab.';
+  }
+  const diffBox = document.getElementById('compare-diff-toggle');
+  if (diffBox) {
+    const shouldDisable = !!c.active && !hasHooks;
+    diffBox.disabled = shouldDisable;
+    try {
+      const label = diffBox.closest('label');
+      if (label) label.style.opacity = shouldDisable ? '0.55' : '';
+    } catch(_){}
+  }
 }
 
 // Public: scroll the first diff highlight into view and briefly pulse it.
@@ -10338,22 +10461,36 @@ window.testCompareMode = async function() {
       const hasDiffData = !!(cState.added.length || cState.removed.length || cState.changed.length);
       const rightSel = document.getElementById('compare-right-select');
       const pickedRightVersion = !!(rightSel && rightSel.value);
+      // Preamble: log the code path so console output is self-describing.
+      const hookCount = document.querySelectorAll(
+        '#preview-container-export [data-section], #preview-container-export-b [data-section]'
+      ).length;
+      const hasHooks = hookCount > 0;
+      report.details.push('\u2139 preview mode: ' + (STATE._previewMode || 'web')
+        + ' \u00B7 has section hooks: ' + hasHooks + ' (count=' + hookCount + ')');
       // Turn ON explicitly to guarantee painting.
-      if (diffBox && !diffBox.checked) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
+      if (diffBox && !diffBox.disabled && !diffBox.checked) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
       try { applyCompareDiffs(); } catch(_){}
       const onCount = document.querySelectorAll(DIFF_SEL).length;
       report.details.push('\u2139 highlight count (Show differences ON): ' + onCount);
-      const inDocMode = (STATE._previewMode || 'web') === 'doc';
       if (pickedRightVersion && hasDiffData) {
-        if (inDocMode) {
-          if (onCount === 0) {
-            console.warn('Document preview mode has no [data-section] hooks — highlights can\'t land. Switch to Web preview or use the Changes tab.');
-            report.details.push('\u26A0 doc mode: 0 highlights expected; use Web preview or Changes tab');
-          } else {
-            assert(onCount >= 1, 'Show differences ON: at least one visible highlight');
-          }
+        const cbDisabled = !!(diffBox && diffBox.disabled);
+        const cbVisible  = !!(diffBox && diffBox.offsetParent !== null);
+        if (cbDisabled) {
+          // Option-B fallback path: checkbox MUST be disabled AND the hint
+          // banner MUST be visible with the expected helper copy.
+          const hint = document.getElementById('compare-doc-mode-hint');
+          const hintVisible = !!(hint && hint.offsetParent !== null);
+          const hintCopyOk  = !!(hint && /Highlights aren't available in this document layout/i.test(hint.textContent || ''));
+          assert(hintVisible, 'doc-mode hint banner visible when checkbox disabled');
+          assert(hintCopyOk, 'doc-mode hint banner shows expected helper copy');
+          report.details.push('\u2139 checkbox disabled with helper copy \u2014 acceptable Option B fallback');
+        } else if (cbVisible) {
+          // Option-A path: checkbox is visible + enabled. It MUST paint
+          // at least one highlight, otherwise it's a silent no-op.
+          assert(onCount >= 1, 'Show differences visible+enabled: at least one live highlight rendered');
         } else {
-          assert(onCount >= 1, 'Show differences ON: at least one visible highlight');
+          report.details.push('\u2139 checkbox not visible (compare inactive?) \u2014 skipping highlight-count assertion');
         }
       } else if (!pickedRightVersion) {
         report.details.push('\u2139 no Version B selected \u2014 skipping highlight-count assertion');
@@ -10361,13 +10498,13 @@ window.testCompareMode = async function() {
         report.details.push('\u2139 no diff data between A and B \u2014 skipping highlight-count assertion');
       }
       // Now turn OFF and confirm all highlight classes are cleared.
-      if (diffBox) { diffBox.checked = false; diffBox.dispatchEvent(new Event('change')); }
+      if (diffBox && !diffBox.disabled) { diffBox.checked = false; diffBox.dispatchEvent(new Event('change')); }
       try { applyCompareDiffs(); } catch(_){}
       const offCount = document.querySelectorAll(DIFF_SEL).length;
       report.details.push('\u2139 highlight count (Show differences OFF): ' + offCount);
       assert(offCount === 0, 'Show differences OFF: all diff classes cleared');
       // Restore the checkbox to ON before exiting so users don't see it flipped.
-      if (diffBox) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
+      if (diffBox && !diffBox.disabled) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
       try { applyCompareDiffs(); } catch(_){}
       // ─────────────────────────────────────────────────────────────────
       // no horizontal overflow
@@ -11262,11 +11399,16 @@ async function renderVersionsModalList() {
       const ts = d.updatedAt?.toDate?.() || d.createdAt?.toDate?.();
       const when = ts ? (typeof getRelativeTime === 'function' ? getRelativeTime(ts) : ts.toLocaleDateString()) : '';
       const isCurrent = doc.id === currentPlanId;
-      rows.push({ id: doc.id, name, meta, when, isCurrent, published: !!d.published });
+      // ISS-STATUS: same helper the dashboard cards use
+      const status = _computePlanAnalysisStatus(d);
+      rows.push({ id: doc.id, name, meta, when, isCurrent, published: !!d.published, status });
     });
     host.innerHTML = rows.map(r => {
       const currentBadge = r.isCurrent ? '<span style="font-size:0.62rem;font-weight:700;padding:2px 7px;border-radius:999px;background:#DBEAFE;color:#1E40AF;text-transform:uppercase;letter-spacing:0.5px">Current</span>' : '';
       const publishedBadge = r.published ? '<span style="font-size:0.62rem;font-weight:700;padding:2px 7px;border-radius:999px;background:#D1FAE5;color:#047857;text-transform:uppercase;letter-spacing:0.5px">Published</span>' : '';
+      const statusBadge = r.status
+        ? '<span style="font-size:0.62rem;font-weight:700;padding:2px 7px;border-radius:999px;background:'+r.status.bg+';color:'+r.status.color+';text-transform:uppercase;letter-spacing:0.5px" title="'+escapeHtml(r.status.title)+'">'+escapeHtml(r.status.label)+'</span>'
+        : '';
       const switchBtn = r.isCurrent
         ? '<button type="button" class="btn-secondary text-xs py-1.5" disabled style="opacity:0.5;cursor:default;min-height:36px">Current</button>'
         : '<button type="button" class="btn-primary text-xs py-1.5" style="min-height:36px" onclick="switchToVersionFromModal(\''+r.id+'\')" data-testid="versions-switch-'+r.id+'"><i data-lucide="arrow-right-circle" style="width:12px;height:12px"></i> Open</button>';
@@ -11278,7 +11420,7 @@ async function renderVersionsModalList() {
         : '<button type="button" class="btn-secondary text-xs py-1.5" style="min-height:36px" onclick="startCompareFromModal(\''+r.id+'\')" data-testid="versions-compare-'+r.id+'"><i data-lucide="git-compare-arrows" style="width:12px;height:12px"></i> Compare</button>';
       return '<div class="versions-row" style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
         + '<div style="flex:1 1 220px;min-width:0">'
-        +   '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px"><span style="font-size:0.9rem;font-weight:700;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(r.name)+'</span>'+currentBadge+publishedBadge+'</div>'
+        +   '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px"><span style="font-size:0.9rem;font-weight:700;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(r.name)+'</span>'+currentBadge+publishedBadge+statusBadge+'</div>'
         +   (r.meta ? '<p style="font-size:0.72rem;color:#64748B;margin:0 0 2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(r.meta)+'</p>' : '')
         +   (r.when ? '<p style="font-size:0.68rem;color:#94A3B8;margin:0">Updated '+r.when+'</p>' : '')
         + '</div>'
@@ -11679,25 +11821,24 @@ const PREVIEW_RENDERERS = {
 
         <!-- ── SIDEBAR ── -->
         <div style="background:${SIDEBAR_BG};padding:20px 10px 16px;overflow:hidden;display:flex;flex-direction:column">
-          <div style="font-size:13px;font-weight:700;color:${SIDEBAR_TEXT};text-align:center;letter-spacing:0.02em;line-height:1.15;text-transform:uppercase">${_pvEsc(name)}</div>
-          ${title?`<div style="font-size:9.5px;color:${SIDEBAR_MUTED};text-align:center;margin-top:6px;line-height:1.2">${_pvEsc(title)}</div>`:''}
+          <div data-section="hero" style="font-size:13px;font-weight:700;color:${SIDEBAR_TEXT};text-align:center;letter-spacing:0.02em;line-height:1.15;text-transform:uppercase">${_pvEsc(name)}${title?`<div style="font-size:9.5px;color:${SIDEBAR_MUTED};text-align:center;margin-top:6px;line-height:1.2;text-transform:none;font-weight:400">${_pvEsc(title)}</div>`:''}</div>
           ${sbDivider}
 
           ${(contact.length)?sbLabel('Contact')+contact.map(c=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3;display:flex;align-items:center">${_pvContactIcon(c.kind,9)}<span style="overflow:hidden;text-overflow:ellipsis">${_pvEsc(c.text)}</span></div>`).join(''):''}
           ${(contact.length)?sbDivider:''}
 
-          ${(skills.length)?sbLabel('Core Competencies')+skills.slice(0,12).map(s=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3">•&nbsp;&nbsp;${_pvEsc(s)}</div>`).join(''):''}
+          ${(skills.length)?`<div data-section="skills">`+sbLabel('Core Competencies')+skills.slice(0,12).map(s=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3">•&nbsp;&nbsp;${_pvEsc(s)}</div>`).join('')+`</div>`:''}
 
-          ${(achievements.filter(Boolean).length)?sbDivider+sbLabel('Key Achievements')+achievements.filter(Boolean).slice(0,3).map(a=>`<div style="font-size:7px;color:${SIDEBAR_TEXT};margin-bottom:3px;line-height:1.35">•&nbsp;&nbsp;${_pvEsc(a).slice(0,140)}</div>`).join(''):''}
+          ${(achievements.filter(Boolean).length)?sbDivider+`<div data-section="achievements">`+sbLabel('Key Achievements')+achievements.filter(Boolean).slice(0,3).map(a=>`<div style="font-size:7px;color:${SIDEBAR_TEXT};margin-bottom:3px;line-height:1.35">•&nbsp;&nbsp;${_pvEsc(a).slice(0,140)}</div>`).join('')+`</div>`:''}
 
-          ${(certifications.length && certifications[0] && certifications[0].name)?sbDivider+sbLabel('Certifications')+certifications.slice(0,3).map(c=>`<div style="margin-bottom:4px"><div style="font-size:7.5px;font-weight:700;color:${SIDEBAR_TEXT};line-height:1.25">${_pvEsc(c.name||'')}</div>${(c.issuer||c.year)?`<div style="font-size:7px;color:${SIDEBAR_MUTED};line-height:1.25">${_pvEsc((c.issuer||'')+(c.year?' ('+c.year+')':''))}</div>`:''}</div>`).join(''):''}
+          ${(certifications.length && certifications[0] && certifications[0].name)?sbDivider+`<div data-section="certifications">`+sbLabel('Certifications')+certifications.slice(0,3).map(c=>`<div style="margin-bottom:4px"><div style="font-size:7.5px;font-weight:700;color:${SIDEBAR_TEXT};line-height:1.25">${_pvEsc(c.name||'')}</div>${(c.issuer||c.year)?`<div style="font-size:7px;color:${SIDEBAR_MUTED};line-height:1.25">${_pvEsc((c.issuer||'')+(c.year?' ('+c.year+')':''))}</div>`:''}</div>`).join('')+`</div>`:''}
         </div>
 
         <!-- ── MAIN COLUMN ── -->
         <div style="padding:18px 18px 14px 14px;overflow:hidden;color:${DARK}">
-          ${sumText?mainLabel('Professional Summary')+`<div style="font-size:9px;line-height:1.5;color:${DARK};margin-bottom:10px">${_pvEsc(String(sumText))}</div>`:''}
+          ${sumText?`<div data-section="executive_summary">`+mainLabel('Professional Summary')+`<div style="font-size:9px;line-height:1.5;color:${DARK};margin-bottom:10px">${_pvEsc(String(sumText))}</div></div>`:''}
 
-          ${experience.filter(e=>e && (e.title||e.company)).length?mainLabel('Professional Experience')+experience.filter(e=>e && (e.title||e.company)).slice(0,3).map(e=>{
+          ${experience.filter(e=>e && (e.title||e.company)).length?`<div data-section="experience">`+mainLabel('Professional Experience')+experience.filter(e=>e && (e.title||e.company)).slice(0,3).map(e=>{
             const dates = e.dates || e.timeframe || '';
             const company = e.company || '';
             const loc = e.location || '';
@@ -11709,7 +11850,7 @@ const PREVIEW_RENDERERS = {
               ${rs?`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;margin-top:2px">${_pvEsc(rs).slice(0,220)}</div>`:''}
               ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;padding-left:10px;position:relative"><span style="position:absolute;left:0;color:${GRAY}">•</span>${_pvEsc(b).slice(0,200)}</div>`).join('')}</div>`:''}
             </div>`;
-          }).join(''):''}
+          }).join('')+`</div>`:''}
         </div>
       </div>`;
   },
@@ -11733,8 +11874,8 @@ const PREVIEW_RENDERERS = {
           ${contact.length?`<div style="font-size:9px;color:#4B5563;margin-top:4px">${contact.map(c=>_pvContactIcon(c.kind,9)+_pvEsc(c.text)).join('  \u00B7  ')}</div>`:''}
           <div style="border-top:1px solid ${accent};margin:8px auto 0;width:100%"></div>
         </div>
-        ${sumText?sec('Summary')+`<div style="font-size:9.5px;line-height:1.5;color:#1F2937;margin-bottom:8px">${_pvEsc(sumText)}</div>`:''}
-        ${(show('experience')&&exps.length)?sec('Professional Experience')+exps.slice(0,3).map(e=>{
+        ${sumText?`<div data-section="executive_summary">`+sec('Summary')+`<div style="font-size:9.5px;line-height:1.5;color:#1F2937;margin-bottom:8px">${_pvEsc(sumText)}</div></div>`:''}
+        ${(show('experience')&&exps.length)?`<div data-section="experience">`+sec('Professional Experience')+exps.slice(0,3).map(e=>{
           const bullets = (e.bullets||e.actions||e.key_actions||[]).map(b=>typeof b==='string'?b:(b.text||b.action||'')).filter(Boolean).slice(0,4);
           return `<div style="margin-bottom:8px">
             ${e.title?`<div style="font-size:10.5px;line-height:1.25"><strong style="color:#1F2937">${_pvEsc(e.title)}</strong>${e.dates?`<span style="font-size:9px;color:#4B5563;font-style:italic">&nbsp;&nbsp;&nbsp;${_pvEsc(e.dates)}</span>`:''}</div>`:''}
@@ -11742,11 +11883,11 @@ const PREVIEW_RENDERERS = {
             ${e.role_summary?`<div style="font-size:9px;color:#4B5563;font-style:italic;line-height:1.45;margin-top:2px">${_pvEsc(e.role_summary).slice(0,200)}</div>`:''}
             ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:9px;line-height:1.45;color:#1F2937;padding-left:12px;position:relative"><span style="position:absolute;left:0">•</span>${_pvEsc(b).slice(0,200)}</div>`).join('')}</div>`:''}
           </div>`;
-        }).join(''):''}
-        ${(show('education')&&edu.length)?sec('Education')+edu.slice(0,3).map(e=>`<div style="margin-bottom:4px"><div style="font-size:10px;font-weight:700;color:#1F2937">${_pvEsc(e.degree||'')}</div>${e.school?`<div style="font-size:9px;color:#4B5563;font-style:italic">${_pvEsc(e.school)}${e.year?'  —  '+_pvEsc(e.year):''}</div>`:''}</div>`).join(''):''}
-        ${(show('skills')&&skills.length)?sec('Core Competencies')+`<div style="font-size:9.5px;color:#1F2937;line-height:1.55">${skills.slice(0,22).map(_pvEsc).join('   \u00B7   ')}</div>`:''}
-        ${(show('education')&&certs.length&&certs[0].name)?sec('Certifications')+certs.slice(0,4).map(c=>`<div style="font-size:9.5px;color:#1F2937;margin-bottom:2px">${_pvEsc(c.name||'')}${c.issuer?'  —  '+_pvEsc(c.issuer):''}${c.year?'  ('+_pvEsc(c.year)+')':''}</div>`).join(''):''}
-        ${(show('achievements')&&achs.length)?sec('Key Achievements')+achs.slice(0,4).map(a=>`<div style="font-size:9.5px;line-height:1.45;color:#1F2937;padding-left:12px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0">•</span>${_pvEsc(a).slice(0,180)}</div>`).join(''):''}
+        }).join('')+`</div>`:''}
+        ${(show('education')&&edu.length)?`<div data-section="education">`+sec('Education')+edu.slice(0,3).map(e=>`<div style="margin-bottom:4px"><div style="font-size:10px;font-weight:700;color:#1F2937">${_pvEsc(e.degree||'')}</div>${e.school?`<div style="font-size:9px;color:#4B5563;font-style:italic">${_pvEsc(e.school)}${e.year?'  —  '+_pvEsc(e.year):''}</div>`:''}</div>`).join('')+`</div>`:''}
+        ${(show('skills')&&skills.length)?`<div data-section="skills">`+sec('Core Competencies')+`<div style="font-size:9.5px;color:#1F2937;line-height:1.55">${skills.slice(0,22).map(_pvEsc).join('   \u00B7   ')}</div></div>`:''}
+        ${(show('education')&&certs.length&&certs[0].name)?`<div data-section="certifications">`+sec('Certifications')+certs.slice(0,4).map(c=>`<div style="font-size:9.5px;color:#1F2937;margin-bottom:2px">${_pvEsc(c.name||'')}${c.issuer?'  —  '+_pvEsc(c.issuer):''}${c.year?'  ('+_pvEsc(c.year)+')':''}</div>`).join('')+`</div>`:''}
+        ${(show('achievements')&&achs.length)?`<div data-section="achievements">`+sec('Key Achievements')+achs.slice(0,4).map(a=>`<div style="font-size:9.5px;line-height:1.45;color:#1F2937;padding-left:12px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0">•</span>${_pvEsc(a).slice(0,180)}</div>`).join('')+`</div>`:''}
       </div>`;
   },
   'creative-bold': function(g, accent){
@@ -11902,10 +12043,10 @@ const PREVIEW_RENDERERS = {
         <div style="font-size:10px;color:#555;margin-top:4px">${contact.map(c=>_pvContactIcon(c.kind,10)+_pvEsc(c.text)).join('  |  ')}</div>
       </div>
       <div style="border-top:1.5px solid ${accent};margin-bottom:10px"></div>
-      ${g.executive_summary?`<div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Summary</div><div style="font-size:11px;line-height:1.45;color:#1F2937;margin-bottom:8px">${_pvEsc(g.executive_summary)}</div>`:''}
-      ${(g.experience&&g.experience.length)?`<div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Professional Experience</div>${(g.experience||[]).slice(0,4).map(e=>`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:11px;color:#111">${_pvEsc(e.title||'')}</strong><span style="font-size:10.5px;color:#444">${_pvEsc(e.dates||'')}</span></div><div style="font-size:10.5px;color:#555;font-style:italic;margin-bottom:2px">${_pvEsc(e.company||'')}${e.location?', '+_pvEsc(e.location):''}</div>${(e.bullets||[]).slice(0,5).map(b=>`<div style="font-size:10.5px;line-height:1.35;padding-left:14px;position:relative;color:#1F2937"><span style="position:absolute;left:0">•</span>${_pvEsc(b)}</div>`).join('')}</div>`).join('')}`:''}
-      ${(g.skills&&g.skills.length)?`<div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Skills</div><div style="font-size:10.5px;line-height:1.55;color:#1F2937">${g.skills.slice(0,16).map(_pvEsc).join(' · ')}</div>`:''}
-      ${(g.education&&g.education.length)?`<div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Education</div>${g.education.slice(0,3).map(e=>`<div style="font-size:10.5px;line-height:1.4;margin-bottom:3px"><strong style="color:#111">${_pvEsc(e.degree||'')}</strong> — ${_pvEsc(e.school||'')}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}`:''}`;
+      ${g.executive_summary?`<div data-section="executive_summary"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Summary</div><div style="font-size:11px;line-height:1.45;color:#1F2937;margin-bottom:8px">${_pvEsc(g.executive_summary)}</div></div>`:''}
+      ${(g.experience&&g.experience.length)?`<div data-section="experience"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Professional Experience</div>${(g.experience||[]).slice(0,4).map(e=>`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:11px;color:#111">${_pvEsc(e.title||'')}</strong><span style="font-size:10.5px;color:#444">${_pvEsc(e.dates||'')}</span></div><div style="font-size:10.5px;color:#555;font-style:italic;margin-bottom:2px">${_pvEsc(e.company||'')}${e.location?', '+_pvEsc(e.location):''}</div>${(e.bullets||[]).slice(0,5).map(b=>`<div style="font-size:10.5px;line-height:1.35;padding-left:14px;position:relative;color:#1F2937"><span style="position:absolute;left:0">•</span>${_pvEsc(b)}</div>`).join('')}</div>`).join('')}</div>`:''}
+      ${(g.skills&&g.skills.length)?`<div data-section="skills"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Skills</div><div style="font-size:10.5px;line-height:1.55;color:#1F2937">${g.skills.slice(0,16).map(_pvEsc).join(' · ')}</div></div>`:''}
+      ${(g.education&&g.education.length)?`<div data-section="education"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Education</div>${g.education.slice(0,3).map(e=>`<div style="font-size:10.5px;line-height:1.4;margin-bottom:3px"><strong style="color:#111">${_pvEsc(e.degree||'')}</strong> — ${_pvEsc(e.school||'')}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div>`:''}`;
   }
 };
 
@@ -15867,7 +16008,8 @@ async function analyzeResume() {
           analysisData: data.analysis,
           analysisCacheKey: cacheKey,
           lastAnalyzedJobTitle: document.getElementById('job-title')?.value || '',
-          lastAnalyzedCompany: document.getElementById('job-company')?.value || ''
+          lastAnalyzedCompany: document.getElementById('job-company')?.value || '',
+          lastAnalyzedJdHash: _jdHash(document.getElementById('job-desc')?.value || '')
         });
       } catch(e) { console.debug('Failed to save analysis score:', e); }
     }
@@ -16574,7 +16716,8 @@ async function prefetchAnalysis() {
           analysisData: data.analysis,
           analysisCacheKey: analysisCacheKey,
           lastAnalyzedJobTitle: document.getElementById('job-title')?.value || '',
-          lastAnalyzedCompany: document.getElementById('job-company')?.value || ''
+          lastAnalyzedCompany: document.getElementById('job-company')?.value || '',
+          lastAnalyzedJdHash: _jdHash(document.getElementById('job-desc')?.value || '')
         });
       } catch(e) { console.debug('Failed to save prefetched analysis:', e); }
     }
