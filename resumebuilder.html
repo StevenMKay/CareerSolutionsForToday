@@ -658,10 +658,22 @@
   #compare-changes-panel .cc-after{background:#ECFDF5;border-left:3px solid #34D399;padding:6px 8px;border-radius:4px}
   #compare-changes-panel .cc-field-label{font-size:0.68rem;font-weight:700;color:#4338CA;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:999px;display:inline-block;padding:1px 8px;margin:2px 0 6px;letter-spacing:0.01em}
   #compare-changes-panel .cc-why{font-size:0.68rem;color:#6B7280;font-style:italic;margin-top:6px}
-  .compare-active [data-section]{transition:background 0.3s,border-color 0.3s}
-  .diff-added{background:#D1FAE5!important;border-radius:3px;outline:2px solid #34D399}
-  .diff-removed{background:#FEE2E2!important;text-decoration:line-through;border-radius:3px;outline:2px solid #F87171}
-  .diff-changed{background:#FEF3C7!important;border-radius:3px;outline:2px solid #FBBF24}
+  .compare-active [data-section]{transition:background 0.3s,border-color 0.3s,box-shadow 0.3s}
+  /* Compare diff highlights — stronger so they're immediately visible while
+     still professional. Outline + inset box-shadow accent stripe + scroll-margin
+     so "Jump to first difference" doesn't tuck the target under the toolbar. */
+  .diff-added{background:#D1FAE5!important;border-radius:6px;outline:3px solid #10B981;outline-offset:-1px;box-shadow:inset 4px 0 0 #047857,0 0 0 4px rgba(16,185,129,0.12);scroll-margin-top:160px;scroll-margin-bottom:60px}
+  .diff-removed{background:#FEE2E2!important;border-radius:6px;outline:3px solid #EF4444;outline-offset:-1px;box-shadow:inset 4px 0 0 #B91C1C,0 0 0 4px rgba(239,68,68,0.12);scroll-margin-top:160px;scroll-margin-bottom:60px}
+  .diff-changed{background:#FEF3C7!important;border-radius:6px;outline:3px solid #F59E0B;outline-offset:-1px;box-shadow:inset 4px 0 0 #B45309,0 0 0 4px rgba(245,158,11,0.12);scroll-margin-top:160px;scroll-margin-bottom:60px}
+  /* Pulse the first diff target briefly when user clicks Jump. */
+  .diff-jump-pulse{animation:rbDiffPulse 1.4s ease-out 1}
+  @keyframes rbDiffPulse{0%{transform:scale(1)}20%{transform:scale(1.012);filter:brightness(1.05)}100%{transform:scale(1);filter:brightness(1)}}
+  /* Document-mode compare — PREVIEW_RENDERERS don't emit [data-section] hooks,
+     so inline highlights can't land there. We reveal a hint banner instead.
+     The banner is injected by CompareController when diffEnabled + doc mode. */
+  .compare-doc-mode-hint{display:none;font-size:0.72rem;color:#78350F;background:#FFFBEB;border:1px dashed #F59E0B;border-radius:6px;padding:6px 10px;line-height:1.4;margin-top:4px}
+  .compare-active.pv-doc-no-hooks .compare-doc-mode-hint{display:block}
+  #compare-jump-first-diff:disabled{opacity:0.45;cursor:not-allowed}
   /* Compare mode: tighter grids when containers are half-width */
   @media(min-width:768px){#compare-mobile-toggle{display:none!important}}
   .compare-active #preview-container [data-list="skills"],
@@ -2401,9 +2413,11 @@
             </div>
             <!-- Desktop-only Changes pill: toggles the structured Changes list below the side-by-side previews. -->
             <button type="button" id="compare-desktop-changes-pill" class="ct-changes-pill" onclick="toggleDesktopChangesPanel()" aria-pressed="false" data-testid="compare-desktop-changes-pill"><i data-lucide="git-compare" style="width:12px;height:12px"></i> Changes <span id="compare-desktop-changes-count"></span></button>
+            <button type="button" id="compare-jump-first-diff" class="ct-changes-pill" onclick="jumpToFirstDifference()" title="Scroll to the first highlighted difference" data-testid="compare-jump-first-diff" disabled><i data-lucide="arrow-down" style="width:12px;height:12px"></i> Jump to first difference</button>
             <button type="button" class="compare-exit" id="compare-exit-btn" onclick="exitCompareMode()" data-testid="compare-exit"><i data-lucide="x" style="width:12px;height:12px"></i> Exit Compare</button>
           </div>
           <div id="compare-warning-export" class="hidden"></div>
+          <div class="compare-doc-mode-hint" id="compare-doc-mode-hint" role="note">Inline highlights aren't available in Document preview mode. <button type="button" onclick="setPreviewMode('web')" style="background:none;border:0;color:#78350F;text-decoration:underline;cursor:pointer;padding:0;font:inherit">Switch to Web preview</button> to see them, or use the Changes tab.</div>
         </div>
 
         <!-- Mobile segmented toggle: Version A | Version B | Changes -->
@@ -6869,6 +6883,10 @@ async function loadPlan(planId) {
       renderRolePreview(STATE.roleResearch);
       document.getElementById('role-preview').classList.remove('hidden');
       const rpe = document.getElementById('role-preview-empty'); if (rpe) rpe.classList.add('hidden');
+      // If the stored hash no longer matches current inputs, flip the
+      // sub-accordion meta to an "outdated" pill so the user knows to
+      // rerun. Otherwise leave updateSubAccMetas() to flip it to Ready.
+      try { _refreshRoleResearchFreshness && _refreshRoleResearchFreshness(); } catch(_){}
     }
     syncResumeBuildNameFromBasicInfo();
 
@@ -8343,9 +8361,16 @@ function wireSubAccMetaListeners() {
   // enough of the job-title + job-desc fields manually (mirror the LinkedIn
   // import path so users don't need to click "Run AI Research" explicitly).
   const autoResearch = debounce(() => { try { maybeAutoRunRoleResearch('input'); } catch(_){} }, 1500);
+  // Fast freshness check — if saved research's hash no longer matches the
+  // current inputs, flip the Role Research meta to "may be outdated" so the
+  // user sees it before they leave the page. Cheap/sync, not debounced.
+  const freshness = () => { try { _refreshRoleResearchFreshness && _refreshRoleResearchFreshness(); } catch(_){} };
   ['job-title','job-company','job-desc'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('input', autoResearch);
+    if (el) {
+      el.addEventListener('input', autoResearch);
+      el.addEventListener('input', freshness);
+    }
   });
 }
 
@@ -8810,6 +8835,84 @@ function renderResumePreview(d) {
 
 // ============ Step 2: Role Research ============
 let _researchInFlight = false;
+// ──────────────────────────────────────────────────────────────────────
+// Role-research persistence helpers (auto-save + staleness detection)
+// ──────────────────────────────────────────────────────────────────────
+// Normalize + hash the current job title / company / description so we can
+// tell whether saved research still matches the current inputs. If title,
+// company, or description changes meaningfully, hash changes and we mark
+// the research as "may be outdated".
+function _computeRoleResearchHash(title, company, desc) {
+  const norm = (s) => String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, ' ');
+  const str = norm(title) + '\u0001' + norm(company) + '\u0001' + norm(desc);
+  // Tiny non-crypto hash (djb2). Collision risk acceptable for freshness check.
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return 'rh_' + (h >>> 0).toString(36) + '_' + str.length;
+}
+
+function _currentRoleResearchHash() {
+  return _computeRoleResearchHash(
+    document.getElementById('job-title')?.value || '',
+    document.getElementById('job-company')?.value || '',
+    document.getElementById('job-desc')?.value || ''
+  );
+}
+
+// Silent, targeted Firestore update that mirrors the same pattern as the
+// optimize auto-save. No toast, no modal, no interrupt. If no currentPlanId
+// exists, we keep the research in STATE only — the next normal savePlan()
+// will include it (STATE.roleResearch is already in the savePlan payload).
+async function _autoSaveRoleResearch() {
+  try {
+    if (!currentUser || !currentPlanId) return; // no forced save — scope rule #9
+    if (!STATE || !STATE.roleResearch || !Object.keys(STATE.roleResearch).length) return;
+    const patch = {
+      roleResearch: STATE.roleResearch,
+      jobTitle: document.getElementById('job-title')?.value || '',
+      company: document.getElementById('job-company')?.value || '',
+      jobDescription: document.getElementById('job-desc')?.value || '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    const safe = (typeof sanitizeForFirestore === 'function') ? sanitizeForFirestore(patch) : patch;
+    await db.collection('plans').doc(currentPlanId).update(safe);
+    try { STATE._lastSavedAt = Date.now(); } catch(_){}
+  } catch (e) {
+    // Swallow — research is still in STATE and will be saved by next savePlan().
+    try { console.warn('Role research auto-save failed (will retry on next save):', e && e.message); } catch(_){}
+  }
+}
+
+// Paint an "outdated" pill on the Role Research sub-accordion meta when the
+// stored research hash no longer matches the current inputs. Idempotent —
+// safe to call from input handlers.
+function _refreshRoleResearchFreshness() {
+  try {
+    const meta = document.getElementById('sub-meta-role-research');
+    if (!meta) return;
+    const rr = STATE && STATE.roleResearch;
+    if (!rr || !Object.keys(rr).length) return; // no research yet; leave meta alone
+    const storedHash = rr._hash || null;
+    const currentHash = _currentRoleResearchHash();
+    if (storedHash && storedHash !== currentHash) {
+      meta.textContent = 'Research may be outdated — rerun';
+      meta.className = 'sub-acc-meta';
+      meta.style.background = '#FEF3C7';
+      meta.style.color = '#B45309';
+      meta.style.animation = '';
+    } else if (storedHash && storedHash === currentHash && !_researchInFlight) {
+      // Only flip back to Ready if we wrote it ourselves — don't clobber
+      // other states (in-flight, error, etc.).
+      if (meta.textContent === 'Research may be outdated — rerun') {
+        meta.textContent = 'Ready';
+        meta.className = 'sub-acc-meta complete';
+        meta.style.background = '';
+        meta.style.color = '';
+      }
+    }
+  } catch(_){}
+}
+
 async function researchRole(opts) {
   opts = opts || {};
   if (_researchInFlight) { rbDebug('research', 'skipped — already running'); return; }
@@ -8861,6 +8964,12 @@ async function researchRole(opts) {
     STATE.roleResearch = data.role_research;
     STATE.roleResearch.job_title = title;
     STATE.roleResearch.company = document.getElementById('job-company').value.trim();
+    // Stamp a freshness hash + timestamp so loadPlan / maybeAutoRunRoleResearch
+    // can detect whether saved research still matches the current inputs.
+    try {
+      STATE.roleResearch._hash = _currentRoleResearchHash();
+      STATE.roleResearch._savedAt = Date.now();
+    } catch(_){}
     renderRolePreview(data.role_research);
     document.getElementById('role-preview').classList.remove('hidden');
     const rpe = document.getElementById('role-preview-empty'); if (rpe) rpe.classList.add('hidden');
@@ -8886,6 +8995,11 @@ async function researchRole(opts) {
     try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
     try { updateStepDots && updateStepDots(); } catch(_){}
     rbDebug('research', 'success', { ms: Date.now() - t0 });
+    // Silent auto-persist: if the plan is already saved (currentPlanId
+    // exists), patch just the role-research fields so users don't lose
+    // research when they forget to click Save. Fire-and-forget — we
+    // intentionally do NOT await this so the UI stays snappy.
+    try { _autoSaveRoleResearch(); } catch(_){}
     if (!opts.silent) showToast('Role research complete!');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   } catch(e) {
@@ -8924,7 +9038,18 @@ function maybeAutoRunRoleResearch(reason) {
     if (_autoResearchFired) return;
     if (_researchInFlight) return;
     const already = STATE.roleResearch && Object.keys(STATE.roleResearch || {}).length > 0;
-    if (already) return;
+    if (already) {
+      // If we already have research AND its freshness hash matches the
+      // current inputs, short-circuit — don't spend another AI call.
+      try {
+        const storedHash = STATE.roleResearch._hash;
+        if (storedHash && storedHash === _currentRoleResearchHash()) {
+          rbDebug('research', 'auto skipped — saved research matches inputs');
+          return;
+        }
+      } catch(_){}
+      return;
+    }
     const title = (document.getElementById('job-title') || {}).value || '';
     const desc = (document.getElementById('job-desc') || {}).value || '';
     if (!title.trim() || desc.trim().length < 40) return;
@@ -9424,10 +9549,14 @@ async function enterCompareMode(opts) {
 function exitCompareMode() {
   const c = _ensureCompareState();
   const step = document.getElementById('step-export');
-  if (step) step.classList.remove('compare-active', 'show-b', 'show-changes', 'show-changes-desktop');
+  if (step) step.classList.remove('compare-active', 'show-b', 'show-changes', 'show-changes-desktop', 'pv-doc-no-hooks');
   document.getElementById('compare-toolbar-export')?.classList.add('hidden');
   document.getElementById('compare-desktop-headers-export')?.classList.add('hidden');
   try { document.getElementById('compare-desktop-changes-pill')?.setAttribute('aria-pressed','false'); } catch(_){}
+  try {
+    const jb = document.getElementById('compare-jump-first-diff');
+    if (jb) jb.disabled = true;
+  } catch(_){}
   _compareWarn('');
   // Clear right pane + diff highlights.
   const right = document.getElementById('preview-container-export-b');
@@ -9511,6 +9640,8 @@ function applyCompareDiffs() {
   if (!c.leftModel || !c.rightModel) {
     c.diff = null;
     renderChangesPanel();
+    _updateJumpButton();
+    _updateDocModeHint();
     return;
   }
   let diffs;
@@ -9520,6 +9651,56 @@ function applyCompareDiffs() {
     _compareApplyDiffToExport(c.leftModel, c.rightModel, diffs);
   }
   renderChangesPanel();
+  _updateJumpButton();
+  _updateDocModeHint();
+}
+
+// Enable/disable the "Jump to first difference" button based on whether any
+// diff highlight nodes are currently painted in the preview panes.
+function _updateJumpButton() {
+  const btn = document.getElementById('compare-jump-first-diff');
+  if (!btn) return;
+  const hasVisibleDiff = !!document.querySelector(
+    '#preview-container-export .diff-added, #preview-container-export .diff-removed, #preview-container-export .diff-changed,' +
+    '#preview-container-export-b .diff-added, #preview-container-export-b .diff-removed, #preview-container-export-b .diff-changed'
+  );
+  btn.disabled = !hasVisibleDiff;
+}
+
+// Show / hide the doc-mode hint. Document-mode PREVIEW_RENDERERS do not emit
+// [data-section] hooks, so inline highlights can't land on them. We expose a
+// one-click "Switch to Web preview" escape hatch instead, and keep the
+// Changes tab as the source of truth either way.
+function _updateDocModeHint() {
+  const step = document.getElementById('step-export');
+  if (!step) return;
+  const c = (window.STATE && STATE.compare) || {};
+  const isDoc = (STATE._previewMode || 'web') === 'doc';
+  const hasDiffData = !!(c.diff && (c.diff.added.length || c.diff.removed.length || c.diff.changed.length));
+  // Only show the hint when compare is active, Show differences is on, diff
+  // data exists, AND we're in Document mode (where data-section hooks are
+  // absent). In Web mode or when the user turns off Show differences, hide.
+  const shouldShow = !!c.active && !!c.diffEnabled && hasDiffData && isDoc;
+  step.classList.toggle('pv-doc-no-hooks', shouldShow);
+}
+
+// Public: scroll the first diff highlight into view and briefly pulse it.
+// Looks in Version A first (left pane) then Version B (right pane).
+function jumpToFirstDifference() {
+  const sel = '.diff-added, .diff-removed, .diff-changed';
+  const left  = document.getElementById('preview-container-export');
+  const right = document.getElementById('preview-container-export-b');
+  let target = (left && left.querySelector(sel)) || (right && right.querySelector(sel));
+  if (!target) {
+    try { showToast && showToast('No differences to jump to. Try the Changes tab.'); } catch(_){}
+    return;
+  }
+  try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(_){ target.scrollIntoView(); }
+  target.classList.remove('diff-jump-pulse');
+  // force reflow so the animation replays on repeated clicks
+  void target.offsetWidth;
+  target.classList.add('diff-jump-pulse');
+  setTimeout(() => { try { target.classList.remove('diff-jump-pulse'); } catch(_){} }, 1500);
 }
 
 // Parameterized re-paint of highlight classes on the -export pair. Mirrors
@@ -10149,6 +10330,46 @@ window.testCompareMode = async function() {
       const panel = document.getElementById('compare-changes-panel');
       assert(panel && panel.innerHTML.trim().length > 0, 'Changes panel rendered (cards or empty-state)');
       setCompareMobileView('left');
+      // ── NEW: Show-differences highlight count round-trip ────────────
+      // With the checkbox ON (default), count live highlight nodes.
+      const DIFF_SEL = '.diff-added,.diff-removed,.diff-changed,.diff-word-added,.diff-word-removed';
+      const diffBox = document.getElementById('compare-diff-toggle');
+      const cState = (STATE.compare && STATE.compare.diff) || { added:[], removed:[], changed:[] };
+      const hasDiffData = !!(cState.added.length || cState.removed.length || cState.changed.length);
+      const rightSel = document.getElementById('compare-right-select');
+      const pickedRightVersion = !!(rightSel && rightSel.value);
+      // Turn ON explicitly to guarantee painting.
+      if (diffBox && !diffBox.checked) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
+      try { applyCompareDiffs(); } catch(_){}
+      const onCount = document.querySelectorAll(DIFF_SEL).length;
+      report.details.push('\u2139 highlight count (Show differences ON): ' + onCount);
+      const inDocMode = (STATE._previewMode || 'web') === 'doc';
+      if (pickedRightVersion && hasDiffData) {
+        if (inDocMode) {
+          if (onCount === 0) {
+            console.warn('Document preview mode has no [data-section] hooks — highlights can\'t land. Switch to Web preview or use the Changes tab.');
+            report.details.push('\u26A0 doc mode: 0 highlights expected; use Web preview or Changes tab');
+          } else {
+            assert(onCount >= 1, 'Show differences ON: at least one visible highlight');
+          }
+        } else {
+          assert(onCount >= 1, 'Show differences ON: at least one visible highlight');
+        }
+      } else if (!pickedRightVersion) {
+        report.details.push('\u2139 no Version B selected \u2014 skipping highlight-count assertion');
+      } else {
+        report.details.push('\u2139 no diff data between A and B \u2014 skipping highlight-count assertion');
+      }
+      // Now turn OFF and confirm all highlight classes are cleared.
+      if (diffBox) { diffBox.checked = false; diffBox.dispatchEvent(new Event('change')); }
+      try { applyCompareDiffs(); } catch(_){}
+      const offCount = document.querySelectorAll(DIFF_SEL).length;
+      report.details.push('\u2139 highlight count (Show differences OFF): ' + offCount);
+      assert(offCount === 0, 'Show differences OFF: all diff classes cleared');
+      // Restore the checkbox to ON before exiting so users don't see it flipped.
+      if (diffBox) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
+      try { applyCompareDiffs(); } catch(_){}
+      // ─────────────────────────────────────────────────────────────────
       // no horizontal overflow
       assert(document.documentElement.scrollWidth <= window.innerWidth + 2, 'no horizontal overflow');
       // exit restores
@@ -11211,6 +11432,17 @@ function setPreviewMode(mode, btn){
       try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
     }
   }
+  // If compare mode is active, both panes were just re-rendered above which
+  // wiped any diff highlights. Re-render Version B from its cached model and
+  // re-apply the diff painter so highlights don't vanish on mode switch.
+  try {
+    const c = STATE && STATE.compare;
+    if (c && c.active) {
+      if (typeof renderCompareViews === 'function') renderCompareViews();
+      if (typeof _compareLockEditing === 'function') _compareLockEditing(true);
+      if (typeof applyCompareDiffs === 'function') applyCompareDiffs();
+    }
+  } catch(_){}
   try { markDirty(); } catch(_){}
 }
 
