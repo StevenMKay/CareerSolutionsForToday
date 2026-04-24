@@ -14182,12 +14182,21 @@ async function exportPDF() {
         const u = (typeof firebase !== 'undefined' && firebase.auth) ? firebase.auth().currentUser : null;
         if (!u) throw new Error('Not signed in');
         const tok = await u.getIdToken();
+        // The HTML above includes auto-print + auto-close scripts designed
+        // for the client-side "Save as PDF" flow. When headless Chromium
+        // runs them, `window.print()` fires `afterprint` which calls
+        // `window.close()` — killing the page before page.pdf() can run.
+        // Strip that block for the server render. (The server ALSO
+        // neutralizes window.print/close defensively.)
+        const serverHtml = html
+          .replace(/<script>[\s\S]*?window\.print\(\)[\s\S]*?<\/script>/i, '')
+          .replace(/<script>[\s\S]*?window\.close\(\)[\s\S]*?<\/script>/i, '');
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 30000); // 30s client budget (server has 15s)
         const resp = await fetch(API_BASE + '/builder/export/pdf-server', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tok },
-          body: JSON.stringify({ html, filename: fileBase + '.pdf', format: (isDocxShape ? 'Letter' : 'Letter') }),
+          body: JSON.stringify({ html: serverHtml, filename: fileBase + '.pdf', paper: 'letter' }),
           signal: ctrl.signal
         });
         clearTimeout(t);
