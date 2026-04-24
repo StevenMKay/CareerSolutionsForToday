@@ -12,6 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import {
   GoogleSignin,
   statusCodes,
@@ -77,6 +79,97 @@ const WEBVIEW_ERROR_BRIDGE_JS = `
   true;
 })();
 `;
+
+// Download bridge: react-native-webview on Android cannot handle blob: URLs
+// from <a download> clicks or window.URL.createObjectURL. This injected JS
+// intercepts download-intent anchors, reads the blob as base64, and posts
+// it to the native layer which saves + opens the Android share sheet.
+// Covers the resume builder's PDF, DOCX, HTML exports.
+const WEBVIEW_DOWNLOAD_BRIDGE_JS = `
+(function(){
+  if (window.__rnDlBridge) return;
+  window.__rnDlBridge = true;
+
+  function post(msg){
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+      }
+    } catch(_){}
+  }
+
+  function blobToBase64(blob){
+    return new Promise(function(resolve, reject){
+      var r = new FileReader();
+      r.onerror = function(){ reject(r.error); };
+      r.onload = function(){
+        var s = String(r.result || '');
+        var i = s.indexOf('base64,');
+        resolve(i >= 0 ? s.slice(i + 7) : '');
+      };
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function handleBlobUrl(url, filename, mime){
+    try {
+      var res = await fetch(url);
+      var blob = await res.blob();
+      var b64 = await blobToBase64(blob);
+      post({
+        __rnDownload: true,
+        filename: filename || 'download',
+        mime: mime || blob.type || 'application/octet-stream',
+        base64: b64
+      });
+    } catch(e){
+      post({ __rnError: true, payload: { message: 'Download failed: ' + (e && e.message) } });
+    }
+  }
+
+  // Intercept programmatic a.click() where the anchor has a download attr.
+  var origClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function(){
+    try {
+      var href = this.getAttribute('href') || '';
+      var dl = this.getAttribute('download');
+      if (dl !== null && /^blob:/i.test(href)) {
+        handleBlobUrl(href, dl || 'download', this.type || '');
+        return;
+      }
+      if (dl !== null && /^data:/i.test(href)) {
+        // Convert data: URL to blob then hand off.
+        try {
+          var parts = href.split(',');
+          var meta = parts[0] || '';
+          var data = parts.slice(1).join(',');
+          var mime = (meta.match(/^data:([^;]+)/) || [])[1] || 'application/octet-stream';
+          var isB64 = /;base64/i.test(meta);
+          var b64 = isB64 ? data : btoa(unescape(encodeURIComponent(decodeURIComponent(data))));
+          post({ __rnDownload: true, filename: dl || 'download', mime: mime, base64: b64 });
+          return;
+        } catch(_){}
+      }
+    } catch(_){}
+    return origClick.apply(this, arguments);
+  };
+
+  // Capture-phase click listener catches user-driven clicks on <a download>.
+  document.addEventListener('click', function(ev){
+    var a = ev.target && ev.target.closest ? ev.target.closest('a[download]') : null;
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    if (/^blob:/i.test(href) || /^data:/i.test(href)) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      a.click(); // routes through the override above
+    }
+  }, true);
+
+  true;
+})();
+`;
+
 
 export default function Index() {
   const webviewRef = useRef<WebView>(null);
@@ -209,6 +302,37 @@ export default function Index() {
     setReloadKey((k) => k + 1);
   };
 
+  // Save a base64-encoded file from the WebView to a temp path and open the
+  // Android share sheet so the user can save it to Downloads, Drive, Gmail,
+  // etc. Needed because react-native-webview on Android can't handle the
+  // blob: downloads that the resume builder uses for PDF/DOCX/HTML exports.
+  const handleWebViewDownload = useCallback(
+    async (filename: string, mime: string, base64: string) => {
+      try {
+        const safeName = (filename || "download").replace(/[^\w.\-]+/g, "_");
+        const path = FileSystem.cacheDirectory + safeName;
+        await FileSystem.writeAsStringAsync(path, base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(path, {
+            mimeType: mime || "application/octet-stream",
+            dialogTitle: "Save or share",
+            UTI: mime,
+          });
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn("[RN-ERROR] Sharing not available on this device");
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[RN-ERROR] download save failed", e);
+      }
+    },
+    []
+  );
+
   // --- Web fallback: react-native-webview doesn't render on web.
   // Just redirect the browser directly to the hosted HTML so the preview
   // URL shows exactly what the Android WebView will load. ---
@@ -257,6 +381,7 @@ export default function Index() {
             // initial HTML parse are also captured. `true;` at the tail is
             // required by react-native-webview.
             injectedJavaScriptBeforeContentLoaded={WEBVIEW_ERROR_BRIDGE_JS}
+            injectedJavaScript={WEBVIEW_DOWNLOAD_BRIDGE_JS}
             // Receives JSON-encoded messages from the WebView. The bridge
             // sends {__rnError:true, payload:{...}}; everything else is
             // ignored so this doesn't conflict with other postMessage users.
@@ -270,6 +395,12 @@ export default function Index() {
                     `[WEBVIEW-ERROR] ${p.message || "unknown"}` +
                       (p.source ? ` @ ${p.source}:${p.lineno ?? "?"}:${p.colno ?? "?"}` : "") +
                       (p.stack ? `\n${p.stack}` : "")
+                  );
+                } else if (data && data.__rnDownload && data.base64) {
+                  handleWebViewDownload(
+                    String(data.filename || "download"),
+                    String(data.mime || "application/octet-stream"),
+                    String(data.base64)
                   );
                 } else if (data && data.type === "google-signin-request") {
                   // WebView asked us to run native Google sign-in. Uses the
