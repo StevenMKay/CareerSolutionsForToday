@@ -2199,6 +2199,13 @@
             <p class="text-xs" style="color:#6B7280">Editable .docx — best for ATS systems</p>
           </div>
         </button>
+        <button class="export-tile" onclick="runExport('pdf')" data-testid="export-tile-pdf" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:10px;cursor:pointer;text-align:left;transition:all 0.18s" onmouseover="this.style.borderColor='#B7472A';this.style.boxShadow='0 4px 12px rgba(183,71,42,0.14)'" onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='none'">
+          <div style="width:34px;height:34px;border-radius:8px;background:#FDECE6;display:flex;align-items:center;justify-content:center"><i data-lucide="file" style="width:18px;height:18px;color:#B7472A"></i></div>
+          <div>
+            <p class="text-sm font-semibold" style="color:#0F172A">Download PDF</p>
+            <p class="text-xs" style="color:#6B7280">Print-ready layout — preserves your template</p>
+          </div>
+        </button>
         <button class="export-tile" onclick="runExport('html')" data-testid="export-tile-html" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:10px;cursor:pointer;text-align:left;transition:all 0.18s" onmouseover="this.style.borderColor='#EA580C';this.style.boxShadow='0 4px 12px rgba(234,88,12,0.14)'" onmouseout="this.style.borderColor='#E5E7EB';this.style.boxShadow='none'">
           <div style="width:34px;height:34px;border-radius:8px;background:#FEF3E6;display:flex;align-items:center;justify-content:center"><i data-lucide="code-2" style="width:18px;height:18px;color:#EA580C"></i></div>
           <div>
@@ -2866,6 +2873,7 @@
       <span id="pptx-template-selected-label" style="font-size:0.78rem;color:#6B7280;margin-right:auto">Selected: <strong style="color:#0A2F6B">Modern Sidebar</strong></span>
       <button type="button" id="pptx-template-cancel-btn" class="btn-secondary" onclick="closePptxTemplateModal()" data-testid="pptx-template-cancel-btn">Cancel</button>
       <button type="button" id="pptx-template-use-btn" class="btn-primary hidden" onclick="confirmPptxTemplateSelection()" style="min-height:44px"><i data-lucide="check" style="width:14px;height:14px"></i> Use this style</button>
+      <button type="button" id="pptx-template-pdf-btn" data-testid="pptx-template-pdf-btn" onclick="confirmPptxTemplateAndExportPdf()" style="min-height:44px;background:#fff;color:#B7472A;border:1px solid #B7472A;border-radius:8px;padding:8px 14px;font-weight:600;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px" title="Download as PDF using the selected template"><i data-lucide="file" style="width:14px;height:14px"></i> Download PDF</button>
       <button type="button" id="pptx-template-export-btn" class="btn-primary" data-testid="pptx-template-export-btn" onclick="confirmPptxTemplateAndExport()" style="min-height:44px"><i data-lucide="download" style="width:14px;height:14px"></i> Export PowerPoint</button>
     </div>
   </div>
@@ -9074,6 +9082,16 @@ function confirmPptxTemplateAndExport() {
   } catch(e) { console.error(e); showToast('Export failed: ' + e.message); }
 }
 
+// PDF variant — closes the template modal then routes through runExport
+// so the user keeps the selected template/color but gets a PDF instead.
+function confirmPptxTemplateAndExportPdf() {
+  closePptxTemplateModal();
+  try {
+    if (typeof runExport === 'function') { runExport('pdf'); }
+    else { exportPDF(); }
+  } catch(e) { console.error(e); showToast('Export failed: ' + e.message); }
+}
+
 // ============ Versions Modal (replaces old left-sidebar dropdown flow) ============
 function openVersionsModal() {
   const m = document.getElementById('versions-modal');
@@ -11633,7 +11651,7 @@ try { window.__modelToGShape = _modelToGShape; } catch(_){}
 //     for sharing in a browser but diverges from DOCX/PPTX.
 // Callers pick via STATE.htmlExportMode or runExport('html', { mode }).
 function exportHTML(opts) {
-  if (!canUsePremium()) { showPaywall(); return; }
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   const mode = (opts && opts.mode) || STATE.htmlExportMode || 'template';
   if (mode === 'web') return exportHTML_web();
   return exportHTML_template();
@@ -11644,7 +11662,7 @@ function exportHTML(opts) {
 // output consistent with DOCX / PPTX / template-HTML: same model, same data,
 // same section ordering.
 function exportHTML_web() {
-  if (!canUsePremium()) { showPaywall(); return; }
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   // Default path is model-driven. The legacy DOM-clone fallback below is
   // preserved behind STATE.htmlWebMode === 'legacy' as an operational
   // rollback switch; do not rely on it in new code.
@@ -11703,7 +11721,7 @@ function exportHTML_web() {
 // you get" HTML path — identical layout to the selected Word/PowerPoint
 // template.
 async function exportHTML_template() {
-  if (!canUsePremium()) { showPaywall(); return; }
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   try {
     // Prime enhanced data if user asked for it
     if (STATE.useEnhanced && !STATE.enhancedData) {
@@ -11771,6 +11789,94 @@ async function exportHTML_template() {
   }
 }
 
+// ============ PDF Export (print-based, no new deps) ============
+// Reuses exportHTML_template's generation pipeline (same buildExportModel,
+// same renderers, same paper-sized page frame). Opens the rendered HTML in
+// a new window and triggers window.print() on load. The browser's native
+// Save-as-PDF dialog produces the output with identical layout to the
+// template HTML. Zero new libraries required.
+async function exportPDF() {
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
+  try {
+    try { window.updateExportProgress && window.updateExportProgress('Preparing your content…'); } catch(_){}
+    // Prime enhanced data if user asked for it (same path as HTML/DOCX/PPTX)
+    if (STATE.useEnhanced && !STATE.enhancedData) {
+      const r = await ensureEnhancedData();
+      if (r && r.reason === 'auth') return;
+      if (r && !r.ok) showToast('AI enhancement unavailable — using original content');
+    }
+    const model = buildExportModel({ format: 'html', forceRefresh: true });
+    const guard = hasExportableContent(model);
+    if (guard) { showToast(guard); return; }
+
+    try { window.updateExportProgress && window.updateExportProgress('Rendering layout…'); } catch(_){}
+
+    // Same renderer selection logic as exportHTML_template — PDF follows
+    // whichever Word/PowerPoint template the user selected.
+    const tid = (STATE.previewFormat === 'docx') ? 'classic-serif' : (model.template || 'modern-sidebar');
+    const inner = _selectAndRender(tid, model, model.accent);
+
+    const isDocxShape = (STATE.previewFormat === 'docx');
+    const pageW = isDocxShape ? '8.5in' : '7.5in';
+    const pageH = isDocxShape ? '11in'  : '10in';
+
+    const title = (model.person.name || 'Resume') + ' — ' + (model.person.title || 'Resume');
+    const suffix = model.source === 'enhanced' ? '-enhanced' : '';
+    const fileBase = (model.person.name || 'resume').replace(/\s+/g,'-').toLowerCase() + suffix + '-resume';
+    try { STATE._lastExportFileName = fileBase + '.pdf'; } catch(_){}
+
+    const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>${_pvEsc(title)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #E5E7EB; }
+  body { font-family: 'Manrope', 'Arial', sans-serif; color: #0A0A0A; padding: 24px 16px; }
+  .pv-page { position: relative; width: ${pageW}; height: ${pageH}; background: #fff; margin: 0 auto 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; page-break-after: always; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .pv-page { box-shadow: none; margin: 0; }
+    @page { size: ${pageW} ${pageH}; margin: 0; }
+  }
+</style>
+</head><body>
+  <div class="pv-page">${inner}</div>
+  <script>
+    // Auto-trigger the print dialog so the user can Save as PDF.
+    // Small delay lets fonts load before the print preview renders.
+    window.addEventListener('load', function(){
+      setTimeout(function(){ try { window.focus(); window.print(); } catch(e){} }, 450);
+    });
+    // Optional: close the tab after the user finishes the print dialog.
+    window.addEventListener('afterprint', function(){ try { window.close(); } catch(e){} });
+  <\/script>
+</body></html>`;
+
+    try { window.updateExportProgress && window.updateExportProgress('Opening print dialog…'); } catch(_){}
+
+    // Open a new window and write the HTML. Using a blob URL instead of
+    // document.write keeps the print dialog reliable across browsers and
+    // avoids about:blank quirks.
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) {
+      URL.revokeObjectURL(url);
+      throw new Error('Popup blocked — allow popups for this site to export PDF');
+    }
+    // Revoke the blob URL once the window's done with it (best-effort).
+    setTimeout(() => { try { URL.revokeObjectURL(url); } catch(_){} }, 60000);
+    showToast('Opening print dialog — choose "Save as PDF"');
+  } catch (e) {
+    console.error('PDF export error:', e);
+    showToast('PDF export failed: ' + (e.message || 'unknown error'));
+    throw e;
+  }
+}
+
 // ============ Export UX: runExport dispatcher + strip + HTML mode picker ============
 // Unified entry point — handles double-click lock, loading toast, and routes
 // to the format-specific exporter. Individual exporters still manage their
@@ -11778,7 +11884,9 @@ async function exportHTML_template() {
 // trigger points (quick buttons, tiles, keyboard shortcuts).
 async function runExport(format, opts) {
   if (STATE._exporting) { showToast('An export is already in progress…'); return; }
-  if (!canUsePremium()) { showPaywall(); return; }
+  // Allow one free export for new users so they can complete the full flow
+  // (extract → research → analyze → optimize → export) before hitting the paywall.
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   STATE._exporting = true;
   STATE._lastExportOk = false;
   STATE._lastExportError = null;
@@ -11789,6 +11897,8 @@ async function runExport(format, opts) {
       await exportPPTX();
     } else if (format === 'html') {
       await exportHTML(opts);
+    } else if (format === 'pdf') {
+      await exportPDF();
     } else {
       showToast('Unknown export format: ' + format);
       STATE._lastExportError = 'unknown-format';
@@ -11908,7 +12018,7 @@ function _isCustomSectionOrder() {
 }
 
 async function exportDOCX() {
-  if (!canUsePremium()) { showPaywall(); return; }
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   // Note: progress UI is driven by the runExport hook's full-screen overlay
   // (showExportProgress/flashExportDownloaded). We no longer mutate button
   // text here, which previously caused cross-talk between export buttons.
@@ -12281,7 +12391,7 @@ async function importLinkedInJob() {
 
 // ============ PPTX Export (Modern Resume Template) ============
 async function exportPPTX() {
-  if (!canUsePremium()) { showPaywall(); return; }
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   // Note: progress UI is driven by the runExport hook's full-screen overlay
   // (showExportProgress/flashExportDownloaded). We no longer mutate button
   // text here, which previously caused cross-talk between export buttons.
@@ -13418,7 +13528,9 @@ async function analyzeAndOpenDrawer() {
 }
 
 async function analyzeResume() {
-  if (!canUsePremium()) { showPaywall(); return; }
+  // Allow the very first build for new users so they can test the full flow
+  // (extract → research → analyze → optimize → export) before hitting the paywall.
+  if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   const btn = document.querySelector('[data-testid="analyze-btn"]');
   const origHTML = btn ? btn.innerHTML : '';
 
@@ -15413,8 +15525,8 @@ function openPrivacyForReview() {
       }
       const BRAND_LIGHT = _mix(BRAND, 0.35, true);
       const BRAND_DARK  = _mix(BRAND, 0.30, false);
-      const ICONS = { docx: 'file-text', pptx: 'presentation', html: 'code-2' };
-      const LABELS = { docx: 'Word document', pptx: 'PowerPoint deck', html: 'HTML export' };
+      const ICONS = { docx: 'file-text', pptx: 'presentation', html: 'code-2', pdf: 'file' };
+      const LABELS = { docx: 'Word document', pptx: 'PowerPoint deck', html: 'HTML export', pdf: 'PDF document' };
       const icon = ICONS[fmt] || 'download';
       const label = LABELS[fmt] || 'document';
       const ring = [BRAND, BRAND_LIGHT, '#FFFFFF', BRAND_LIGHT, BRAND];
@@ -15426,7 +15538,8 @@ function openPrivacyForReview() {
       const STEPS = {
         pptx: ['Preparing your content…', 'Laying out slides…', 'Rendering sections…', 'Packaging .pptx…'],
         docx: ['Preparing your content…', 'Composing pages…', 'Styling headings…', 'Packaging .docx…'],
-        html: ['Preparing your content…', 'Rendering HTML…', 'Inlining styles…', 'Packaging file…']
+        html: ['Preparing your content…', 'Rendering HTML…', 'Inlining styles…', 'Packaging file…'],
+        pdf:  ['Preparing your content…', 'Rendering layout…', 'Opening print dialog…']
       };
       const steps = STEPS[fmt] || ['Preparing…', 'Rendering…', 'Packaging…'];
       const m = document.createElement('div');
