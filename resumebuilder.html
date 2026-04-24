@@ -8017,21 +8017,28 @@ function populateManualEntryFromState() {
   if (achList) {
     achList.innerHTML = '';
     (rd.achievements || []).forEach(a => {
-      // Accept either new-shape {title,year,context} or legacy string
+      // Accept either new-shape {title,year,context/description} or legacy string.
+      // ISS-006: server schema returns `description`; the form field is named
+      // `context` — map description → context so the body text actually shows.
       const obj = (typeof a === 'string') ? { title: a, year: '', context: '' } : (a || {});
       addManualAchievement();
       const item = achList.lastElementChild;
       if (!item) return;
       item.querySelector('.manual-ach-title').value = obj.title || obj.text || '';
       item.querySelector('.manual-ach-year').value = obj.year || '';
-      item.querySelector('.manual-ach-context').value = obj.context || '';
+      item.querySelector('.manual-ach-context').value = obj.context || obj.description || '';
     });
   }
-  // Volunteering
+  // Volunteering — ISS-006: server schema field is `volunteer_experience`;
+  // previously only `volunteering` was read so volunteer items were silently
+  // dropped from the form. Accept both for backward compatibility.
   const volList = document.getElementById('manual-volunteering-list');
   if (volList) {
     volList.innerHTML = '';
-    (rd.volunteering || []).forEach(v => {
+    const volArr = (Array.isArray(rd.volunteer_experience) && rd.volunteer_experience.length)
+      ? rd.volunteer_experience
+      : (rd.volunteering || []);
+    volArr.forEach(v => {
       addManualVolunteering();
       const item = volList.lastElementChild;
       if (!item) return;
@@ -8042,6 +8049,24 @@ function populateManualEntryFromState() {
       item.querySelector('.manual-vol-description').value = v.description || '';
     });
   }
+  // ISS-006: diagnostic — log exactly what was written into the DOM so we
+  // can cross-check against the "[extract] Server returned resume_data" log.
+  try {
+    const count = sel => document.querySelectorAll(sel).length;
+    const val = id => (document.getElementById(id) || {}).value || '';
+    console.groupCollapsed('%c[extract] Fields populated from resume_data','color:#059669;font-weight:600');
+    console.table({
+      'manual-current-title': val('manual-current-title'),
+      'manual-summary (len)': val('manual-summary').length,
+      'manual-skills (count)': (val('manual-skills').split(',').filter(s => s.trim()).length),
+      'experience rows':      count('#manual-experience-list > *'),
+      'education rows':       count('#manual-education-list > *'),
+      'certification rows':   count('#manual-certification-list > *'),
+      'achievement rows':     count('#manual-achievement-list > *'),
+      'volunteering rows':    count('#manual-volunteering-list > *')
+    });
+    console.groupEnd();
+  } catch(_){}
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
 }
 
@@ -8113,6 +8138,41 @@ async function parseResume() {
     if (data.error) { throw new Error(data.error); }
     STATE.resumeData = data.resume_data;
     STATE.rawResumeText = data.raw_text || text;
+    // ISS-006: verbose console diagnostics so we can see exactly what the
+    // server returned (per-field counts + sample values) and, later, what
+    // was actually written into the form DOM. Addresses user-reported
+    // symptom: preview showed "Achievements: 2 found" but the Achievements
+    // form stayed empty.
+    try {
+      const rd = data.resume_data || {};
+      const len = v => Array.isArray(v) ? v.length : 0;
+      console.groupCollapsed('%c[extract] Server returned resume_data','color:#2563EB;font-weight:600');
+      console.log('Raw text length:', (data.raw_text || text || '').length);
+      console.table({
+        name:           rd.name || '',
+        current_title:  rd.current_title || '',
+        summary:        (rd.summary || '').slice(0,80),
+        phone:          rd.phone || '',
+        email:          rd.email || '',
+        address:        rd.address || '',
+        linkedin:       rd.linkedin || '',
+        experience:     len(rd.experience),
+        skills:         len(rd.skills),
+        education:      len(rd.education),
+        certifications: len(rd.certifications),
+        achievements:   len(rd.achievements),
+        leadership:     len(rd.leadership_engagement),
+        volunteer:      len(rd.volunteer_experience),
+        projects:       len(rd.projects),
+        languages:      len(rd.languages)
+      });
+      if (len(rd.achievements))   console.log('achievements[] sample:', rd.achievements);
+      if (len(rd.certifications)) console.log('certifications[] sample:', rd.certifications);
+      if (len(rd.experience))     console.log('experience[] sample:', rd.experience.map(e => ({ title:e.title, company:e.company, bullets:len(e.bullets) })));
+      if (len(rd.volunteer_experience)) console.log('volunteer_experience[] sample:', rd.volunteer_experience);
+      if (len(rd.leadership_engagement)) console.log('leadership_engagement[] sample:', rd.leadership_engagement);
+      console.groupEnd();
+    } catch(_){}
     renderResumePreview(data.resume_data);
     document.getElementById('resume-preview').classList.remove('hidden');
     // Show filename and extraction date
@@ -8141,6 +8201,12 @@ async function parseResume() {
     // Store filename/date for persistent collapsed bar
     STATE.resumeFileName = fname;
     STATE.resumeExtractedAt = now;
+    // ISS-006: push the extracted data into the manual-entry form fields
+    // (Experience / Education / Certifications / Achievements / Volunteer).
+    // Previously this was only called on plan LOAD, so after a fresh extract
+    // the "Extracted resume data" preview showed counts but the form
+    // underneath stayed empty. Users then thought extraction was broken.
+    try { populateManualEntryFromState(); } catch(popErr) { console.warn('[extract] populateManualEntryFromState failed:', popErr); }
     // Auto-collapse the upload section now that resume is loaded
     collapseResumeUpload(fname, now);
     showToast('Resume extracted successfully!');
