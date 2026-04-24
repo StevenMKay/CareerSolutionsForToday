@@ -2493,28 +2493,73 @@
            directly (force-start so it plays even if the user has previously
            completed it). The Import-step accordion is still opened so the
            tour has content to narrate. -->
-      <button type="button" class="btn-primary text-xs py-1.5" style="background:#005EB8;display:inline-flex;align-items:center;gap:6px;padding:10px 18px;font-weight:600" onclick="closeFirstLoginModal(); try{ toggleAccordion && toggleAccordion(1); }catch(_){} try{ setTimeout(function(){ if (window.RB_TOUR && RB_TOUR.start) RB_TOUR.start({force:true}); }, 500); }catch(_){}" data-testid="first-login-get-started">
+      <!-- PATCH: simplified onclick. Removed the fragile toggleAccordion(1)
+           pre-call — that only works when the builder is already mounted
+           and is useless from the My Resumes dashboard. The new async guard
+           inside RB_TOUR.start() (see ensureBuilderMountedForTour) handles
+           builder navigation before the tour runs. -->
+      <button type="button" class="btn-primary text-xs py-1.5" style="background:#005EB8;display:inline-flex;align-items:center;gap:6px;padding:10px 18px;font-weight:600" onclick="closeFirstLoginModal(); try{ setTimeout(function(){ if (window.RB_TOUR && RB_TOUR.start) RB_TOUR.start({force:true}); }, 180); }catch(_){}" data-testid="first-login-get-started">
         Quick tour <i data-lucide="arrow-right" style="width:14px;height:14px"></i>
       </button>
     </div>
   </div>
 </div>
 
-<!-- Responsive: stack columns on narrow screens so the modal stays readable -->
+<!-- Responsive: clean up the first-login welcome modal on mobile.
+     - Hide the decorative resume+AI mockup (aria-hidden, purely visual) —
+       previously left visible at scale(.85), which caused overlap/overflow.
+     - Single-column body, tighter padding, smaller headline.
+     - Footer CTAs stack full-width with primary on top (thumb-friendly). -->
 <style>
   @media (max-width: 640px) {
+    /* Make the whole modal scrollable on short viewports so no CTA is hidden */
+    #first-login-modal > div {
+      max-height: 92vh !important;
+      overflow-y: auto !important;
+    }
+    /* Header strip: tighter padding, smaller logo */
+    #first-login-modal > div > div:nth-child(1) {
+      padding: 14px 18px !important;
+      gap: 10px !important;
+    }
+    #first-login-modal > div > div:nth-child(1) > div:first-child {
+      width: 34px !important; height: 34px !important;
+    }
+    /* Body: single column, hide decorative mockup */
     #first-login-modal > div > div:nth-child(2) {
       grid-template-columns: 1fr !important;
-      gap: 16px !important;
-      padding: 20px 20px 8px !important;
+      gap: 0 !important;
+      padding: 20px 20px 6px !important;
     }
     #first-login-modal h3#first-login-title {
-      font-size: 24px !important;
+      font-size: 22px !important;
+      line-height: 1.15 !important;
+      letter-spacing: -.02em !important;
     }
+    #first-login-modal > div > div:nth-child(2) > div:first-child p {
+      font-size: 13px !important;
+      margin: 8px 0 14px !important;
+    }
+    #first-login-modal > div > div:nth-child(2) ul li {
+      font-size: 13px !important;
+    }
+    /* Kill the right-side mockup on mobile — it overflows/overlaps. */
     #first-login-modal [aria-hidden="true"] {
-      min-height: 200px !important;
-      transform: scale(0.85);
-      transform-origin: top left;
+      display: none !important;
+    }
+    /* Footer: stack buttons vertically, full-width, primary on top. */
+    #first-login-modal > div > div:last-child {
+      flex-direction: column-reverse !important;
+      align-items: stretch !important;
+      padding: 14px 20px 20px !important;
+      gap: 8px !important;
+    }
+    #first-login-modal > div > div:last-child > button {
+      width: 100% !important;
+      justify-content: center !important;
+      padding: 12px 16px !important;
+      font-size: 14px !important;
+      white-space: nowrap !important;
     }
   }
 </style>
@@ -15066,7 +15111,42 @@ function openPrivacyForReview() {
     render();
   }
 
-  function start(opts){
+  // PATCH: If the user is on the My Resumes dashboard (not inside a resume),
+  // the tour anchors (#sub-acc-import, #step-2, etc.) don't exist yet and the
+  // tooltips float over a blank page. Before running the tour we make sure the
+  // builder is mounted — spin up a blank plan if needed, suppress the
+  // auto-opened version-name prompt (otherwise it blocks the spotlight), then
+  // wait a frame for the DOM to settle.
+  async function ensureBuilderMountedForTour(){
+    try {
+      const wrapper = document.getElementById('builder-wrapper');
+      const dashboard = document.getElementById('dashboard');
+      const builderVisible = wrapper && !wrapper.classList.contains('hidden') && wrapper.offsetParent !== null;
+      if (builderVisible) return; // already inside a resume — nothing to do
+      // Prefer the low-level entry that skips paywall checks (the tour is
+      // triggered from a signed-in flow; paywall gate can interrupt otherwise).
+      if (typeof window._doStartNewPlan === 'function') { window._doStartNewPlan(); }
+      else if (typeof window.startNewPlan === 'function') { window.startNewPlan(); }
+      else if (dashboard) { dashboard.classList.add('hidden'); if (wrapper) wrapper.classList.remove('hidden'); }
+      // _doStartNewPlan auto-opens the "name your resume" modal ~300ms later.
+      // Suppress it so the tour has a clear stage.
+      const suppressVersionModal = () => {
+        try {
+          const vm = document.getElementById('version-modal');
+          if (vm) { vm.classList.add('hidden'); vm.style.display = 'none'; }
+        } catch(_){}
+      };
+      suppressVersionModal();
+      setTimeout(suppressVersionModal, 350);
+      setTimeout(suppressVersionModal, 700);
+      // Wait for the builder DOM to be laid out so anchors are measurable.
+      await new Promise(r => setTimeout(r, 450));
+    } catch(e){ try { console.warn('ensureBuilderMountedForTour failed', e); } catch(_){} }
+  }
+
+  async function start(opts){
+    // PATCH: make sure the builder is the visible screen before the tour runs.
+    await ensureBuilderMountedForTour();
     idx = 0;
     active = true;
     const r = root();
@@ -15379,66 +15459,223 @@ function openPrivacyForReview() {
   // Standalone Before/After modal. Reads from STATE.optimizationSession only —
   // no recomputation, no fetch. Resume-only for this release (plan before/after
   // is deferred per product direction).
+  // ===== BEFORE/AFTER UI ENHANCEMENT =====
+  // This modal surfaces perceived value by clearly showing what changed,
+  // why it matters for THIS role, and how each change improves hiring
+  // potential. Reads exclusively from STATE.optimizationSession — no new
+  // API calls, no schema changes. Uses the backend's existing accepted_changes
+  // shape plus the newly-added `why_it_matters` field (with graceful
+  // fallback to `reason` for deploy skew).
   window.openOptimizeBeforeAfter = function openOptimizeBeforeAfter(){
     const s = (window.STATE && window.STATE.optimizationSession) || null;
     if (!s || !Array.isArray(s.acceptedChanges) || !s.acceptedChanges.length){
       if (typeof showToast === 'function') showToast('Run Optimize first to see a before vs after.');
       return;
     }
-    // Group by section for readability
-    const groups = { summary: [], experience: [], other: [] };
+
+    // --- Score header data ---------------------------------------------------
+    // Match Score: X → Y (+Z)  rendered in the premium header.
+    const beforeScore = typeof s.originalScore === 'number' ? s.originalScore : 0;
+    const afterScore  = typeof s.improvedScore === 'number' ? s.improvedScore : beforeScore;
+    const delta       = typeof s.delta === 'number' ? s.delta : (afterScore - beforeScore);
+    const deltaSign   = delta > 0 ? '+' : '';
+    const deltaColor  = delta > 0 ? '#10B981' : (delta < 0 ? '#EF4444' : '#F59E0B');
+
+    // --- Group changes --------------------------------------------------------
+    // We split summary vs experience vs other so each gets a dedicated block.
+    // accepted_summary_change is already prepended to acceptedChanges upstream
+    // (see the optimize handler at the accepted.unshift line), so we find it
+    // here by section === 'summary'.
+    const summaryChanges = [];
+    const experienceChanges = [];
+    const otherChanges = [];
     s.acceptedChanges.forEach(c => {
-      if (c.section === 'summary' || c.field_path === 'summary') groups.summary.push(c);
-      else if ((c.field_path || '').startsWith('experience[') || c.section === 'experience') groups.experience.push(c);
-      else groups.other.push(c);
+      if (c.section === 'summary' || c.field_path === 'summary') summaryChanges.push(c);
+      else if ((c.field_path || '').startsWith('experience[') || c.section === 'experience') experienceChanges.push(c);
+      else otherChanges.push(c);
     });
 
-    const sectionHTML = (label, items) => {
-      if (!items.length) return '';
-      return '<div style="margin-bottom:16px">' +
-        '<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748B;margin-bottom:6px">' + esc(label) + ' (' + items.length + ')</div>' +
-        items.map(c =>
-          '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff">' +
-            '<div style="font-size:0.7rem;color:#64748B;font-family:ui-monospace,monospace;margin-bottom:6px">' + esc(c.field_path || c.section || '') + (typeof c.delta_score === 'number' ? ' · +' + c.delta_score + ' pts' : '') + '</div>' +
-            '<div class="rb-ba-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
-              '<div><div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#991B1B;margin-bottom:4px">Before</div>' +
-                '<div style="font-size:0.78rem;color:#7F1D1D;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:8px 10px;line-height:1.5">' + esc(c.original || '') + '</div></div>' +
-              '<div><div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#065F46;margin-bottom:4px">After</div>' +
-                '<div style="font-size:0.78rem;color:#064E3B;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:8px 10px;line-height:1.5">' + esc(c.improved || '') + '</div></div>' +
-            '</div>' +
-            (c.reason ? '<div style="margin-top:6px;font-size:0.72rem;color:#475569"><em>' + esc(c.reason) + '</em></div>' : '') +
-          '</div>'
-        ).join('') +
-      '</div>';
-    };
+    // --- Impact tier ----------------------------------------------------------
+    // IMPACT LABEL rule (per product spec):
+    //   delta_score >= 2 → "High Impact Improvement"
+    //   else             → "Refinement"
+    // Keeps the UI honest — small +1 nits shouldn't be hyped as major wins.
+    function impactTier(c){
+      const d = typeof c.delta_score === 'number' ? c.delta_score : 0;
+      if (d >= 2) return { label: 'High Impact Improvement', bg: '#EDE9FE', fg: '#5B21B6', border: '#C4B5FD' };
+      return { label: 'Refinement', bg: '#F1F5F9', fg: '#475569', border: '#CBD5E1' };
+    }
 
+    // --- Why-this-matters resolver -------------------------------------------
+    // Prefer the backend-provided why_it_matters; fall back to reason for
+    // deploy skew (old sessions cached in Firestore won't have the new field).
+    // If neither exists, return null so the caller skips the 🎯 row entirely.
+    function whyItMatters(c){
+      const w = (c.why_it_matters || '').trim();
+      if (w) return w;
+      const r = (c.reason || '').trim();
+      return r || null;
+    }
+
+    // --- Experience change card ---------------------------------------------
+    // Structure:
+    //   [ Experience Improvement ]  + Impact tier badge
+    //   Before (muted gray)   |   After (white + subtle green border)
+    //   ✔ Improvement:  {reason}
+    //   🎯 Why this matters: {why_it_matters || reason fallback}
+    function renderExperienceCard(c){
+      const tier = impactTier(c);
+      const reason = (c.reason || '').trim();
+      const why = whyItMatters(c);
+      return '<details open style="border:1px solid #E2E8F0;border-radius:12px;background:#fff;margin-bottom:10px;overflow:hidden">' +
+        '<summary style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none;min-height:32px">' +
+          '<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#0F172A;background:#F8FAFC;border:1px solid #E2E8F0;padding:3px 8px;border-radius:6px">Experience Improvement</span>' +
+          '<span style="font-size:0.68rem;font-weight:700;color:' + tier.fg + ';background:' + tier.bg + ';border:1px solid ' + tier.border + ';padding:3px 8px;border-radius:999px">' + esc(tier.label) + '</span>' +
+          (typeof c.delta_score === 'number' ? '<span style="font-size:0.68rem;font-weight:700;color:' + deltaColor + ';margin-left:auto">+' + c.delta_score + ' pts</span>' : '') +
+        '</summary>' +
+        '<div style="padding:0 14px 14px">' +
+          // Before/After columns — muted gray for Before, crisp white w/ green accent for After
+          '<div class="rb-ba-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
+            '<div>' +
+              '<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748B;margin-bottom:4px">Before</div>' +
+              '<div style="font-size:0.8rem;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:9px 11px;line-height:1.55">' + esc(c.original || '') + '</div>' +
+            '</div>' +
+            '<div>' +
+              '<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#065F46;margin-bottom:4px">After</div>' +
+              '<div style="font-size:0.8rem;color:#0F172A;background:#fff;border:1px solid #A7F3D0;border-radius:8px;padding:9px 11px;line-height:1.55;box-shadow:0 1px 0 rgba(16,185,129,0.08)">' + esc(c.improved || '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          (reason ? '<div style="display:flex;gap:6px;align-items:flex-start;font-size:0.78rem;color:#065F46;margin-bottom:6px;line-height:1.5"><span style="flex-shrink:0">✔</span><span><strong style="color:#064E3B">Improvement:</strong> ' + esc(reason) + '</span></div>' : '') +
+          (why ? '<div style="display:flex;gap:6px;align-items:flex-start;font-size:0.78rem;color:#1E3A8A;line-height:1.5"><span style="flex-shrink:0">🎯</span><span><strong style="color:#1E3A8A">Why this matters:</strong> ' + esc(why) + '</span></div>' : '') +
+        '</div>' +
+      '</details>';
+    }
+
+    // --- Summary change card -------------------------------------------------
+    // Distinct block label, light-bulb 💡 for the why to differentiate from
+    // experience cards.
+    function renderSummaryCard(c){
+      const tier = impactTier(c);
+      const why = whyItMatters(c);
+      return '<details open style="border:1px solid #C7D2FE;border-radius:12px;background:linear-gradient(180deg,#FAF5FF,#fff);margin-bottom:14px;overflow:hidden">' +
+        '<summary style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none;min-height:32px">' +
+          '<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#5B21B6;background:#EDE9FE;border:1px solid #C4B5FD;padding:3px 8px;border-radius:6px">Professional Summary Updated</span>' +
+          '<span style="font-size:0.68rem;font-weight:700;color:' + tier.fg + ';background:' + tier.bg + ';border:1px solid ' + tier.border + ';padding:3px 8px;border-radius:999px">' + esc(tier.label) + '</span>' +
+          (typeof c.delta_score === 'number' ? '<span style="font-size:0.68rem;font-weight:700;color:' + deltaColor + ';margin-left:auto">+' + c.delta_score + ' pts</span>' : '') +
+        '</summary>' +
+        '<div style="padding:0 14px 14px">' +
+          '<div style="margin-bottom:10px">' +
+            '<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748B;margin-bottom:4px">Before</div>' +
+            '<div style="font-size:0.82rem;color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;line-height:1.6">' + esc(c.original || '') + '</div>' +
+          '</div>' +
+          '<div style="margin-bottom:10px">' +
+            '<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#065F46;margin-bottom:4px">After</div>' +
+            '<div style="font-size:0.82rem;color:#0F172A;background:#fff;border:1px solid #A7F3D0;border-radius:8px;padding:10px 12px;line-height:1.6;box-shadow:0 1px 0 rgba(16,185,129,0.08)">' + esc(c.improved || '') + '</div>' +
+          '</div>' +
+          (why ? '<div style="display:flex;gap:6px;align-items:flex-start;font-size:0.8rem;color:#5B21B6;line-height:1.5"><span style="flex-shrink:0">💡</span><span><strong style="color:#4C1D95">Why this matters:</strong> ' + esc(why) + '</span></div>' : '') +
+        '</div>' +
+      '</details>';
+    }
+
+    // --- Skills optimization card -------------------------------------------
+    // Derived from skills_reordered + skills_added on the session. We don't
+    // render it unless those arrays have meaningful content.
+    function renderSkillsCard(){
+      const reordered = Array.isArray(s.skillsReordered) ? s.skillsReordered
+                       : (Array.isArray(s.skills_reordered) ? s.skills_reordered : []);
+      const added     = Array.isArray(s.skillsAdded) ? s.skillsAdded
+                       : (Array.isArray(s.skills_added) ? s.skills_added : []);
+      const topReordered = reordered.slice(0, 3);
+      if (!topReordered.length && !added.length) return '';
+      const movedLine = topReordered.length ? 'Moved: <strong style="color:#0F172A">' + esc(topReordered.join(', ')) + '</strong> → top' : '';
+      const addedLine = added.length ? 'Added: <strong style="color:#0F172A">' + esc(added.join(', ')) + '</strong>' : '';
+      return '<details open style="border:1px solid #E2E8F0;border-radius:12px;background:#fff;margin-bottom:14px;overflow:hidden">' +
+        '<summary style="padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;list-style:none;min-height:32px">' +
+          '<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#0F172A;background:#F8FAFC;border:1px solid #E2E8F0;padding:3px 8px;border-radius:6px">Skills Optimization</span>' +
+        '</summary>' +
+        '<div style="padding:0 14px 14px">' +
+          (movedLine ? '<div style="font-size:0.8rem;color:#334155;line-height:1.55;margin-bottom:4px">' + movedLine + '</div>' : '') +
+          (addedLine ? '<div style="font-size:0.8rem;color:#334155;line-height:1.55;margin-bottom:4px">' + addedLine + '</div>' : '') +
+          '<div style="display:flex;gap:6px;align-items:flex-start;font-size:0.78rem;color:#1E3A8A;line-height:1.5;margin-top:8px"><span style="flex-shrink:0">🎯</span><span><strong style="color:#1E3A8A">Why this matters:</strong> These are priority skills in the job description — increases relevance for screening and ATS keyword match.</span></div>' +
+        '</div>' +
+      '</details>';
+    }
+
+    // --- Build block by block ------------------------------------------------
+    const parts = [];
+    summaryChanges.forEach(c => parts.push(renderSummaryCard(c)));
+    if (experienceChanges.length){
+      parts.push('<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748B;margin:4px 0 8px">Experience (' + experienceChanges.length + ')</div>');
+      experienceChanges.forEach(c => parts.push(renderExperienceCard(c)));
+    }
+    parts.push(renderSkillsCard());
+    if (otherChanges.length){
+      parts.push('<div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#64748B;margin:12px 0 8px">Other changes (' + otherChanges.length + ')</div>');
+      otherChanges.forEach(c => parts.push(renderExperienceCard(c)));
+    }
+
+    // Strategist note footer — closes the loop with expert hiring insight.
+    const strategist = (s.strategistNote || '').trim();
+    const strategistHTML = strategist
+      ? '<div style="margin-top:6px;padding:12px 14px;background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:1px solid #C7D2FE;border-radius:12px">' +
+          '<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#5B21B6;margin-bottom:4px">Strategist Note</div>' +
+          '<div style="font-size:0.82rem;color:#1E293B;line-height:1.55">' + esc(strategist) + '</div>' +
+        '</div>'
+      : '';
+
+    // --- Modal shell ---------------------------------------------------------
     let d = document.getElementById('rb-ba-modal');
     if (d) d.remove();
     d = document.createElement('div');
     d.id = 'rb-ba-modal';
     d.style.cssText = 'position:fixed;inset:0;z-index:10045;background:rgba(15,23,42,0.6);display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px);animation:fadeIn .18s ease-out';
-    const kept = (s.summaryStats && s.summaryStats.changes_kept) || s.acceptedChanges.length;
-    const delta = typeof s.delta === 'number' ? s.delta : 0;
-    const deltaColor = delta > 0 ? '#10B981' : (delta < 0 ? '#EF4444' : '#F59E0B');
 
     d.innerHTML =
-      '<style>@media (max-width: 640px){ #rb-ba-modal .rb-ba-cols{grid-template-columns:1fr!important} }</style>' +
-      '<div style="width:100%;max-width:720px;max-height:90vh;background:#fff;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px -10px rgba(15,23,42,0.45),0 0 0 1px rgba(255,255,255,0.08);animation:modalPopIn .22s cubic-bezier(.2,.9,.3,1.2)">' +
-        '<div style="padding:16px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #F1F5F9">' +
-          '<div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#EDE9FE,#DBEAFE);display:flex;align-items:center;justify-content:center"><i data-lucide="git-compare" style="width:17px;height:17px;color:#7C3AED"></i></div>' +
-          '<div style="flex:1"><div style="font-size:1rem;font-weight:800;color:#0F172A;letter-spacing:-.01em">Before vs After</div><div style="font-size:0.72rem;color:#64748B;margin-top:2px">' + kept + ' change' + (kept===1?'':'s') + ' · <span style="color:' + deltaColor + ';font-weight:700">' + (delta>0?'+':'') + delta + ' pts</span></div></div>' +
-          '<button type="button" onclick="(function(){var el=document.getElementById(\'rb-ba-modal\');if(el)el.remove();})()" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;width:32px;height:32px;cursor:pointer;color:#64748B;display:flex;align-items:center;justify-content:center" aria-label="Close"><i data-lucide="x" style="width:16px;height:16px"></i></button>' +
+      // Mobile CSS: stack Before/After columns, and give <summary> rows a
+      // thumb-friendly tap target. Keeps the rest of the layout fluid.
+      '<style>' +
+        '@media (max-width: 640px){' +
+          ' #rb-ba-modal .rb-ba-cols{grid-template-columns:1fr!important}' +
+          ' #rb-ba-modal summary{padding:14px 14px!important}' +
+          ' #rb-ba-modal details > div{padding-left:14px!important;padding-right:14px!important}' +
+        '}' +
+        ' #rb-ba-modal summary::-webkit-details-marker{display:none}' +
+        ' #rb-ba-modal summary::marker{content:""}' +
+      '</style>' +
+      '<div id="rb-ba-body" style="width:100%;max-width:720px;max-height:92vh;background:#F8FAFC;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px -10px rgba(15,23,42,0.45),0 0 0 1px rgba(255,255,255,0.08);animation:modalPopIn .22s cubic-bezier(.2,.9,.3,1.2)">' +
+        // Premium header: "Resume Improvements" + match-score delta pill.
+        '<div style="padding:16px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #E2E8F0;background:linear-gradient(180deg,#fff,#F8FAFC)">' +
+          '<div style="width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#EDE9FE,#DBEAFE);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="sparkles" style="width:19px;height:19px;color:#7C3AED"></i></div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:1.05rem;font-weight:800;color:#0F172A;letter-spacing:-.01em">Resume Improvements</div>' +
+            '<div style="font-size:0.78rem;color:#475569;margin-top:3px">' +
+              'Match Score: <strong style="color:#0F172A">' + beforeScore + '</strong> → <strong style="color:#0F172A">' + afterScore + '</strong> ' +
+              '<span style="color:' + deltaColor + ';font-weight:800;margin-left:4px">(' + deltaSign + delta + ')</span>' +
+            '</div>' +
+          '</div>' +
+          '<button type="button" onclick="(function(){var el=document.getElementById(\'rb-ba-modal\');if(el)el.remove();})()" style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;width:34px;height:34px;cursor:pointer;color:#64748B;display:flex;align-items:center;justify-content:center;flex-shrink:0" aria-label="Close"><i data-lucide="x" style="width:17px;height:17px"></i></button>' +
         '</div>' +
-        '<div style="padding:16px 20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">' +
-          sectionHTML('Summary', groups.summary) +
-          sectionHTML('Experience', groups.experience) +
-          sectionHTML('Other changes', groups.other) +
+        // Scrollable body with cards.
+        '<div id="rb-ba-scroll" style="padding:16px 20px 20px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">' +
+          parts.filter(Boolean).join('') +
+          strategistHTML +
         '</div>' +
       '</div>';
     document.body.appendChild(d);
     // Close on backdrop click
     d.addEventListener('click', (e) => { if (e.target === d){ try { d.remove(); } catch(_){} } });
     try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch(_){}
+    // Scroll the first improvement card into view so users immediately see
+    // a concrete change (not just the header).
+    try {
+      setTimeout(() => {
+        const scroll = document.getElementById('rb-ba-scroll');
+        const firstCard = scroll && scroll.querySelector('details');
+        if (firstCard && firstCard.scrollIntoView){
+          firstCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 120);
+    } catch(_){}
   };
 
   // ===== Phase 3: Premium export success panel + loading state =====
