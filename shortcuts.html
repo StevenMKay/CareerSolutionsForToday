@@ -333,7 +333,10 @@ body {
 
 .search-result-item span {
   text-align: left;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .no-results {
@@ -850,6 +853,7 @@ body {
   z-index: 2;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 0 0 18px;
   padding: 10px 14px;
@@ -857,9 +861,13 @@ body {
   border: 2px solid rgba(102, 126, 234, 0.25);
   border-radius: 12px;
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .ps-modal-search input {
-  flex: 1;
+  flex: 1 1 160px;
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -877,6 +885,18 @@ body {
   padding: 4px 10px;
   border-radius: 999px;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+/* On very narrow phones, drop the count badge to its own row aligned
+   right so long labels like "101 shortcuts" never clip off-screen. */
+@media (max-width: 420px) {
+  .ps-modal-search .ps-modal-search-count {
+    flex-basis: 100%;
+    align-self: flex-end;
+    text-align: right;
+    order: 3;
+  }
+  .ps-modal-search input { flex-basis: 100%; }
 }
 .ps-modal .cat li.ps-hidden,
 .ps-modal .cat.ps-hidden { display: none !important; }
@@ -978,6 +998,14 @@ body {
   border-radius: 10px;
   border: 2px solid rgba(100, 116, 139, 0.1);
   transition: all 0.3s ease;
+  /* Consistent two-column row: fixed-width key badge + flexible description.
+     minmax(0, 1fr) lets the description shrink instead of forcing overflow. */
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .ps-modal .cat li:hover {
@@ -994,9 +1022,20 @@ body {
   font-size: 12px;
   font-weight: 700;
   display: inline-block;
-  margin-right: 12px;
-  min-width: 140px;
+  width: 100%;
+  min-width: 0;
+  margin-right: 0;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+.ps-modal .cat li span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Animations */
@@ -1219,6 +1258,25 @@ body {
 
   .ps-modal .cat ul {
     grid-template-columns: 1fr;
+  }
+
+  /* Tighter shortcut rows on small screens: smaller key badge column,
+     reduced padding, and smaller type so descriptions wrap cleanly
+     instead of forcing horizontal overflow. */
+  .ps-modal .cat li {
+    grid-template-columns: 96px minmax(0, 1fr);
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .ps-modal .cat li strong {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+
+  .ps-modal .cat li span {
+    font-size: 12px;
+    line-height: 1.35;
   }
 
   .back-button {
@@ -3871,6 +3929,51 @@ function applyViewMode(mode, skipReinitialRender) {
     });
   });
 })();
+
+/* ------------------------------------------------------------------
+   Mobile layout smoke-test helper.
+   Run `window.testShortcutMobileLayout()` from DevTools (ideally with
+   the viewport narrowed to ~360-390px and a shortcut modal open) to
+   get a quick report of any remaining overflow / clipping problems.
+   ------------------------------------------------------------------ */
+window.testShortcutMobileLayout = function () {
+  const docOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth;
+  const modalSearch = document.querySelector('.ps-modal-backdrop.visible .ps-modal-search')
+    || document.querySelector('.ps-modal-search');
+  let modalSearchOverflow = false;
+  if (modalSearch) {
+    modalSearchOverflow = modalSearch.scrollWidth > modalSearch.clientWidth + 1;
+  }
+  const rows = document.querySelectorAll('.ps-modal .cat li');
+  let wideRows = 0;
+  rows.forEach(function (li) {
+    const parent = li.parentElement;
+    if (!parent) return;
+    if (li.getBoundingClientRect().width > parent.getBoundingClientRect().width + 1) wideRows++;
+  });
+  const counts = document.querySelectorAll('.ps-modal-search-count');
+  let clippedCounts = 0;
+  counts.forEach(function (c) {
+    if (c.offsetParent === null) return; // not visible
+    const r = c.getBoundingClientRect();
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    if (r.right > vw + 1 || r.left < -1 || c.scrollWidth > c.clientWidth + 1) clippedCounts++;
+  });
+  const report = {
+    docHorizontalOverflow: docOverflow,
+    modalSearchOverflow: modalSearchOverflow,
+    rowsWiderThanParent: wideRows,
+    clippedCountBadges: clippedCounts,
+    viewport: { w: window.innerWidth, h: window.innerHeight }
+  };
+  console.group('%ctestShortcutMobileLayout', 'color:#667eea;font-weight:700');
+  console.table(report);
+  const ok = !docOverflow && !modalSearchOverflow && wideRows === 0 && clippedCounts === 0;
+  console.log(ok ? '%c\u2713 mobile layout: clean' : '%c\u2717 mobile layout: issues detected',
+    'color:' + (ok ? '#047857' : '#dc2626') + ';font-weight:700');
+  console.groupEnd();
+  return report;
+};
 </script>
 </body>
 </html>
