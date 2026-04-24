@@ -741,23 +741,11 @@ body {
   letter-spacing: 0.3px;
 }
 
-/* Reveal cheatsheet on hover/focus */
-.program-card:hover .cheatsheet,
-.program-card:focus .cheatsheet,
-.program-card.focused .cheatsheet {
-  max-height: 600px;
-  opacity: 1;
-  padding: 12px;
-  pointer-events: auto;
-}
-
-/* Locked/Expanded state shows ALL shortcuts */
-.program-card.locked .cheatsheet {
-  max-height: 3000px !important;
-  opacity: 1 !important;
-  padding: 20px !important;
-  pointer-events: auto !important;
-}
+/* Hover-expand removed per user request. Cards no longer reveal the
+   cheatsheet on hover or focus; users click the card (or the
+   "View and Search" button) to open the full modal instead. The
+   .cheatsheet element is left in the DOM but stays collapsed. */
+.program-card .cheatsheet { display: none !important; }
 
 .program-card.locked {
   position: relative;
@@ -848,8 +836,56 @@ body {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  /* Must sit above .hero (15000) and .search-container / .search-results
+     (20000 / 25000) so the modal isn't visually hidden behind the page
+     title, the icon filter bar, or the top search results dropdown. */
+  z-index: 30000;
   animation: fadeIn 0.3s ease;
+}
+
+/* In-modal search bar: sticky at the top of the scrollable modal so it
+   stays visible while the user scrolls through long shortcut lists. */
+.ps-modal-search {
+  position: sticky;
+  top: -4px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 2px solid rgba(102, 126, 234, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+.ps-modal-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: 500 15px 'Inter', sans-serif;
+  color: var(--text-primary);
+  padding: 6px 0;
+}
+.ps-modal-search input::placeholder { color: #94a3b8; }
+.ps-modal-search .ps-modal-search-icon { color: #667eea; flex-shrink: 0; }
+.ps-modal-search .ps-modal-search-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.12);
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ps-modal .cat li.ps-hidden,
+.ps-modal .cat.ps-hidden { display: none !important; }
+.ps-modal-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
 .ps-modal-backdrop.visible {
@@ -1440,6 +1476,11 @@ body {
     <div class="ps-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <button class="close-btn" id="closeModal" aria-label="Close">Close</button>
       <h3 id="modalTitle">Shortcuts</h3>
+      <div class="ps-modal-search" role="search">
+        <svg class="ps-modal-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+        <input id="modalSearchInput" type="search" placeholder="Search these shortcuts…" aria-label="Search shortcuts in this modal" autocomplete="off">
+        <span class="ps-modal-search-count" id="modalSearchCount" aria-live="polite"></span>
+      </div>
       <div id="modalBody"></div>
     </div>
   </div>
@@ -3290,8 +3331,72 @@ function openModal(program) {
   const searchResultsEl = document.getElementById('searchResults');
   if (searchResultsEl) searchResultsEl.style.display = 'none';
 
+  // Reset the in-modal search each time the modal opens and wire the live
+  // filter. Using a single delegated handler on the input so repeated
+  // openModal calls don't stack listeners.
+  try { _wireModalSearch(); } catch(_){}
+  const mSearch = document.getElementById('modalSearchInput');
+  if (mSearch) { mSearch.value = ''; }
+  _applyModalSearch('');
+
   m.classList.add('visible');
   document.getElementById('closeModal').focus();
+}
+
+// Filters the modal body's categorized list based on the search query.
+// Hides empty categories, updates the count badge, and shows an empty-
+// state message when nothing matches.
+function _applyModalSearch(query) {
+  const body = document.getElementById('modalBody');
+  const countEl = document.getElementById('modalSearchCount');
+  if (!body) return;
+  const q = (query || '').trim().toLowerCase();
+  let total = 0, matched = 0;
+  // Clear any previous empty-state
+  const prevEmpty = body.querySelector('.ps-modal-empty');
+  if (prevEmpty) prevEmpty.remove();
+  body.querySelectorAll('.cat').forEach(cat => {
+    let visible = 0;
+    cat.querySelectorAll('li').forEach(li => {
+      total++;
+      if (!q) { li.classList.remove('ps-hidden'); visible++; matched++; return; }
+      const text = (li.textContent || '').toLowerCase();
+      if (text.includes(q)) { li.classList.remove('ps-hidden'); visible++; matched++; }
+      else { li.classList.add('ps-hidden'); }
+    });
+    cat.classList.toggle('ps-hidden', visible === 0);
+  });
+  if (countEl) {
+    countEl.textContent = q ? (matched + ' match' + (matched === 1 ? '' : 'es')) : (total + ' total');
+  }
+  if (q && matched === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ps-modal-empty';
+    empty.textContent = 'No shortcuts match "' + query + '". Try a different term.';
+    body.appendChild(empty);
+  }
+}
+
+// Attach the modal search input handler exactly once.
+let _modalSearchWired = false;
+function _wireModalSearch() {
+  if (_modalSearchWired) return;
+  const input = document.getElementById('modalSearchInput');
+  if (!input) return;
+  let t;
+  input.addEventListener('input', () => {
+    clearTimeout(t);
+    t = setTimeout(() => _applyModalSearch(input.value), 80);
+  });
+  // Clear with Escape without closing the modal.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && input.value) {
+      e.stopPropagation();
+      input.value = '';
+      _applyModalSearch('');
+    }
+  });
+  _modalSearchWired = true;
 }
 
 // Categorizer for the classic App-shortcuts mode (original logic)
@@ -3400,188 +3505,36 @@ function render(filterId = 'all') {
   const hint = el('div', { className: 'hover-instruction', textContent: '' });
 
     const btn = el('div', { className: 'center' });
-    const view = el('button', { className: 'view-shortcuts', textContent: 'View in Modal' });
+    const view = el('button', { className: 'view-shortcuts', textContent: 'View and Search' });
     view.addEventListener('click', (e) => { e.stopPropagation(); openModal(p); });
     btn.appendChild(view);
 
     card.append(iconWrap, name, tagline, countBadge, hint, btn);
 
-    // add cheatsheet below the card content
-    const cheats = el('div', { className: 'cheatsheet' });
-    cheats.setAttribute('aria-hidden', 'true');
-    
-    // Create two views - one for hover (top 10), one for locked (categorized)
-    const hoverList = el('ul', { className: 'hover-list' });
-    const lockedView = el('div', { className: 'locked-list', style: 'display: none;' });
-    
-    // Add top 10 shortcuts for hover
-    p.shortcuts.slice(0, 10).forEach(s => {
-      const li = el('li'); 
-      li.innerHTML = `<strong>${s.key}</strong> ${s.desc}`; 
-      hoverList.appendChild(li);
-    });
-    
-    // Categorize all shortcuts for locked state
-    const categories = categorizeShortcuts(p.shortcuts);
-    
-    Object.entries(categories).forEach(([categoryName, shortcuts]) => {
-      if (shortcuts.length === 0) return;
-      
-      const categorySection = el('div', { className: 'shortcut-category' });
-      const categoryTitle = el('div', { 
-        className: 'category-title', 
-        textContent: `${categoryName} (${shortcuts.length})` 
-      });
-      const categoryList = el('ul');
-      
-      shortcuts.forEach(s => {
-        const li = el('li');
-        if (window.VIEW_MODE === 'chars') {
-          const ch = extractChar(s.desc);
-          const safeCh = (ch || '').replace(/"/g, '&quot;');
-          li.innerHTML = `<strong>${s.key}</strong> ${s.desc}
-            <button type="button" class="char-row-copy" data-char="${safeCh}"
-              aria-label="Copy ${safeCh}">Copy</button>`;
-          const btn = li.querySelector('.char-row-copy');
-          btn.addEventListener('click', (ev) => {
-            ev.stopPropagation();
-            copyCharacter(btn.getAttribute('data-char'), btn);
-          });
-        } else {
-          li.innerHTML = `<strong>${s.key}</strong> ${s.desc}`;
-        }
-        categoryList.appendChild(li);
-      });
-      
-      categorySection.appendChild(categoryTitle);
-      categorySection.appendChild(categoryList);
-      lockedView.appendChild(categorySection);
-    });
-    
-    cheats.appendChild(hoverList);
-    cheats.appendChild(lockedView);
+    // NOTE: The in-card cheatsheet + per-card expand/lock/search feature was
+    // removed per user request. Cards now always open the full modal
+    // ("View and Search") on click, and the modal hosts its own sticky
+    // search bar. Element kept in the DOM as a harmless no-op because a
+    // few older selectors still reference .cheatsheet; CSS hides it.
+    const cheats = el('div', { className: 'cheatsheet', 'aria-hidden': 'true' });
+    cheats.style.display = 'none';
     card.appendChild(cheats);
 
-    // Per-card search: filters <li>s inside this card's lockedView only.
-    // Shown when the card is expanded; reset when collapsed.
-    const cardSearch = el('input', { type: 'text', className: 'program-search' });
-    cardSearch.setAttribute('placeholder', `Search in ${p.name}…`);
-    cardSearch.setAttribute('aria-label', `Search within ${p.name} shortcuts`);
-    let cardSearchTimer;
-    const applyCardFilter = () => {
-      const q = (cardSearch.value || '').trim().toLowerCase();
-      const cats = lockedView.querySelectorAll('.shortcut-category');
-      cats.forEach(cat => {
-        let visibleCount = 0;
-        cat.querySelectorAll('li').forEach(li => {
-          if (!q) {
-            li.classList.remove('program-search-hidden');
-            visibleCount++;
-            return;
-          }
-          const text = (li.textContent || '').toLowerCase();
-          if (text.includes(q)) {
-            li.classList.remove('program-search-hidden');
-            visibleCount++;
-          } else {
-            li.classList.add('program-search-hidden');
-          }
-        });
-        cat.classList.toggle('program-search-hidden', visibleCount === 0);
-      });
-    };
-    cardSearch.addEventListener('input', () => {
-      clearTimeout(cardSearchTimer);
-      cardSearchTimer = setTimeout(applyCardFilter, 120);
-    });
-    // Stop click propagation so typing / clearing doesn't collapse the card.
-    cardSearch.addEventListener('click', (e) => e.stopPropagation());
-    cardSearch.addEventListener('keydown', (e) => e.stopPropagation());
-    lockedView.insertBefore(cardSearch, lockedView.firstChild);
-
-    // Click to lock/unlock the expanded state
-    let isLocked = false;
+    // Click anywhere on the card opens the modal. The inner "View and
+    // Search" button stops propagation and calls openModal directly, so we
+    // skip that case to avoid firing twice.
     card.addEventListener('click', (e) => {
-      // Don't trigger if clicking the modal button
       if (e.target.closest('.view-shortcuts')) return;
-      
       e.stopPropagation();
-      isLocked = !isLocked;
-      
-      if (isLocked) {
-        // First add locked class for smooth transition
-        card.classList.add('locked');
-        
-        // Then change display after a brief moment
-        requestAnimationFrame(() => {
-          hoverList.style.display = 'none';
-          lockedView.style.display = 'grid';
-          cheats.setAttribute('aria-hidden', 'false');
-          hint.textContent = '';
-        });
-        
-        // Only scroll if the card is actually off-screen; avoids the
-        // disruptive viewport jump users were reporting.
-        setTimeout(() => {
-          const rect = card.getBoundingClientRect();
-          const vh = window.innerHeight || document.documentElement.clientHeight;
-          const offTop = rect.top < 0;
-          const offBottom = rect.bottom > vh;
-          if (offTop || offBottom) {
-            card.scrollIntoView({ behavior: 'smooth', block: offTop ? 'start' : 'nearest', inline: 'nearest' });
-          }
-        }, 350);
-      } else {
-        // Remove locked class
-        card.classList.remove('locked');
-        
-        // Change display
-        requestAnimationFrame(() => {
-          hoverList.style.display = 'block';
-          lockedView.style.display = 'none';
-          cheats.setAttribute('aria-hidden', 'true');
-          hint.textContent = '';
-        });
-        // Reset the per-card search so nothing stays hidden next time.
-        if (cardSearch.value) {
-          cardSearch.value = '';
-          applyCardFilter();
-        }
-      }
+      openModal(p);
     });
 
-    // Hover functionality (only when not locked)
-    card.addEventListener('mouseenter', () => {
-      if (!isLocked) {
-        cheats.setAttribute('aria-hidden', 'false');
-      }
-    });
-    card.addEventListener('mouseleave', () => {
-      if (!isLocked) {
-        cheats.setAttribute('aria-hidden', 'true');
-      }
-    });
-    
-    // Focus handling
-    card.addEventListener('focus', () => { 
-      if (!isLocked) {
-        card.classList.add('focused'); 
-        cheats.setAttribute('aria-hidden', 'false'); 
-      }
-    });
-    card.addEventListener('blur', () => { 
-      if (!isLocked) {
-        card.classList.remove('focused'); 
-        cheats.setAttribute('aria-hidden', 'true'); 
-      }
-    });
-
-    // keyboard navigation
+    // Keyboard: Enter / Space opens the modal (card is a <button>, so this
+    // mirrors native activation semantics).
     card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { 
-        e.preventDefault(); 
-        // Trigger the click to lock/unlock
-        card.click();
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openModal(p);
       }
     });
 
