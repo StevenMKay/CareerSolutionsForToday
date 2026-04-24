@@ -7959,9 +7959,13 @@ async function parseResume() {
   if (!throttleCheck('ai')) return;
   const text = document.getElementById('resume-text').value.trim();
   if (!selectedFile && !text) { showToast('Please upload a file or paste resume text'); return; }
+  // btn-parse was removed from the DOM — guard to prevent silent TypeError
+  // that was causing "literally nothing happens" after upload.
   const btn = document.getElementById('btn-parse');
-  btn.disabled = true; btn.innerHTML = 'Extracting...';
-  document.getElementById('parse-status').textContent = '';
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Extracting...'; }
+  const parseStatusEl = document.getElementById('parse-status');
+  if (parseStatusEl) parseStatusEl.textContent = 'Extracting resume…';
+  showToast('Extracting resume…');
   try {
     let res;
     const authHdrs = await getAuthHeaders();
@@ -8017,8 +8021,23 @@ async function parseResume() {
     showToast('Resume extracted successfully!');
     // Auto-save contact info + resume to profile
     autoSaveContactToProfile();
-  } catch(e) { const ps = document.getElementById('parse-status'); ps.textContent = ''; const sp = document.createElement('span'); sp.style.color = '#B91C1C'; sp.textContent = 'Error: ' + e.message; ps.appendChild(sp); }
-  btn.disabled = false; btn.innerHTML = 'Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i>'; lucide.createIcons();
+  } catch(e) {
+    console.error('[parseResume] extraction failed:', e);
+    const ps = document.getElementById('parse-status');
+    if (ps) {
+      ps.textContent = '';
+      const sp = document.createElement('span');
+      sp.style.color = '#B91C1C';
+      sp.textContent = 'Error: ' + (e && e.message ? e.message : 'Extraction failed');
+      ps.appendChild(sp);
+    }
+    showToast('Extraction failed: ' + (e && e.message ? e.message : 'Unknown error'));
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = 'Continue <i data-lucide="arrow-right" style="width:14px;height:14px"></i>';
+    try { lucide.createIcons(); } catch(_){}
+  }
 }
 
 function renderResumePreview(d) {
