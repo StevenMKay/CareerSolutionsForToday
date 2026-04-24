@@ -2404,7 +2404,7 @@
           </div>
           <div class="ct-controls">
             <label class="ct-toggle" style="text-transform:none;letter-spacing:0">
-              <input type="checkbox" id="compare-diff-toggle" checked> <span>Show differences</span>
+              <input type="checkbox" id="compare-diff-toggle" checked> <span>Highlight changes in preview</span>
             </label>
             <div id="diff-legend-export" aria-hidden="true">
               <span><span class="sw" style="background:#D1FAE5;outline:2px solid #34D399"></span>Added</span>
@@ -2417,7 +2417,7 @@
             <button type="button" class="compare-exit" id="compare-exit-btn" onclick="exitCompareMode()" data-testid="compare-exit"><i data-lucide="x" style="width:12px;height:12px"></i> Exit Compare</button>
           </div>
           <div id="compare-warning-export" class="hidden"></div>
-          <div class="compare-doc-mode-hint" id="compare-doc-mode-hint" role="note">Inline highlights aren't available in Document preview mode. <button type="button" onclick="setPreviewMode('web')" style="background:none;border:0;color:#78350F;text-decoration:underline;cursor:pointer;padding:0;font:inherit">Switch to Web preview</button> to see them, or use the Changes tab.</div>
+          <div class="compare-doc-mode-hint" id="compare-doc-mode-hint" role="note">Live preview highlights aren't available for this layout. Use the <strong>Changes</strong> tab for exact differences.</div>
         </div>
 
         <!-- Mobile segmented toggle: Version A | Version B | Changes -->
@@ -9739,6 +9739,7 @@ function applyCompareDiffs() {
   try { clearDiffHighlights(); } catch(_){}
   if (!c.leftModel || !c.rightModel) {
     c.diff = null;
+    c._itemLevelSupported = true;
     renderChangesPanel();
     _updateJumpButton();
     _updateDocModeHint();
@@ -9750,6 +9751,22 @@ function applyCompareDiffs() {
   if (c.diffEnabled) {
     _compareApplyDiffToExport(c.leftModel, c.rightModel, diffs);
   }
+  // Post-paint support probe: did item-level anchors actually catch any
+  // highlights? If diffs exist but no item-level node was painted, the
+  // renderer doesn't expose enough anchors for honest highlighting.
+  const hasDiffData = !!(diffs.added.length || diffs.removed.length || diffs.changed.length);
+  const itemSel = '#preview-container-export .item-row.diff-added,'
+                + '#preview-container-export .item-row.diff-removed,'
+                + '#preview-container-export .item-row.diff-changed,'
+                + '#preview-container-export-b .item-row.diff-added,'
+                + '#preview-container-export-b .item-row.diff-removed,'
+                + '#preview-container-export-b .item-row.diff-changed,'
+                + '#preview-container-export .diff-word-added,'
+                + '#preview-container-export .diff-word-removed,'
+                + '#preview-container-export-b .diff-word-added,'
+                + '#preview-container-export-b .diff-word-removed';
+  const itemLevelCount = document.querySelectorAll(itemSel).length;
+  c._itemLevelSupported = !hasDiffData || itemLevelCount > 0 || !c.diffEnabled;
   renderChangesPanel();
   _updateJumpButton();
   _updateDocModeHint();
@@ -9767,43 +9784,38 @@ function _updateJumpButton() {
   btn.disabled = !hasVisibleDiff;
 }
 
-// Show / hide the doc-mode hint and toggle the Show Differences checkbox's
-// disabled state based on actual hook presence in the rendered preview
-// containers. This replaces the earlier mode-based heuristic: some document
-// renderers (`modern-sidebar`, `classic-serif`, `word-classic`) now emit
-// `data-section` hooks and highlights land correctly, while others still
-// lack hooks. We detect reality at paint time and react accordingly, so the
-// checkbox is never left active-but-inert.
+// Show / hide the "Highlight changes in preview" checkbox + helper banner
+// based on whether the current renderer actually supports item-level paint.
+// Item-level support is measured in applyCompareDiffs() after paint: if
+// diffs exist but zero item-level nodes were highlighted, the renderer
+// doesn't expose enough anchors (e.g. doc-mode PREVIEW_RENDERERS lack
+// .item-row / .editable anchors). In that case we HIDE the checkbox (per
+// product rule: only show it when item-level highlighting is actually
+// supported) and surface a banner pointing to the Changes tab, which
+// remains the source of truth for exact differences.
 function _updateDocModeHint() {
   const step = document.getElementById('step-export');
   if (!step) return;
   const c = (window.STATE && STATE.compare) || {};
   const hasDiffData = !!(c.diff && (c.diff.added.length || c.diff.removed.length || c.diff.changed.length));
-  // Count live section hooks across both compare containers.
-  const hookCount = document.querySelectorAll(
-    '#preview-container-export [data-section], #preview-container-export-b [data-section]'
-  ).length;
-  const hasHooks = hookCount > 0;
-  // Hint is visible only when compare is active + diff data exists + the
-  // active renderer lacks section hooks. In that case we also disable the
-  // Show Differences checkbox to prevent dead-UI confusion.
-  const shouldShow = !!c.active && hasDiffData && !hasHooks;
-  step.classList.toggle('pv-doc-no-hooks', shouldShow);
+  const supported = !!c._itemLevelSupported;
+  const shouldShowBanner = !!c.active && hasDiffData && !supported;
+  step.classList.toggle('pv-doc-no-hooks', shouldShowBanner);
   const hint = document.getElementById('compare-doc-mode-hint');
   if (hint) {
-    hint.innerHTML = 'Highlights aren\'t available in this document layout. '
-      + '<button type="button" onclick="setPreviewMode(\'web\')" '
-      + 'style="background:none;border:0;color:#78350F;text-decoration:underline;cursor:pointer;padding:0;font:inherit">'
-      + 'Switch to Web preview</button> to see them, or use the Changes tab.';
+    hint.innerHTML = 'Live preview highlights aren\'t available for this layout. '
+      + 'Use the <strong>Changes</strong> tab for exact differences.';
   }
   const diffBox = document.getElementById('compare-diff-toggle');
   if (diffBox) {
-    const shouldDisable = !!c.active && !hasHooks;
-    diffBox.disabled = shouldDisable;
-    try {
-      const label = diffBox.closest('label');
-      if (label) label.style.opacity = shouldDisable ? '0.55' : '';
-    } catch(_){}
+    const label = diffBox.closest('label');
+    if (label) {
+      // Hide the entire toggle when unsupported rather than leaving it
+      // visible-but-disabled. The banner explains what to do instead.
+      label.style.display = shouldShowBanner ? 'none' : '';
+      label.style.opacity = '';
+    }
+    diffBox.disabled = false;
   }
 }
 
@@ -9826,29 +9838,33 @@ function jumpToFirstDifference() {
   setTimeout(() => { try { target.classList.remove('diff-jump-pulse'); } catch(_){} }, 1500);
 }
 
-// Parameterized re-paint of highlight classes on the -export pair. Mirrors
-// the original renderDiffHighlights() but with explicit container IDs /
-// models so STATE.generated / comparePlanData globals are not touched.
+// Parameterized re-paint of highlight classes on the -export pair.
+// Item-level only: never paints [data-section] wrappers. If the active
+// renderer doesn't expose item-level anchors ([data-list] rows, .editable
+// for word-diff), the section is simply skipped — applyCompareDiffs()
+// measures the paint result and hides the checkbox in that case.
 function _compareApplyDiffToExport(modelA, modelB, diffs) {
   const cA = document.getElementById('preview-container-export');
   const cB = document.getElementById('preview-container-export-b');
-  const apply = (host, key, cls) => {
-    if (!host) return;
-    const el = host.querySelector('[data-section="' + key + '"]');
-    if (el) el.classList.add(cls);
+  // Attempt to paint whole-section add/remove on item-row children of a
+  // [data-list] container. If no list exists, we skip rather than fall
+  // back to section-level paint.
+  const paintListSide = (host, key, cls) => {
+    if (!host) return 0;
+    const rows = host.querySelectorAll('[data-list="' + key + '"] > .item-row, [data-list="' + key + '"] > li');
+    rows.forEach(r => r.classList.add(cls));
+    return rows.length;
   };
   diffs.changed.forEach(k => {
     const a = modelA[k], b = modelB[k];
     if (Array.isArray(a) && Array.isArray(b)) {
-      try { applyGranularArrayDiff(cA, cB, k, a, b); } catch(_){ apply(cA,k,'diff-changed'); apply(cB,k,'diff-changed'); }
+      try { applyGranularArrayDiff(cA, cB, k, a, b); } catch(_){ /* skip: no section-level fallback */ }
     } else if (typeof a === 'string' && typeof b === 'string') {
-      try { applyWordDiff(cA, cB, k, a, b); } catch(_){ apply(cA,k,'diff-changed'); apply(cB,k,'diff-changed'); }
-    } else {
-      apply(cA, k, 'diff-changed'); apply(cB, k, 'diff-changed');
-    }
+      try { applyWordDiff(cA, cB, k, a, b); } catch(_){ /* skip: no section-level fallback */ }
+    } /* else: mixed/other types — skip rather than blanket-paint */
   });
-  diffs.removed.forEach(k => apply(cA, k, 'diff-removed'));
-  diffs.added.forEach(k   => apply(cB, k, 'diff-added'));
+  diffs.removed.forEach(k => { paintListSide(cA, k, 'diff-removed'); });
+  diffs.added.forEach(k   => { paintListSide(cB, k, 'diff-added'); });
 }
 
 // Public: switch the mobile/app view. 'left' | 'right' | 'changes'.
@@ -10453,42 +10469,68 @@ window.testCompareMode = async function() {
       const panel = document.getElementById('compare-changes-panel');
       assert(panel && panel.innerHTML.trim().length > 0, 'Changes panel rendered (cards or empty-state)');
       setCompareMobileView('left');
-      // ── NEW: Show-differences highlight count round-trip ────────────
-      // With the checkbox ON (default), count live highlight nodes.
+      // ── NEW: Highlight-changes-in-preview round-trip (item-level honest) ─
+      // With the checkbox ON (default), verify only item-level anchors are
+      // painted — no [data-section] wrappers should ever carry a diff-*
+      // class under the new item-level-only paint policy.
       const DIFF_SEL = '.diff-added,.diff-removed,.diff-changed,.diff-word-added,.diff-word-removed';
+      const SECTION_PAINT_SEL =
+        '#preview-container-export [data-section].diff-added,'
+      + '#preview-container-export [data-section].diff-removed,'
+      + '#preview-container-export [data-section].diff-changed,'
+      + '#preview-container-export-b [data-section].diff-added,'
+      + '#preview-container-export-b [data-section].diff-removed,'
+      + '#preview-container-export-b [data-section].diff-changed';
+      const ITEM_PAINT_SEL =
+        '#preview-container-export .item-row.diff-added,'
+      + '#preview-container-export .item-row.diff-removed,'
+      + '#preview-container-export .item-row.diff-changed,'
+      + '#preview-container-export-b .item-row.diff-added,'
+      + '#preview-container-export-b .item-row.diff-removed,'
+      + '#preview-container-export-b .item-row.diff-changed,'
+      + '#preview-container-export .diff-word-added,'
+      + '#preview-container-export .diff-word-removed,'
+      + '#preview-container-export-b .diff-word-added,'
+      + '#preview-container-export-b .diff-word-removed';
       const diffBox = document.getElementById('compare-diff-toggle');
       const cState = (STATE.compare && STATE.compare.diff) || { added:[], removed:[], changed:[] };
       const hasDiffData = !!(cState.added.length || cState.removed.length || cState.changed.length);
       const rightSel = document.getElementById('compare-right-select');
       const pickedRightVersion = !!(rightSel && rightSel.value);
-      // Preamble: log the code path so console output is self-describing.
-      const hookCount = document.querySelectorAll(
-        '#preview-container-export [data-section], #preview-container-export-b [data-section]'
-      ).length;
-      const hasHooks = hookCount > 0;
+      // Preamble: log preview mode + item-level support flag.
+      const supportedFlag = !!(STATE.compare && STATE.compare._itemLevelSupported);
       report.details.push('\u2139 preview mode: ' + (STATE._previewMode || 'web')
-        + ' \u00B7 has section hooks: ' + hasHooks + ' (count=' + hookCount + ')');
+        + ' \u00B7 item-level supported: ' + supportedFlag);
       // Turn ON explicitly to guarantee painting.
       if (diffBox && !diffBox.disabled && !diffBox.checked) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
       try { applyCompareDiffs(); } catch(_){}
-      const onCount = document.querySelectorAll(DIFF_SEL).length;
-      report.details.push('\u2139 highlight count (Show differences ON): ' + onCount);
+      const onCount      = document.querySelectorAll(DIFF_SEL).length;
+      const sectionPaint = document.querySelectorAll(SECTION_PAINT_SEL).length;
+      const itemPaint    = document.querySelectorAll(ITEM_PAINT_SEL).length;
+      report.details.push('\u2139 highlight count ON \u2014 total: ' + onCount
+        + ' \u00B7 item-level: ' + itemPaint + ' \u00B7 section-level: ' + sectionPaint);
+      // HARD assertion: never paint [data-section] wrappers, regardless of
+      // whether diffs exist. Item-level-only is the contract now.
+      assert(sectionPaint === 0, 'no [data-section] wrapper carries a diff-* class');
       if (pickedRightVersion && hasDiffData) {
-        const cbDisabled = !!(diffBox && diffBox.disabled);
-        const cbVisible  = !!(diffBox && diffBox.offsetParent !== null);
-        if (cbDisabled) {
-          // Option-B fallback path: checkbox MUST be disabled AND the hint
-          // banner MUST be visible with the expected helper copy.
+        const cbLabel   = diffBox ? diffBox.closest('label') : null;
+        const cbHidden  = !!(cbLabel && getComputedStyle(cbLabel).display === 'none');
+        const cbVisible = !!(diffBox && diffBox.offsetParent !== null);
+        if (cbHidden) {
+          // Fallback path: renderer doesn't support item-level highlights.
+          // The toggle is hidden and the banner must explain the situation.
           const hint = document.getElementById('compare-doc-mode-hint');
           const hintVisible = !!(hint && hint.offsetParent !== null);
-          const hintCopyOk  = !!(hint && /Highlights aren't available in this document layout/i.test(hint.textContent || ''));
-          assert(hintVisible, 'doc-mode hint banner visible when checkbox disabled');
-          assert(hintCopyOk, 'doc-mode hint banner shows expected helper copy');
-          report.details.push('\u2139 checkbox disabled with helper copy \u2014 acceptable Option B fallback');
+          const hintCopyOk  = !!(hint && /Live preview highlights aren't available for this layout/i.test(hint.textContent || ''));
+          assert(hintVisible, 'hint banner visible when checkbox hidden');
+          assert(hintCopyOk,  'hint banner shows expected helper copy');
+          report.details.push('\u2139 checkbox hidden with helper copy \u2014 acceptable fallback');
         } else if (cbVisible) {
-          // Option-A path: checkbox is visible + enabled. It MUST paint
-          // at least one highlight, otherwise it's a silent no-op.
-          assert(onCount >= 1, 'Show differences visible+enabled: at least one live highlight rendered');
+          // Supported path: checkbox is visible. It MUST have painted at
+          // least one item-level highlight; zero is a silent no-op (FAIL).
+          assert(itemPaint >= 1, 'Highlight changes ON: at least one item-level highlight rendered');
+          // And every painted node must be item-level (not a section wrapper).
+          assert(onCount === itemPaint, 'every painted diff node is item-level (no section wrappers)');
         } else {
           report.details.push('\u2139 checkbox not visible (compare inactive?) \u2014 skipping highlight-count assertion');
         }
@@ -10501,7 +10543,7 @@ window.testCompareMode = async function() {
       if (diffBox && !diffBox.disabled) { diffBox.checked = false; diffBox.dispatchEvent(new Event('change')); }
       try { applyCompareDiffs(); } catch(_){}
       const offCount = document.querySelectorAll(DIFF_SEL).length;
-      report.details.push('\u2139 highlight count (Show differences OFF): ' + offCount);
+      report.details.push('\u2139 highlight count (Highlight changes OFF): ' + offCount);
       assert(offCount === 0, 'Show differences OFF: all diff classes cleared');
       // Restore the checkbox to ON before exiting so users don't see it flipped.
       if (diffBox && !diffBox.disabled) { diffBox.checked = true; diffBox.dispatchEvent(new Event('change')); }
@@ -10666,6 +10708,14 @@ function renderDiffHighlights(diffs) {
   const containerA = document.getElementById('preview-container');
   const containerB = document.getElementById('preview-container-b');
 
+  // Item-level only: never paint [data-section] wrappers. If the renderer
+  // lacks item anchors for a section, it's simply skipped here; the
+  // Changes panel still lists exact differences.
+  const paintListSide = (host, key, cls) => {
+    if (!host) return;
+    host.querySelectorAll('[data-list="' + key + '"] > .item-row, [data-list="' + key + '"] > li')
+        .forEach(r => r.classList.add(cls));
+  };
   diffs.changed.forEach(k => {
     const a = STATE.generated[k];
     const b = comparePlanData.generated[k];
@@ -10674,13 +10724,11 @@ function renderDiffHighlights(diffs) {
     } else if (typeof a === 'string' && typeof b === 'string') {
       // Word-level inline diff for text sections
       applyWordDiff(containerA, containerB, k, a, b);
-    } else {
-      applyClass(containerA, k, 'diff-changed');
-      applyClass(containerB, k, 'diff-changed');
     }
+    // else: mixed/other types — skip rather than blanket-paint.
   });
-  diffs.removed.forEach(k => { applyClass(containerA, k, 'diff-removed'); });
-  diffs.added.forEach(k => { applyClass(containerB, k, 'diff-added'); });
+  diffs.removed.forEach(k => { paintListSide(containerA, k, 'diff-removed'); });
+  diffs.added.forEach(k => { paintListSide(containerB, k, 'diff-added'); });
 }
 
 function applyClass(container, sectionKey, cls) {
@@ -10690,12 +10738,14 @@ function applyClass(container, sectionKey, cls) {
 }
 
 // ── Word-level diff for string sections (Executive Summary, etc.) ──
+// Item-level only: if neither side has an .editable anchor, we skip
+// rather than blanket-paint the section wrapper.
 function applyWordDiff(containerA, containerB, sectionKey, textA, textB) {
   const elA = containerA?.querySelector(`[data-section="${sectionKey}"] .editable`);
   const elB = containerB?.querySelector(`[data-section="${sectionKey}"] .editable`);
   if (!elA && !elB) {
-    applyClass(containerA, sectionKey, 'diff-changed');
-    applyClass(containerB, sectionKey, 'diff-changed');
+    // No item-level anchor available — skip. applyCompareDiffs() will
+    // detect the absent paint and hide the checkbox.
     return;
   }
   const wordsA = textA.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
@@ -10752,10 +10802,10 @@ function applyGranularArrayDiff(containerA, containerB, sectionKey, arrA, arrB) 
       if (listA[i]) listA[i].classList.add('diff-removed');
     }
   }
-  if (listA.length === 0 && listB.length === 0) {
-    applyClass(containerA, sectionKey, 'diff-changed');
-    applyClass(containerB, sectionKey, 'diff-changed');
-  }
+  // No section-level fallback: if the renderer doesn't expose [data-list]
+  // item-rows for this section, we skip painting entirely. The
+  // applyCompareDiffs() post-paint probe will hide the checkbox and the
+  // Changes tab remains available.
 }
 
 function clearDiffHighlights() {
