@@ -12241,6 +12241,158 @@ function _pvSectionTitle(text, accent, variant){
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Each renderer returns the inner HTML of a single .pv-page element (no .pv-page wrapper).
+//
+// 2026-04-25 BUG-FIX: bullet cross-contamination + missing per-bullet delete.
+// Every PREVIEW_RENDERERS template emits experience entries / bullets without
+// the dataset anchors that `removeItem` and `syncPreviewEditsToState` need to
+// scope edits to the right job. Rewriting 9 templates risks visual breakage,
+// so we run a single post-render pass that:
+//   1. Stamps `data-section="experience"` + `data-exp-index="${i}"` +
+//      `class+="experience-row"` on every direct child of `[data-list="experience"]`.
+//   2. Finds the bullet container inside that row (UL preferred, otherwise
+//      the wrapper holding `<div padding-left;position:relative>` fake-bullets)
+//      and stamps `data-list="experience-bullets"` + `data-exp-index="${i}"`.
+//   3. For every bullet child, stamps `data-exp-index="${i}"` +
+//      `data-bullet-index="${j}"` + `class+="item-row bullet-row"`, ensures
+//      the text is wrapped in `<span class="bullet-text">`, and injects a
+//      delete button that calls `removeItem(this)` (so users can actually
+//      delete bullets in modern-sidebar / modern-ats / banking-executive,
+//      which had zero per-bullet affordances).
+//
+// Idempotent — re-running on already-stamped DOM is a no-op.
+function _stampExperienceAnchors(container) {
+  if (!container || !container.querySelectorAll) return;
+  try {
+    const expLists = container.querySelectorAll('[data-list="experience"]');
+    expLists.forEach(expList => {
+      // Direct-child experience entries. Skip nodes that are clearly not
+      // entries (button, hr, comment-only wrappers).
+      const entries = [...expList.children].filter(el =>
+        el.nodeType === 1 && !/^(BUTTON|HR|SCRIPT|STYLE)$/i.test(el.tagName));
+      entries.forEach((row, i) => {
+        if (row.getAttribute('data-exp-index') == null) {
+          row.setAttribute('data-exp-index', String(i));
+        }
+        if (!row.getAttribute('data-section')) {
+          row.setAttribute('data-section', 'experience');
+        }
+        if (!row.classList.contains('experience-row')) {
+          row.classList.add('experience-row');
+        }
+        if (!row.classList.contains('item-row')) {
+          row.classList.add('item-row');
+        }
+        // Locate bullet container.
+        let bulletList = row.querySelector(':scope ul');
+        if (!bulletList) {
+          // Heuristic for the "fake bullet" pattern used by modern-sidebar /
+          // classic-serif / minimal / etc.: a wrapper <div> whose children
+          // are <div style="padding-left:...;position:relative">. Pick the
+          // div that contains the most such children.
+          let best = null, bestCount = 0;
+          row.querySelectorAll(':scope div').forEach(d => {
+            const kids = [...d.children].filter(c =>
+              c.tagName === 'DIV' &&
+              /padding-left/.test(c.getAttribute('style') || '') &&
+              /position\s*:\s*absolute/.test((c.firstElementChild?.getAttribute('style') || '')));
+            if (kids.length > bestCount) { best = d; bestCount = kids.length; }
+          });
+          if (best && bestCount > 0) bulletList = best;
+        }
+        if (!bulletList) return;
+        if (!bulletList.getAttribute('data-list')) {
+          bulletList.setAttribute('data-list', 'experience-bullets');
+        }
+        bulletList.setAttribute('data-exp-index', String(i));
+        // Bullet children: <li> for UL paths, padding-left <div> for fake-bullet paths.
+        const bulletKids = [...bulletList.children].filter(c =>
+          c.tagName === 'LI' ||
+          (c.tagName === 'DIV' && /padding-left/.test(c.getAttribute('style') || ''))
+        );
+        bulletKids.forEach((b, j) => {
+          if (b.getAttribute('data-bullet-index') == null) {
+            b.setAttribute('data-bullet-index', String(j));
+          }
+          b.setAttribute('data-exp-index', String(i));
+          if (!b.classList.contains('item-row')) b.classList.add('item-row');
+          if (!b.classList.contains('bullet-row')) b.classList.add('bullet-row');
+          // Wrap visible text in .bullet-text if not already wrapped.
+          if (!b.querySelector(':scope > .bullet-text')) {
+            // Find the first text-bearing child node that isn't the absolute-positioned bullet glyph.
+            const childNodes = [...b.childNodes];
+            const glyph = b.firstElementChild &&
+              /position\s*:\s*absolute/.test(b.firstElementChild.getAttribute('style') || '')
+              ? b.firstElementChild : null;
+            const textParts = childNodes.filter(n =>
+              n !== glyph &&
+              !(n.nodeType === 1 && (n.classList.contains('item-del') || n.classList.contains('item-edit-btn') || n.classList.contains('item-vis-toggle') || n.classList.contains('mobile-action-bar') || n.classList.contains('drag-handle')))
+            );
+            const span = document.createElement('span');
+            span.className = 'bullet-text';
+            textParts.forEach(n => span.appendChild(n));
+            // Insert after glyph if present, else at start.
+            if (glyph && glyph.parentNode === b) {
+              glyph.after(span);
+            } else {
+              b.insertBefore(span, b.firstChild);
+            }
+          }
+          // Inject a delete button if none is present so users can remove bullets
+          // on PREVIEW_RENDERERS templates (modern-sidebar / modern-ats / banking).
+          if (!b.querySelector(':scope > .item-del')) {
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'item-del export-hide';
+            del.setAttribute('contenteditable', 'false');
+            del.setAttribute('onclick', 'removeItem(this)');
+            del.setAttribute('title', 'Delete bullet');
+            del.setAttribute('aria-label', 'Delete bullet');
+            del.innerHTML = '&times;';
+            // Minimal inline style so the button is clickable without
+            // depending on any specific template's CSS.
+            del.setAttribute('style',
+              'position:absolute;top:0;right:0;width:18px;height:18px;line-height:14px;' +
+              'border:none;background:rgba(220,38,38,0.85);color:#fff;border-radius:50%;' +
+              'font-size:12px;cursor:pointer;padding:0;z-index:5');
+            // Ensure the bullet row is a positioning context.
+            const cur = b.getAttribute('style') || '';
+            if (!/position\s*:\s*(absolute|relative|fixed)/.test(cur)) {
+              b.setAttribute('style', cur + ';position:relative');
+            }
+            b.appendChild(del);
+          }
+        });
+      });
+    });
+  } catch (e) {
+    try { console.warn('[_stampExperienceAnchors] failed:', e?.message); } catch(_){}
+  }
+}
+
+// QA helper — paste in DevTools, expect every bullet's expIndex to match its row.
+try {
+  window.debugExperienceAnchors = function(rootId) {
+    const root = document.getElementById(rootId || 'preview-container');
+    if (!root) { console.warn('debugExperienceAnchors: container not found'); return []; }
+    const rows = [...root.querySelectorAll('[data-list="experience"] > [data-exp-index]')];
+    const out = rows.map(row => ({
+      expIndex: row.dataset.expIndex,
+      title: row.querySelector('h4, strong')?.textContent?.trim() || '',
+      bullets: [...row.querySelectorAll(':scope [data-list="experience-bullets"] > [data-bullet-index]')]
+        .map(li => ({
+          expIndex: li.dataset.expIndex,
+          bulletIndex: li.dataset.bulletIndex,
+          text: (li.querySelector('.bullet-text') || li).textContent?.trim().slice(0, 80) || ''
+        }))
+    }));
+    console.table(out.flatMap(r => r.bullets.map(b => ({
+      job: r.expIndex + ' (' + r.title.slice(0, 30) + ')',
+      bIdx: b.bulletIndex, bExp: b.expIndex, text: b.text
+    }))));
+    return out;
+  };
+} catch(_){}
+
 const PREVIEW_RENDERERS = {
   // ── PowerPoint · Modern Sidebar ─────────────────────────────────────────────
   // Portrait 7.5 × 10 in. Mirrors exportPPTX layout 1:1 (sidebar 2.3in, accent
@@ -12861,6 +13013,11 @@ function _renderFormatAccuratePreview(g, containerId){
         <div class="pv-page">${pageInner}<span class="pv-pageno">1</span></div>
       </div>
     </div>`;
+  // 2026-04-25 BUG-FIX: stamp per-bullet dataset anchors + inject delete
+  // buttons so removeItem and syncPreviewEditsToState can scope edits to
+  // the right job. Without this every PREVIEW_RENDERERS template would
+  // continue producing un-anchored bullets that bleed across jobs.
+  try { _stampExperienceAnchors(container); } catch(_){}
   try { lucide.createIcons(); } catch(_){}
   // Keep Document/Web toggle active-state and re-sync spacing/divider presets
   try { _applyPreviewPresets(); } catch(_){}
@@ -13269,6 +13426,11 @@ function renderPreview(g, targetId) {
   // duplicated nodes mid-swap. innerHTML='' fully replaces; no append.
   _container.innerHTML = '';
   _container.innerHTML = '<div class="' + _shellClass + '"><div class="' + _innerClass + '">' + h + '</div></div>';
+  // 2026-04-25 BUG-FIX: stamp per-bullet dataset anchors + inject delete
+  // buttons. The legacy renderer already emits canonical anchors for the
+  // experience block at L13203, but this guarantees idempotent coverage
+  // for any sub-renderers that might be called from this path.
+  try { _stampExperienceAnchors(_container); } catch(_){}
   if (STATE._debugRender) {
     try {
       console.log('[renderPreview] container=', containerId,
