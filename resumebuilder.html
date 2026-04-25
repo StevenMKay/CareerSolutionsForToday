@@ -1533,6 +1533,41 @@
           </div>
         </div>
 
+        <!-- Workspace: Target Role + CV Draft -->
+        <div class="sub-acc" data-sub="workspace-role-cv" id="workspace-role-cv-sub">
+          <button type="button" class="sub-acc-head" onclick="toggleSubAcc(this,true)">
+            <span class="sub-acc-num"><i data-lucide="layout-template" style="width:14px;height:14px"></i></span>
+            <span class="sub-acc-title">Workspace Role &amp; CV</span>
+            <span class="sub-acc-meta" id="sub-meta-workspace-role-cv">Sync</span>
+            <svg class="sub-acc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="sub-acc-body">
+            <p class="text-xs mb-2" style="color:#9CA3AF">These fields mirror Target Role + CV draft so Build / Edit Workspace stays in sync after imports and reloads.</p>
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Target Job Title</label>
+                <input class="input-field" id="workspace-job-title" placeholder="e.g. Senior Product Manager">
+              </div>
+              <div>
+                <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Target Company</label>
+                <input class="input-field" id="workspace-job-company" placeholder="e.g. Chase Bank">
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Target Job Description</label>
+              <textarea class="input-field" id="workspace-job-desc" placeholder="Paste the job description for optimization..." style="min-height:88px"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Plan Context</label>
+              <textarea class="input-field" id="workspace-plan-context" placeholder="Strategic context, goals, focus areas..." style="min-height:72px"></textarea>
+            </div>
+            <div class="mt-3">
+              <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">CV Draft Body</label>
+              <textarea class="input-field" id="workspace-cv-body" placeholder="CV draft text appears here after optimize/build..." style="min-height:120px"></textarea>
+            </div>
+          </div>
+        </div>
+
       </div><!-- /about-me-subs -->
 
       <!-- Save + Continue -->
@@ -2030,7 +2065,7 @@
       </div><!-- /sub-acc-group bs-left-subs -->
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-4 border-t" style="border-color:#E5E7EB;margin-top:1rem">
-        <button class="btn-secondary" style="min-height:44px;justify-content:center" onclick="toggleAccordion(2)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Target Role</button>
+        <button class="btn-secondary" style="min-height:44px;justify-content:center" onclick="toggleAccordion(2)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Optimize</button>
         <button class="btn-primary" onclick="toggleAccordion(5)" style="background:#0F172A;min-height:44px;justify-content:center">Continue to Preview & Export <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
       </div>
       </div><!-- /bs-left -->
@@ -2224,8 +2259,8 @@
 
       <!-- Footer CTAs -->
       <div class="flex items-center justify-between pt-4" style="border-top:1px solid #E5E7EB">
-        <button class="btn-secondary" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
-        <button class="btn-primary" onclick="toggleAccordion(4)" style="background:#059669">Back to Optimize <i data-lucide="arrow-left" style="width:14px;height:14px"></i></button>
+        <button class="btn-secondary" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Choose Style</button>
+        <button class="btn-primary" onclick="toggleAccordion(4)" style="background:#059669">Continue to Preview & Export <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
       </div>
     </div>
   </div>
@@ -3512,6 +3547,7 @@ let selectedFile = null;
 let photoDataUrl = null;
 let isDirty = false;
 let _lastSavedFieldValues = {}; // Cache for dirty state tracking (FIX #7)
+window.__isHydratingPlan = false;
 let pendingNavCallback = null;
 let builderSubscribed = false;
 let ytMemberSubscribed = false;
@@ -4565,6 +4601,13 @@ function markClean() {
     clearTimeout(_inputDirtyTimer);
     _inputDirtyTimer = null;
   }
+  // Clear About Me autosave timer so a completed save/load stays clean.
+  try {
+    if (window.__aboutMeAutoSaveTimer) {
+      clearTimeout(window.__aboutMeAutoSaveTimer);
+      window.__aboutMeAutoSaveTimer = null;
+    }
+  } catch(_){ }
   const badge = document.getElementById('version-bar-dirty');
   if (badge) badge.style.display = 'none';
   const ibDirty = document.getElementById('info-bar-dirty');
@@ -7435,6 +7478,7 @@ function _doStartNewPlan() {
 }
 
 async function loadPlan(planId) {
+  window.__isHydratingPlan = true;
   showLoading('Loading plan...');
   try {
     const doc = await db.collection('plans').doc(planId).get();
@@ -7528,6 +7572,16 @@ async function loadPlan(planId) {
     document.getElementById('job-company').value = d.company || '';
     document.getElementById('job-desc').value = d.jobDescription || '';
     document.getElementById('plan-context').value = d.planContext || '';
+    try {
+      const targetRole = {
+        job_title: d.jobTitle || '',
+        company: d.company || '',
+        description: d.jobDescription || '',
+        plan_context: d.planContext || ''
+      };
+      if (currentPlanId) setCurrentTargetRole(targetRole);
+      else setTargetRoleDraft(targetRole);
+    } catch(_){ }
     updateTargetRoleSubtitle();
     // Sync Optimize CTA state — programmatic value assignment doesn't fire 'input'
     try { updateOptimizeCTAState && updateOptimizeCTAState(); } catch(_){}
@@ -7647,12 +7701,15 @@ async function loadPlan(planId) {
       highestStepReached = 1;
       goToStep(1);
     }
+    // Hydration complete: capture a clean value baseline before markClean.
+    try { refreshSavedFieldBaseline(); } catch(_){ }
     // Populate version dropdown and evaluate step completion
     markClean();
     populateVersionSelect();
     evaluateStepCompletion();
     updateStepDots();
   } catch(e) { console.error(e); showToast('Error loading plan'); }
+  window.__isHydratingPlan = false;
   hideLoading();
 }
 
@@ -7817,13 +7874,8 @@ async function savePlan() {
       _syncActiveVersionFromPlanId(ref.id);
     }
     isDirty = false;
-    // Cache current field values so hasFormChanges() can properly detect true changes (FIX #7)
-    _lastSavedFieldValues = {};
-    const fieldsToCache = ['contact-name', 'contact-phone', 'contact-email', 'contact-city', 'contact-state', 'contact-linkedin', 'contact-github', 'contact-website', 'contact-twitter', 'manual-current-title', 'manual-summary', 'manual-skills', 'resume-text', 'job-title', 'job-company', 'job-desc', 'plan-context'];
-    fieldsToCache.forEach(fieldId => {
-      const el = document.getElementById(fieldId);
-      if (el) _lastSavedFieldValues[fieldId] = el.value || '';
-    });
+    // Cache current field values so dirty checks compare against true saved state.
+    refreshSavedFieldBaseline();
     markClean();
     STATE._lastSavedAt = Date.now();
     _lastSavedTargetRole = (document.getElementById('job-title')?.value||'') + '@' + (document.getElementById('job-company')?.value||'');
@@ -8743,7 +8795,24 @@ function hasFormChanges(stepNum) {
   return false;
 }
 
+function refreshSavedFieldBaseline() {
+  _lastSavedFieldValues = {};
+  const fieldsToCache = [
+    'contact-name', 'contact-phone', 'contact-email', 'contact-city', 'contact-state',
+    'contact-linkedin', 'contact-github', 'contact-website', 'contact-twitter',
+    'manual-current-title', 'manual-summary', 'manual-skills', 'resume-text',
+    'job-title', 'job-company', 'job-desc', 'plan-context',
+    'workspace-job-title', 'workspace-job-company', 'workspace-job-desc', 'workspace-plan-context',
+    'workspace-cv-body'
+  ];
+  fieldsToCache.forEach(fieldId => {
+    const el = document.getElementById(fieldId);
+    if (el) _lastSavedFieldValues[fieldId] = el.value || '';
+  });
+}
+
 function markDirty(options) {
+  if (window.__isHydratingPlan && !options?.allowDuringHydration) return;
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
   // Canonical source-of-truth sync: mirror current builder inputs into
@@ -9877,7 +9946,9 @@ function saveManualEntry(opts) {
     document.getElementById('resume-preview').classList.remove('hidden');
   }
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
-  try { markDirty && markDirty({ needsReanalysis: false }); } catch(_){}
+  if (!_quiet) {
+    try { markDirty && markDirty({ needsReanalysis: false }); } catch(_){ }
+  }
   if (!_quiet) showToast('Manual resume data saved!');
 }
 
@@ -9888,8 +9959,10 @@ try {
   if (!window.__aboutMeAutoSaveInstalled) {
     window.__aboutMeAutoSaveInstalled = true;
     const _scheduleAutoSave = () => {
+      if (window.__isHydratingPlan) return;
       try { clearTimeout(window.__aboutMeAutoSaveTimer); } catch(_){}
       window.__aboutMeAutoSaveTimer = setTimeout(() => {
+        if (window.__isHydratingPlan) return;
         try { if (typeof saveManualEntry === 'function') saveManualEntry({ quiet: true }); }
         catch(err) { console.warn('[about-me:autosave]', err); }
       }, 350);
@@ -17449,7 +17522,18 @@ async function importLinkedInJob() {
     if (data.job_title) document.getElementById('job-title').value = data.job_title;
     if (data.company) document.getElementById('job-company').value = data.company;
     if (data.description) document.getElementById('job-desc').value = data.description;
+    try {
+      const targetRole = {
+        job_title: data.job_title || '',
+        company: data.company || '',
+        description: data.description || '',
+        plan_context: document.getElementById('plan-context')?.value || ''
+      };
+      if (currentPlanId) setCurrentTargetRole(targetRole);
+      else setTargetRoleDraft(targetRole);
+    } catch(_){ }
     updateTargetRoleSubtitle();
+    try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
     statusEl.innerHTML = '<span style="color:#047857">Job details imported! Review and edit the fields below.</span>';
     showToast('Job details imported from LinkedIn!');
     rbDebug('linkedin', 'import success', { title: data.job_title, company: data.company, descLen: (data.description||'').length });
