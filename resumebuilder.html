@@ -2385,9 +2385,16 @@
       <div class="mb-5">
         <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
           <h3 class="text-sm font-semibold flex items-center gap-2" style="color:#0A2F6B"><i data-lucide="eye" style="width:14px;height:14px"></i> Live Preview</h3>
-          <div class="inline-flex rounded-lg overflow-hidden" style="border:1px solid #E2E8F0" role="group" aria-label="Preview mode">
-            <button type="button" data-pv-mode="doc" class="bs-preset-btn" onclick="setPreviewMode('doc',this)" title="Document view (paginated)"><i data-lucide="file" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Document</button>
-            <button type="button" data-pv-mode="web" class="bs-preset-btn active" onclick="setPreviewMode('web',this)" title="Web view (flow)"><i data-lucide="monitor" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Web</button>
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="inline-flex rounded-lg overflow-hidden" style="border:1px solid #E2E8F0" role="group" aria-label="Preview format">
+              <button type="button" data-pv-mode="doc" class="bs-preset-btn" onclick="setPreviewMode('doc',this)" title="Document view (paginated)"><i data-lucide="file" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Document</button>
+              <button type="button" data-pv-mode="web" class="bs-preset-btn active" onclick="setPreviewMode('web',this)" title="Web view (flow)"><i data-lucide="monitor" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Web</button>
+            </div>
+            <div class="inline-flex rounded-lg overflow-hidden" style="border:1px solid #E2E8F0" role="group" aria-label="Preview content">
+              <button type="button" data-pv-content="resume" class="bs-preset-btn" onclick="setPreviewContent('resume',this)" title="Resume only"><i data-lucide="file-text" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Resume</button>
+              <button type="button" data-pv-content="plan" class="bs-preset-btn" onclick="setPreviewContent('plan',this)" title="Plan only"><i data-lucide="target" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Plan</button>
+              <button type="button" data-pv-content="combined" class="bs-preset-btn active" onclick="setPreviewContent('combined',this)" title="Resume + Plan"><i data-lucide="layers" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Combined</button>
+            </div>
           </div>
         </div>
         <!-- Role-aware badge (injected by RA-1; clickable — jumps back to Target Role) -->
@@ -3662,7 +3669,362 @@ const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills
      - window.hasReadyResumeData()       — readiness probe
      - window.refreshOptimizeQuickState()— toggles #wb-optimize-quick grey/purple
    ===================================================================== */
-let STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', docxMode:'template', useHandlebarsPreview:false, _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+let STATE = { planType:'90-day', sections:[...DEFAULT_SECTIONS], rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, useEnhanced:false, htmlExportMode:'template', docxMode:'template', useHandlebarsPreview:false, _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+
+// ===================================================================
+// 2026-04-25 — STATE.workspace canonical, version-scoped store.
+// Single source of truth per resume version. Profile is the only global.
+// Each version owns its own resume/plan/analysis/targetRole/exportSettings/
+// _enhancedAlias/_resumeInitialized. Aliases on STATE redirect reads
+// through getActiveVersion() so existing code (hundreds of read sites)
+// keeps working unchanged.
+// ===================================================================
+STATE.workspace = {
+  profile: {},          // global, shared across versions
+  targetRoleDraft: {},  // pre-version input buffer ONLY. Snapshotted into
+                        // version on create. Never written by post-creation
+                        // edits — those go to getActiveVersion().targetRole.
+  activeVersionId: null,
+  versions: {}          // in-memory cache: { [id]: versionRecord }
+};
+
+function getWorkspace() {
+  STATE.workspace ||= {};
+  STATE.workspace.profile          ||= {};
+  STATE.workspace.targetRoleDraft  ||= {};
+  STATE.workspace.versions         ||= {};
+  return STATE.workspace;
+}
+
+function _newVersionRecord(seed) {
+  seed = seed || {};
+  const id = seed.id || ('ver_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+  const now = new Date().toISOString();
+  return {
+    id,
+    name: seed.name || 'Untitled Resume',
+    createdAt: seed.createdAt || now,
+    updatedAt: now,
+    targetRole:        structuredClone(seed.targetRole        || {}),
+    resume:            structuredClone(seed.resume            || {}),
+    plan:              structuredClone(seed.plan              || {}),
+    analysis:          structuredClone(seed.analysis          || {}),
+    exportSettings:    structuredClone(seed.exportSettings    || {}),
+    _enhancedAlias:    seed._enhancedAlias ? structuredClone(seed._enhancedAlias) : null,
+    _resumeInitialized: !!seed.resume && !!Object.keys(seed.resume).length
+  };
+}
+
+function createResumeVersion(seed) {
+  const w = getWorkspace();
+  const rec = _newVersionRecord(seed || {});
+  w.versions[rec.id] = rec;
+  w.activeVersionId  = rec.id;
+  return rec;
+}
+
+function getActiveVersion() {
+  const w = getWorkspace();
+  if (!w.activeVersionId || !w.versions[w.activeVersionId]) {
+    // Lazy bootstrap: create a 'draft' version on first read.
+    const rec = _newVersionRecord({ id: 'draft', name: 'Draft Resume',
+      targetRole: w.targetRoleDraft });
+    w.versions[rec.id] = rec;
+    w.activeVersionId  = 'draft';
+    return rec;
+  }
+  return w.versions[w.activeVersionId];
+}
+
+function switchActiveVersion(id) {
+  const w = getWorkspace();
+  if (!id || !w.versions[id]) return null;
+  w.activeVersionId = id;
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+  return w.versions[id];
+}
+
+// _forkActiveVersionToDraft: clone the active version into the 'draft' slot
+// and switch active to 'draft'. Used by "Save as new version" flows where
+// the user wants to fork the current resume into a new Firestore doc on
+// next savePlan(). Guarantees the new version cannot share object refs
+// with the source.
+function _forkActiveVersionToDraft() {
+  try {
+    const w = getWorkspace();
+    const src = w.versions[w.activeVersionId];
+    if (!src) {
+      // No active version; just ensure draft exists.
+      _syncActiveVersionFromPlanId(null);
+      return;
+    }
+    const fresh = _newVersionRecord({
+      id: 'draft',
+      name: src.name,
+      targetRole: src.targetRole,
+      resume: src.resume,
+      plan: src.plan,
+      analysis: src.analysis,
+      exportSettings: src.exportSettings,
+      _enhancedAlias: src._enhancedAlias
+    });
+    w.versions['draft'] = fresh;
+    w.activeVersionId  = 'draft';
+  } catch(_){}
+}
+
+// _renameDraftToVersionId: after savePlan creates a new Firestore doc,
+// migrate the in-memory 'draft' record to the new id so subsequent reads
+// (e.g. switchVersion) find it without a network round-trip.
+function _renameDraftToVersionId(newId) {
+  try {
+    if (!newId || newId === 'draft') return;
+    const w = getWorkspace();
+    if (!w.versions['draft']) return;
+    const rec = w.versions['draft'];
+    rec.id = newId;
+    w.versions[newId] = rec;
+    delete w.versions['draft'];
+    if (w.activeVersionId === 'draft') w.activeVersionId = newId;
+  } catch(_){}
+}
+
+// _syncActiveVersionFromPlanId: keep workspace.activeVersionId in lockstep
+// with the legacy `currentPlanId` global. Called wherever currentPlanId is
+// mutated. If the plan id has no cached version, we lazily create an empty
+// record so subsequent alias writes have somewhere to land. Phase 2 hooks
+// loadPlan() to populate the record from Firestore data.
+function _syncActiveVersionFromPlanId(planId) {
+  try {
+    const w = getWorkspace();
+    if (planId == null) {
+      if (!w.versions['draft']) {
+        w.versions['draft'] = _newVersionRecord({ id:'draft', name:'Draft Resume',
+          targetRole: w.targetRoleDraft });
+      }
+      w.activeVersionId = 'draft';
+    } else {
+      if (!w.versions[planId]) {
+        w.versions[planId] = _newVersionRecord({ id: planId, name: 'Loaded Resume' });
+      }
+      w.activeVersionId = planId;
+    }
+  } catch(_){}
+}
+
+// Resume helpers — version-scoped
+function getCurrentResume() { return getActiveVersion().resume; }
+function setCurrentResume(nextResume) {
+  const v = getActiveVersion();
+  v.resume = structuredClone(nextResume || {});
+  // Split plan-shaped keys out so resume preview/export never carries plan.
+  try { _splitPlanFromResume(v); } catch(_){}
+  v.updatedAt = new Date().toISOString();
+  v._resumeInitialized = true;
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+}
+
+// _splitPlanFromResume: move plan-shaped keys (plan_phases, success_summary,
+// days90, months12, years2, horizon) out of v.resume into v.plan. Phase 4
+// will harden renderers to honor this; for now the helper just keeps the
+// canonical bucket clean.
+function _splitPlanFromResume(v) {
+  if (!v || !v.resume || typeof v.resume !== 'object') return;
+  v.plan = v.plan || {};
+  const PLAN_KEYS = ['plan_phases','success_summary','days90','months12','years2','horizon'];
+  for (const k of PLAN_KEYS) {
+    if (v.resume[k] !== undefined) {
+      // Preserve resume's value if v.plan[k] is empty/undefined; else keep v.plan[k]
+      if (v.plan[k] === undefined ||
+          (Array.isArray(v.plan[k]) && !v.plan[k].length) ||
+          (typeof v.plan[k] === 'object' && !Object.keys(v.plan[k]||{}).length)) {
+        v.plan[k] = v.resume[k];
+      }
+      // NOTE: we DO NOT delete v.resume[k] yet — Phase 4 will strip plan
+      // rendering at the renderer level. Deleting here would break the
+      // legacy card() renderer that still reads g.plan_phases.
+    }
+  }
+}
+
+// Plan helpers — version-scoped
+function getCurrentPlan() { return getActiveVersion().plan; }
+function setCurrentPlan(nextPlan) {
+  const v = getActiveVersion();
+  v.plan = structuredClone(nextPlan || {});
+  v.updatedAt = new Date().toISOString();
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+}
+
+// Analysis helpers — version-scoped (also writes legacy analysisCache for
+// compatibility with code that reads the free var directly).
+function getCurrentAnalysis() { return getActiveVersion().analysis; }
+function setCurrentAnalysis(nextAnalysis) {
+  const v = getActiveVersion();
+  v.analysis = structuredClone(nextAnalysis || {});
+  v.updatedAt = new Date().toISOString();
+  try { analysisCache = nextAnalysis || null; } catch(_){}
+}
+
+// Target role helpers — version-scoped AFTER version creation.
+// Pre-creation edits go to workspace.targetRoleDraft (separate API).
+function getCurrentTargetRole() { return getActiveVersion().targetRole; }
+function setCurrentTargetRole(nextTargetRole) {
+  const v = getActiveVersion();
+  v.targetRole = structuredClone(nextTargetRole || {});
+  v.updatedAt = new Date().toISOString();
+}
+function getTargetRoleDraft() { return getWorkspace().targetRoleDraft; }
+function setTargetRoleDraft(nextDraft) {
+  getWorkspace().targetRoleDraft = structuredClone(nextDraft || {});
+}
+
+// Enhanced overlay — version-scoped
+function getEnhancedOverlay() { return getActiveVersion()._enhancedAlias; }
+function setEnhancedOverlay(nextOverlay) {
+  const v = getActiveVersion();
+  v._enhancedAlias = nextOverlay ? structuredClone(nextOverlay) : null;
+  v.updatedAt = new Date().toISOString();
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+}
+function clearEnhancedOverlay() { setEnhancedOverlay(null); }
+
+// Profile helpers — global
+function getProfileData() { return getWorkspace().profile; }
+function setProfileData(nextProfile) {
+  getWorkspace().profile = structuredClone(nextProfile || {});
+}
+
+// _resetUserState: in-place reset for logout / sign-out / "fresh session"
+// transitions. Replaces the historical `STATE = { ... }` literal-reassignment
+// pattern, which would have detached the workspace accessors installed on
+// the original STATE object. Mutates STATE in place so accessors persist.
+function _resetUserState() {
+  // 1. Wipe workspace
+  STATE.workspace = {
+    profile: {},
+    targetRoleDraft: {},
+    activeVersionId: null,
+    versions: {}
+  };
+  // 2. Reset top-level scalar/array slots to defaults
+  STATE.planType            = '90-day';
+  STATE.sections            = [...DEFAULT_SECTIONS];
+  STATE.rawResumeText       = '';
+  STATE.style               = 'executive';
+  STATE.color               = '#005EB8';
+  STATE.photoUrl            = '';
+  STATE.photoShape          = 'circle';
+  STATE.photoSize           = 'md';
+  STATE.photoPlacement      = 'top';
+  STATE.showPhoto           = true;
+  STATE.appliedJobs         = [];
+  STATE.appStatus           = {};
+  STATE.exportTemplate      = 'modern-sidebar';
+  STATE.previewFormat       = null;
+  STATE.pptxColor           = null;
+  STATE.useEnhanced         = false;
+  STATE.htmlExportMode      = 'template';
+  STATE.docxMode            = 'template';
+  STATE.useHandlebarsPreview= false;
+  STATE._exportModelCache   = null;
+  STATE._exportModelDirty   = true;
+  STATE._exporting          = false;
+}
+
+// Accessor aliases on STATE: redirect legacy reads to canonical workspace
+// slots. Hundreds of existing read sites (e.g. STATE.generated.experience)
+// continue to work transparently. Setters write through to the same target,
+// so legacy `STATE.generated = X` paths still function (Phase 3 will
+// migrate them to the helper for proper bookkeeping).
+Object.defineProperty(STATE, 'resumeData', {
+  configurable: true,
+  enumerable: true,
+  get() { return getWorkspace().profile; },
+  set(v) { getWorkspace().profile = v || {}; }
+});
+Object.defineProperty(STATE, 'generated', {
+  configurable: true,
+  enumerable: true,
+  get() { return getActiveVersion().resume; },
+  set(v) {
+    const ver = getActiveVersion();
+    ver.resume = v || {};
+    try { _splitPlanFromResume(ver); } catch(_){}
+    ver.updatedAt = new Date().toISOString();
+    if (v && Object.keys(v).length) ver._resumeInitialized = true;
+    try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+  }
+});
+Object.defineProperty(STATE, 'enhancedData', {
+  configurable: true,
+  enumerable: true,
+  get() { return getActiveVersion()._enhancedAlias; },
+  set(v) {
+    const ver = getActiveVersion();
+    ver._enhancedAlias = v || null;
+    ver.updatedAt = new Date().toISOString();
+    try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+  }
+});
+Object.defineProperty(STATE, 'roleResearch', {
+  configurable: true,
+  enumerable: true,
+  get() { return getActiveVersion().targetRole; },
+  set(v) {
+    const ver = getActiveVersion();
+    ver.targetRole = v || {};
+    ver.updatedAt = new Date().toISOString();
+  }
+});
+
+// 2026-04-25 workspace refactor: previewContent is VERSION-SCOPED, stored
+// under getActiveVersion().exportSettings.previewContent. STATE.previewContent
+// remains as a back-compat read-only alias so legacy reads continue to work.
+// All writes must go through setPreviewContent() (which writes to the version).
+function getPreviewContent() {
+  try {
+    const v = getActiveVersion();
+    const pc = v && v.exportSettings && v.exportSettings.previewContent;
+    return (pc === 'resume' || pc === 'plan' || pc === 'combined') ? pc : 'combined';
+  } catch(_) { return 'combined'; }
+}
+Object.defineProperty(STATE, 'previewContent', {
+  configurable: true,
+  enumerable: true,
+  get() { return getPreviewContent(); },
+  set(v) {
+    // Route writes through the version's exportSettings bucket so legacy
+    // `STATE.previewContent = X` paths still update the canonical store.
+    const ver = getActiveVersion();
+    ver.exportSettings = ver.exportSettings || {};
+    ver.exportSettings.previewContent = (v === 'resume' || v === 'plan' || v === 'combined') ? v : 'combined';
+    ver.updatedAt = new Date().toISOString();
+  }
+});
+
+// Debug surface
+window.debugWorkspaceState = function() {
+  const w = getWorkspace();
+  const v = getActiveVersion();
+  return {
+    hasProfile: !!Object.keys(w.profile||{}).length,
+    activeVersionId: w.activeVersionId,
+    versionCount: Object.keys(w.versions||{}).length,
+    versionIds: Object.keys(w.versions||{}),
+    resumeJobs: v.resume?.experience?.length || 0,
+    planSections: Object.keys(v.plan||{}),
+    targetRoleKeys: Object.keys(v.targetRole||{}),
+    targetRoleDraftKeys: Object.keys(w.targetRoleDraft||{}),
+    analysisHasData: !!Object.keys(v.analysis||{}).length,
+    enhancedOverlayPresent: !!v._enhancedAlias,
+    resumeInitialized: !!v._resumeInitialized,
+    generatedAliasMatches:    STATE.generated     === v.resume,
+    resumeDataAliasMatches:   STATE.resumeData    === w.profile,
+    enhancedDataAliasMatches: STATE.enhancedData  === v._enhancedAlias,
+    roleResearchAliasMatches: STATE.roleResearch  === v.targetRole
+  };
+};
 
 // ============ ISS-014: Diagnostic console logger ============
 // Tagged console logs so we can trace the main user journeys (auth,
@@ -4106,6 +4468,12 @@ async function saveVersionAndGenerate() {
   if (vmDesc) document.getElementById('job-desc').value = vmDesc;
   if (vmTitle || vmCompany) updateTargetRoleSubtitle();
   applyResumeBuildName(name, false);
+  // 2026-04-25 workspace refactor: snapshot active version into 'draft' so
+  // savePlan creates a NEW Firestore doc, but the in-memory record carries
+  // the user's current data forward (they can still click Generate to
+  // overwrite). Bullet deletes etc. on the source version are unaffected
+  // (structuredClone in _newVersionRecord guarantees no shared refs).
+  _forkActiveVersionToDraft();
   currentPlanId = null;
   // New versions are not published — hide any existing share bar
   hideShareBar();
@@ -4120,7 +4488,10 @@ async function saveNewVersion() {
   if (!name) { showToast('Please enter a version name'); return; }
   // Update the resume build name
   applyResumeBuildName(name, false);
-  // Clear currentPlanId so savePlan creates a NEW document
+  // Clear currentPlanId so savePlan creates a NEW document.
+  // 2026-04-25 workspace refactor: also fork active version → 'draft' so
+  // the new Firestore save carries forward current resume/plan/analysis.
+  _forkActiveVersionToDraft();
   currentPlanId = null;
   // New versions are not published — hide any existing share bar
   hideShareBar();
@@ -4174,7 +4545,11 @@ function switchVersion(id) {
     }
   }
   if (id === 'current' || id === currentPlanId) return;
-  // Load the selected plan/version
+  // Note: a workspace-cache fast-path was considered here so already-loaded
+  // versions could swap without a Firestore round-trip. Removed because
+  // switching also needs to repaint contact-* fields, plan-context,
+  // job-title/company/desc inputs, photo, etc., which live outside the
+  // workspace state buckets. loadPlan() handles all that consistently.
   loadPlan(id);
   closeDrawers();
 }
@@ -4594,6 +4969,42 @@ document.addEventListener('DOMContentLoaded', function(){
     jd.addEventListener('blur', updateOptimizeCTAState);
   }
   updateOptimizeCTAState();
+
+  // 2026-04-25 workspace refactor (Phase 5): mirror Target Role inputs into
+  // the version-scoped state on every change. Before a version exists
+  // (currentPlanId === null and no active version other than 'draft'),
+  // writes go to workspace.targetRoleDraft. After a version exists, they
+  // go to that version's targetRole. Switching versions never modifies
+  // the draft; reload of inputs from version.targetRole happens elsewhere
+  // (loadPlan / switchVersion -> loadPlan).
+  try {
+    const targetRoleIds = ['job-title', 'job-company', 'job-desc', 'plan-context'];
+    const fieldKeyMap = {
+      'job-title':    'job_title',
+      'job-company':  'company',
+      'job-desc':     'description',
+      'plan-context': 'plan_context'
+    };
+    const writeTargetRole = () => {
+      try {
+        const isDraft = !window.currentPlanId;
+        const current = isDraft ? (getTargetRoleDraft() || {}) : (getCurrentTargetRole() || {});
+        const next = Object.assign({}, current);
+        targetRoleIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) next[fieldKeyMap[id]] = el.value || '';
+        });
+        if (isDraft) setTargetRoleDraft(next);
+        else setCurrentTargetRole(next);
+      } catch(e) { console.warn('[targetRole writeback] failed', e); }
+    };
+    targetRoleIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', writeTargetRole);
+      el.addEventListener('blur', writeTargetRole);
+    });
+  } catch(_) {}
 });
 
 // Deep clone safe helper
@@ -5006,7 +5417,13 @@ async function optimizeForJob() {
     try {
       const rd = STATE.resumeData || {};
       const hasGen = STATE.generated && Object.keys(STATE.generated).length > 0;
-      if (!hasGen) {
+      // 2026-04-25 workspace refactor: also gate behind the active version's
+      // _resumeInitialized flag so a user who has already deleted bullets
+      // can't have them resurrected from the global profile by this
+      // synthesize path. Profile is read-only here.
+      let alreadyInitialized = false;
+      try { alreadyInitialized = !!getActiveVersion()._resumeInitialized; } catch(_){}
+      if (!hasGen && !alreadyInitialized) {
         const targetTitle = (document.getElementById('job-title')?.value || rd.current_title || '').trim();
         STATE.generated = {
           hero: {
@@ -6315,12 +6732,10 @@ auth.onAuthStateChanged(async user => {
     singlePurchaseBuilds = 0;
     aiUsesRemaining = 0;
     firstAnalysisDone = false;
-    try { currentPlanId = null; } catch(e) {}
+    try { currentPlanId = null; _syncActiveVersionFromPlanId(null); } catch(e) {}
     try { photoDataUrl = null; } catch(e) {}
     try { selectedFile = null; } catch(e) {}
-    try {
-      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{}, exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', docxMode:'template', useHandlebarsPreview:false, _exportModelCache:null, _exportModelDirty:true, _exporting:false };
-    } catch(e) {}
+    try { _resetUserState(); } catch(e) {}
     try { clearAnalysisUI(); } catch(e) {}
     // Hide any stale builder preview DOM from the prior user
     try {
@@ -6505,12 +6920,10 @@ auth.onAuthStateChanged(async user => {
     firstAnalysisDone = false;
     sessionStorage.removeItem('_stripe_return_processed');
     // Purge per-user builder state so the next login starts clean
-    try { currentPlanId = null; } catch(e) {}
+    try { currentPlanId = null; _syncActiveVersionFromPlanId(null); } catch(e) {}
     try { photoDataUrl = null; } catch(e) {}
     try { selectedFile = null; } catch(e) {}
-    try {
-      STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], appStatus:{}, exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', docxMode:'template', useHandlebarsPreview:false, _exportModelCache:null, _exportModelDirty:true, _exporting:false };
-    } catch(e) {}
+    try { _resetUserState(); } catch(e) {}
     try { clearAnalysisUI(); } catch(e) {}
     document.getElementById('auth-gate').style.display = '';
     document.getElementById('auth-gate').classList.remove('hidden');
@@ -6594,6 +7007,7 @@ async function showDashboard() {
   const ib = document.getElementById('info-bar');
   if (ib) ib.style.display = 'none';
   currentPlanId = null;
+  _syncActiveVersionFromPlanId(null);
   const list = document.getElementById('plans-list');
   const empty = document.getElementById('plans-empty');
   list.innerHTML = '<p class="text-sm" style="color:#9CA3AF">Loading plans...</p>';
@@ -6776,11 +7190,12 @@ function startNewPlan() {
 }
 function _doStartNewPlan() {
   currentPlanId = null;
+  _syncActiveVersionFromPlanId(null);
   photoDataUrl = null;
   selectedFile = null;
   // Wipe any stale analysis/right-panel UI from a prior plan or user
   clearAnalysisUI();
-  STATE = { resumeData:{}, roleResearch:{}, planType:'90-day', sections:[...DEFAULT_SECTIONS], generated:{}, rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, enhancedData:null, useEnhanced:false, htmlExportMode:'template', docxMode:'template', useHandlebarsPreview:false, _exportModelCache:null, _exportModelDirty:true, _exporting:false };
+  _resetUserState();
   setColor('#005EB8');
   renderJobTracker();
   document.getElementById('resume-text').value = '';
@@ -6858,6 +7273,7 @@ async function loadPlan(planId) {
     if (!doc.exists) { hideLoading(); showToast('Plan not found'); return; }
     const d = doc.data();
     currentPlanId = planId;
+    _syncActiveVersionFromPlanId(planId);
     STATE.resumeData = d.resumeData || {};
     STATE.roleResearch = d.roleResearch || {};
     // ISS-STATUS: rehydrate the role-research freshness hash from the
@@ -6885,6 +7301,15 @@ async function loadPlan(planId) {
     STATE._previewMode = d.previewMode || 'web';
     STATE.exportTemplate = d.exportTemplate || 'modern-sidebar';
     STATE.previewFormat = (d.previewFormat === 'pptx' || d.previewFormat === 'docx') ? d.previewFormat : null;
+    // 2026-04-25 workspace refactor: previewContent is version-scoped under
+    // version.exportSettings. Read either the new nested location or the
+    // legacy top-level field, and write to the active version's bucket.
+    try {
+      const _pc = (d.exportSettings && d.exportSettings.previewContent) || d.previewContent;
+      const _v  = getActiveVersion();
+      _v.exportSettings = _v.exportSettings || {};
+      _v.exportSettings.previewContent = (_pc === 'resume' || _pc === 'plan' || _pc === 'combined') ? _pc : 'combined';
+    } catch(_){}
     STATE.pptxColor = (typeof d.pptxColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(d.pptxColor)) ? d.pptxColor : null;
     // Derive resume date from plan timestamp if not stored (older plans)
     if (!STATE.resumeExtractedAt && Object.keys(STATE.resumeData).length > 0) {
@@ -6896,6 +7321,19 @@ async function loadPlan(planId) {
     // Restore analysis cache so user doesn't re-run unnecessarily
     analysisCache = d.analysisData || null;
     analysisCacheKey = d.analysisCacheKey || null;
+    // 2026-04-25 workspace refactor: mirror analysis into the active version
+    // so version-scoped reads (getCurrentAnalysis) match the legacy free-var.
+    try {
+      const _v = getActiveVersion();
+      _v.analysis = structuredClone(d.analysisData || {});
+      // Stamp version metadata from the plan doc.
+      _v.name = d.resumeBuildName || d.contactName || _v.name || 'Loaded Resume';
+      const _created = d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : (typeof d.createdAt === 'string' ? d.createdAt : _v.createdAt);
+      const _updated = d.updatedAt?.toDate ? d.updatedAt.toDate().toISOString() : (typeof d.updatedAt === 'string' ? d.updatedAt : _v.updatedAt);
+      _v.createdAt = _created;
+      _v.updatedAt = _updated;
+      _v._resumeInitialized = !!(d.generated && Object.keys(d.generated).length);
+    } catch(_){}
     // Restore interview prep cache (includes likely/high-risk/high-impact questions)
     if (d.interviewPrep) { try { _interviewPrepCache = d.interviewPrep; } catch(_){} }
     // Restore optimization session (match score, accepted/discarded changes, revert baseline)
@@ -7159,6 +7597,7 @@ async function savePlan() {
     previewMode: STATE._previewMode || 'web',
     exportTemplate: STATE.exportTemplate || 'modern-sidebar',
     previewFormat: STATE.previewFormat || null,
+    previewContent: getPreviewContent(),
     pptxColor: STATE.pptxColor || null,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -7174,6 +7613,8 @@ async function savePlan() {
       safePlanData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
       const ref = await db.collection('plans').add(safePlanData);
       currentPlanId = ref.id;
+      _renameDraftToVersionId(ref.id);
+      _syncActiveVersionFromPlanId(ref.id);
     }
     isDirty = false;
     markClean();
@@ -11981,9 +12422,58 @@ function _applyPreviewPresets(){
       else b.classList.remove('active');
     });
   } catch(_){}
+  // 2026-04-25: also sync the content-mode toggle (Resume/Plan/Combined).
+  try {
+    const pc = getPreviewContent();
+    document.querySelectorAll('[data-pv-content]').forEach(b=>{
+      if (b.getAttribute('data-pv-content') === pc) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  } catch(_){}
   // Keep the mini style preview in step 4 in sync
   try { renderStylePreview && renderStylePreview(); } catch(_){}
 }
+// 2026-04-25 workspace refactor: content-mode toggle (Resume / Plan / Combined).
+// VERSION-SCOPED — writes to getActiveVersion().exportSettings.previewContent
+// so different resume versions can keep different preview defaults. The
+// `STATE.previewContent` accessor (defined alongside the workspace block)
+// is a back-compat read alias — do not write through it directly here.
+// Resume reads from getActiveVersion().resume, plan reads from
+// getActiveVersion().plan. Combined renders both without merging state.
+function setPreviewContent(content, btn){
+  const ALLOWED = ['resume','plan','combined'];
+  if (!ALLOWED.includes(content)) content = 'combined';
+
+  // Write to the active version's exportSettings bucket. Active version is
+  // lazily created (the 'draft' record) if no version exists yet, so this
+  // is safe pre-save.
+  try {
+    const v = getActiveVersion();
+    v.exportSettings = v.exportSettings || {};
+    v.exportSettings.previewContent = content;
+    v.updatedAt = new Date().toISOString();
+  } catch(e) { console.warn('[setPreviewContent] failed to persist', e); }
+
+  // Toggle visual active state across both preview surfaces.
+  try {
+    document.querySelectorAll('[data-pv-content]').forEach(b => {
+      if (b.getAttribute('data-pv-content') === content) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  } catch(_){}
+  // Re-render both preview containers so the gating takes effect.
+  try {
+    if (STATE.generated && Object.keys(STATE.generated).length){
+      renderPreview(STATE.generated);
+      if (document.getElementById('preview-container-export')) {
+        try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+      }
+    }
+  } catch(_){}
+  try { markDirty(); } catch(_){}
+}
+try { window.setPreviewContent = setPreviewContent; } catch(_){}
+
 function setPreviewMode(mode, btn){
   // First time a user clicks "Document" in the Export-step live preview with no format chosen,
   // prompt them to pick Word or PowerPoint so the preview matches the actual export.
@@ -13373,13 +13863,27 @@ function renderPreview(g, targetId) {
     }
   }
 
+  // 2026-04-25 workspace refactor: content-mode gate — Resume vs Plan vs Combined.
+  // Resume sections render when content is 'resume' or 'combined'.
+  // Plan sections render when content is 'plan' or 'combined'.
+  // Hero always renders (above) since both views need name + target title.
+  const _content = getPreviewContent();
+  const _RESUME_SECTION_KEYS = new Set(['executive_summary','experience','skills','education','achievements','leadership','certifications']);
+  const _PLAN_SECTION_KEYS = new Set(['plan','success_criteria','kpis']);
+  const _inContent = (key) => {
+    if (_content === 'combined') return true;
+    if (_content === 'resume') return !_PLAN_SECTION_KEYS.has(key);
+    if (_content === 'plan')   return !_RESUME_SECTION_KEYS.has(key);
+    return true;
+  };
+
   // ──── EXECUTIVE SUMMARY ────
-  if (STATE.sections.includes('executive_summary') && g.executive_summary) {
+  if (_inContent('executive_summary') && STATE.sections.includes('executive_summary') && g.executive_summary) {
     h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.executive_summary}</div>`, '', 'executive_summary');
   }
 
   // ──── PLAN PHASES ────
-  if (STATE.sections.includes('plan') && g.plan_phases?.length) {
+  if (_inContent('plan') && STATE.sections.includes('plan') && g.plan_phases?.length) {
     // If the plan was generated without any target-role context, flag it as a generic suggestion
     const _rr = STATE.roleResearch || {};
     const _hasRoleCtx = !!(
@@ -13457,33 +13961,33 @@ function renderPreview(g, targetId) {
   }
 
   // ──── SUCCESS CRITERIA ────
-  if (STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
+  if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
     h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
   }
 
   // ──── SUCCESS SUMMARY (Day 90 summary) ────
-  if (STATE.sections.includes('success_criteria') && g.success_summary?.length) {
+  if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_summary?.length) {
     h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
   }
 
   // ──── KPIS ────
-  if (STATE.sections.includes('kpis') && g.kpis?.length) {
+  if (_inContent('kpis') && STATE.sections.includes('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
     h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`, '', 'kpis');
   }
 
   // ──── EXPERIENCE ────
-  if (STATE.sections.includes('experience') && g.experience?.length) {
+  if (_inContent('experience') && STATE.sections.includes('experience') && g.experience?.length) {
     h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
-  if (STATE.sections.includes('leadership') && g.leadership_engagement?.length) {
+  if (_inContent('leadership') && STATE.sections.includes('leadership') && g.leadership_engagement?.length) {
     h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership_engagement');
   }
 
   // ──── SKILLS ────
-  if (STATE.sections.includes('skills') && g.skills?.length) {
+  if (_inContent('skills') && STATE.sections.includes('skills') && g.skills?.length) {
     const sCols = S.skillCols;
     const skillStyle = S.sectionLabelStyle === 'terminal'
       ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
@@ -13492,7 +13996,7 @@ function renderPreview(g, targetId) {
   }
 
   // ──── EDUCATION & CERTS ────
-  if (STATE.sections.includes('education')) {
+  if (_inContent('education') && STATE.sections.includes('education')) {
     let eduCert = '<div class="grid sm:grid-cols-2 gap-6">';
     eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${(g.education || []).map(e => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addEducation(this)">+ Add Education</button>`, '', 'education');
     eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${(g.certifications || []).map(c => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addCertification(this)">+ Add Certification</button>`, '', 'certifications');
@@ -13501,7 +14005,7 @@ function renderPreview(g, targetId) {
   }
 
   // ──── ACHIEVEMENTS ────
-  if (STATE.sections.includes('achievements')) {
+  if (_inContent('achievements') && STATE.sections.includes('achievements')) {
     h += card(`${sectionLabel('star', 'Key Achievements')}<div class="space-y-4" data-list="achievements">${(g.achievements || []).map(a => {
       const aTitle = typeof a === 'string' ? a : (a.title || '');
       const aDesc = typeof a === 'string' ? '' : (a.description || '');
@@ -13511,7 +14015,7 @@ function renderPreview(g, targetId) {
   }
 
   // ──── LEADERSHIP ────
-  if (STATE.sections.includes('leadership') && g.leadership?.length) {
+  if (_inContent('leadership') && STATE.sections.includes('leadership') && g.leadership?.length) {
     h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership');
   }
 
@@ -14835,6 +15339,14 @@ function buildExportModel(opts) {
     catch(_) { return JSON.parse(JSON.stringify(m)); }
   };
   if (!o.forceRefresh && STATE._exportModelCache && !STATE._exportModelDirty) {
+    // Cache must match the requested includePlan flag — a cached model built
+    // with includePlan=true cannot satisfy a includePlan=false caller and
+    // vice-versa. Treat undefined as 'true' (default) for comparison.
+    const cachedIncludePlan = (STATE._exportModelCache._includePlan !== false);
+    const wantIncludePlan = (o.includePlan === undefined) ? true : !!o.includePlan;
+    if (cachedIncludePlan !== wantIncludePlan) {
+      // fall through to rebuild
+    } else {
     if (STATE._debugRender) {
       try {
         const c = STATE._exportModelCache;
@@ -14844,6 +15356,7 @@ function buildExportModel(opts) {
       } catch(_){}
     }
     return _cloneModel(STATE._exportModelCache);
+    }
   }
 
   const base = STATE.resumeData || {};
@@ -14962,11 +15475,20 @@ function buildExportModel(opts) {
   const sections = Array.isArray(STATE.sections) ? STATE.sections.slice() : [...DEFAULT_SECTIONS];
 
   // ---- Structured Plan (90-day / 12-month / 2-year) ----
+  // 2026-04-25 workspace refactor: opts.includePlan controls whether plan
+  // content (plan_phases / success_summary / kpis) is included in the
+  // returned model. Default true preserves legacy behavior; resume-only
+  // exporters can pass `{ includePlan: false }` to exclude plan from the
+  // exported document. The opts.includePlanOnly flag conversely returns
+  // ONLY plan content (caller is exporting a plan-only document).
+  const includePlan = (o.includePlan === undefined) ? true : !!o.includePlan;
   // The backend currently returns one horizon at a time under generated.plan_phases.
   // We normalize those phases into a uniform milestone[] and expose the active
   // horizon under the requested tri-bucket shape. Hidden/other horizons stay [].
-  const planMilestones = _normalizePlanMilestones((enh && enh.plan_phases) || generated.plan_phases || [], STATE.planType);
-  const plan = {
+  const planMilestones = includePlan
+    ? _normalizePlanMilestones((enh && enh.plan_phases) || generated.plan_phases || [], STATE.planType)
+    : [];
+  const plan = includePlan ? {
     horizon: STATE.planType || '90-day',
     milestones: planMilestones,
     days90:   (STATE.planType === '90-day')   ? planMilestones : [],
@@ -14975,6 +15497,11 @@ function buildExportModel(opts) {
     success_criteria: Array.isArray(generated.success_criteria) ? generated.success_criteria.slice() : [],
     success_summary:  Array.isArray(generated.success_summary)  ? generated.success_summary.slice()  : [],
     kpis:             Array.isArray(generated.kpis)             ? JSON.parse(JSON.stringify(generated.kpis)) : []
+  } : {
+    horizon: STATE.planType || '90-day',
+    milestones: [],
+    days90: [], months12: [], years2: [],
+    success_criteria: [], success_summary: [], kpis: []
   };
 
   const model = {
@@ -15000,6 +15527,10 @@ function buildExportModel(opts) {
 
   STATE._exportModelCache = model;
   STATE._exportModelDirty = false;
+  // Stamp the includePlan flag the cache was built under so the next caller
+  // can decide whether to reuse or rebuild. Hidden field — ignored by
+  // exporters, used only by the cache hit-check above.
+  try { Object.defineProperty(model, '_includePlan', { value: includePlan, enumerable: false, configurable: true }); } catch(_) { model._includePlan = includePlan; }
   if (STATE._debugRender) {
     try {
       console.log('[buildExportModel:BUILT] skills.len=', (model.skills||[]).length,
