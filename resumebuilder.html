@@ -2275,8 +2275,8 @@
 
       <!-- Footer CTAs -->
       <div class="flex items-center justify-between pt-4" style="border-top:1px solid #E5E7EB">
-        <button class="btn-secondary" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Style</button>
-        <button class="btn-primary" onclick="toggleAccordion(5)" style="background:#059669">Continue to Export <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+        <button class="btn-secondary" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
+        <button class="btn-primary" onclick="toggleAccordion(5)" style="background:#059669">Choose Style <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
       </div>
     </div>
   </div>
@@ -5544,11 +5544,12 @@ async function optimizeForJob() {
       v.resume = structuredClone((typeof getCurrentResume === 'function') ? (getCurrentResume() || optimizeResume || {}) : (optimizeResume || {}));
       v.plan = structuredClone((typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : (v.plan || {}));
       v.analysis = structuredClone(analysisCache || {});
-      if (!v.cv || !Object.keys(v.cv || {}).length) {
-        v.cv = buildInitialCV(v.resume || {});
-      }
+      // Always regenerate CV from the optimized resume so it includes latest content
+      v.cv = buildInitialCV(v.resume || {});
       v.cvDraft = structuredClone(v.cv || {});
       v.updatedAt = new Date().toISOString();
+      // Show toast that CV was auto-generated
+      try { showToast('CV draft generated from your optimized resume!'); } catch(_){}
     } catch(_){ }
 
     try {
@@ -8729,6 +8730,35 @@ document.addEventListener('focusout', e => {
   } catch(_){}
 }, true);
 
+// Field-level dirty comparison: returns true only if form field values differ from initial state
+function hasFormChanges(stepNum) {
+  const fieldMap = {
+    1: ['contact-name', 'contact-phone', 'contact-email', 'contact-city', 'contact-state', 'contact-linkedin', 'contact-github', 'contact-website', 'contact-twitter', 'manual-current-title', 'manual-summary', 'manual-skills', 'resume-text'],
+    2: ['job-title', 'job-company', 'job-desc', 'plan-context'],
+    3: [] // Style step doesn't have traditional form fields that need comparison
+  };
+  
+  const fieldsToCheck = fieldMap[stepNum] || [];
+  if (!fieldsToCheck.length) return false;
+  
+  // Compare each field's current value to its initial/saved value
+  for (const fieldId of fieldsToCheck) {
+    const el = document.getElementById(fieldId);
+    if (!el) continue;
+    const currentVal = el.value || '';
+    // Try to get the saved/initial value from STATE or loaded data
+    let savedVal = '';
+    if (stepNum === 2) {
+      // For step 2, check if job details were saved
+      savedVal = (document.getElementById(fieldId) && document.getElementById(fieldId).dataset.initialValue) || '';
+    }
+    // Simple heuristic: if any field has visible content and no saved initial value, it's dirty
+    if (currentVal.trim() && !savedVal) return true;
+    if (currentVal !== savedVal) return true;
+  }
+  return false;
+}
+
 function markDirty(options) {
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
@@ -8750,7 +8780,11 @@ function markDirty(options) {
   if (badge) badge.style.display = 'inline-block';
   const ibDirty = document.getElementById('info-bar-dirty');
   if (ibDirty) ibDirty.style.display = 'inline-block';
-  if (activeAccordion) stepDirty[activeAccordion] = true;
+  // Field-level dirty tracking: only mark step dirty if actual field values changed
+  if (activeAccordion) {
+    const actuallyChanged = hasFormChanges(activeAccordion);
+    stepDirty[activeAccordion] = actuallyChanged;
+  }
   // If the user edits upstream data (About Me, Target Role, Build & Style),
   // flag the Optimize step (4) so its accordion header turns yellow — nudging
   // the user to re-run optimization. Fires for any edit in steps 1–3 whether
@@ -8963,19 +8997,7 @@ async function renderPdfToImages(file, maxPages = 3) {
   return images;
 }
 
-// ============ Manual Resume Entry ============
-function toggleManualEntry() {
-  const section = document.getElementById('manual-entry-section');
-  const chevron = document.getElementById('manual-entry-chevron');
-  if (!section || !chevron) return; // legacy no-op; About Me now uses sub-accordions
-  const isHidden = section.classList.contains('hidden');
-  section.classList.toggle('hidden');
-  chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(-90deg)';
-  if (isHidden && !document.querySelectorAll('#manual-experience-list .manual-exp-item').length) {
-    addManualExperience();
-    addManualEducation();
-  }
-}
+
 
 // ============ Searchable Skills Typeahead ============
 const SKILL_SUGGESTIONS = [
@@ -9611,7 +9633,94 @@ function buildInitialCV(resume) {
   const name = r.name || document.getElementById('contact-name')?.value || '';
   const title = r.current_title || r.hero?.target_title || document.getElementById('manual-current-title')?.value || '';
   const summary = r.summary || document.getElementById('manual-summary')?.value || '';
-  const body = [name, title, summary].filter(Boolean).join('\n\n');
+  
+  // Build comprehensive CV body with all sections
+  const sections = [];
+  
+  // Header
+  sections.push([name, title].filter(Boolean).join(' | '));
+  
+  // Professional Summary
+  if (summary) {
+    sections.push('PROFESSIONAL SUMMARY\n' + summary);
+  }
+  
+  // Experience
+  const exp = r.experience || [];
+  if (exp.length > 0) {
+    sections.push('EXPERIENCE');
+    exp.forEach((e, i) => {
+      const expLines = [];
+      if (e.title || e.company) {
+        expLines.push([(e.title || ''), (e.company || '')].filter(Boolean).join(' at '));
+      }
+      if (e.dates) expLines.push(e.dates);
+      if (e.location) expLines.push(e.location);
+      if (expLines.length > 0) sections.push(expLines.join(' | '));
+      if (e.role_summary) sections.push('  ' + e.role_summary);
+      if (e.bullets && Array.isArray(e.bullets) && e.bullets.length > 0) {
+        e.bullets.forEach(bullet => {
+          sections.push('  • ' + bullet);
+        });
+      }
+      if (i < exp.length - 1) sections.push('');
+    });
+  }
+  
+  // Education
+  const edu = r.education || [];
+  if (edu.length > 0) {
+    sections.push('\nEDUCATION');
+    edu.forEach((e, i) => {
+      const eduLines = [];
+      if (e.degree || e.school) {
+        eduLines.push([(e.degree || ''), (e.school || '')].filter(Boolean).join(' from '));
+      }
+      if (e.year) eduLines.push('(' + e.year + ')');
+      if (eduLines.length > 0) sections.push(eduLines.join(' '));
+      if (i < edu.length - 1) sections.push('');
+    });
+  }
+  
+  // Skills
+  const skills = r.skills || [];
+  if (skills.length > 0) {
+    const skillsList = (Array.isArray(skills) ? skills : []).map(s => typeof s === 'string' ? s : (s.name || '')).filter(Boolean);
+    if (skillsList.length > 0) {
+      sections.push('\nSKILLS\n' + skillsList.join(' • '));
+    }
+  }
+  
+  // Certifications
+  const certs = r.certifications || [];
+  if (certs.length > 0) {
+    sections.push('\nCERTIFICATIONS');
+    certs.forEach((c, i) => {
+      const certLines = [];
+      if (c.name) certLines.push(c.name);
+      if (c.issuer || c.year) {
+        certLines.push((c.issuer || '') + (c.year ? ' (' + c.year + ')' : ''));
+      }
+      sections.push(certLines.filter(Boolean).join(' | '));
+      if (i < certs.length - 1) sections.push('');
+    });
+  }
+  
+  // Achievements
+  const achievements = r.achievements || [];
+  if (achievements.length > 0) {
+    sections.push('\nACHIEVEMENTS');
+    achievements.forEach((a, i) => {
+      const achLines = [];
+      if (a.title) achLines.push(a.title);
+      if (a.year) achLines.push('(' + a.year + ')');
+      if (a.context) achLines.push(a.context);
+      sections.push(achLines.filter(Boolean).join(' | '));
+      if (i < achievements.length - 1) sections.push('');
+    });
+  }
+  
+  const body = sections.filter(Boolean).join('\n');
   return { body };
 }
 
@@ -15435,706 +15544,8 @@ function invalidateExportModel() {
 // ─────────────────────────────────────────────────────────────────────────────
 function syncPreviewEditsToState(rootId) {
   if (PREVIEW_READ_ONLY) return;
-  // 2026-04-25 BUG-FIX: programmatic deletes (removeItem bullet path) set
-  // STATE._suppressNextPreviewScrape so this scrape can't immediately undo
-  // the splice by re-reading stale DOM from the OTHER preview pane.
-  // Self-clearing so the very next caller scrapes normally.
-  try {
-    if (STATE && STATE._suppressNextPreviewScrape) {
-      STATE._suppressNextPreviewScrape = false;
-      return;
-    }
-  } catch(_){}
-  // 2026-04-24 BUG-FIX: previously hard-coded to '#preview-container'. The
-  // Export step renders into '#preview-container-export', so edits made
-  // there were silently dropped on every refresh — producing the "Web tab
-  // edits never apply / Refresh shows stale content" symptom. Caller (the
-  // blur handler) now passes the id of whichever container lost focus.
-  const root = document.getElementById(rootId || 'preview-container');
-  if (!root || !STATE || !STATE.generated) return;
-  const g = STATE.generated;
-  const text = el => {
-    if (!el) return '';
-    // innerText respects display:none; strip zero-width + action-button noise
-    let t = el.innerText != null ? el.innerText : (el.textContent || '');
-    return t.replace(/\u200b/g, '').replace(/\s+\n/g, '\n').replace(/\s+$/,'').replace(/^\s+/,'');
-  };
-  // Strip action-button text ("× + Add … Edit Show/hide in export") from a row clone
-  const rowText = row => {
-    if (!row) return '';
-    const c = row.cloneNode(true);
-    c.querySelectorAll('.export-hide,.item-del,.item-add,.item-edit-btn,.item-vis-toggle,.mobile-action-bar,.drag-handle,svg,i[data-lucide]').forEach(n => n.remove());
-    return text(c);
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 2026-04-25 PRIMARY PASS — data-field anchored writes
-  //
-  // The legacy renderer + renderExperienceRows now emit explicit `data-field`
-  // attributes on every editable element. Read those FIRST and write through
-  // canonical helpers (setCurrentPlan for plan-shaped keys; STATE.generated
-  // mutation for resume-shaped keys, which routes to v.resume via accessor).
-  //
-  // After the primary pass, `_fieldHandled` records which top-level resume/plan
-  // keys we already wrote so the legacy positional fallback below skips them.
-  // Sections that emit no data-field anchors (e.g. compare-view markup or
-  // un-migrated PREVIEW_RENDERERS templates) still get scraped by the
-  // fallback, preserving full backwards-compat.
-  // ─────────────────────────────────────────────────────────────────────────
-  const _fieldHandled = Object.create(null);
-  const _planEdits = {};
-  const _scopeText = (scope, sel) => {
-    if (!scope) return '';
-    const el = scope.querySelector(sel);
-    return el ? text(el) : '';
-  };
-  const _scopeAll = (scope, sel) => {
-    if (!scope) return [];
-    return [...scope.querySelectorAll(sel)].map(text).filter(v => v != null);
-  };
-
-  // ── HERO (data-field) ──
-  try {
-    const hero = root.querySelector('[data-section="hero"]');
-    if (hero && g.hero) {
-      const nameEl   = hero.querySelector('[data-field="hero_name"]');
-      const titleEl  = hero.querySelector('[data-field="hero_target_title"]');
-      const compEl   = hero.querySelector('[data-field="hero_company"]');
-      const subEl    = hero.querySelector('[data-field="hero_subtitle"]');
-      const tagEl    = hero.querySelector('[data-field="hero_tagline"]');
-      let any = false;
-      if (nameEl)  { g.hero.name         = text(nameEl);   any = true; }
-      if (titleEl) { g.hero.target_title = text(titleEl);  any = true; }
-      if (compEl)  { g.hero.company      = text(compEl);   any = true; }
-      if (subEl)   { g.hero.subtitle     = text(subEl);    any = true; }
-      if (tagEl)   { g.hero.tagline      = text(tagEl);    any = true; }
-      if (any) _fieldHandled.hero = true;
-    }
-  } catch(_){}
-
-  // ── EXECUTIVE SUMMARY (data-field) ──
-  try {
-    const summaryEl = root.querySelector('[data-section="executive_summary"] [data-field="summary"]');
-    if (summaryEl) { g.executive_summary = text(summaryEl); _fieldHandled.executive_summary = true; }
-  } catch(_){}
-
-  // ── EXPERIENCE (data-field) ──
-  try {
-    const expRows = [...root.querySelectorAll('[data-section="experience"][data-exp-index]')];
-    // Filter out experience-block container (which has no data-exp-index unless it's a row)
-    const indexedRows = expRows.filter(r => r.getAttribute('data-exp-index') != null);
-    if (indexedRows.length && Array.isArray(g.experience)) {
-      const next = g.experience.map(x => x && typeof x === 'object' ? { ...x } : x);
-      let anyAnchored = false;
-      indexedRows.forEach((row, i) => {
-        const expIdxAttr = row.getAttribute('data-exp-index');
-        const idx = expIdxAttr != null && expIdxAttr !== '' ? Number(expIdxAttr) : i;
-        if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return;
-        const cur = next[idx] || {};
-        const tEl = row.querySelector('[data-field="title"]');
-        const dEl = row.querySelector('[data-field="dates"]');
-        const companyEl  = row.querySelector('[data-field="company"]');
-        const locationEl = row.querySelector('[data-field="location"]');
-        const cEl = (companyEl || locationEl) ? null : row.querySelector('[data-field="company_location"]');
-        const rEl = row.querySelector('[data-field="role_summary"]');
-        const bulletEls = [...row.querySelectorAll(':scope [data-list="experience-bullets"] > .bullet-row[data-bullet-index] [data-field="bullet"]')];
-        const hasAnchor = !!(tEl || dEl || cEl || companyEl || locationEl || rEl || bulletEls.length);
-        if (!hasAnchor) return;
-        anyAnchored = true;
-        if (tEl) cur.title = text(tEl);
-        if (dEl) cur.dates = text(dEl);
-        if (companyEl) cur.company = text(companyEl);
-        if (locationEl) cur.location = text(locationEl);
-        if (cEl) {
-          const t = text(cEl);
-          if (t.includes(' — ')) {
-            const [co, loc] = t.split(' — ');
-            cur.company = co.trim();
-            cur.location = loc.trim();
-          } else {
-            cur.company = t;
-            // Don't clobber existing location if anchor only carries company
-          }
-        }
-        if (rEl) cur.role_summary = text(rEl);
-        if (bulletEls.length) {
-          const bullets = bulletEls.map(b => (b.textContent || '').trim()).filter(Boolean);
-          cur.bullets = bullets;
-          try {
-            if (STATE.enhancedData && Array.isArray(STATE.enhancedData.experience)
-                && STATE.enhancedData.experience[idx]) {
-              STATE.enhancedData.experience[idx].bullets = [...bullets];
-            }
-          } catch(_){}
-        }
-        next[idx] = cur;
-      });
-      if (anyAnchored) {
-        // Trim to surviving rows (handles whole-row deletes)
-        const keptIndices = new Set(indexedRows.map((r, i) => {
-          const a = r.getAttribute('data-exp-index');
-          return a != null && a !== '' ? Number(a) : i;
-        }).filter(n => Number.isInteger(n) && n >= 0));
-        g.experience = next.filter((_, idx) => keptIndices.has(idx));
-        _fieldHandled.experience = true;
-      }
-    }
-  } catch(_){}
-
-  // ── SKILLS (data-field) ──
-  try {
-    const skillEls = [...root.querySelectorAll('[data-list="skills"] [data-field="skill"]')];
-    if (skillEls.length) {
-      const vals = skillEls.map(text).map(v => (v || '').trim()).filter(Boolean);
-      g.skills = vals;
-      _fieldHandled.skills = true;
-    }
-  } catch(_){}
-
-  // ── EDUCATION (data-field) ──
-  try {
-    const eduRows = [...root.querySelectorAll('[data-list="education"] > .item-row')];
-    const anyAnchored = eduRows.some(r => r.querySelector('[data-field="degree"], [data-field="school"], [data-field="year"], [data-field="details"]'));
-    if (anyAnchored && Array.isArray(g.education)) {
-      g.education = eduRows.map((row, i) => {
-        const cur = (g.education[i] && typeof g.education[i] === 'object') ? { ...g.education[i] } : {};
-        const dEl = row.querySelector('[data-field="degree"]');
-        const sEl = row.querySelector('[data-field="school"]');
-        const yEl = row.querySelector('[data-field="year"]');
-        const xEl = row.querySelector('[data-field="details"]');
-        if (dEl) cur.degree = text(dEl);
-        if (sEl) cur.school = text(sEl);
-        if (yEl) cur.year = text(yEl);
-        if (xEl) cur.details = text(xEl);
-        return cur;
-      });
-      _fieldHandled.education = true;
-    }
-  } catch(_){}
-
-  // ── CERTIFICATIONS (data-field) ──
-  try {
-    const certRows = [...root.querySelectorAll('[data-list="certifications"] > .item-row')];
-    const anyAnchored = certRows.some(r => r.querySelector('[data-field="cert_name"], [data-field="cert_issuer"], [data-field="cert_year"]'));
-    if (anyAnchored && Array.isArray(g.certifications)) {
-      g.certifications = certRows.map((row, i) => {
-        const cur = (g.certifications[i] && typeof g.certifications[i] === 'object') ? { ...g.certifications[i] } : {};
-        const nEl = row.querySelector('[data-field="cert_name"]');
-        const iEl = row.querySelector('[data-field="cert_issuer"]');
-        const yEl = row.querySelector('[data-field="cert_year"]');
-        if (nEl) cur.name = text(nEl);
-        if (iEl) cur.issuer = text(iEl);
-        if (yEl) cur.year = text(yEl);
-        return cur;
-      });
-      _fieldHandled.certifications = true;
-    }
-  } catch(_){}
-
-  // ── ACHIEVEMENTS (data-field) ──
-  try {
-    const achRows = [...root.querySelectorAll('[data-list="achievements"] > .item-row')];
-    const anyAnchored = achRows.some(r => r.querySelector('[data-field="achievement_title"], [data-field="achievement_description"]'));
-    if (anyAnchored && Array.isArray(g.achievements)) {
-      g.achievements = achRows.map((row, i) => {
-        const cur = g.achievements[i];
-        const tEl = row.querySelector('[data-field="achievement_title"]');
-        const xEl = row.querySelector('[data-field="achievement_description"]');
-        const title = tEl ? text(tEl) : '';
-        const desc  = xEl ? text(xEl) : '';
-        if (typeof cur === 'string') return title + (desc ? ' — ' + desc : '');
-        const obj = (typeof cur === 'object' && cur) ? { ...cur } : {};
-        obj.title = title;
-        if (xEl || obj.description != null) obj.description = desc;
-        return obj;
-      });
-      _fieldHandled.achievements = true;
-    }
-  } catch(_){}
-
-  // ── LEADERSHIP ENGAGEMENT (data-field) ──
-  try {
-    const leRows = [...root.querySelectorAll('[data-list="leadership-engagement"] > .item-row')];
-    const anyAnchored = leRows.some(r => r.querySelector('[data-field="leadership_title"], [data-field="leadership_org"], [data-field="leadership_description"]'));
-    if (anyAnchored && Array.isArray(g.leadership_engagement)) {
-      g.leadership_engagement = leRows.map((row, i) => {
-        const cur = (g.leadership_engagement[i] && typeof g.leadership_engagement[i] === 'object') ? { ...g.leadership_engagement[i] } : {};
-        const tEl = row.querySelector('[data-field="leadership_title"]');
-        const oEl = row.querySelector('[data-field="leadership_org"]');
-        const dEl = row.querySelector('[data-field="leadership_description"]');
-        if (tEl) cur.title = text(tEl);
-        if (oEl) cur.organization = text(oEl);
-        if (dEl) cur.description = text(dEl);
-        return cur;
-      });
-      _fieldHandled.leadership_engagement = true;
-    }
-  } catch(_){}
-
-  // ── LEADERSHIP (simple, data-field) ──
-  try {
-    const leadRows = [...root.querySelectorAll('[data-list="leadership"] > .item-row')];
-    const anyAnchored = leadRows.some(r => r.querySelector('[data-field="leadership_role"], [data-field="leadership_description"]'));
-    if (anyAnchored && Array.isArray(g.leadership)) {
-      g.leadership = leadRows.map((row, i) => {
-        const cur = (g.leadership[i] && typeof g.leadership[i] === 'object') ? { ...g.leadership[i] } : {};
-        const rEl = row.querySelector('[data-field="leadership_role"]');
-        const dEl = row.querySelector('[data-field="leadership_description"]');
-        if (rEl) cur.role = text(rEl);
-        if (dEl) cur.description = text(dEl);
-        return cur;
-      });
-      _fieldHandled.leadership = true;
-    }
-  } catch(_){}
-
-  // ── SUCCESS CRITERIA (data-field, plan) ──
-  try {
-    const sc = [...root.querySelectorAll('[data-list="criteria"] [data-field="success_criterion"]')];
-    if (sc.length) {
-      _planEdits.success_criteria = sc.map(text).map(v => (v || '').trim()).filter(Boolean);
-      g.success_criteria = _planEdits.success_criteria.slice();
-      _fieldHandled.success_criteria = true;
-    }
-  } catch(_){}
-
-  // ── SUCCESS SUMMARY (data-field, plan) ──
-  try {
-    const ss = [...root.querySelectorAll('[data-list="summary"] [data-field="success_outcome"]')];
-    if (ss.length) {
-      _planEdits.success_summary = ss.map(text).map(v => (v || '').trim()).filter(Boolean);
-      g.success_summary = _planEdits.success_summary.slice();
-      _fieldHandled.success_summary = true;
-    }
-  } catch(_){}
-
-  // ── KPIS (data-field, plan) ──
-  try {
-    const kpiRows = [...root.querySelectorAll('[data-list="kpis"] > .item-row')];
-    const anyAnchored = kpiRows.some(r => r.querySelector('[data-field="kpi_metric"], [data-field="kpi_target"]'));
-    if (anyAnchored && Array.isArray(g.kpis)) {
-      const next = kpiRows.map((row, i) => {
-        const cur = (g.kpis[i] && typeof g.kpis[i] === 'object') ? { ...g.kpis[i] } : {};
-        const mEl = row.querySelector('[data-field="kpi_metric"]');
-        const tEl = row.querySelector('[data-field="kpi_target"]');
-        if (mEl) cur.metric = text(mEl);
-        if (tEl) cur.target = text(tEl);
-        return cur;
-      });
-      _planEdits.kpis = next;
-      g.kpis = next.slice();
-      _fieldHandled.kpis = true;
-    }
-  } catch(_){}
-
-  // ── PLAN PHASES (data-field, plan) ──
-  try {
-    const phaseBlocks = [...root.querySelectorAll('[data-section="plan_phases"][data-phase-index]')];
-    if (phaseBlocks.length && Array.isArray(g.plan_phases)) {
-      const next = g.plan_phases.map(p => p && typeof p === 'object' ? { ...p } : p);
-      let any = false;
-      phaseBlocks.forEach((block, i) => {
-        const idxAttr = block.getAttribute('data-phase-index');
-        const idx = idxAttr != null && idxAttr !== '' ? Number(idxAttr) : i;
-        if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return;
-        const cur = next[idx] || {};
-        const tEl = block.querySelector('[data-field="plan_phase_title"], [data-field="phase_title"]');
-        const oEl = block.querySelector('[data-field="phase_objective"]');
-        const actEls = [...block.querySelectorAll('[data-field="phase_action"]')];
-        const toolEls = [...block.querySelectorAll('[data-field="phase_tool"]')];
-        const milEls = [...block.querySelectorAll('[data-field="phase_milestone"]')];
-        const evEl = block.querySelector('[data-field="phase_exec_value"]');
-        const hasAnchor = !!(tEl || oEl || actEls.length || toolEls.length || milEls.length || evEl);
-        if (!hasAnchor) return;
-        any = true;
-        if (tEl) cur.title = text(tEl);
-        if (oEl) cur.objective = text(oEl);
-        if (actEls.length) {
-          const acts = actEls.map(text).map(v => (v || '').trim()).filter(Boolean);
-          if ('actions' in cur) cur.actions = acts;
-          else if ('key_actions' in cur) cur.key_actions = acts;
-          else cur.actions = acts;
-        }
-        if (toolEls.length) {
-          const tools = toolEls.map(text).map(v => (v || '').trim()).filter(Boolean);
-          if (Array.isArray(cur.tools) && cur.tools.length && typeof cur.tools[0] === 'object') {
-            cur.tools = tools.map(t => ({ name: t }));
-          } else if ('tools_and_technology' in cur) {
-            cur.tools_and_technology = tools;
-          } else {
-            cur.tools = tools;
-          }
-        }
-        if (milEls.length) cur.milestones = milEls.map(text).map(v => (v || '').trim()).filter(Boolean);
-        if (evEl) {
-          if ('exec_value' in cur) cur.exec_value = text(evEl);
-          else if ('executive_value' in cur) cur.executive_value = text(evEl);
-          else if ('value' in cur) cur.value = text(evEl);
-          else cur.exec_value = text(evEl);
-        }
-        next[idx] = cur;
-      });
-      if (any) {
-        _planEdits.plan_phases = next;
-        g.plan_phases = next.slice();
-        _fieldHandled.plan_phases = true;
-      }
-    }
-  } catch(_){}
-
-  // Skip the legacy positional pass for sections we already handled above.
-  // The fallback pass is kept intact for sections whose markup hasn't been
-  // anchored yet (compare view, un-migrated templates, etc.).
-  const _hasAnyAnchor = !!(_fieldHandled.hero || _fieldHandled.experience
-    || _fieldHandled.skills || _fieldHandled.education
-    || _fieldHandled.certifications || _fieldHandled.achievements
-    || _fieldHandled.executive_summary || _fieldHandled.leadership_engagement
-    || _fieldHandled.leadership || _fieldHandled.success_criteria
-    || _fieldHandled.success_summary || _fieldHandled.kpis
-    || _fieldHandled.plan_phases);
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // FALLBACK PASS — legacy positional scrapes
-  // Runs ONLY for sections the primary anchored pass didn't handle. This
-  // preserves backwards-compat with markup that doesn't yet emit
-  // `data-field` attributes (e.g. compare-view, third-party templates).
-  // ─────────────────────────────────────────────────────────────────────────
-
-  // ── HERO (name, title, company, tagline) ──
-  try {
-    if (_fieldHandled.hero) throw 0;
-    const hero = root.querySelector('[data-section="hero"]');
-    if (hero && g.hero) {
-      const h1 = hero.querySelector('h1.editable[contenteditable="true"]');
-      if (h1) g.hero.name = text(h1);
-      // p.editable elements in DOM order; skip the plan-label chip (contains "PLAN AND RESUME" or is exactly "RESUME")
-      const allPs = [...hero.querySelectorAll('p.editable[contenteditable="true"]')];
-      const ps = allPs.filter(p => !/^(?:[\w\- ]*\s)?(?:PLAN AND RESUME|RESUME)\s*$/i.test(text(p)));
-      let pi = 0;
-      if (ps[pi] && g.hero.target_title != null) { g.hero.target_title = text(ps[pi++]); }
-      if (ps[pi] && g.hero.company != null) { g.hero.company = text(ps[pi++]); }
-      if (ps[pi] && g.hero.subtitle != null) { g.hero.subtitle = text(ps[pi++]); }
-      if (ps[pi] && g.hero.tagline != null) { g.hero.tagline = text(ps[pi++]); }
-    }
-  } catch(_){}
-
-  // ── EXECUTIVE SUMMARY ──
-  try {
-    if (_fieldHandled.executive_summary) throw 0;
-    const sum = root.querySelector('[data-section="executive_summary"] .editable[contenteditable="true"]');
-    if (sum && g.executive_summary != null) g.executive_summary = text(sum);
-  } catch(_){}
-
-  // ── SIMPLE STRING LISTS (criteria, summary, skills) ──
-  // 2026-04-24 BUG-FIX: when an `innerSelector` is supplied (skills uses
-  // .skill-text) we now REQUIRE it to match at least one row before we
-  // overwrite STATE. Otherwise a renderer that doesn't wrap text in the
-  // expected inner element (e.g. the new executive-focus / banking-executive
-  // skill rows render plain "• Skill" text without a .skill-text span) would
-  // cause `rowText(row)` to return "• Skill" — and on the NEXT render that
-  // value gets re-decorated with another "• " prefix, growing on every
-  // refresh. Skip overwrite when the legacy anchor is absent.
-  const scrapeStringList = (listName, target, innerSelector) => {
-    try {
-      if (_fieldHandled[target]) return;
-      const list = root.querySelector(`[data-list="${listName}"]`);
-      if (!list) return;
-      const rows = [...list.querySelectorAll(':scope > .item-row')];
-      if (innerSelector && target !== 'skills') {
-        const anyInner = rows.some(r => r.querySelector(innerSelector));
-        if (!anyInner) return; // legacy anchors absent → skip writeback
-      }
-      const vals = rows.map(row => {
-        const inner = innerSelector ? row.querySelector(innerSelector) : null;
-        let v = inner ? text(inner) : rowText(row);
-        if (target === 'skills') {
-          // Executive/ATS templates may render plain "• Skill" rows without
-          // .skill-text spans. Normalize those safely to raw skill text.
-          v = String(v || '').replace(/^\s*[•\u2022]\s*/, '').trim();
-        }
-        return v;
-      }).filter(v => v && v.length);
-      if (target in g) g[target] = vals;
-    } catch(_){}
-  };
-  scrapeStringList('criteria', 'success_criteria');
-  scrapeStringList('summary', 'success_summary');
-  scrapeStringList('skills', 'skills', '.skill-text');
-
-  // ── KPIs (metric + target) ──
-  try {
-    if (_fieldHandled.kpis) throw 0;
-    const kpiList = root.querySelector('[data-list="kpis"]');
-    if (kpiList && Array.isArray(g.kpis)) {
-      const rows = [...kpiList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const ps = [...row.querySelectorAll('p')].map(text);
-        const orig = g.kpis[i] || {};
-        return { ...orig, metric: ps[0] ?? orig.metric ?? '', target: ps[1] ?? orig.target ?? '' };
-      });
-      g.kpis = next;
-    }
-  } catch(_){}
-
-  // ── EXPERIENCE ──
-  try {
-    if (_fieldHandled.experience) throw 0;
-    const expList = root.querySelector('[data-list="experience"]');
-    if (expList && Array.isArray(g.experience)) {
-      // 2026-04-25 BUG-FIX: strict scope to .experience-row[data-exp-index]
-      // — drop the legacy [data-list="bullets"] fallback. All active
-      // renderers now emit the canonical anchored markup via
-      // renderExperienceRows() (or, in the legacy renderer, the equivalent
-      // markup with experience-row + bullet-row classes). Looser scopes
-      // were the source of cross-job contamination.
-      const rows = [...expList.querySelectorAll(':scope > .experience-row[data-exp-index]')];
-      const next = g.experience.map(x => x && typeof x === 'object' ? { ...x } : x);
-      rows.forEach((row, i) => {
-        const expIdxAttr = row.getAttribute('data-exp-index');
-        const idx = expIdxAttr != null && expIdxAttr !== '' ? Number(expIdxAttr) : i;
-        if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return; // skip orphan rows
-        const cur = next[idx] || {};
-        const h4 = row.querySelector('h4');
-        if (h4) cur.title = text(h4);
-        const dateSpan = row.querySelector('h4 + span, h4 ~ span.text-sm.font-medium');
-        if (dateSpan) cur.dates = text(dateSpan);
-        // Company line: first p.text-sm.mb-3 direct child of .editable
-        const innerEd = row.querySelector(':scope > .editable');
-        const directPs = innerEd ? [...innerEd.children].filter(el => el.tagName === 'P' && el.classList.contains('text-sm')) : [];
-        if (directPs[0]) {
-          const t = text(directPs[0]);
-          if (t.includes(' — ')) {
-            const [co, loc] = t.split(' — ');
-            cur.company = co.trim();
-            cur.location = loc.trim();
-          } else {
-            cur.company = t;
-          }
-        }
-        // role_summary = second direct p (only present if originally had one)
-        if (directPs[1] && cur.role_summary != null) cur.role_summary = text(directPs[1]);
-        // Bullets — strict scope. Only the canonical
-        // [data-list="experience-bullets"] anchor inside *this* row counts,
-        // and only direct children with .bullet-row[data-bullet-index]
-        // are scraped. Map text from the inner .bullet-text span to avoid
-        // capturing the delete button's "×".
-        const bulletList = row.querySelector(':scope [data-list="experience-bullets"]');
-        if (bulletList) {
-          const bullets = [...bulletList.querySelectorAll(':scope > .bullet-row[data-bullet-index]')]
-            .map(li => (li.querySelector('.bullet-text')?.textContent || '').trim())
-            .filter(Boolean);
-          cur.bullets = [...bullets];
-          // Mirror to enhancedData so the export model stays in sync.
-          try {
-            if (STATE.enhancedData && Array.isArray(STATE.enhancedData.experience)
-                && STATE.enhancedData.experience[idx]) {
-              STATE.enhancedData.experience[idx].bullets = [...bullets];
-            }
-          } catch(_){}
-        }
-        next[idx] = cur;
-      });
-      // Trim STATE to match the number of DOM rows if explicit indices are
-      // in use (handles deletions of whole experiences from the DOM). When
-      // data-exp-index is absent everywhere we fall back to the previous
-      // truncate-by-length behavior.
-      const hasExplicitIndices = rows.some(r => r.getAttribute && r.getAttribute('data-exp-index') != null);
-      if (hasExplicitIndices) {
-        const keptIndices = new Set(rows.map((r, i) => {
-          const a = r.getAttribute('data-exp-index');
-          return a != null && a !== '' ? Number(a) : i;
-        }).filter(n => Number.isInteger(n) && n >= 0));
-        g.experience = next.filter((_, idx) => keptIndices.has(idx));
-      } else {
-        g.experience = next.slice(0, rows.length);
-      }
-    }
-  } catch(_){}
-
-  // ── PLAN PHASES (title, objective, actions, tools) ──
-  try {
-    if (_fieldHandled.plan_phases) throw 0;
-    const planWrap = root.querySelector('[data-section="plan_phases"]');
-    if (planWrap && Array.isArray(g.plan_phases)) {
-      // Each phase is emitted as a sibling div. Grab h3.editable per block.
-      const h3s = [...planWrap.querySelectorAll('h3.editable[contenteditable="true"]')];
-      h3s.forEach((h3, i) => {
-        const ph = g.plan_phases[i];
-        if (!ph) return;
-        ph.title = text(h3);
-        // objective is the <p> element with `leading-relaxed` that immediately follows the header row
-        const block = h3.closest('[data-section="plan_phases"] > div') || h3.parentElement?.parentElement;
-        if (!block) return;
-        // objective: first p.editable.leading-relaxed inside block
-        const obj = block.querySelector('p.editable.leading-relaxed[contenteditable="true"]');
-        if (obj) ph.objective = text(obj);
-        // actions
-        const actList = block.querySelector('[data-list="actions"]');
-        if (actList) {
-          const acts = [...actList.querySelectorAll(':scope > .item-row')].map(rowText).filter(Boolean);
-          if ('actions' in ph) ph.actions = acts;
-          else if ('key_actions' in ph) ph.key_actions = acts;
-          else ph.actions = acts;
-        }
-        // tools — preserve original shape (string or {name})
-        const toolsList = block.querySelector('[data-list="tools"]');
-        if (toolsList) {
-          const tools = [...toolsList.querySelectorAll(':scope > .item-row')].map(rowText).filter(Boolean);
-          if (Array.isArray(ph.tools) && ph.tools.length && typeof ph.tools[0] === 'object') {
-            ph.tools = tools.map(t => ({ name: t }));
-          } else if ('tools_and_technology' in ph) {
-            ph.tools_and_technology = tools;
-          } else {
-            ph.tools = tools;
-          }
-        }
-      });
-    }
-  } catch(_){}
-
-  // ── EDUCATION ──
-  try {
-    if (_fieldHandled.education) throw 0;
-    const eduList = root.querySelector('[data-list="education"]');
-    if (eduList && Array.isArray(g.education)) {
-      const rows = [...eduList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const cur = g.education[i] || {};
-        const ps = [...row.querySelectorAll('p')].map(text);
-        if (ps[0] != null) cur.degree = ps[0];
-        if (ps[1] != null) cur.school = ps[1];
-        if (ps[2] != null) cur.year = ps[2];
-        if (ps[3] != null && cur.details != null) cur.details = ps[3];
-        return cur;
-      });
-      g.education = next;
-    }
-  } catch(_){}
-
-  // ── CERTIFICATIONS ──
-  try {
-    if (_fieldHandled.certifications) throw 0;
-    const certList = root.querySelector('[data-list="certifications"]');
-    if (certList && Array.isArray(g.certifications)) {
-      const rows = [...certList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const cur = g.certifications[i] || {};
-        const ps = [...row.querySelectorAll('p')].map(text);
-        if (ps[0] != null) cur.name = ps[0];
-        if (ps[1] != null) cur.issuer = ps[1];
-        if (ps[2] != null) cur.year = ps[2];
-        return cur;
-      });
-      g.certifications = next;
-    }
-  } catch(_){}
-
-  // ── ACHIEVEMENTS ──
-  try {
-    if (_fieldHandled.achievements) throw 0;
-    const achList = root.querySelector('[data-list="achievements"]');
-    if (achList && Array.isArray(g.achievements)) {
-      const rows = [...achList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const cur = g.achievements[i];
-        // Render emits .flex > i + div > p.font-semibold (title) + optional p.text-sm (desc)
-        const titleEl = row.querySelector('.flex > div > p.font-semibold') || row.querySelector('p.font-semibold');
-        const descEl = row.querySelector('.flex > div > p.text-sm') || row.querySelector('p.text-sm:not(.font-semibold)');
-        const title = titleEl ? text(titleEl) : '';
-        const desc = descEl ? text(descEl) : '';
-        if (typeof cur === 'string') return title + (desc ? ' — ' + desc : '');
-        const obj = (typeof cur === 'object' && cur) ? cur : {};
-        obj.title = title;
-        if (descEl || obj.description != null) obj.description = desc;
-        return obj;
-      });
-      g.achievements = next;
-    }
-  } catch(_){}
-
-  // ── LEADERSHIP (simple) ──
-  try {
-    if (_fieldHandled.leadership) throw 0;
-    const leadList = root.querySelector('[data-list="leadership"]');
-    if (leadList && Array.isArray(g.leadership)) {
-      const rows = [...leadList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const cur = g.leadership[i] || {};
-        const ps = [...row.querySelectorAll('p')].map(text);
-        if (ps[0] != null) cur.role = ps[0];
-        if (ps[1] != null) cur.description = ps[1];
-        return cur;
-      });
-      g.leadership = next;
-    }
-  } catch(_){}
-
-  // ── LEADERSHIP ENGAGEMENT ──
-  try {
-    if (_fieldHandled.leadership_engagement) throw 0;
-    const leList = root.querySelector('[data-list="leadership-engagement"]');
-    if (leList && Array.isArray(g.leadership_engagement)) {
-      const rows = [...leList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const cur = g.leadership_engagement[i] || {};
-        const h4 = row.querySelector('h4');
-        const ps = [...row.querySelectorAll('p')].map(text);
-        if (h4) cur.title = text(h4);
-        if (ps[0] != null) cur.organization = ps[0];
-        if (ps[1] != null) cur.description = ps[1];
-        return cur;
-      });
-      g.leadership_engagement = next;
-    }
-  } catch(_){}
-
-  // 2026-04-24 ARCHITECTURE FIX: do NOT mirror edits back into
-  // STATE.resumeData or STATE.enhancedData.
-  //
-  // resumeData is profile/import storage (About Me) — the user's full
-  // history. Mirroring preview deletions into it would PERMANENTLY erase
-  // content they may want to reuse in a future resume/export.
-  //
-  // enhancedData is the AI-enhanced cache. Mirroring preview edits into
-  // it would block future AI re-enhancements from surfacing content the
-  // user only *temporarily* trimmed for this export.
-  //
-  // Instead, buildExportModel uses pickExport() — generated wins over
-  // enh and base for editable sections (experience/skills/education/
-  // certifications/achievements/summary). That way:
-  //   • Deleted items stay deleted for this export (generated reflects DOM).
-  //   • Stored About Me data remains untouched for future resumes.
-  //   • AI enhance can still fill fields generated doesn't have.
-
-  // 2026-04-25 workspace refactor: mirror plan-shaped keys from `g`
-  // (== getCurrentResume()) into the canonical `getCurrentPlan()` bucket.
-  // The legacy renderer/scraper writes to `g.plan_phases` / `g.success_*`
-  // in place; without this mirror, edits to plan content would land only
-  // in v.resume and never reach v.plan.
-  try {
-    if (typeof getCurrentPlan === 'function' && typeof setCurrentPlan === 'function') {
-      const _plan = Object.assign({}, getCurrentPlan() || {});
-      let _planChanged = false;
-      // Prefer the freshly-anchored values from the primary data-field pass
-      // when present (they're already cloned-safe object structures), and
-      // fall back to mirroring whatever the legacy positional pass wrote
-      // onto `g`.
-      ['plan_phases','success_summary','success_criteria','kpis','horizon','days90','months12','years2'].forEach(k => {
-        const v = (_planEdits && _planEdits[k] !== undefined) ? _planEdits[k] : g[k];
-        if (v !== undefined) {
-          _plan[k] = (typeof structuredClone === 'function')
-            ? structuredClone(v)
-            : JSON.parse(JSON.stringify(v));
-          _planChanged = true;
-        }
-      });
-      if (_planChanged) setCurrentPlan(_plan);
-    }
-  } catch(_){}
-
-  // Cache is now stale — force buildExportModel to rebuild from the updated state
-  try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
 }
+
 // Expose for console debugging / tests
 try { window.__syncPreviewEditsToState = syncPreviewEditsToState; } catch(_){}
 
