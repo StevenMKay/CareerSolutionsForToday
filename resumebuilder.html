@@ -12413,6 +12413,30 @@ try {
   };
 } catch(_){}
 
+// 2026-04-25 RUNTIME-VERIFICATION: confirm the patched renderer is the one
+// the browser is actually executing. If `hasRendererMarker` is false after
+// a hard reload, the page is loading a cached or hosted build that does NOT
+// contain the experience-helper-v2 source — STATE/delete fixes are correct
+// but a stale renderer is overwriting them at paint time.
+try {
+  window.debugActiveExperienceRenderer = function () {
+    const root = document.getElementById('preview-container');
+    if (!root) return { error: 'preview-container not found' };
+    const tpl = (typeof STATE !== 'undefined')
+      ? (STATE.selectedTemplate || STATE.templateId || STATE.template || null)
+      : null;
+    const expSection = root.querySelector('[data-section="experience"]');
+    return {
+      templateId: tpl,
+      hasRendererMarker: !!root.querySelector('[data-renderer-version="experience-helper-v2"]'),
+      experienceWrapperCount: root.querySelectorAll('[data-list="experience"]').length,
+      experienceRowCount: root.querySelectorAll('.experience-row[data-exp-index]').length,
+      bulletRowCount: root.querySelectorAll('.bullet-row[data-exp-index][data-bullet-index]').length,
+      htmlSample: expSection ? expSection.outerHTML.slice(0, 1000) : null
+    };
+  };
+} catch(_){}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2026-04-25 BUG-FIX (source-renderer fix for bullet cross-contamination):
 // `renderExperienceRows(experience, opts)` is the SINGLE source of truth for
@@ -12553,7 +12577,7 @@ const PREVIEW_RENDERERS = {
         <div style="padding:18px 18px 14px 14px;overflow:hidden;color:${DARK}">
           ${sumText?`<div data-section="executive_summary">`+mainLabel('Professional Summary')+`<div style="font-size:9px;line-height:1.5;color:${DARK};margin-bottom:10px">${_pvEsc(String(sumText))}</div></div>`:''}
 
-          ${experience.filter(e=>e && (e.title||e.company)).length?`<div data-section="experience">`+mainLabel('Professional Experience')+`<div data-list="experience">`+renderExperienceRows(experience.filter(e=>e && (e.title||e.company)).slice(0,3), {
+          ${experience.filter(e=>e && (e.title||e.company)).length?`<div data-section="experience" data-renderer-version="experience-helper-v2">`+mainLabel('Professional Experience')+`<div data-list="experience">`+renderExperienceRows(experience.filter(e=>e && (e.title||e.company)).slice(0,3), {
             accent, headColor: DARK, mutedColor: GRAY, textColor: GRAY,
             titleSize:'10px', dateSize:'9px', companySize:'9px', bulletSize:'8.5px',
             bulletLineHeight:'1.5', maxBullets:4, rowMargin:'9px',
@@ -12787,7 +12811,7 @@ const PREVIEW_RENDERERS = {
       </div>
       <div style="border-top:3px solid ${accent};margin-bottom:6px"></div>
       ${g.executive_summary?`<div data-section="executive_summary">${sec('Executive Summary')}<div class="editable" style="font-size:11px;line-height:1.6;color:${TEXT};font-family:'Georgia',serif">${_pvEsc(g.executive_summary)}</div></div>`:''}
-      ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,4), {
+      ${exp.length?`<div data-section="experience" data-renderer-version="experience-helper-v2">${sec('Professional Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,4), {
         accent, headColor: HEAD, mutedColor: MUTED, textColor: TEXT,
         titleSize:'12px', dateSize:'10.5px', companySize:'11px', bulletSize:'10.5px',
         bulletLineHeight:'1.55', maxBullets:5, rowMargin:'10px',
@@ -12829,7 +12853,7 @@ const PREVIEW_RENDERERS = {
         ${contact.length?`<div style="font-size:10.5px;color:${MUTED};margin-top:4px;line-height:1.5">${contact.map(c=>`<span data-contact-field="${c.kind}">${_pvEsc(c.text)}</span>`).join(' &nbsp;|&nbsp; ')}</div>`:''}
       </div>
       ${g.executive_summary?`<div data-section="executive_summary">${sec('Summary')}<div class="editable" style="font-size:10.5px;line-height:1.5;color:${TEXT}">${_pvEsc(g.executive_summary)}</div></div>`:''}
-      ${exp.length?`<div data-section="experience">${sec('Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,5), {
+      ${exp.length?`<div data-section="experience" data-renderer-version="experience-helper-v2">${sec('Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,5), {
         accent, headColor: HEAD, mutedColor: MUTED, textColor: TEXT,
         titleSize:'11px', dateSize:'10.5px', companySize:'10.5px', bulletSize:'10.5px',
         bulletLineHeight:'1.5', maxBullets:6, rowMargin:'8px',
@@ -12893,7 +12917,7 @@ const PREVIEW_RENDERERS = {
 
         ${g.executive_summary?`<div data-section="executive_summary">${sec('Executive Summary')}<div class="editable" style="font-size:11px;line-height:1.65;color:${TEXT};max-width:6.5in">${_pvEsc(g.executive_summary)}</div></div>`:''}
 
-        ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,5), {
+        ${exp.length?`<div data-section="experience" data-renderer-version="experience-helper-v2">${sec('Professional Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,5), {
           accent, headColor: HEAD, mutedColor: MUTED, textColor: TEXT,
           titleSize:'12px', dateSize:'10.5px', companySize:'11px', bulletSize:'10.5px',
           bulletLineHeight:'1.6', maxBullets:6, rowMargin:'11px',
@@ -13442,7 +13466,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXPERIENCE ────
   if (STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
