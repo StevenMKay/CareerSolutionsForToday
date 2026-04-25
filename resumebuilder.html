@@ -2031,7 +2031,7 @@
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-4 border-t" style="border-color:#E5E7EB;margin-top:1rem">
         <button class="btn-secondary" style="min-height:44px;justify-content:center" onclick="toggleAccordion(2)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Target Role</button>
-        <button class="btn-primary" onclick="toggleAccordion(4)" style="background:#0F172A;min-height:44px;justify-content:center">Continue to Optimize <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+        <button class="btn-primary" onclick="toggleAccordion(5)" style="background:#0F172A;min-height:44px;justify-content:center">Continue to Preview & Export <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
       </div>
       </div><!-- /bs-left -->
 
@@ -2225,7 +2225,7 @@
       <!-- Footer CTAs -->
       <div class="flex items-center justify-between pt-4" style="border-top:1px solid #E5E7EB">
         <button class="btn-secondary" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back</button>
-        <button class="btn-primary" onclick="toggleAccordion(5)" style="background:#059669">Choose Style <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+        <button class="btn-primary" onclick="toggleAccordion(4)" style="background:#059669">Back to Optimize <i data-lucide="arrow-left" style="width:14px;height:14px"></i></button>
       </div>
     </div>
   </div>
@@ -3511,6 +3511,7 @@ let currentPlanId = null;
 let selectedFile = null;
 let photoDataUrl = null;
 let isDirty = false;
+let _lastSavedFieldValues = {}; // Cache for dirty state tracking (FIX #7)
 let pendingNavCallback = null;
 let builderSubscribed = false;
 let ytMemberSubscribed = false;
@@ -5365,10 +5366,13 @@ async function optimizeForJob() {
     } catch(_){ }
 
     // Persist session snapshot for revert
+    // FIX #3: If re-optimizing, use the previous improved score as the baseline, not the original
+    const prevSession = STATE.optimizationSession;
+    const newBaselineScore = (prevSession && typeof prevSession.improvedScore === 'number') ? prevSession.improvedScore : data.original_score;
     STATE.optimizationSession = {
       sessionId: 'opt-' + Date.now(),
       baselineSnapshot: baseline,
-      originalScore: data.original_score,
+      originalScore: newBaselineScore,
       improvedScore: data.improved_score,
       delta: data.delta,
       acceptedChanges: accepted,
@@ -5577,6 +5581,30 @@ function getResumeMatchScore() {
 try { window.getResumeMatchScore = getResumeMatchScore; } catch(_){}
 
 // ---------- RESULT DRAWER ----------
+
+// Helper: Convert field paths like "experience[0].bullets[3]" to human-readable text (FIX #4)
+function humanizeFieldPath(fieldPath) {
+  if (!fieldPath) return 'Resume content';
+  // Examples: "experience[0].bullets[3]" → "Experience bullet (role 1)"
+  const exp = /^experience\[(\d+)\]\.bullets\[(\d+)\]/.exec(fieldPath);
+  if (exp) {
+    const roleIdx = parseInt(exp[1]) + 1;
+    return `Experience bullet (role ${roleIdx})`;
+  }
+  // education[0].details -> Education detail
+  if (/^education\[/.test(fieldPath)) return 'Education entry';
+  // skills -> Skills
+  if (/^skills/.test(fieldPath)) return 'Skills section';
+  // certifications -> Certifications
+  if (/^certifications\[/.test(fieldPath)) return 'Certification';
+  // achievements -> Achievements
+  if (/^achievements\[/.test(fieldPath)) return 'Achievement';
+  // summary -> Summary
+  if (/^summary/.test(fieldPath)) return 'Professional summary';
+  // Default fallback
+  return fieldPath;
+}
+
 function showOptimizeResult(s) {
   if (!s) return;
   try { STATE._optimizeApplied = true; } catch(_){}
@@ -5594,12 +5622,12 @@ function showOptimizeResult(s) {
   const total = s.summaryStats.changes_proposed || ((s.acceptedChanges||[]).length + (s.discardedChanges||[]).length);
 
   const topHTML = top.length
-    ? top.map((c,i)=>'<li style="padding:10px 12px;border:1px solid #E2E8F0;border-radius:8px;background:#F8FAFC;margin-bottom:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="font-size:0.78rem;font-weight:700;color:#0F172A;flex:1">'+(c.section==='summary'?'Summary':'Experience bullet')+(c.field_path?' <span style=\"color:#64748B;font-weight:500\">'+c.field_path+'</span>':'')+'</div><span style="font-size:0.7rem;font-weight:800;color:'+deltaColor+';white-space:nowrap">'+deltaSign+(c.delta_score||0)+' pts</span></div>'+(c.reason?'<div style="font-size:0.72rem;color:#475569;margin-top:4px">'+c.reason+'</div>':'')+'</li>').join('')
+    ? top.map((c,i)=>'<li style="padding:10px 12px;border:1px solid #E2E8F0;border-radius:8px;background:#F8FAFC;margin-bottom:8px"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="font-size:0.78rem;font-weight:700;color:#0F172A;flex:1">'+(c.section==='summary'?'Summary':'Experience bullet')+(c.field_path?' <span style=\"color:#64748B;font-weight:500\">'+humanizeFieldPath(c.field_path)+'</span>':'')+'</div><span style="font-size:0.7rem;font-weight:800;color:'+deltaColor+';white-space:nowrap">'+deltaSign+(c.delta_score||0)+' pts</span></div>'+(c.reason?'<div style="font-size:0.72rem;color:#475569;margin-top:4px">'+c.reason+'</div>':'')+'</li>').join('')
     : '<p style="color:#64748B;font-size:0.82rem;margin:8px 0">No improvements needed — your resume already scores well for this role.</p>';
 
   const discarded = s.discardedChanges || [];
   const discardedHTML = discarded.length
-    ? discarded.map(c=>'<li style="padding:8px 10px;font-size:0.74rem;color:#64748B;border-bottom:1px solid #F1F5F9"><div style="display:flex;justify-content:space-between;gap:8px"><span style="flex:1">'+((c.field_path||c.section||'change'))+'</span><span style="font-weight:600;color:#94A3B8;white-space:nowrap">'+(c.reason_discarded||'no score gain')+'</span></div></li>').join('')
+    ? discarded.map(c=>'<li style="padding:8px 10px;font-size:0.74rem;color:#64748B;border-bottom:1px solid #F1F5F9"><div style="display:flex;justify-content:space-between;gap:8px"><span style="flex:1">'+humanizeFieldPath(c.field_path||c.section||'change')+'</span><span style="font-weight:600;color:#94A3B8;white-space:nowrap">'+(c.reason_discarded||'no score gain')+'</span></div></li>').join('')
     : '<p style="color:#94A3B8;font-size:0.78rem;padding:8px 0">Every proposed change improved your score — nothing was skipped.</p>';
 
   d.innerHTML = '\
@@ -7789,6 +7817,13 @@ async function savePlan() {
       _syncActiveVersionFromPlanId(ref.id);
     }
     isDirty = false;
+    // Cache current field values so hasFormChanges() can properly detect true changes (FIX #7)
+    _lastSavedFieldValues = {};
+    const fieldsToCache = ['contact-name', 'contact-phone', 'contact-email', 'contact-city', 'contact-state', 'contact-linkedin', 'contact-github', 'contact-website', 'contact-twitter', 'manual-current-title', 'manual-summary', 'manual-skills', 'resume-text', 'job-title', 'job-company', 'job-desc', 'plan-context'];
+    fieldsToCache.forEach(fieldId => {
+      const el = document.getElementById(fieldId);
+      if (el) _lastSavedFieldValues[fieldId] = el.value || '';
+    });
     markClean();
     STATE._lastSavedAt = Date.now();
     _lastSavedTargetRole = (document.getElementById('job-title')?.value||'') + '@' + (document.getElementById('job-company')?.value||'');
@@ -8695,19 +8730,14 @@ function hasFormChanges(stepNum) {
   const fieldsToCheck = fieldMap[stepNum] || [];
   if (!fieldsToCheck.length) return false;
   
-  // Compare each field's current value to its initial/saved value
+  // Use _lastSavedFieldValues to compare current values against what was saved
   for (const fieldId of fieldsToCheck) {
     const el = document.getElementById(fieldId);
     if (!el) continue;
     const currentVal = el.value || '';
-    // Try to get the saved/initial value from STATE or loaded data
-    let savedVal = '';
-    if (stepNum === 2) {
-      // For step 2, check if job details were saved
-      savedVal = (document.getElementById(fieldId) && document.getElementById(fieldId).dataset.initialValue) || '';
-    }
-    // Simple heuristic: if any field has visible content and no saved initial value, it's dirty
-    if (currentVal.trim() && !savedVal) return true;
+    // Get the last saved value from our cache (set when savePlan succeeds)
+    const savedVal = (_lastSavedFieldValues && _lastSavedFieldValues[fieldId]) || '';
+    // Only return true if there's an actual difference between current and saved
     if (currentVal !== savedVal) return true;
   }
   return false;
@@ -10146,6 +10176,9 @@ async function parseResume() {
     try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
     // Auto-collapse the upload section now that resume is loaded
     collapseResumeUpload(fname, now);
+    // Clear the extraction status message (FIX #1)
+    const parseStatusEl = document.getElementById('parse-status');
+    if (parseStatusEl) parseStatusEl.textContent = '';
     showToast('Resume extracted successfully!');
     // Auto-save contact info + resume to profile
     autoSaveContactToProfile();
