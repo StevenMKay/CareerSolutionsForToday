@@ -5012,10 +5012,16 @@ function __deepCloneResume(r) {
   try { return JSON.parse(JSON.stringify(r || {})); } catch(_){ return {}; }
 }
 
-// Apply a single accepted change to STATE.resumeData by field_path
+// Apply a single accepted change to the active resume version by field_path.
+// This avoids mutating profile-library storage when optimize applies edits.
 function applyChangeToResumeData(change) {
   if (!change || !change.improved) return false;
-  const rd = STATE.resumeData = STATE.resumeData || {};
+  let rd = null;
+  try { rd = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : null; } catch(_){ rd = null; }
+  if (!rd || typeof rd !== 'object') {
+    rd = (STATE.generated && typeof STATE.generated === 'object') ? STATE.generated : {};
+    try { STATE.generated = rd; } catch(_){ }
+  }
   if (change.section === 'summary' || change.field_path === 'summary') {
     rd.summary = change.improved;
     return true;
@@ -5261,11 +5267,21 @@ async function optimizeForJob() {
     return;
   }
   window._optimizeRerunConfirmed = false;
-  // Ensure resume data exists. If user hasn't generated yet, build a minimal snapshot from form.
-  if (!STATE.resumeData || (!STATE.resumeData.experience && !STATE.resumeData.summary)) {
-    try { if (typeof collectResumeFromForm === 'function') { STATE.resumeData = collectResumeFromForm(); } } catch(_){}
+  // Ensure active-version resume data exists. If user hasn't generated yet,
+  // build a minimal snapshot from form into the version-scoped resume.
+  let optimizeResume = null;
+  try { optimizeResume = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : (STATE.generated || {}); } catch(_){ optimizeResume = (STATE.generated || {}); }
+  if (!optimizeResume || (!optimizeResume.experience && !optimizeResume.summary)) {
+    try {
+      if (typeof collectResumeFromForm === 'function') {
+        const collected = collectResumeFromForm() || {};
+        if (typeof setCurrentResume === 'function') setCurrentResume(collected);
+        else STATE.generated = collected;
+        optimizeResume = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : (STATE.generated || collected);
+      }
+    } catch(_){ }
   }
-  if (!STATE.resumeData || (!STATE.resumeData.experience && !STATE.resumeData.summary && !(STATE.resumeData.skills||[]).length)) {
+  if (!optimizeResume || (!optimizeResume.experience && !optimizeResume.summary && !(optimizeResume.skills||[]).length)) {
     showToast('Fill in your resume (Step 3) first — we need content to optimize');
     return;
   }
@@ -5300,9 +5316,9 @@ async function optimizeForJob() {
     } catch(_){}
     try { await analyzeResume(); } catch(e) { console.warn('[optimize] pre-analyze failed (continuing):', e); }
 
-    const baseline = __deepCloneResume(STATE.resumeData);
+    const baseline = __deepCloneResume(optimizeResume);
     const _optPayload = {
-      resume_data: STATE.resumeData,
+      resume_data: optimizeResume,
       job_description: jd,
       job_title: jobTitle,
       company: company
@@ -5324,19 +5340,25 @@ async function optimizeForJob() {
     aiTraceReceive('POST /builder/optimize', data, { role: jobTitle, company, elapsed_ms: Math.round(performance.now() - _optT0) });
     if (!data || !data.success) throw new Error(data?.error || 'Unexpected response');
 
-    // Apply accepted changes to STATE.resumeData
+    // Apply accepted changes to the active version resume
     const accepted = Array.isArray(data.accepted_changes) ? data.accepted_changes.slice() : [];
     if (data.accepted_summary_change) accepted.unshift(data.accepted_summary_change);
     let applied = 0;
     accepted.forEach(c => { if (applyChangeToResumeData(c)) applied++; });
 
+    try { optimizeResume = (typeof getCurrentResume === 'function') ? (getCurrentResume() || optimizeResume) : (STATE.generated || optimizeResume); } catch(_){ }
+
     // Skills reorder/add (only apply if present)
     if (Array.isArray(data.skills_reordered) && data.skills_reordered.length) {
-      STATE.resumeData.skills = data.skills_reordered.slice();
+      optimizeResume.skills = data.skills_reordered.slice();
     }
     if (Array.isArray(data.skills_added) && data.skills_added.length) {
-      STATE.resumeData.skills = Array.from(new Set([...(STATE.resumeData.skills||[]), ...data.skills_added]));
+      optimizeResume.skills = Array.from(new Set([...(optimizeResume.skills||[]), ...data.skills_added]));
     }
+    try {
+      if (typeof setCurrentResume === 'function') setCurrentResume(optimizeResume);
+      else STATE.generated = optimizeResume;
+    } catch(_){ }
 
     // Persist session snapshot for revert
     STATE.optimizationSession = {
@@ -5415,7 +5437,8 @@ async function optimizeForJob() {
     // preview stayed empty after Optimize and showed the "click Optimize for
     // This Role" placeholder.
     try {
-      const rd = STATE.resumeData || {};
+      let rd = {};
+      try { rd = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : (STATE.generated || {}); } catch(_){ rd = (STATE.generated || {}); }
       const hasGen = STATE.generated && Object.keys(STATE.generated).length > 0;
       // 2026-04-25 workspace refactor: also gate behind the active version's
       // _resumeInitialized flag so a user who has already deleted bullets
@@ -5731,7 +5754,12 @@ function revertAllOptimizations(fromDrawer) {
   const s = STATE.optimizationSession;
   if (!s || !s.baselineSnapshot) { showToast('Nothing to revert'); return; }
   if (!confirm('Revert all AI changes and restore your resume to before optimization?')) return;
-  STATE.resumeData = __deepCloneResume(s.baselineSnapshot);
+  try {
+    if (typeof setCurrentResume === 'function') setCurrentResume(__deepCloneResume(s.baselineSnapshot));
+    else STATE.generated = __deepCloneResume(s.baselineSnapshot);
+  } catch(_){
+    try { STATE.generated = __deepCloneResume(s.baselineSnapshot); } catch(__){}
+  }
   STATE.optimizationSession = null;
   // Reset match score UI
   const msCard = document.getElementById('rp-match-score'); if (msCard) msCard.style.display = 'none';
@@ -5858,6 +5886,72 @@ function joinLocationParts(city, state) {
   return safeCity || safeState || '';
 }
 
+function getCanonicalContactProfile() {
+  try {
+    const p = (typeof getProfileData === 'function') ? (getProfileData() || {}) : (STATE.resumeData || {});
+    const c = p && typeof p.contact === 'object' ? p.contact : {};
+    return c || {};
+  } catch(_) {
+    return {};
+  }
+}
+
+function syncBuilderInputsToCanonical() {
+  try {
+    const profile = Object.assign({}, (typeof getProfileData === 'function' ? (getProfileData() || {}) : (STATE.resumeData || {})));
+    const contact = Object.assign({}, profile.contact || {});
+    const val = (id) => {
+      const el = document.getElementById(id);
+      return el ? String(el.value || '').trim() : '';
+    };
+
+    contact.name = val('contact-name');
+    contact.email = val('contact-email');
+    contact.phone = val('contact-phone');
+    contact.linkedin = val('contact-linkedin');
+    contact.github = val('contact-github');
+    contact.website = val('contact-website');
+    contact.twitter = val('contact-twitter');
+    contact.city = val('contact-city');
+    contact.state = val('contact-state');
+    contact.location = (typeof syncLegacyContactAddress === 'function') ? (syncLegacyContactAddress() || '') : joinLocationParts(contact.city, contact.state);
+    contact.resumeBuildName = val('resume-build-name');
+    profile.contact = contact;
+
+    // Keep legacy flat keys in sync for older code paths.
+    if (contact.name) profile.name = contact.name;
+    if (contact.email) profile.email = contact.email;
+    if (contact.phone) profile.phone = contact.phone;
+    if (contact.linkedin) profile.linkedin = contact.linkedin;
+    if (contact.github) profile.github = contact.github;
+    if (contact.website) profile.website = contact.website;
+    if (contact.twitter) profile.twitter = contact.twitter;
+    if (contact.location) profile.address = contact.location;
+
+    if (typeof setProfileData === 'function') setProfileData(profile);
+    else STATE.resumeData = profile;
+
+    const targetRole = {
+      job_title: val('job-title'),
+      company: val('job-company'),
+      description: val('job-desc'),
+      plan_context: val('plan-context')
+    };
+    const planId = (typeof currentPlanId !== 'undefined') ? currentPlanId : (window.currentPlanId || null);
+    if (!planId && typeof setTargetRoleDraft === 'function') setTargetRoleDraft(targetRole);
+    else if (typeof setCurrentTargetRole === 'function') setCurrentTargetRole(targetRole);
+
+    const rawResume = document.getElementById('resume-text');
+    if (rawResume) STATE.rawResumeText = rawResume.value || '';
+
+    const v = (typeof getActiveVersion === 'function') ? getActiveVersion() : null;
+    if (v && contact.resumeBuildName) {
+      v.name = contact.resumeBuildName;
+      v.updatedAt = new Date().toISOString();
+    }
+  } catch(_) {}
+}
+
 function syncLegacyContactAddress() {
   const addressField = document.getElementById('contact-address');
   if (!addressField) return '';
@@ -5877,7 +5971,10 @@ function setContactLocationFields(value, fallbackCity, fallbackState) {
 }
 
 function getContactLocation() {
-  return syncLegacyContactAddress();
+  const domValue = syncLegacyContactAddress();
+  if (domValue) return domValue;
+  const c = getCanonicalContactProfile();
+  return String(c.location || '').trim();
 }
 
 function getResolvedResumePersonName(resumeData, generatedData) {
@@ -7389,6 +7486,7 @@ async function loadPlan(planId) {
     document.getElementById('contact-twitter').value = d.contactTwitter || '';
     applyResumeBuildName(d.resumeBuildName || d.contactName || d.resumeData?.name || '', !!(!d.resumeBuildName && (d.contactName || d.resumeData?.name)));
     if (d.additionalResumeDetails) document.getElementById('additional-resume-details').value = d.additionalResumeDetails;
+    try { syncBuilderInputsToCanonical && syncBuilderInputsToCanonical(); } catch(_){ }
 
     // Populate manual entry fields from resume data
     if (STATE.resumeData && Object.keys(STATE.resumeData).length) {
@@ -8315,7 +8413,10 @@ let _inputDirtyTimer = null;
 document.addEventListener('input', e => {
   const t = e.target;
   if (!t || !t.closest) return;
-  const inEither = t.closest('#preview-container') || t.closest('#preview-container-export');
+  const inEither = t.closest('#preview-container')
+    || t.closest('#preview-container-b')
+    || t.closest('#preview-container-export')
+    || t.closest('#preview-container-export-b');
   if (inEither && t.getAttribute && t.getAttribute('contenteditable') === 'true') {
     if (_inputDirtyTimer) return; // already scheduled within this frame-burst
     _inputDirtyTimer = setTimeout(() => { _inputDirtyTimer = null; markDirty(); }, 150);
@@ -8330,7 +8431,10 @@ document.addEventListener('blur', e => {
   const t = e.target;
   if (!t || !t.closest) return;
   if (t.getAttribute && t.getAttribute('contenteditable') === 'true') {
-    const root = t.closest('#preview-container-export') || t.closest('#preview-container');
+    const root = t.closest('#preview-container-export')
+      || t.closest('#preview-container-export-b')
+      || t.closest('#preview-container')
+      || t.closest('#preview-container-b');
     if (!root) return;
     try { syncPreviewEditsToState && syncPreviewEditsToState(root.id); } catch(_){}
     try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
@@ -8345,10 +8449,20 @@ document.addEventListener('touchstart', e => {
   try {
     const ae = document.activeElement;
     if (!ae || !ae.getAttribute || ae.getAttribute('contenteditable') !== 'true') return;
-    const aeRoot = ae.closest && (ae.closest('#preview-container') || ae.closest('#preview-container-export'));
+    const aeRoot = ae.closest && (
+      ae.closest('#preview-container')
+      || ae.closest('#preview-container-b')
+      || ae.closest('#preview-container-export')
+      || ae.closest('#preview-container-export-b')
+    );
     if (!aeRoot) return;
     const tgt = e.target;
-    if (tgt && tgt.closest && (tgt.closest('#preview-container') || tgt.closest('#preview-container-export'))) return; // still inside a preview
+    if (tgt && tgt.closest && (
+      tgt.closest('#preview-container')
+      || tgt.closest('#preview-container-b')
+      || tgt.closest('#preview-container-export')
+      || tgt.closest('#preview-container-export-b')
+    )) return; // still inside a preview
     ae.blur();
   } catch(_){}
 }, { capture: true, passive: true });
@@ -8398,17 +8512,43 @@ function updateGeneratePreviewBtn() {
 let _liveSyncDebounceTimer = null;
 let _liveSyncSafetyTimer   = null;
 
+function flushActivePreviewEditsToState() {
+  try {
+    const ae = document.activeElement;
+    if (!ae || !ae.closest) return;
+    const root = ae.closest('#preview-container-export')
+      || ae.closest('#preview-container-export-b')
+      || ae.closest('#preview-container')
+      || ae.closest('#preview-container-b');
+    if (!root) return;
+    if (ae.getAttribute && ae.getAttribute('contenteditable') === 'true' && typeof ae.blur === 'function') {
+      try { ae.blur(); } catch(_){ }
+    }
+    if (typeof syncPreviewEditsToState === 'function') {
+      try { syncPreviewEditsToState(root.id); } catch(_){ }
+    }
+    if (typeof invalidateExportModel === 'function') {
+      try { invalidateExportModel(); } catch(_){ }
+    }
+  } catch(_){ }
+}
+
 function _isEditingInsidePreview() {
   try {
     const ae = document.activeElement;
     if (ae && ae.getAttribute && ae.getAttribute('contenteditable') === 'true') {
-      if (ae.closest && (ae.closest('#preview-container') || ae.closest('#preview-container-export'))) {
+      if (ae.closest && (
+        ae.closest('#preview-container')
+        || ae.closest('#preview-container-b')
+        || ae.closest('#preview-container-export')
+        || ae.closest('#preview-container-export-b')
+      )) {
         return true;
       }
     }
     // Mobile tap-to-edit / item-row editing flow — body of bar/buttons may have focus
-    if (document.querySelector('#preview-container .item-editing, #preview-container-export .item-editing')) return true;
-    if (document.querySelector('#preview-container .editing-active, #preview-container-export .editing-active')) return true;
+    if (document.querySelector('#preview-container .item-editing, #preview-container-b .item-editing, #preview-container-export .item-editing, #preview-container-export-b .item-editing')) return true;
+    if (document.querySelector('#preview-container .editing-active, #preview-container-b .editing-active, #preview-container-export .editing-active, #preview-container-export-b .editing-active')) return true;
   } catch(_){}
   return false;
 }
@@ -8512,6 +8652,9 @@ document.addEventListener('focusout', e => {
 function markDirty(options) {
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
+  // Canonical source-of-truth sync: mirror current builder inputs into
+  // workspace/profile/version state before downstream render/export reads.
+  try { syncBuilderInputsToCanonical && syncBuilderInputsToCanonical(); } catch(_){ }
   // Any edit to the resume invalidates the cached export model so the next
   // preview/export rebuild picks up the new data (inline edits, field changes,
   // section toggles, etc.). Kept deliberately cheap — just sets a flag.
@@ -12679,7 +12822,7 @@ function _applyPreviewPresets(){
   const sp = STATE._spacingPreset || 'comfortable';
   const dv = STATE._dividerStyle || 'line';
   const pm = STATE._previewMode || 'web';
-  ['preview-container','preview-container-b','preview-container-export'].forEach(id=>{
+  ['preview-container','preview-container-b','preview-container-export','preview-container-export-b'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.classList.remove('bs-spacing-compact','bs-spacing-comfortable','bs-spacing-roomy','bs-divider-line','bs-divider-dot','bs-divider-space','pv-mode-doc','pv-mode-web');
     el.classList.add('bs-spacing-'+sp,'bs-divider-'+dv,'pv-mode-'+pm);
@@ -12713,6 +12856,9 @@ function setPreviewContent(content, btn){
   const ALLOWED = ['resume','plan','combined'];
   if (!ALLOWED.includes(content)) content = 'combined';
 
+  // Ensure in-progress inline edits are committed before content-mode rerender.
+  try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
+
   // Write to the active version's exportSettings bucket. Active version is
   // lazily created (the 'draft' record) if no version exists yet, so this
   // is safe pre-save.
@@ -12744,6 +12890,9 @@ function setPreviewContent(content, btn){
 try { window.setPreviewContent = setPreviewContent; } catch(_){}
 
 function setPreviewMode(mode, btn){
+  // Ensure in-progress inline edits are committed before mode rerender.
+  try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
+
   // First time a user clicks "Document" in the Export-step live preview with no format chosen,
   // prompt them to pick Word or PowerPoint so the preview matches the actual export.
   if (mode === 'doc' && !STATE.previewFormat) {
@@ -12791,6 +12940,7 @@ function closePreviewFormatModal(){
 }
 function choosePreviewFormat(fmt){
   if (fmt !== 'pptx' && fmt !== 'docx') return;
+  try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
   STATE.previewFormat = fmt;
   if (fmt === 'docx') {
     STATE.exportTemplate = 'word-classic';
@@ -14029,13 +14179,19 @@ function renderPreview(g, targetId) {
   function contactBar(accentColor) {
     const ac = accentColor || C;
     let items = '';
-    const location = getContactLocation();
-    const phone = document.getElementById('contact-phone').value;
-    const email = document.getElementById('contact-email').value;
-    const linkedin = document.getElementById('contact-linkedin').value;
-    const github = document.getElementById('contact-github').value;
-    const website = document.getElementById('contact-website').value;
-    const twitter = document.getElementById('contact-twitter').value;
+    const cp = (typeof getCanonicalContactProfile === 'function') ? getCanonicalContactProfile() : {};
+    const gv = (id, key) => {
+      const el = document.getElementById(id);
+      const dom = el ? String(el.value || '').trim() : '';
+      return dom || String((cp && cp[key]) || '').trim();
+    };
+    const location = getContactLocation() || String((cp && cp.location) || '').trim();
+    const phone = gv('contact-phone', 'phone');
+    const email = gv('contact-email', 'email');
+    const linkedin = gv('contact-linkedin', 'linkedin');
+    const github = gv('contact-github', 'github');
+    const website = gv('contact-website', 'website');
+    const twitter = gv('contact-twitter', 'twitter');
     if (location) items += `<span class="flex items-center gap-1.5" data-contact-field="location"><i data-lucide="map-pin" style="width:14px;height:14px;color:${ac}"></i>${location}</span>`;
     if (phone) items += `<span class="flex items-center gap-1.5" data-contact-field="phone"><i data-lucide="phone" style="width:14px;height:14px;color:${ac}"></i>${phone}</span>`;
     if (email) items += `<span class="flex items-center gap-1.5" data-contact-field="email"><i data-lucide="mail" style="width:14px;height:14px;color:${ac}"></i>${email}</span>`;
@@ -15419,13 +15575,19 @@ function syncPreviewEditsToState(rootId) {
       const list = root.querySelector(`[data-list="${listName}"]`);
       if (!list) return;
       const rows = [...list.querySelectorAll(':scope > .item-row')];
-      if (innerSelector) {
+      if (innerSelector && target !== 'skills') {
         const anyInner = rows.some(r => r.querySelector(innerSelector));
         if (!anyInner) return; // legacy anchors absent → skip writeback
       }
       const vals = rows.map(row => {
         const inner = innerSelector ? row.querySelector(innerSelector) : null;
-        return inner ? text(inner) : rowText(row);
+        let v = inner ? text(inner) : rowText(row);
+        if (target === 'skills') {
+          // Executive/ATS templates may render plain "• Skill" rows without
+          // .skill-text spans. Normalize those safely to raw skill text.
+          v = String(v || '').replace(/^\s*[•\u2022]\s*/, '').trim();
+        }
+        return v;
       }).filter(v => v && v.length);
       if (target in g) g[target] = vals;
     } catch(_){}
@@ -15727,7 +15889,9 @@ try {
     const _previewRootIdFromTarget = (t) => {
       try {
         if (!t || !t.closest) return null;
+        if (t.closest('#preview-container-export-b')) return 'preview-container-export-b';
         if (t.closest('#preview-container-export')) return 'preview-container-export';
+        if (t.closest('#preview-container-b'))       return 'preview-container-b';
         if (t.closest('#preview-container'))        return 'preview-container';
         return null;
       } catch(_) { return null; }
@@ -16043,6 +16207,8 @@ async function ensureEnhancedData() {
 // want to guarantee the enhanced copy is present.
 function buildExportModel(opts) {
   const o = opts || {};
+  // Keep canonical state aligned with current form edits before building.
+  try { syncBuilderInputsToCanonical && syncBuilderInputsToCanonical(); } catch(_){ }
   // Pull any inline preview edits into STATE BEFORE checking the cache — a DOM
   // edit since the last build invalidated the cache via blur/input, but this is
   // the safety net for any caller that builds a model after DOM changes without
@@ -16156,14 +16322,19 @@ function buildExportModel(opts) {
   const title = base.current_title || (generated.hero && generated.hero.target_title) || '';
   const address = (typeof getContactLocation === 'function' ? getContactLocation() : '') || base.address || base.location || '';
 
-  const gv = (id) => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
+  const profileContact = (typeof getCanonicalContactProfile === 'function') ? getCanonicalContactProfile() : {};
+  const gv = (id, key) => {
+    const el = document.getElementById(id);
+    const dom = el ? String(el.value || '').trim() : '';
+    return dom || String((profileContact && profileContact[key]) || '').trim();
+  };
   const contact = {
-    phone:    gv('contact-phone')    || pickProfile('phone')    || '',
-    email:    gv('contact-email')    || pickProfile('email')    || '',
-    linkedin: gv('contact-linkedin') || pickProfile('linkedin') || '',
-    github:   gv('contact-github')   || pickProfile('github')   || '',
-    website:  gv('contact-website')  || pickProfile('website')  || '',
-    twitter:  gv('contact-twitter')  || pickProfile('twitter')  || '',
+    phone:    gv('contact-phone', 'phone')       || pickProfile('phone')    || '',
+    email:    gv('contact-email', 'email')       || pickProfile('email')    || '',
+    linkedin: gv('contact-linkedin', 'linkedin') || pickProfile('linkedin') || '',
+    github:   gv('contact-github', 'github')     || pickProfile('github')   || '',
+    website:  gv('contact-website', 'website')   || pickProfile('website')  || '',
+    twitter:  gv('contact-twitter', 'twitter')   || pickProfile('twitter')  || '',
     location: address
   };
 
