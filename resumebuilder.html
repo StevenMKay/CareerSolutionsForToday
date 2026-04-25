@@ -16353,6 +16353,32 @@ function validateExportModel(previewModel, exportModel) {
   } catch(_){}
 }
 
+// Render a clean full-page CV layout from model.cv.body.
+// Used by PDF and HTML exports when the user has selected CV content mode.
+function _renderCVPage(model, accent) {
+  const ac = accent || '#005EB8';
+  const name = _pvEsc(model.person && model.person.name || '');
+  const title = _pvEsc(model.person && model.person.title || '');
+  const ct = model.contact || {};
+  const cvBody = _pvEsc((model.cv && model.cv.body) || model.summary || '');
+  const contactParts = [
+    ct.email    ? `<span>${_pvEsc(ct.email)}</span>`    : '',
+    ct.phone    ? `<span>${_pvEsc(ct.phone)}</span>`    : '',
+    ct.location ? `<span>${_pvEsc(ct.location)}</span>` : '',
+    ct.linkedin ? `<span>${_pvEsc(ct.linkedin)}</span>` : ''
+  ].filter(Boolean).join('<span style="color:#CBD5E1;margin:0 4px">|</span>');
+  return `<div style="padding:36px 40px;font-family:Manrope,Arial,sans-serif;color:#0A0A0A;height:100%;box-sizing:border-box;overflow:hidden">
+    <div style="border-bottom:3px solid ${ac};padding-bottom:14px;margin-bottom:20px">
+      <h1 style="margin:0;font-size:1.65rem;font-weight:700;color:${ac};line-height:1.2">${name}</h1>
+      ${title ? `<div style="font-size:0.95rem;color:#475569;margin-top:3px;font-weight:500">${title}</div>` : ''}
+      ${contactParts ? `<div style="font-size:0.75rem;color:#64748B;margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center">${contactParts}</div>` : ''}
+    </div>
+    <div style="font-size:0.82rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:${ac};margin-bottom:10px">Curriculum Vitae</div>
+    <div style="font-size:0.875rem;line-height:1.7;color:#1E293B;white-space:pre-wrap;overflow:hidden">${cvBody}</div>
+  </div>`;
+}
+try { window.__renderCVPage = _renderCVPage; } catch(_){}
+
 // Content guard: block export when there's clearly nothing to write. Returns
 // null when OK, otherwise a user-facing error message.
 function hasExportableContent(model) {
@@ -16360,7 +16386,8 @@ function hasExportableContent(model) {
   const hasName = model.person && model.person.name;
   const hasExp = (model.experience || []).some(e => e.title || e.company);
   const hasSummary = (model.summary || '').trim().length > 0;
-  if (!hasName && !hasExp && !hasSummary) return 'Add at least a name and one experience entry before exporting.';
+  const hasCVBody = !!(model.cv && (model.cv.body || '').trim());
+  if (!hasName && !hasExp && !hasSummary && !hasCVBody) return 'Add at least a name and one experience entry before exporting.';
   return null;
 }
 
@@ -16915,7 +16942,10 @@ async function exportHTML_template() {
     // If a MODEL_RENDERERS entry exists and STATE.useDirectModelRenderers is
     // true, the direct-model path is used instead. Either way, HTML export
     // stays aligned with the live preview — both resolve to the same renderer.
-    const inner = _selectAndRender(tid, model, model.accent);
+    // CV mode: bypass the template renderer and use the dedicated CV-page layout.
+    const inner = (model.sections && model.sections[0] === 'cv')
+      ? _renderCVPage(model, model.accent)
+      : _selectAndRender(tid, model, model.accent);
 
     // Paper-size page frame: 7.5 × 10in for PPTX-family, 8.5 × 11in for DOCX
     const isDocxShape = (STATE.previewFormat === 'docx');
@@ -16992,7 +17022,10 @@ async function exportPDF() {
     // Same renderer selection logic as exportHTML_template — PDF follows
     // whichever Word/PowerPoint template the user selected.
     const tid = (STATE.previewFormat === 'docx') ? 'classic-serif' : (model.template || 'modern-sidebar');
-    const inner = _selectAndRender(tid, model, model.accent);
+    // CV mode: bypass the template renderer and use the dedicated CV-page layout.
+    const inner = (model.sections && model.sections[0] === 'cv')
+      ? _renderCVPage(model, model.accent)
+      : _selectAndRender(tid, model, model.accent);
 
     const isDocxShape = (STATE.previewFormat === 'docx');
     const pageW = isDocxShape ? '8.5in' : '7.5in';
@@ -17301,6 +17334,12 @@ async function exportDOCX() {
       const model = buildExportModel({ format: 'docx', forceRefresh: true });
       const guard = hasExportableContent(model);
       if (guard) { showToast(guard); return; }
+      // CV mode: route cv body through executive_summary so the programmatic
+      // renderer outputs it instead of an empty document.
+      if (model.sections && model.sections[0] === 'cv') {
+        model.sections = ['executive_summary'];
+        if (!model.summary && model.cv && model.cv.body) model.summary = model.cv.body;
+      }
       const blob = await buildDocxProgrammatic(model);
       const suffix = model.source === 'enhanced' ? '-enhanced' : '';
       const a = document.createElement('a');
@@ -17327,6 +17366,12 @@ async function exportDOCX() {
     const model = buildExportModel({ format: 'docx', forceRefresh: true });
     const guard = hasExportableContent(model);
     if (guard) { showToast(guard); return; }
+    // CV mode: route cv body through executive_summary so the .docx template
+    // renders it instead of an empty document.
+    if (model.sections && model.sections[0] === 'cv') {
+      model.sections = ['executive_summary'];
+      if (!model.summary && model.cv && model.cv.body) model.summary = model.cv.body;
+    }
 
     // Honor section visibility by emitting empty arrays/strings for hidden
     // sections so the .docx template's loops collapse to nothing. Section
@@ -17681,6 +17726,12 @@ async function exportPPTX() {
     const model = buildExportModel({ format: 'pptx', forceRefresh: true });
     const guard = hasExportableContent(model);
     if (guard) { showToast(guard); return; }
+    // CV mode: route cv body through executive_summary so the PPTX slide
+    // renders it instead of an empty presentation.
+    if (model.sections && model.sections[0] === 'cv') {
+      model.sections = ['executive_summary'];
+      if (!model.summary && model.cv && model.cv.body) model.summary = model.cv.body;
+    }
 
     // Map canonical model → variables the existing pptxgenjs code below reads.
     // Keeping names stable minimizes diff in the (large) renderer block.
