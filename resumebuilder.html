@@ -4253,7 +4253,11 @@ function toggleAccordion(n) {
   //   n=3 → Build & Style  ·  n=4 → Optimize  ·  n=5 → Export
   if (n === 3) {
     try { renderSectionToggles && renderSectionToggles(); } catch(_){}
-    if (STATE.generated?.hero) { try { renderPreview(STATE.generated); } catch(_){} }
+    // Render preview when we have ANY data — hero may not exist for
+    // manually-entered resumes that haven't gone through AI generation yet.
+    const _g3HasData = !!(STATE.generated && (STATE.generated.hero || Object.keys(STATE.generated).length > 0))
+                    || !!(STATE.resumeData && STATE.resumeData.name);
+    if (_g3HasData) { try { renderPreview(STATE.generated || {}); } catch(_){} }
     // Ensure preview-container has the mode class even when empty (Web is default)
     try { _applyPreviewPresets(); } catch(_){}
     // Render the small style sample preview on the right
@@ -4263,8 +4267,13 @@ function toggleAccordion(n) {
   if (n === 5) {
     try { syncExportShareStatus && syncExportShareStatus(); } catch(_){}
     try {
-      if (STATE.generated && STATE.generated.hero && document.getElementById('preview-container-export')) {
-        renderPreview(STATE.generated, 'preview-container-export');
+      const _expContainer = document.getElementById('preview-container-export');
+      // Render preview when we have ANY data — hero may not exist for
+      // manually-entered resumes that haven't gone through AI generation yet.
+      const _g5HasData = !!(STATE.generated && (STATE.generated.hero || Object.keys(STATE.generated).length > 0))
+                      || !!(STATE.resumeData && STATE.resumeData.name);
+      if (_g5HasData && _expContainer) {
+        renderPreview(STATE.generated || {}, 'preview-container-export');
         _applyPreviewPresets();
       }
     } catch(_){}
@@ -4322,7 +4331,8 @@ function renderLeftSectionToggles() {
       });
       STATE.sections = newOrder.filter(k => STATE.sections.includes(k));
       renderLeftSectionToggles();
-      if (STATE.generated?.hero) renderPreview(STATE.generated);
+      const _hasD1 = !!(STATE.generated && (STATE.generated.hero || Object.keys(STATE.generated).length > 0)) || !!(STATE.resumeData && STATE.resumeData.name);
+      if (_hasD1) renderPreview(STATE.generated || {});
       renderSectionToggles();
       markDirty();
     });
@@ -4334,7 +4344,8 @@ function renderLeftSectionToggles() {
 function toggleSectionFromLeft(section, on) {
   if (on && !STATE.sections.includes(section)) STATE.sections.push(section);
   if (!on) STATE.sections = STATE.sections.filter(s => s !== section);
-  if (STATE.generated?.hero) renderPreview(STATE.generated);
+  const _hasD2 = !!(STATE.generated && (STATE.generated.hero || Object.keys(STATE.generated).length > 0)) || !!(STATE.resumeData && STATE.resumeData.name);
+  if (_hasD2) renderPreview(STATE.generated || {});
   renderSectionToggles();
   // Section visibility affects buildExportModel output (sections array flows
   // into the canonical model). Invalidate the cached model and refresh the
@@ -4963,7 +4974,8 @@ function setupTargetRoleWatcher() {
       field.addEventListener('input', () => {
         syncLegacyContactAddress();
         if (Object.keys(STATE.resumeData || {}).length) renderResumePreview(STATE.resumeData);
-        if (STATE.generated?.hero) renderPreview(STATE.generated);
+        const _hasD4 = !!(STATE.generated && (STATE.generated.hero || Object.keys(STATE.generated).length > 0)) || !!(STATE.resumeData && STATE.resumeData.name);
+        if (_hasD4) renderPreview(STATE.generated || {});
       });
     }
   });
@@ -9995,6 +10007,24 @@ function saveManualEntry(opts) {
         ['current_title','summary','skills','experience','education','certifications','achievements','volunteering','name'].forEach(k => {
           if (rd[k] !== undefined) v.resume[k] = rd[k];
         });
+        // Synthesize a minimal hero so STATE.generated?.hero guards always
+        // pass after a manual save — without this the Build & Style and
+        // Export previews stayed blank because every renderPreview call site
+        // is gated behind STATE.generated?.hero.
+        if (!v.resume.hero) {
+          const _cName = (() => { try { return (document.getElementById('contact-name') || {}).value || ''; } catch(_){ return ''; } })().trim();
+          v.resume.hero = {
+            name:         rd.name || _cName || '',
+            target_title: rd.current_title || '',
+            tagline:      rd.summary || '',
+            subtitle:     ''
+          };
+        } else {
+          // Keep hero in sync with manual edits so the preview header stays fresh.
+          if (rd.name)          v.resume.hero.name         = rd.name;
+          if (rd.current_title) v.resume.hero.target_title = rd.current_title;
+          if (rd.summary)       v.resume.hero.tagline      = rd.summary;
+        }
       }
     }
   } catch(_){}
@@ -19332,7 +19362,8 @@ function togglePreviewSection(sec) {
   if (idx >= 0) { STATE.sections.splice(idx, 1); }
   else { STATE.sections.push(sec); }
   renderSectionToggles();
-  if (STATE.generated?.hero) { renderPreview(STATE.generated); }
+  const _hasD3 = !!(STATE.generated && (STATE.generated.hero || Object.keys(STATE.generated).length > 0)) || !!(STATE.resumeData && STATE.resumeData.name);
+  if (_hasD3) { renderPreview(STATE.generated || {}); }
   markDirty();
 }
 
