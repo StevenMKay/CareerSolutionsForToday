@@ -11274,6 +11274,9 @@ const PPTX_TEMPLATES = [
   { id:'modern-ats',      name:'Modern ATS', tag:'ATS',
     desc:'Single-column sans-serif, ATS-safe (no shapes/columns)',
     accent:'#111827', preview:'minimal' },
+  { id:'banking-executive', name:'Banking Executive', tag:'Executive',
+    desc:'Polished executive layout for finance, operations, strategy, and leadership roles.',
+    accent:'#0B487A', preview:'exec' },
 ];
 
 // ============ TEMPLATE_META — Phase 4b ============
@@ -11324,6 +11327,9 @@ const TEMPLATE_META = {
   'modern-ats':     { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:false,
     fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:'minimal',
     fallbackMessage:'Modern ATS is preview / HTML / PDF only. We\u2019ll use a partner template for Word or PowerPoint exports so the file still opens correctly.' },
+  'banking-executive': { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:false,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:'modern-sidebar',
+    fallbackMessage:'Banking Executive exports directly to HTML and PDF. Word and PowerPoint use the closest supported layout to preserve formatting.' },
 };
 
 // Resolve a template's effective id for a given format. Returns the
@@ -11525,6 +11531,18 @@ function thumbFor(t) {
       + '<div style="height:4px;width:70%;background:'+a+';margin-bottom:3px;border-radius:1px"></div>'
       + '<div style="height:3px;width:85%;background:#334155;margin-bottom:2px;border-radius:1px"></div>'
       + '<div style="height:3px;width:60%;background:#334155;border-radius:1px"></div>'
+      + '</div>';
+    // Premium executive thumb: large bold name bar, thin accent divider,
+    // clean stacked content rows. Used by `banking-executive`.
+    case 'exec': return '<div style="padding:12px 14px;background:#fff;height:100%">'
+      + '<div style="height:8px;width:62%;background:#0F172A;border-radius:2px;margin-bottom:4px"></div>'
+      + '<div style="height:3px;width:38%;background:#94A3B8;border-radius:2px;margin-bottom:9px"></div>'
+      + '<div style="height:1.5px;width:100%;background:'+a+';margin-bottom:8px"></div>'
+      + '<div style="height:3px;width:24%;background:'+a+';border-radius:1px;margin-bottom:5px"></div>'
+      + '<div style="height:3px;width:92%;background:#E5E7EB;border-radius:1px;margin-bottom:3px"></div>'
+      + '<div style="height:3px;width:80%;background:#E5E7EB;border-radius:1px;margin-bottom:8px"></div>'
+      + '<div style="height:3px;width:24%;background:'+a+';border-radius:1px;margin-bottom:5px"></div>'
+      + '<div style="height:3px;width:88%;background:#E5E7EB;border-radius:1px"></div>'
       + '</div>';
   }
   return '';
@@ -12125,6 +12143,65 @@ function _pvSectionTitle(text, accent, variant){
   return `<div style="font-size:10px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.12em;margin:8px 0 5px">${_pvEsc(text)}</div>`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW TEMPLATE AUTHORING CONTRACT — read before adding a renderer below.
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// To author a new template (the standard pattern, exemplified by
+// `executive-focus`, `modern-ats`, and `banking-executive`), you need ALL
+// of the following from the design spec:
+//
+//   1. Template id            kebab-case, unique, used as PREVIEW_RENDERERS key,
+//                             PPTX_TEMPLATES.id, and TEMPLATE_META key.
+//   2. Display name           shown in the picker tile.
+//   3. Tag                    short audience hint ("Executive", "ATS",
+//                             "Creative", "Senior", "Tech", "Minimal", …).
+//   4. Picker description     one-line summary for the tile body.
+//   5. Default accent         hex color, used by picker thumb + as the default
+//                             when STATE.pptxColor is unset.
+//   6. Layout intent          single-col vs sidebar vs banner, font family
+//                             family (serif / sans / mono), section-heading
+//                             treatment (uppercase + divider, pill, bar, etc.),
+//                             tone (premium / minimal / creative / dense).
+//   7. Section order          canonical: hero → executive_summary → experience
+//                             → skills → education → certifications →
+//                             achievements. Specify deviations explicitly.
+//   8. Section omissions      whether any section moves to a sidebar, is
+//                             dropped, or is conditional.
+//   9. Photo support          most templates ignore STATE.photoUrl. Speak up
+//                             if the template should render the photo.
+//  10. Picker thumb shape     reuse one of `sidebar|classic|bold|minimal|
+//                             twocol|tech|exec` (see thumbFor()) OR specify
+//                             a new thumb shape if visually distinct.
+//  11. Fallback metadata      explicit supportsHtml / supportsPdf / supportsDocx
+//                             / supportsPptx, partner template ids for any
+//                             unsupported export formats, plain-language
+//                             fallbackMessage shown to the user before the
+//                             unsupported export is initiated. NEVER silent.
+//
+// Required anchors (compare engine + diff highlighter rely on these):
+//   • Hero contact items  →  data-contact-field="location|phone|email|linkedin|
+//                             github|website|twitter|name|title" on each item
+//   • Section wrapper     →  <div data-section="<sectionKey>">
+//   • Summary text        →  inner <div class="editable"> (sentence-level diff
+//                             target)
+//   • List sections       →  <div data-list="<sectionKey>"> with
+//                             <div class="item-row"> (or <li class="item-row">)
+//                             per row
+//
+// Hard rules:
+//   • Use _pvEsc() for ALL user content. Never inject raw strings.
+//   • Use _pvContactArray() + _pvContactIcon() for the contact bar.
+//   • Pure function — read only from `g` and `accent`. No STATE.* access.
+//   • No mutation of legacy templates. No new render path. No data-model
+//     changes. Author each new template once, here, as a single entry.
+//   • The new template must be added to PPTX_TEMPLATES (so it appears in the
+//     picker) AND TEMPLATE_META (so export carry-through + fallback labeling
+//     work). resolveExportTemplate() handles the silent partner-template swap
+//     for unsupported formats — but only AFTER the user has been shown the
+//     fallback banner inside the export modal.
+// ─────────────────────────────────────────────────────────────────────────────
+//
 // Each renderer returns the inner HTML of a single .pv-page element (no .pv-page wrapper).
 const PREVIEW_RENDERERS = {
   // ── PowerPoint · Modern Sidebar ─────────────────────────────────────────────
@@ -12479,6 +12556,84 @@ const PREVIEW_RENDERERS = {
       ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,4).map(e=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?', '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
       ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,8).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:1px"><strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' — '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}
       ${achs.length?`<div data-section="achievements">${sec('Achievements')}<ul data-list="achievements" style="margin:0;padding-left:16px">${achs.slice(0,6).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.5;color:${TEXT};margin-bottom:1px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}`;
+  },
+
+  // ── Banking Executive ──────────────────────────────────────────────────
+  // Premium single-column document built for finance / operations / strategy
+  // / leadership audiences. Conservative navy accent on white. Sans-serif
+  // throughout. Section headings uppercase with a thin accent rule. Slightly
+  // more vertical breathing room than `modern-ats`, less decoration than
+  // `executive-focus`. No cards, no chips, no gradients, no oversized icons.
+  // Subtle accent rule between experience entries reinforces hierarchy.
+  // No photo rendering — STATE.photoUrl intentionally ignored.
+  //
+  // Anchors (compare engine):
+  //   hero → [data-section="hero"], contact items → [data-contact-field]
+  //   summary → [data-section="executive_summary"] > .editable
+  //   experience/skills/education/certifications/achievements →
+  //     [data-section] > [data-list] > .item-row
+  'banking-executive': function(g, accent){
+    const h = g.hero || {};
+    const name = (h.name || 'Your Name').toString();
+    const title = (h.target_title || '').toString();
+    const contact = _pvContactArray();
+    const HEAD  = '#0F172A';
+    const TEXT  = '#1F2937';
+    const MUTED = '#475569';
+    const RULE  = '#E2E8F0';
+    // Section heading: uppercase + thin accent divider beneath. The accent
+    // is the resolved template/user color so swatch picks flow through.
+    const sec = (label) => `<div style="font-family:'Inter','Helvetica Neue','Arial',sans-serif;font-size:10.5px;font-weight:700;color:${HEAD};text-transform:uppercase;letter-spacing:0.16em;margin:18px 0 4px">${_pvEsc(label)}</div><div style="border-bottom:1px solid ${accent};margin-bottom:8px"></div>`;
+    const exp = Array.isArray(g.experience) ? g.experience : [];
+    const skills = Array.isArray(g.skills) ? g.skills : [];
+    const edu = Array.isArray(g.education) ? g.education : [];
+    const certs = Array.isArray(g.certifications) ? g.certifications : [];
+    const achs = Array.isArray(g.achievements)
+      ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' \u2014 '+a.description:''))).filter(Boolean)
+      : [];
+
+    // Skills laid out as a compact 2-column professional list — no chips,
+    // ATS-readable, each cell still an .item-row so compare can paint per
+    // skill when the diff engine reports a per-item change.
+    const skillsHtml = skills.length
+      ? skills.slice(0,20).map(s => `<div class="item-row" style="font-size:10.5px;color:${TEXT};line-height:1.6;padding:1px 0">\u2022\u00A0\u00A0${_pvEsc(s)}</div>`).join('')
+      : '';
+
+    return `
+      <div style="font-family:'Inter','Helvetica Neue','Arial',sans-serif;color:${TEXT};max-width:6.7in;margin:0 auto">
+        <div data-section="hero" style="margin-bottom:6px">
+          <div style="font-size:26px;font-weight:700;color:${HEAD};letter-spacing:0.01em;line-height:1.1">${_pvEsc(name)}</div>
+          ${title?`<div style="font-size:12.5px;color:${MUTED};margin-top:5px;font-weight:500;letter-spacing:0.04em">${_pvEsc(title)}</div>`:''}
+          ${contact.length?`<div style="font-size:10.5px;color:${MUTED};margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 14px;line-height:1.5">${contact.map(c=>`<span data-contact-field="${c.kind}" style="display:inline-flex;align-items:center;gap:4px">${_pvContactIcon(c.kind,11)}${_pvEsc(c.text)}</span>`).join('')}</div>`:''}
+        </div>
+        <div style="border-top:2px solid ${accent};margin-top:10px"></div>
+
+        ${g.executive_summary?`<div data-section="executive_summary">${sec('Executive Summary')}<div class="editable" style="font-size:11px;line-height:1.65;color:${TEXT};max-width:6.5in">${_pvEsc(g.executive_summary)}</div></div>`:''}
+
+        ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${exp.slice(0,5).map((e,i)=>{
+          const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,6);
+          // Subtle thin rule between roles (not on the first entry) to
+          // reinforce hierarchy without resorting to cards/boxes.
+          const sep = i > 0 ? `border-top:1px solid ${RULE};padding-top:9px;` : '';
+          return `<div class="item-row" style="${sep}margin-bottom:11px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+              <strong style="font-size:12px;color:${HEAD};font-weight:700;letter-spacing:0.01em">${_pvEsc(e.title||'')}</strong>
+              <span style="font-size:10.5px;color:${MUTED};white-space:nowrap;font-weight:500">${_pvEsc(e.dates||e.timeframe||'')}</span>
+            </div>
+            ${(e.company||e.location)?`<div style="font-size:11px;color:${accent};font-weight:600;margin-top:1px">${_pvEsc(e.company||'')}${e.location?`<span style="color:${MUTED};font-weight:500">  \u00B7  ${_pvEsc(e.location)}</span>`:''}</div>`:''}
+            ${e.role_summary?`<div style="font-size:10.5px;color:${TEXT};line-height:1.6;margin-top:5px">${_pvEsc(e.role_summary)}</div>`:''}
+            ${bullets.length?`<ul style="margin:5px 0 0;padding-left:18px">${bullets.map(b=>`<li style="font-size:10.5px;line-height:1.6;color:${TEXT};margin-bottom:2px">${_pvEsc(b)}</li>`).join('')}</ul>`:''}
+          </div>`;
+        }).join('')}</div></div>`:''}
+
+        ${skills.length?`<div data-section="skills">${sec('Core Competencies')}<div data-list="skills" style="display:grid;grid-template-columns:1fr 1fr;column-gap:24px;row-gap:1px">${skillsHtml}</div></div>`:''}
+
+        ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,4).map(e=>`<div class="item-row" style="font-size:10.5px;line-height:1.6;color:${TEXT};margin-bottom:3px"><strong style="color:${HEAD};font-weight:700">${_pvEsc(e.degree||'')}</strong>${e.school?`<span style="color:${MUTED}">  \u2014  ${_pvEsc(e.school)}</span>`:''}${e.year?`<span style="color:${MUTED}">  (${_pvEsc(e.year)})</span>`:''}</div>`).join('')}</div></div>`:''}
+
+        ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,6).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.6;color:${TEXT};margin-bottom:2px"><strong style="color:${HEAD};font-weight:700">${_pvEsc(c.name||'')}</strong>${c.issuer?`<span style="color:${MUTED}">  \u2014  ${_pvEsc(c.issuer)}</span>`:''}${c.year?`<span style="color:${MUTED}">  (${_pvEsc(c.year)})</span>`:''}</div>`).join('')}</div></div>`:''}
+
+        ${achs.length?`<div data-section="achievements">${sec('Selected Achievements')}<ul data-list="achievements" style="margin:0;padding-left:18px">${achs.slice(0,6).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.6;color:${TEXT};margin-bottom:3px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}
+      </div>`;
   }
 };
 
