@@ -3086,6 +3086,13 @@
       <button type="button" onclick="closePptxTemplateModal()" data-testid="pptx-template-close-btn" aria-label="Close" style="width:36px;height:36px;border-radius:50%;border:none;background:#F3F4F6;font-size:20px;color:#6B7280;cursor:pointer;display:flex;align-items:center;justify-content:center">&times;</button>
     </div>
     <div id="pptx-template-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" style="padding:1.25rem 1.5rem;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch"></div>
+    <!-- Phase 4c: fallback banner. Populated by renderPptxTemplateGrid() when
+         the selected template doesn't natively support the requested format
+         (PPTX or PDF-from-PPTX). User must see this BEFORE confirming. -->
+    <div id="pptx-template-fallback-banner" class="hidden" style="margin:0 1.5rem;padding:10px 12px;border-radius:8px;background:#FEF3C7;border:1px solid #F59E0B;color:#78350F;font-size:0.82rem;line-height:1.45;display:flex;align-items:flex-start;gap:8px">
+      <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;margin-top:1px"></i>
+      <span id="pptx-template-fallback-text"></span>
+    </div>
     <div class="pptx-color-row">
       <span class="pcr-label">Color Scheme <span style="font-weight:500;text-transform:none;letter-spacing:0;color:#94A3B8">(applies to your PowerPoint only — doesn't change your Design step color)</span></span>
       <div id="pptx-color-swatches" class="pcr-swatches"></div>
@@ -3125,6 +3132,13 @@
         <div id="docx-color-swatches" class="pcr-swatches"></div>
         <input id="docx-color-hex" class="pcr-hex" type="text" placeholder="#RRGGBB" maxlength="7" oninput="onDocxColorHexInput(this)">
         <button type="button" class="pcr-reset" onclick="resetDocxColor()" data-testid="docx-color-reset-btn">Reset</button>
+      </div>
+      <!-- Phase 4c: fallback banner shown when STATE.exportTemplate doesn't
+           natively support DOCX so the user knows the file will be built
+           from a partner template (Word Classic) before they confirm. -->
+      <div id="docx-template-fallback-banner" class="hidden" style="margin-top:14px;padding:10px 12px;border-radius:8px;background:#FEF3C7;border:1px solid #F59E0B;color:#78350F;font-size:0.82rem;line-height:1.45;display:flex;align-items:flex-start;gap:8px">
+        <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;margin-top:1px"></i>
+        <span id="docx-template-fallback-text"></span>
       </div>
     </div>
     <div style="padding:1rem 1.5rem;border-top:1px solid #E5E7EB;display:flex;flex-direction:row;gap:0.75rem;align-items:center;justify-content:flex-end;flex-wrap:wrap;background:#FAFAFA">
@@ -7840,6 +7854,139 @@ function updateGeneratePreviewBtn() {
   }
   lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'});
 }
+
+// ============ Live Preview Auto-Sync (Phase 1) ============
+// One-place mechanism that re-renders ALL mounted preview containers from
+// the SAME pipeline (`renderPreview` → `buildFinalExportModel` → adapter →
+// PREVIEW_RENDERERS). Hooked from `markDirty` so any field edit, section
+// toggle, AI accept, drag-drop, etc. propagates to BOTH web preview and
+// document/export preview without the user clicking Refresh.
+//
+// Rules (per product brief 2026-04-24):
+//   1. Debounced ~200ms so rapid keystrokes don't thrash.
+//   2. Skip while focus is INSIDE a preview container — re-rendering would
+//      blow away the user's caret/selection mid-edit. Re-render fires
+//      automatically on focusout (see _liveSyncFocusOutHandler below).
+//   3. 500ms safety override: if 500ms elapses with no further markDirty
+//      AND focus is still inside preview, run anyway so doc preview never
+//      goes more than ~500ms stale (covers user typing in web preview while
+//      doc preview is also mounted).
+//   4. Caret + scroll preserved across rerender via snapshot/restore.
+//   5. Only routes through existing `renderPreview()` — no parallel renderer.
+let _liveSyncDebounceTimer = null;
+let _liveSyncSafetyTimer   = null;
+
+function _isEditingInsidePreview() {
+  try {
+    const ae = document.activeElement;
+    if (ae && ae.getAttribute && ae.getAttribute('contenteditable') === 'true') {
+      if (ae.closest && (ae.closest('#preview-container') || ae.closest('#preview-container-export'))) {
+        return true;
+      }
+    }
+    // Mobile tap-to-edit / item-row editing flow — body of bar/buttons may have focus
+    if (document.querySelector('#preview-container .item-editing, #preview-container-export .item-editing')) return true;
+    if (document.querySelector('#preview-container .editing-active, #preview-container-export .editing-active')) return true;
+  } catch(_){}
+  return false;
+}
+
+function _liveSyncRerenderNow() {
+  // Bail if no generated content (e.g. brand-new resume, pre-generation)
+  try {
+    if (!STATE || !STATE.generated || !Object.keys(STATE.generated).length) return;
+  } catch(_) { return; }
+  // Compare mode owns the export pane — never stomp on it from auto-sync.
+  try { if (STATE.compare && STATE.compare.active) return; } catch(_){}
+
+  const ids = ['preview-container', 'preview-container-export'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Only re-render if the container is actually visible/mounted in the DOM
+    // (offsetParent === null means hidden — skip the work).
+    if (el.offsetParent === null && id !== 'preview-container') return;
+    // Snapshot scroll position so we can restore it after the rerender wipes
+    // innerHTML. Caret restoration is intentionally NOT attempted because
+    // _isEditingInsidePreview() short-circuits the schedule when focus is
+    // inside preview, so we should never rerender mid-edit anyway.
+    const prevScroll = el.scrollTop;
+    try {
+      // Routes through buildFinalExportModel + _selectAndRender — same path
+      // every other render uses. Format-accurate doc-mode preview branches
+      // internally inside renderPreview() based on STATE._previewMode.
+      renderPreview(STATE.generated, id);
+    } catch (e) {
+      try { console.warn('[live-sync] renderPreview failed for', id, e); } catch(_){}
+    }
+    try { el.scrollTop = prevScroll; } catch(_){}
+  });
+}
+
+function _scheduleLivePreviewRerender() {
+  // Clear any previously pending debounce so we restart the quiet window.
+  if (_liveSyncDebounceTimer) { clearTimeout(_liveSyncDebounceTimer); _liveSyncDebounceTimer = null; }
+  // Safety timer ensures stale doc preview never drifts more than ~500ms
+  // even if the user keeps typing in the preview (which keeps deferring
+  // the main debounce). Only ARMED if not already armed.
+  if (!_liveSyncSafetyTimer) {
+    _liveSyncSafetyTimer = setTimeout(() => {
+      _liveSyncSafetyTimer = null;
+      // Force a rerender even if focus is still inside preview — this only
+      // fires once every 500ms, so caret jank is bounded.
+      // BUT: still skip if user is actively typing in the SAME preview
+      // container we're about to rerender (would steal caret).
+      // Compromise: only force-rerender the OTHER container.
+      try {
+        if (!STATE || !STATE.generated || !Object.keys(STATE.generated).length) return;
+        if (STATE.compare && STATE.compare.active) return;
+        const ae = document.activeElement;
+        const focusedInWeb  = ae && ae.closest && ae.closest('#preview-container');
+        const focusedInDoc  = ae && ae.closest && ae.closest('#preview-container-export');
+        if (!focusedInWeb && !focusedInDoc) {
+          // Focus moved out — full rerender via the normal path.
+          _liveSyncRerenderNow();
+          return;
+        }
+        // Rerender only the non-focused container.
+        const other = focusedInWeb ? 'preview-container-export' : 'preview-container';
+        const el = document.getElementById(other);
+        if (!el || el.offsetParent === null) return;
+        const prevScroll = el.scrollTop;
+        try { renderPreview(STATE.generated, other); } catch(_){}
+        try { el.scrollTop = prevScroll; } catch(_){}
+      } catch(_){}
+    }, 500);
+  }
+
+  _liveSyncDebounceTimer = setTimeout(() => {
+    _liveSyncDebounceTimer = null;
+    if (_isEditingInsidePreview()) {
+      // Defer: focusout handler below will re-call us.
+      return;
+    }
+    if (_liveSyncSafetyTimer) { clearTimeout(_liveSyncSafetyTimer); _liveSyncSafetyTimer = null; }
+    _liveSyncRerenderNow();
+  }, 200);
+}
+
+// When focus leaves a preview container, fire any deferred rerender promptly
+// so the OTHER preview catches up immediately.
+document.addEventListener('focusout', e => {
+  try {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('#preview-container') || t.closest('#preview-container-export')) {
+      // Small delay so a focus shift WITHIN the same preview (e.g. tab to
+      // next field) doesn't trigger a rerender we'll just have to defer.
+      setTimeout(() => {
+        if (_isEditingInsidePreview()) return;
+        _scheduleLivePreviewRerender();
+      }, 80);
+    }
+  } catch(_){}
+}, true);
+
 function markDirty(options) {
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
@@ -7847,6 +7994,10 @@ function markDirty(options) {
   // preview/export rebuild picks up the new data (inline edits, field changes,
   // section toggles, etc.). Kept deliberately cheap — just sets a flag.
   try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+  // Phase 1 live sync: re-render BOTH web + document previews from the same
+  // pipeline whenever data changes. Debounced + skips while editing inside
+  // preview — see _scheduleLivePreviewRerender for the full rule set.
+  try { _scheduleLivePreviewRerender && _scheduleLivePreviewRerender(); } catch(_){}
   // Also refresh the export-ready strip so the stale-preview warning appears
   // immediately when the user is looking at Step 5.
   try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
@@ -9854,6 +10005,10 @@ function _compareApplyDiffToExport(modelA, modelB, diffs) {
   };
   diffs.changed.forEach(k => {
     const a = modelA[k], b = modelB[k];
+    if (k === 'hero' && a && b && typeof a === 'object' && typeof b === 'object') {
+      try { applyContactFieldDiff(cA, cB, a, b); } catch(_){}
+      return;
+    }
     if (Array.isArray(a) && Array.isArray(b)) {
       try { applyGranularArrayDiff(cA, cB, k, a, b); } catch(_){ /* skip: no section-level fallback */ }
     } else if (typeof a === 'string' && typeof b === 'string') {
@@ -10657,6 +10812,11 @@ function renderDiffHighlights(diffs) {
   diffs.changed.forEach(k => {
     const a = STATE.generated[k];
     const b = comparePlanData.generated[k];
+    if (k === 'hero' && a && b && typeof a === 'object' && typeof b === 'object') {
+      // Phase 3: paint individual contact fields rather than the whole hero.
+      try { applyContactFieldDiff(containerA, containerB, a, b); } catch(_){}
+      return;
+    }
     if (Array.isArray(a) && Array.isArray(b)) {
       applyGranularArrayDiff(containerA, containerB, k, a, b);
     } else if (typeof a === 'string' && typeof b === 'string') {
@@ -10678,6 +10838,12 @@ function applyClass(container, sectionKey, cls) {
 // ── Word-level diff for string sections (Executive Summary, etc.) ──
 // Item-level only: if neither side has an .editable anchor, we skip
 // rather than blanket-paint the section wrapper.
+//
+// Phase 3 (2026-04-24): if the text reads like multi-sentence prose,
+// run an outer SENTENCE-level LCS first so a single rewritten sentence
+// stays grouped instead of producing a confetti of word-level changes
+// across the whole paragraph. Falls back to pure word-level for short
+// or single-sentence text.
 function applyWordDiff(containerA, containerB, sectionKey, textA, textB) {
   const elA = containerA?.querySelector(`[data-section="${sectionKey}"] .editable`);
   const elB = containerB?.querySelector(`[data-section="${sectionKey}"] .editable`);
@@ -10686,11 +10852,76 @@ function applyWordDiff(containerA, containerB, sectionKey, textA, textB) {
     // detect the absent paint and hide the checkbox.
     return;
   }
-  const wordsA = textA.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
-  const wordsB = textB.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean);
+  const stripA = textA.replace(/<[^>]+>/g, ' ');
+  const stripB = textB.replace(/<[^>]+>/g, ' ');
+  // Sentence segmentation: split on `.!?` followed by whitespace, OR on
+  // newlines (covers bulleted/multi-line summaries). Keeps trailing
+  // punctuation attached to the sentence it terminates.
+  const splitSentences = (txt) => {
+    const out = [];
+    const re = /[^.!?\n]+[.!?]+|\S[^\n]*/g;
+    let m;
+    while ((m = re.exec(txt)) !== null) {
+      const s = m[0].trim();
+      if (s) out.push(s);
+    }
+    return out;
+  };
+  const sentA = splitSentences(stripA);
+  const sentB = splitSentences(stripB);
+  const useSentenceMode = (sentA.length >= 2 || sentB.length >= 2)
+                       && (sentA.length + sentB.length) <= 60;
+  if (useSentenceMode) {
+    const lcsS = computeLCS(sentA, sentB);
+    const lcsAi = new Set(lcsS.map(l => l.ai));
+    const lcsBi = new Set(lcsS.map(l => l.bi));
+    const buildSide = (sentences, lcsSet, side) => {
+      const cls = side === 'a' ? 'diff-word-removed' : 'diff-word-added';
+      return sentences.map((s, i) => {
+        if (lcsSet.has(i)) return s;
+        // Wrap whole changed sentence — readability beats per-word noise here.
+        return `<span class="${cls}">${s}</span>`;
+      }).join(' ');
+    };
+    if (elA) { elA.innerHTML = buildSide(sentA, lcsAi, 'a'); elA.setAttribute('data-diff-applied', 'true'); }
+    if (elB) { elB.innerHTML = buildSide(sentB, lcsBi, 'b'); elB.setAttribute('data-diff-applied', 'true'); }
+    return;
+  }
+  // Word-level fallback for short / single-sentence text.
+  const wordsA = stripA.split(/\s+/).filter(Boolean);
+  const wordsB = stripB.split(/\s+/).filter(Boolean);
   const lcs = computeLCS(wordsA, wordsB);
   if (elA) { elA.innerHTML = buildDiffHTML(wordsA, lcs, 'a'); elA.setAttribute('data-diff-applied', 'true'); }
   if (elB) { elB.innerHTML = buildDiffHTML(wordsB, lcs, 'b'); elB.setAttribute('data-diff-applied', 'true'); }
+}
+
+// ── Per-field contact-bar diff (Phase 3) ──
+// Adds .diff-changed / .diff-added / .diff-removed to individual
+// [data-contact-field] elements inside the hero / contact bar so users
+// see WHICH contact field moved between versions instead of a blanket
+// hero-level paint. Pairs with the per-field reporting already done in
+// renderChangesPanel.
+function applyContactFieldDiff(containerA, containerB, heroA, heroB) {
+  const fields = ['name','title','location','phone','email','linkedin','github','website','twitter'];
+  fields.forEach(f => {
+    const a = heroA && heroA[f];
+    const b = heroB && heroB[f];
+    const aBlank = a == null || a === '';
+    const bBlank = b == null || b === '';
+    if (aBlank && bBlank) return;
+    const same = String(a || '').trim() === String(b || '').trim();
+    if (same) return;
+    const elA = containerA?.querySelector(`[data-contact-field="${f}"]`);
+    const elB = containerB?.querySelector(`[data-contact-field="${f}"]`);
+    if (aBlank) {
+      if (elB) elB.classList.add('diff-added');
+    } else if (bBlank) {
+      if (elA) elA.classList.add('diff-removed');
+    } else {
+      if (elA) elA.classList.add('diff-changed');
+      if (elB) elB.classList.add('diff-changed');
+    }
+  });
 }
 
 function computeLCS(a, b) {
@@ -11033,7 +11264,87 @@ const PPTX_TEMPLATES = [
   { id:'tech-mono',      name:'Tech Mono', tag:'Tech',
     desc:'Monospace headings, accent dots',
     accent:'#7C3AED', preview:'tech' },
+  // Phase 4a additions — supportsPreview/Html/Pdf only. DOCX/PPTX exports
+  // fall back to a partner template (see TEMPLATE_META below) and the
+  // export modal surfaces a clearly-labeled banner before the user
+  // confirms — never silent.
+  { id:'executive-focus', name:'Executive Focus', tag:'Senior',
+    desc:'Single-column executive serif — clean, substantive',
+    accent:'#0F172A', preview:'classic' },
+  { id:'modern-ats',      name:'Modern ATS', tag:'ATS',
+    desc:'Single-column sans-serif, ATS-safe (no shapes/columns)',
+    accent:'#111827', preview:'minimal' },
 ];
+
+// ============ TEMPLATE_META — Phase 4b ============
+// Authoritative per-template support matrix. Drives:
+//   • the template picker (only show templates that support the format
+//     the user is currently choosing inside)
+//   • the export confirmation step (show a fallback banner BEFORE
+//     download whenever the chosen template does not natively support
+//     the requested format — never silently swap)
+//   • debug logging (record which template was actually used and which
+//     was requested so we can audit fallbacks).
+//
+// Fields:
+//   supportsPreview  — has a PREVIEW_RENDERERS entry (visible in builder)
+//   supportsHtml     — exportHTML_template can produce a faithful file
+//   supportsPdf      — exportPDF (server or print) renders the preview as-is
+//   supportsDocx     — has a real .docx generator path (only word-classic)
+//   supportsPptx     — has a real PPTX slide path inside exportPPTX
+//   fallbackDocxTemplate — id to use if user requests DOCX with this template
+//   fallbackPptxTemplate — id to use if user requests PPTX with this template
+//   fallbackMessage  — user-facing copy shown above the export CTA when
+//                      a fallback is in effect. Plain language, no jargon.
+const TEMPLATE_META = {
+  'modern-sidebar': { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:true,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:null,
+    fallbackMessage:'Modern Sidebar isn\u2019t available for Word (.docx). We\u2019ll use the Word Classic template instead so the file opens cleanly in Microsoft Word.' },
+  'classic-serif':  { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:true,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:null,
+    fallbackMessage:'Classic Serif isn\u2019t available for Word (.docx). We\u2019ll use the Word Classic template instead.' },
+  'creative-bold':  { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:true,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:null,
+    fallbackMessage:'Creative Bold isn\u2019t available for Word (.docx). We\u2019ll use the Word Classic template instead.' },
+  'minimal':        { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:true,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:null,
+    fallbackMessage:'Minimal isn\u2019t available for Word (.docx). We\u2019ll use the Word Classic template instead.' },
+  'two-column':     { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:true,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:null,
+    fallbackMessage:'Two-Column isn\u2019t available for Word (.docx). We\u2019ll use the Word Classic template instead.' },
+  'tech-mono':      { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:true,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:null,
+    fallbackMessage:'Tech Mono isn\u2019t available for Word (.docx). We\u2019ll use the Word Classic template instead.' },
+  'word-classic':   { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:true, supportsPptx:false,
+    fallbackDocxTemplate:null, fallbackPptxTemplate:'modern-sidebar',
+    fallbackMessage:'Word Classic isn\u2019t available for PowerPoint. We\u2019ll use the Modern Sidebar template instead.' },
+  'executive-focus':{ supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:false,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:'classic-serif',
+    fallbackMessage:'Executive Focus is preview / HTML / PDF only. We\u2019ll use a partner template for Word or PowerPoint exports so the file still opens correctly.' },
+  'modern-ats':     { supportsPreview:true, supportsHtml:true, supportsPdf:true, supportsDocx:false, supportsPptx:false,
+    fallbackDocxTemplate:'word-classic', fallbackPptxTemplate:'minimal',
+    fallbackMessage:'Modern ATS is preview / HTML / PDF only. We\u2019ll use a partner template for Word or PowerPoint exports so the file still opens correctly.' },
+};
+
+// Resolve a template's effective id for a given format. Returns the
+// requested id if it natively supports the format, otherwise the
+// configured fallback. Returns null if there is no fallback (caller
+// should disable the export button).
+function resolveExportTemplate(requestedId, format) {
+  const meta = TEMPLATE_META[requestedId];
+  if (!meta) return requestedId; // unknown template — let downstream handle
+  const supportKey = ({
+    preview:'supportsPreview', html:'supportsHtml', pdf:'supportsPdf',
+    docx:'supportsDocx', pptx:'supportsPptx'
+  })[format];
+  if (!supportKey) return requestedId;
+  if (meta[supportKey]) return requestedId;
+  if (format === 'docx') return meta.fallbackDocxTemplate;
+  if (format === 'pptx') return meta.fallbackPptxTemplate;
+  return null;
+}
+window.resolveExportTemplate = resolveExportTemplate;
+window.TEMPLATE_META = TEMPLATE_META;
 
 // ============ ISS-016: PDF Format Picker ============
 // Re-adds an explicit "Download PDF" export tile. Rather than hard-coding a
@@ -11239,6 +11550,27 @@ function renderPptxTemplateGrid() {
   const lbl = document.getElementById('pptx-template-selected-label');
   const cur = PPTX_TEMPLATES.find(x => x.id === selected);
   if (lbl && cur) lbl.innerHTML = 'Selected: <strong style="color:#0A2F6B">' + cur.name + '</strong>';
+  // Phase 4c: surface fallback banner when the selected template doesn't
+  // natively support PPTX export. Picker mode still allows confirming —
+  // exportPPTX will then resolve to the partner template.
+  try {
+    const banner = document.getElementById('pptx-template-fallback-banner');
+    const text   = document.getElementById('pptx-template-fallback-text');
+    const meta   = TEMPLATE_META && TEMPLATE_META[selected];
+    const mode   = window._pptxModalMode || 'export';
+    // Only consider PPTX-fallback when launched in 'export' (PowerPoint) mode.
+    // 'pdf' mode renders the preview HTML to PDF directly — no fallback needed.
+    if (banner && text) {
+      if (mode === 'export' && meta && meta.supportsPptx === false && meta.fallbackPptxTemplate) {
+        const fb = PPTX_TEMPLATES.find(x => x.id === meta.fallbackPptxTemplate);
+        text.textContent = (meta.fallbackMessage || '') + (fb ? ' (Partner template: ' + fb.name + ')' : '');
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+    try { lucide && lucide.createIcons && lucide.createIcons(); } catch(_){}
+  } catch(_){}
 }
 function confirmPptxTemplateAndExport() {
   closePptxTemplateModal();
@@ -11273,7 +11605,12 @@ function confirmPptxTemplateAndExportPdf() {
 function openDocxTemplateModal(mode) {
   const m = document.getElementById('docx-template-modal');
   if (!m) return;
-  // Ensure the Word template is the selected template so preview + PDF match.
+  // Phase 4c: don't silently overwrite STATE.exportTemplate. Capture the
+  // user's previous selection so we can show a fallback banner if their
+  // chosen template doesn't support DOCX. The actual export resolves the
+  // effective template id via resolveExportTemplate().
+  const prevTemplate = STATE.exportTemplate || 'modern-sidebar';
+  window._docxPrevTemplate = prevTemplate;
   STATE.exportTemplate = 'word-classic';
   // ISS-D: PDF button only shows when launched from the PDF format picker.
   const resolvedMode = (mode === 'pdf') ? 'pdf' : 'export';
@@ -11283,6 +11620,23 @@ function openDocxTemplateModal(mode) {
   if (exportBtn) exportBtn.classList.toggle('hidden', resolvedMode !== 'export');
   if (pdfBtn) pdfBtn.classList.toggle('hidden', resolvedMode !== 'pdf');
   renderDocxColorSwatches();
+  // Populate fallback banner if the user's previous template differs from
+  // word-classic — i.e. they're being routed through a fallback. Show only
+  // for export mode (PDF route doesn't fall back; it renders preview HTML).
+  try {
+    const banner = document.getElementById('docx-template-fallback-banner');
+    const text   = document.getElementById('docx-template-fallback-text');
+    if (banner && text) {
+      const meta = TEMPLATE_META && TEMPLATE_META[prevTemplate];
+      if (resolvedMode === 'export' && prevTemplate !== 'word-classic' && meta && meta.supportsDocx === false) {
+        const prevName = (PPTX_TEMPLATES.find(x => x.id === prevTemplate) || {}).name || prevTemplate;
+        text.textContent = (meta.fallbackMessage || '') + ' (You selected ' + prevName + '.)';
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+  } catch(_){}
   m.classList.remove('hidden');
   m.style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -12035,6 +12389,96 @@ const PREVIEW_RENDERERS = {
       ${(g.experience&&g.experience.length)?`<div data-section="experience"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Professional Experience</div>${(g.experience||[]).slice(0,4).map(e=>`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:11px;color:#111">${_pvEsc(e.title||'')}</strong><span style="font-size:10.5px;color:#444">${_pvEsc(e.dates||'')}</span></div><div style="font-size:10.5px;color:#555;font-style:italic;margin-bottom:2px">${_pvEsc(e.company||'')}${e.location?', '+_pvEsc(e.location):''}</div>${(e.bullets||[]).slice(0,5).map(b=>`<div style="font-size:10.5px;line-height:1.35;padding-left:14px;position:relative;color:#1F2937"><span style="position:absolute;left:0">•</span>${_pvEsc(b)}</div>`).join('')}</div>`).join('')}</div>`:''}
       ${(g.skills&&g.skills.length)?`<div data-section="skills"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Skills</div><div style="font-size:10.5px;line-height:1.55;color:#1F2937">${g.skills.slice(0,16).map(_pvEsc).join(' · ')}</div></div>`:''}
       ${(g.education&&g.education.length)?`<div data-section="education"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Education</div>${g.education.slice(0,3).map(e=>`<div style="font-size:10.5px;line-height:1.4;margin-bottom:3px"><strong style="color:#111">${_pvEsc(e.degree||'')}</strong> — ${_pvEsc(e.school||'')}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div>`:''}`;
+  },
+
+  // ── Executive Focus (Phase 4a) ─────────────────────────────────────────
+  // Single column. Large serif name, accent-colored uppercase section
+  // labels with a heavy underline, italicized roles, and bullets that
+  // emphasize leadership/scope. Designed for senior-level resumes where
+  // a clean, substantive look beats decoration.
+  // All section wrappers expose [data-section] and bullet lists expose
+  // [data-list]/.item-row so the compare engine can paint per-item.
+  'executive-focus': function(g, accent){
+    const h = g.hero || {};
+    const name = (h.name || 'Your Name').toString();
+    const title = (h.target_title || '').toString();
+    const contact = _pvContactArray();
+    const HEAD = '#111827';
+    const TEXT = '#1F2937';
+    const MUTED = '#4B5563';
+    const sec = (label) => `<div style="font-size:11px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.18em;margin:14px 0 4px">${_pvEsc(label)}</div><div style="border-bottom:2px solid ${accent};margin-bottom:8px"></div>`;
+    const exp = Array.isArray(g.experience) ? g.experience : [];
+    const skills = Array.isArray(g.skills) ? g.skills : [];
+    const edu = Array.isArray(g.education) ? g.education : [];
+    const certs = Array.isArray(g.certifications) ? g.certifications : [];
+    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' — '+a.description:''))).filter(Boolean) : [];
+    return `
+      <div data-section="hero" style="text-align:center;margin-bottom:14px;font-family:'Georgia','Times New Roman',serif">
+        <div style="font-size:28px;font-weight:700;color:${HEAD};letter-spacing:0.02em;line-height:1.1">${_pvEsc(name)}</div>
+        ${title?`<div style="font-size:13px;color:${MUTED};margin-top:6px;letter-spacing:0.08em;text-transform:uppercase">${_pvEsc(title)}</div>`:''}
+        ${contact.length?`<div style="font-size:10.5px;color:${MUTED};margin-top:8px;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px">${contact.map(c=>`<span data-contact-field="${c.kind}" style="display:inline-flex;align-items:center;gap:4px">${_pvContactIcon(c.kind,11)}${_pvEsc(c.text)}</span>`).join('')}</div>`:''}
+      </div>
+      <div style="border-top:3px solid ${accent};margin-bottom:6px"></div>
+      ${g.executive_summary?`<div data-section="executive_summary">${sec('Executive Summary')}<div class="editable" style="font-size:11px;line-height:1.6;color:${TEXT};font-family:'Georgia',serif">${_pvEsc(g.executive_summary)}</div></div>`:''}
+      ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${exp.slice(0,4).map(e=>{
+        const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,5);
+        return `<div class="item-row" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+            <strong style="font-size:12px;color:${HEAD};font-family:'Georgia',serif">${_pvEsc(e.title||'')}</strong>
+            <span style="font-size:10.5px;color:${MUTED};font-style:italic;white-space:nowrap">${_pvEsc(e.dates||e.timeframe||'')}</span>
+          </div>
+          ${e.company?`<div style="font-size:11px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(e.company)}${e.location?' — '+_pvEsc(e.location):''}</div>`:''}
+          ${e.role_summary?`<div style="font-size:10.5px;color:${TEXT};line-height:1.55;margin-top:4px">${_pvEsc(e.role_summary)}</div>`:''}
+          ${bullets.length?`<ul style="margin:4px 0 0;padding-left:18px">${bullets.map(b=>`<li style="font-size:10.5px;line-height:1.55;color:${TEXT};margin-bottom:2px">${_pvEsc(b)}</li>`).join('')}</ul>`:''}
+        </div>`;
+      }).join('')}</div></div>`:''}
+      ${skills.length?`<div data-section="skills">${sec('Core Competencies')}<div data-list="skills" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px 16px">${skills.slice(0,18).map(s=>`<div class="item-row" style="font-size:10.5px;color:${TEXT};line-height:1.45">• ${_pvEsc(s)}</div>`).join('')}</div></div>`:''}
+      ${achs.length?`<div data-section="achievements">${sec('Selected Achievements')}<ul data-list="achievements" style="margin:0;padding-left:18px">${achs.slice(0,5).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.55;color:${TEXT};margin-bottom:3px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}
+      ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,3).map(e=>`<div class="item-row" style="margin-bottom:4px;font-size:10.5px;line-height:1.45;color:${TEXT}"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?' — '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
+      ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,5).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px">• <strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' — '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}`;
+  },
+
+  // ── Modern ATS (Phase 4a) ──────────────────────────────────────────────
+  // Single column, system sans-serif, no decorative shapes, no sidebar,
+  // no colored backgrounds — only accent color used is on section headings
+  // (and even that is a neutral 1-line underline). Designed to maximize
+  // text-extraction reliability through ATS parsers (Greenhouse, Lever,
+  // Workday, Taleo). All structural text is in the document order a
+  // resume parser expects: Name → Contact → Summary → Experience → Skills →
+  // Education → Certs.
+  'modern-ats': function(g, accent){
+    const h = g.hero || {};
+    const name = (h.name || 'Your Name').toString();
+    const title = (h.target_title || '').toString();
+    const contact = _pvContactArray();
+    const HEAD = '#111827';
+    const TEXT = '#1F2937';
+    const MUTED = '#4B5563';
+    const sec = (label) => `<div style="font-size:11px;font-weight:700;color:${HEAD};text-transform:uppercase;letter-spacing:0.12em;margin:12px 0 3px;border-bottom:1px solid ${MUTED};padding-bottom:2px">${_pvEsc(label)}</div>`;
+    const exp = Array.isArray(g.experience) ? g.experience : [];
+    const skills = Array.isArray(g.skills) ? g.skills : [];
+    const edu = Array.isArray(g.education) ? g.education : [];
+    const certs = Array.isArray(g.certifications) ? g.certifications : [];
+    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' — '+a.description:''))).filter(Boolean) : [];
+    return `
+      <div data-section="hero" style="margin-bottom:8px;font-family:'Inter','Arial',sans-serif">
+        <div style="font-size:22px;font-weight:700;color:${HEAD};line-height:1.1">${_pvEsc(name)}</div>
+        ${title?`<div style="font-size:12px;color:${TEXT};margin-top:2px">${_pvEsc(title)}</div>`:''}
+        ${contact.length?`<div style="font-size:10.5px;color:${MUTED};margin-top:4px;line-height:1.5">${contact.map(c=>`<span data-contact-field="${c.kind}">${_pvEsc(c.text)}</span>`).join(' &nbsp;|&nbsp; ')}</div>`:''}
+      </div>
+      ${g.executive_summary?`<div data-section="executive_summary">${sec('Summary')}<div class="editable" style="font-size:10.5px;line-height:1.5;color:${TEXT}">${_pvEsc(g.executive_summary)}</div></div>`:''}
+      ${exp.length?`<div data-section="experience">${sec('Experience')}<div data-list="experience">${exp.slice(0,5).map(e=>{
+        const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,6);
+        return `<div class="item-row" style="margin-bottom:8px">
+          <div style="font-size:11px;color:${HEAD}"><strong>${_pvEsc(e.title||'')}</strong>${e.company?', '+_pvEsc(e.company):''}${e.location?', '+_pvEsc(e.location):''}${(e.dates||e.timeframe)?'  —  '+_pvEsc(e.dates||e.timeframe):''}</div>
+          ${e.role_summary?`<div style="font-size:10.5px;color:${TEXT};line-height:1.5;margin-top:2px">${_pvEsc(e.role_summary)}</div>`:''}
+          ${bullets.length?`<ul style="margin:2px 0 0;padding-left:16px">${bullets.map(b=>`<li style="font-size:10.5px;line-height:1.5;color:${TEXT};margin-bottom:1px">${_pvEsc(b)}</li>`).join('')}</ul>`:''}
+        </div>`;
+      }).join('')}</div></div>`:''}
+      ${skills.length?`<div data-section="skills">${sec('Skills')}<div data-list="skills" style="font-size:10.5px;color:${TEXT};line-height:1.5">${skills.slice(0,30).map(s=>`<span class="item-row" style="display:inline">${_pvEsc(s)}</span>`).join(', ')}</div></div>`:''}
+      ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,4).map(e=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?', '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
+      ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,8).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:1px"><strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' — '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}
+      ${achs.length?`<div data-section="achievements">${sec('Achievements')}<ul data-list="achievements" style="margin:0;padding-left:16px">${achs.slice(0,6).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.5;color:${TEXT};margin-bottom:1px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}`;
   }
 };
 
@@ -12233,12 +12677,23 @@ function _renderFormatAccuratePreview(g, containerId){
 // User-triggered refresh of the Document-mode live preview. Re-renders using the
 // current STATE.generated, selected export template, and resolved accent color —
 // no re-export or AI call required.
+//
+// Phase 2 (2026-04-24): explicitly invalidates the export-model cache before
+// rendering so any STATE mutation since the last preview is guaranteed to be
+// picked up. Also iterates BOTH `preview-container` (web) and
+// `preview-container-export` (doc), each rendered in its own current mode —
+// not a single global mode — so a user with the export step in Document mode
+// while the build step is in Web mode still gets both refreshed correctly.
 window.refreshDocumentPreview = function(btn){
   try {
     if (!STATE.generated || !Object.keys(STATE.generated).length) {
       if (typeof showToast === 'function') showToast('No resume content yet. Generate or load a resume first.', 'info');
       return;
     }
+    // Phase 2: force the export model to rebuild on the next renderPreview()
+    // call so this Refresh button truly forces a full pipeline rebuild —
+    // never reuses a stale cached model.
+    try { invalidateExportModel && invalidateExportModel(); } catch(_){}
     // Briefly show a loading state on the button for visual feedback
     let originalHTML = null;
     if (btn && btn.innerHTML) {
@@ -12355,13 +12810,13 @@ function renderPreview(g, targetId) {
     const github = document.getElementById('contact-github').value;
     const website = document.getElementById('contact-website').value;
     const twitter = document.getElementById('contact-twitter').value;
-    if (location) items += `<span class="flex items-center gap-1.5"><i data-lucide="map-pin" style="width:14px;height:14px;color:${ac}"></i>${location}</span>`;
-    if (phone) items += `<span class="flex items-center gap-1.5"><i data-lucide="phone" style="width:14px;height:14px;color:${ac}"></i>${phone}</span>`;
-    if (email) items += `<span class="flex items-center gap-1.5"><i data-lucide="mail" style="width:14px;height:14px;color:${ac}"></i>${email}</span>`;
-    if (linkedin) items += `<a href="${linkedin.startsWith('http') ? linkedin : 'https://' + linkedin}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit;text-decoration:none"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0a01a653a891ffe30d4da303a139dc3336cedcb5/icons/LinkedInIcon.png" alt="LinkedIn" style="width:14px;height:14px">LinkedIn</a>`;
-    if (github) items += `<a href="${github.startsWith('http') ? github : 'https://' + github}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="github" style="width:14px;height:14px;color:${ac}"></i>GitHub</a>`;
-    if (website) items += `<a href="${website.startsWith('http') ? website : 'https://' + website}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="globe" style="width:14px;height:14px;color:${ac}"></i>Website</a>`;
-    if (twitter) items += `<a href="${twitter.startsWith('http') ? twitter : 'https://' + twitter}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit"><i data-lucide="twitter" style="width:14px;height:14px;color:${ac}"></i>X / Twitter</a>`;
+    if (location) items += `<span class="flex items-center gap-1.5" data-contact-field="location"><i data-lucide="map-pin" style="width:14px;height:14px;color:${ac}"></i>${location}</span>`;
+    if (phone) items += `<span class="flex items-center gap-1.5" data-contact-field="phone"><i data-lucide="phone" style="width:14px;height:14px;color:${ac}"></i>${phone}</span>`;
+    if (email) items += `<span class="flex items-center gap-1.5" data-contact-field="email"><i data-lucide="mail" style="width:14px;height:14px;color:${ac}"></i>${email}</span>`;
+    if (linkedin) items += `<a href="${linkedin.startsWith('http') ? linkedin : 'https://' + linkedin}" target="_blank" class="flex items-center gap-1.5 hover:underline" data-contact-field="linkedin" style="color:inherit;text-decoration:none"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0a01a653a891ffe30d4da303a139dc3336cedcb5/icons/LinkedInIcon.png" alt="LinkedIn" style="width:14px;height:14px">LinkedIn</a>`;
+    if (github) items += `<a href="${github.startsWith('http') ? github : 'https://' + github}" target="_blank" class="flex items-center gap-1.5 hover:underline" data-contact-field="github" style="color:inherit"><i data-lucide="github" style="width:14px;height:14px;color:${ac}"></i>GitHub</a>`;
+    if (website) items += `<a href="${website.startsWith('http') ? website : 'https://' + website}" target="_blank" class="flex items-center gap-1.5 hover:underline" data-contact-field="website" style="color:inherit"><i data-lucide="globe" style="width:14px;height:14px;color:${ac}"></i>Website</a>`;
+    if (twitter) items += `<a href="${twitter.startsWith('http') ? twitter : 'https://' + twitter}" target="_blank" class="flex items-center gap-1.5 hover:underline" data-contact-field="twitter" style="color:inherit"><i data-lucide="twitter" style="width:14px;height:14px;color:${ac}"></i>X / Twitter</a>`;
     return items;
   }
 
@@ -13746,6 +14201,16 @@ function buildExportModel(opts) {
   // ---- Template + Accent ----
   const format = o.format || 'pptx';
   let template = STATE.exportTemplate || 'modern-sidebar';
+  // Phase 4b: if the selected template doesn't natively support the
+  // requested format, resolve to its configured fallback. The user has
+  // already been shown a fallback banner before reaching this point
+  // (see openDocxTemplateModal / renderPptxTemplateGrid).
+  try {
+    if (typeof resolveExportTemplate === 'function' && format !== 'html') {
+      const resolved = resolveExportTemplate(template, format);
+      if (resolved && resolved !== template) template = resolved;
+    }
+  } catch(_){}
   let accent;
   if (format === 'docx') {
     template = 'word-classic';
