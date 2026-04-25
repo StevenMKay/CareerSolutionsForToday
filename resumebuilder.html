@@ -1821,15 +1821,8 @@
             <div>
               <label class="text-xs font-semibold uppercase tracking-wider block mb-1" style="color:#4B5563">Status</label>
               <select id="app-status-select" class="input-field" style="font-size:0.8125rem" onchange="updateAppStatus()" data-testid="app-status-select">
-                <option value="not_applied">Not Yet Applied</option>
+                <option value="not_applied">Not applied yet</option>
                 <option value="applied">Applied</option>
-                <option value="phone_screen">Phone Screen</option>
-                <option value="interview">Interview Scheduled</option>
-                <option value="final_round">Final Round</option>
-                <option value="offer">Offer Received</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Not Selected</option>
-                <option value="withdrawn">Withdrawn</option>
               </select>
             </div>
             <div>
@@ -3915,7 +3908,8 @@ function setTargetRoleDraft(nextDraft) {
 // Step 1 workspace draft helpers — version-scoped
 function getResumeDraft() {
   const v = getActiveVersion();
-  return structuredClone(v.resumeDraft || v.resume || STATE.resumeData || {});
+  v.resumeDraft ||= structuredClone(v.resume || {});
+  return v.resumeDraft;
 }
 function setResumeDraft(nextDraft) {
   const v = getActiveVersion();
@@ -3924,16 +3918,18 @@ function setResumeDraft(nextDraft) {
   v.resume = structuredClone(draft);
   v.updatedAt = new Date().toISOString();
   v._resumeInitialized = !!Object.keys(v.resume || {}).length;
+  try { markDirty && markDirty(); } catch(_){ }
   try { invalidateExportModel && invalidateExportModel(); } catch(_){}
 }
 function getCVDraft() {
   const v = getActiveVersion();
-  return structuredClone(v.cv || v.cvDraft || {});
+  v.cvDraft ||= { heading:'', opening:'', body:[], closing:'' };
+  return v.cvDraft;
 }
 function setCVDraft(nextDraft) {
   const v = getActiveVersion();
-  v.cv = structuredClone(nextDraft || {});
   v.cvDraft = structuredClone(nextDraft || {});
+  v.cv = structuredClone(v.cvDraft || {});
   v.updatedAt = new Date().toISOString();
 }
 
@@ -3946,6 +3942,60 @@ function setEnhancedOverlay(nextOverlay) {
   try { invalidateExportModel && invalidateExportModel(); } catch(_){}
 }
 function clearEnhancedOverlay() { setEnhancedOverlay(null); }
+
+function runControlledRefactorChecks(trigger) {
+  let v = null;
+  let resumeDraft = null;
+  let cvDraft = null;
+  let check = null;
+  try { v = getActiveVersion(); } catch(_){ }
+  try { resumeDraft = getResumeDraft(); } catch(_){ }
+  try { cvDraft = getCVDraft(); } catch(_){ }
+
+  const contenteditableCount = document.querySelectorAll('[contenteditable]').length;
+  const flow = {
+    step1_only_edits: true,
+    preview_read_only: contenteditableCount === 0,
+    draft_present: !!resumeDraft,
+    plan_present: !!(v && v.plan),
+    cv_present: !!(v && (v.cv || v.cvDraft || cvDraft))
+  };
+
+  check = {
+    trigger: trigger || 'manual',
+    contenteditableCount,
+    resumeDraftExperienceCount: ((resumeDraft && resumeDraft.experience) || []).length,
+    activeVersionPlanKeys: Object.keys((v && v.plan) || {}).length,
+    activeVersionCvKeys: Object.keys((v && (v.cv || v.cvDraft) || {}) || {}).length,
+    previewReadOnlyPass: flow.preview_read_only,
+    persistenceSurfaceReady: flow.draft_present && flow.plan_present && flow.cv_present
+  };
+
+  try {
+    console.groupCollapsed('[RB-REF-CHECK] ' + check.trigger);
+    console.table(check);
+    console.log('getResumeDraft()', resumeDraft);
+    console.log('getActiveVersion().plan', (v && v.plan) || {});
+    console.log('getActiveVersion().cv', (v && v.cv) || {});
+    if (!check.previewReadOnlyPass) {
+      console.warn('[RB-REF-CHECK] Preview is editable. Expected document.querySelectorAll("[contenteditable]").length === 0');
+    }
+    if (!check.persistenceSurfaceReady) {
+      console.warn('[RB-REF-CHECK] Persistence surface incomplete (resumeDraft/plan/cv missing).');
+    }
+    console.groupEnd();
+  } catch(_){ }
+
+  return check;
+}
+
+function _scheduleControlledRefactorChecks(trigger) {
+  try { setTimeout(() => { try { runControlledRefactorChecks(trigger); } catch(_){ } }, 0); } catch(_){ }
+}
+try {
+  window.runControlledRefactorChecks = runControlledRefactorChecks;
+  window.scheduleControlledRefactorChecks = _scheduleControlledRefactorChecks;
+} catch(_){ }
 
 // Profile helpers — global
 function getProfileData() { return getWorkspace().profile; }
@@ -4249,8 +4299,8 @@ function toggleAccordion(n) {
   activeAccordion = n;
   updateStepDots(n);
 
-  // Step-specific side effects (step-number semantics updated for 5-step flow):
-  //   n=3 → Build & Style  ·  n=4 → Optimize  ·  n=5 → Export
+  // Step-specific side effects (4-step flow):
+  //   n=2 → Optimize  ·  n=3 → Choose Style  ·  n=4 → Preview & Export
   if (n === 3) {
     try { renderSectionToggles && renderSectionToggles(); } catch(_){}
     // Render preview when we have ANY data — hero may not exist for
@@ -4263,8 +4313,8 @@ function toggleAccordion(n) {
     // Render the small style sample preview on the right
     try { renderStylePreview && renderStylePreview(); } catch(_){}
   }
-  if (n === 4) { try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){} }
-  if (n === 5) {
+  if (n === 2) { try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){} }
+  if (n === 4 || n === 5) {
     try { syncExportShareStatus && syncExportShareStatus(); } catch(_){}
     try {
       const _expContainer = document.getElementById('preview-container-export');
@@ -4376,6 +4426,10 @@ function updateAppStatus(options) {
   const notes = document.getElementById('app-notes')?.value || '';
   
   STATE.appStatus = {status, date, url, notes};
+  try {
+    const v = getActiveVersion();
+    v.applicationStatus = status;
+  } catch(_){ }
   if (!silent) markDirty();
   
   // Update badge
@@ -4707,7 +4761,7 @@ function _v(id){ return (document.getElementById(id)?.value || '').trim(); }
 function _pct(filled, total){ return total ? Math.round((filled/total)*100) : 0; }
 
 function evaluateStepCompletion() {
-  const rd = STATE.resumeData || {};
+  const rd = (typeof getResumeDraft === 'function' ? structuredClone(getResumeDraft() || {}) : (STATE.resumeData || {}));
   const expCount = Array.isArray(rd.experience) ? rd.experience.filter(e => e && (e.title || e.company)).length : 0;
   const skillCount = Array.isArray(rd.skills) ? rd.skills.length : 0;
   const eduCount = Array.isArray(rd.education) ? rd.education.length : 0;
@@ -5542,18 +5596,12 @@ async function optimizeForJob() {
     // only mutates the resume — without this, the user has to click
     // Generate again to get plan_phases/success_*/kpis.
     try {
-      const _hasPlanSection = !!(STATE.sections && STATE.sections.includes('plan'));
-      console.log('[optimize→plan] sections=', STATE.sections, ' hasPlan=', _hasPlanSection);
-      if (_hasPlanSection) {
-        console.log('[optimize→plan] calling generatePlanIntoActiveVersion()…');
-        const planRes = await generatePlanIntoActiveVersion();
-        if (planRes && planRes.ok) {
-          console.log('[optimize→plan] OK — plan keys written to active version');
-        } else {
-          console.warn('[optimize→plan] failed:', planRes && planRes.error);
-        }
+      console.log('[optimize→plan] calling generatePlanIntoActiveVersion()…');
+      const planRes = await generatePlanIntoActiveVersion();
+      if (planRes && planRes.ok) {
+        console.log('[optimize→plan] OK — plan keys written to active version');
       } else {
-        console.log('[optimize→plan] skipped — "plan" not in STATE.sections');
+        console.warn('[optimize→plan] failed:', planRes && planRes.error);
       }
     } catch(e) { console.warn('[optimize→plan] threw:', e); }
 
@@ -5648,6 +5696,14 @@ try { window.getResumeMatchScore = getResumeMatchScore; } catch(_){}
 
 // ---------- RESULT DRAWER ----------
 
+function formatAppliedChangePath(path) {
+  return String(path || '')
+    .replace(/\[(\d+)\]/g, ' $1')
+    .replace(/\./g, ' › ')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
 // Helper: Convert field paths like "experience[0].bullets[3]" to human-readable text (FIX #4)
 function humanizeFieldPath(fieldPath) {
   if (!fieldPath) return 'Resume content';
@@ -5668,7 +5724,7 @@ function humanizeFieldPath(fieldPath) {
   // summary -> Summary
   if (/^summary/.test(fieldPath)) return 'Professional summary';
   // Default fallback
-  return fieldPath;
+  return formatAppliedChangePath(fieldPath);
 }
 
 function showOptimizeResult(s) {
@@ -7500,6 +7556,41 @@ function _doStartNewPlan() {
   }
 }
 
+function buildPersistencePayload() {
+  const v = getActiveVersion();
+  const w = getWorkspace();
+
+  return {
+    profile: w.profile,
+    applicationStatus: v.applicationStatus,
+    targetRole: v.targetRole,
+    resumeDraft: v.resumeDraft,
+    cvDraft: v.cvDraft,
+    resume: v.resume,
+    plan: v.plan,
+    cv: v.cv,
+    analysis: v.analysis,
+    exportSettings: v.exportSettings
+  };
+}
+
+function hydrateWorkspaceFromSaved(data) {
+  const v = getActiveVersion();
+
+  setProfileData(data.profile || {});
+  v.applicationStatus = data.applicationStatus || (data.appStatus && data.appStatus.status) || 'not_applied';
+  v.targetRole = data.targetRole || {};
+  v.resumeDraft = data.resumeDraft || {};
+  v.cvDraft = data.cvDraft || {};
+  v.resume = data.resume || {};
+  v.plan = data.plan || {};
+  v.cv = data.cv || {};
+  v.analysis = data.analysis || {};
+  v.exportSettings = data.exportSettings || {};
+
+  try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
+}
+
 async function loadPlan(planId) {
   window.__isHydratingPlan = true;
   showLoading('Loading plan...');
@@ -7509,6 +7600,7 @@ async function loadPlan(planId) {
     const d = doc.data();
     currentPlanId = planId;
     _syncActiveVersionFromPlanId(planId);
+    try { hydrateWorkspaceFromSaved(d || {}); } catch(_){ }
     STATE.resumeData = d.resumeData || d.resumeDraft || {};
     STATE.roleResearch = d.roleResearch || {};
     try { if (d.workspaceProfile) setProfileData(d.workspaceProfile); } catch(_){}
@@ -7544,7 +7636,7 @@ async function loadPlan(planId) {
       const _pc = (d.exportSettings && d.exportSettings.previewContent) || d.previewContent;
       const _v  = getActiveVersion();
       _v.exportSettings = _v.exportSettings || {};
-      _v.exportSettings.previewContent = (_pc === 'resume' || _pc === 'plan' || _pc === 'combined') ? _pc : 'combined';
+      _v.exportSettings.previewContent = (_pc === 'resume' || _pc === 'cv' || _pc === 'plan' || _pc === 'combined') ? _pc : 'combined';
     } catch(_){}
     STATE.pptxColor = (typeof d.pptxColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(d.pptxColor)) ? d.pptxColor : null;
     // Derive resume date from plan timestamp if not stored (older plans)
@@ -7731,6 +7823,7 @@ async function loadPlan(planId) {
     populateVersionSelect();
     evaluateStepCompletion();
     updateStepDots();
+    try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('loadPlan'); } catch(_){ }
   } catch(e) { console.error(e); showToast('Error loading plan'); }
   window.__isHydratingPlan = false;
   hideLoading();
@@ -7777,6 +7870,10 @@ async function savePlan() {
   if (!currentUser) return showToast('Please sign in first');
   if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   try { saveWorkspaceStepToState && saveWorkspaceStepToState(); } catch(_){}
+  try {
+    const v = getActiveVersion();
+    v.applicationStatus = document.getElementById('app-status-select')?.value || v.applicationStatus || 'not_applied';
+  } catch(_){ }
   // Pull any pending inline preview edits into STATE before persisting so the
   // saved document reflects what the user currently sees on screen.
   // 2026-04-25 BUG-FIX: target the container being edited (or the visible
@@ -7815,6 +7912,7 @@ async function savePlan() {
     }
   }
   const planData = {
+    ...buildPersistencePayload(),
     userId: currentUser.uid,
     userEmail: currentUser.email,
     userName: currentUser.displayName || '',
@@ -7907,6 +8005,7 @@ async function savePlan() {
     updateSaveButtonState();
     populateVersionSelect();
     showToast('Plan saved!');
+    try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('savePlan'); } catch(_){ }
     // Auto-sync photo & resume to profile
     try {
       const profileUpdate = {};
@@ -9225,18 +9324,19 @@ function addManualExperience() {
       <button type="button" onclick="removeManualExperience(this)" class="text-xs" style="color:#EF4444">Remove Position</button>
     </div>
     <div class="grid sm:grid-cols-2 gap-2">
-      <input class="input-field manual-exp-title" placeholder="Job Title">
-      <input class="input-field manual-exp-company" placeholder="Company">
+      <input class="input-field manual-exp-title" data-exp-field="title" placeholder="Job Title">
+      <input class="input-field manual-exp-company" data-exp-field="company" placeholder="Company">
     </div>
     <div class="grid sm:grid-cols-2 gap-2">
-      <input class="input-field manual-exp-dates" placeholder="Dates (e.g. Jan 2020 - Present)">
-      <input class="input-field manual-exp-location" placeholder="Location (optional)">
+      <input class="input-field manual-exp-dates" data-exp-field="dates" placeholder="Dates (e.g. Jan 2020 - Present)">
+      <input class="input-field manual-exp-location" data-exp-field="location" placeholder="Location (optional)">
     </div>
     <label class="inline-flex items-center gap-2 text-xs font-medium" style="color:#475569">
-      <input type="checkbox" class="manual-exp-current" style="accent-color:#005EB8">
+      <input type="checkbox" class="manual-exp-current" data-exp-field="isCurrentRole" style="accent-color:#005EB8">
       Current role
     </label>
-    <textarea class="input-field manual-exp-summary" placeholder="Role summary (optional, 1-2 sentences)" style="min-height:50px"></textarea>
+    <textarea class="input-field manual-exp-summary" data-exp-field="role_summary" placeholder="Role summary (optional, 1-2 sentences)" style="min-height:50px"></textarea>
+    <textarea class="input-field manual-exp-additional-details" data-exp-field="additional_details" placeholder="Additional details (optional)" style="min-height:50px"></textarea>
     <div class="manual-exp-bullets-wrap">
       <div class="flex items-center justify-between mb-1">
         <label class="text-[11px] font-semibold uppercase tracking-wide" style="color:#475569">Role Achievements</label>
@@ -9563,14 +9663,8 @@ function updateSubAccMetas() {
   const skillsN = (STATE.resumeData && Array.isArray(STATE.resumeData.skills)) ? STATE.resumeData.skills.length : 0;
   set('skills', skillsN ? (skillsN + ' Selected') : 'Empty', skillsN ? 'complete' : 'empty');
   try {
-    const titleVal = (document.getElementById('manual-current-title')||{}).value || '';
-    const summaryVal = (document.getElementById('manual-summary')||{}).value || '';
-    const additionalVal = (document.getElementById('additional-resume-details')||{}).value || '';
-    const workComplete = !!(
-      experienceN || achievementsN || educationN || volunteeringN || certificationsN || skillsN ||
-      String(titleVal).trim() || String(summaryVal).trim() || String(additionalVal).trim()
-    );
-    set('work-exp-main', workComplete ? 'Complete' : 'Empty', workComplete ? 'complete' : 'empty');
+    const hasData = (getResumeDraft().experience || []).length > 0;
+    set('work-exp-main', hasData ? 'Complete' : 'Empty', hasData ? 'complete' : 'empty');
   } catch(_){ }
   try {
     const cvBody = (document.getElementById('workspace-cv-body')||{}).value || '';
@@ -9684,11 +9778,13 @@ function renderWorkspaceExperience(experience) {
     item.querySelector('.manual-exp-location').value = e.location || '';
     const currentRoleEl = item.querySelector('.manual-exp-current');
     if (currentRoleEl) {
-      currentRoleEl.checked = !!(e.current_role || _looksLikeCurrentRoleDates(e.dates || ''));
-      if (e.current_role === true || e.current_role === false) currentRoleEl.dataset.manual = '1';
+      currentRoleEl.checked = !!(e.isCurrentRole || e.current_role || _looksLikeCurrentRoleDates(e.dates || ''));
+      if (e.isCurrentRole === true || e.isCurrentRole === false || e.current_role === true || e.current_role === false) currentRoleEl.dataset.manual = '1';
     }
     const summaryEl = item.querySelector('.manual-exp-summary');
     if (summaryEl) summaryEl.value = e.role_summary || '';
+    const additionalDetailsEl = item.querySelector('.manual-exp-additional-details');
+    if (additionalDetailsEl) additionalDetailsEl.value = e.additional_details || '';
     renderExpList(item, (e.bullets || []).map(b => typeof b === 'string' ? b : ((b && b.text) || '')).filter(Boolean));
   });
   renumberManualExperience();
@@ -9904,9 +10000,11 @@ function saveManualEntry(opts) {
     const dates = item.querySelector('.manual-exp-dates').value.trim();
     const location = item.querySelector('.manual-exp-location').value.trim();
     const currentRoleEl = item.querySelector('.manual-exp-current');
-    const current_role = !!((currentRoleEl && currentRoleEl.checked) || _looksLikeCurrentRoleDates(dates));
+    const isCurrentRole = !!((currentRoleEl && currentRoleEl.checked) || _looksLikeCurrentRoleDates(dates));
     const summaryEl = item.querySelector('.manual-exp-summary');
     const role_summary = summaryEl ? summaryEl.value.trim() : '';
+    const additionalDetailsEl = item.querySelector('.manual-exp-additional-details');
+    const additional_details = additionalDetailsEl ? additionalDetailsEl.value.trim() : '';
     // Prefer per-bullet rows (new structure); fall back to legacy textarea
     // (older saved entries that haven't been re-rendered yet).
     let bullets = [];
@@ -9918,7 +10016,21 @@ function saveManualEntry(opts) {
       const bulletsRaw = legacy ? legacy.value.trim() : '';
       bullets = bulletsRaw ? bulletsRaw.split('\n').map(b => b.trim()).filter(Boolean) : [];
     }
-    if (title || company) experience.push({ title, company, dates, location, current_role, role_summary, bullets });
+    if (title || company) {
+      experience.push({
+        title,
+        company,
+        location,
+        dates,
+        isCurrentRole,
+        role_summary,
+        additional_details,
+        responsibilities: [],
+        achievements: [],
+        accomplishments: [],
+        bullets
+      });
+    }
   });
 
   const education = [];
@@ -9994,6 +10106,7 @@ function saveManualEntry(opts) {
   const cName = document.getElementById('contact-name').value.trim();
   if (cName && !rd.name) rd.name = cName;
   STATE.resumeData = rd;
+  try { setResumeDraft && setResumeDraft(rd); } catch(_){ }
 
   // Mirror About Me edits into the active version's resume so the
   // live/export previews + buildExportModel see the new data without
@@ -10085,7 +10198,7 @@ try {
 } catch(_){}
 
 function populateManualEntryFromState() {
-  const rd = STATE.resumeData;
+  const rd = (typeof getResumeDraft === 'function' ? getResumeDraft() : null) || STATE.resumeData;
   if (!rd) return;
   document.getElementById('manual-current-title').value = rd.current_title || '';
   document.getElementById('manual-summary').value = rd.summary || '';
@@ -10221,6 +10334,39 @@ function resetManualEntry() {
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
 }
 
+function persistExtractedDataToWorkspace(data) {
+  const v = getActiveVersion();
+  const w = getWorkspace();
+
+  setProfileData({
+    ...(w.profile || {}),
+    name: data.name || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    location: data.location || data.address || '',
+    linkedin: data.linkedin || ''
+  });
+
+  const draft = getResumeDraft();
+  Object.assign(draft, {
+    name: data.name || draft.name || '',
+    executive_summary: data.summary || '',
+    summary: data.summary || '',
+    current_title: data.current_title || draft.current_title || '',
+    skills: data.skills || [],
+    achievements: data.achievements || [],
+    education: data.education || [],
+    certifications: data.certifications || [],
+    experience: data.experience || []
+  });
+  setResumeDraft(draft);
+
+  v.extractedRaw = structuredClone(data || {});
+
+  try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
+  try { markDirty && markDirty(); } catch(_){ }
+}
+
 async function parseResume() {
   if (!currentUser) {
     showToast('Please sign in to continue');
@@ -10270,7 +10416,9 @@ async function parseResume() {
     await handleBuilderResponse(res);
     const data = await res.json();
     if (data.error) { throw new Error(data.error); }
-    STATE.resumeData = data.resume_data;
+    const extractedData = data.resume_data || {};
+    STATE.resumeData = extractedData;
+    try { persistExtractedDataToWorkspace(extractedData); } catch(_){ }
     STATE.rawResumeText = data.raw_text || text;
     // ISS-006: verbose console diagnostics so we can see exactly what the
     // server returned (per-field counts + sample values) and, later, what
@@ -10278,7 +10426,7 @@ async function parseResume() {
     // symptom: preview showed "Achievements: 2 found" but the Achievements
     // form stayed empty.
     try {
-      const rd = data.resume_data || {};
+      const rd = extractedData || {};
       const len = v => Array.isArray(v) ? v.length : 0;
       console.groupCollapsed('%c[extract] Server returned resume_data','color:#2563EB;font-weight:600');
       console.log('Raw text length:', (data.raw_text || text || '').length);
@@ -10307,7 +10455,7 @@ async function parseResume() {
       if (len(rd.leadership_engagement)) console.log('leadership_engagement[] sample:', rd.leadership_engagement);
       console.groupEnd();
     } catch(_){}
-    renderResumePreview(data.resume_data);
+    renderResumePreview(extractedData);
     document.getElementById('resume-preview').classList.remove('hidden');
     // Show filename and extraction date
     const fileInfoEl = document.getElementById('resume-file-info');
@@ -10323,14 +10471,14 @@ async function parseResume() {
     const contactGithubEl = document.getElementById('contact-github');
     const contactWebsiteEl = document.getElementById('contact-website');
     const contactTwitterEl = document.getElementById('contact-twitter');
-    if (data.resume_data.name && contactNameEl && !contactNameEl.value.trim()) contactNameEl.value = data.resume_data.name;
-    if (data.resume_data.phone && contactPhoneEl && !contactPhoneEl.value.trim()) contactPhoneEl.value = data.resume_data.phone;
-    if (data.resume_data.email && contactEmailEl && !contactEmailEl.value.trim()) contactEmailEl.value = data.resume_data.email;
-    if (data.resume_data.address && !getContactLocation()) setContactLocationFields(data.resume_data.address);
-    if (data.resume_data.linkedin && contactLinkedinEl && !contactLinkedinEl.value.trim()) contactLinkedinEl.value = data.resume_data.linkedin;
-    if (data.resume_data.github && contactGithubEl && !contactGithubEl.value.trim()) contactGithubEl.value = data.resume_data.github;
-    if (data.resume_data.website && contactWebsiteEl && !contactWebsiteEl.value.trim()) contactWebsiteEl.value = data.resume_data.website;
-    if (data.resume_data.twitter && contactTwitterEl && !contactTwitterEl.value.trim()) contactTwitterEl.value = data.resume_data.twitter;
+    if (extractedData.name && contactNameEl && !contactNameEl.value.trim()) contactNameEl.value = extractedData.name;
+    if (extractedData.phone && contactPhoneEl && !contactPhoneEl.value.trim()) contactPhoneEl.value = extractedData.phone;
+    if (extractedData.email && contactEmailEl && !contactEmailEl.value.trim()) contactEmailEl.value = extractedData.email;
+    if (extractedData.address && !getContactLocation()) setContactLocationFields(extractedData.address);
+    if (extractedData.linkedin && contactLinkedinEl && !contactLinkedinEl.value.trim()) contactLinkedinEl.value = extractedData.linkedin;
+    if (extractedData.github && contactGithubEl && !contactGithubEl.value.trim()) contactGithubEl.value = extractedData.github;
+    if (extractedData.website && contactWebsiteEl && !contactWebsiteEl.value.trim()) contactWebsiteEl.value = extractedData.website;
+    if (extractedData.twitter && contactTwitterEl && !contactTwitterEl.value.trim()) contactTwitterEl.value = extractedData.twitter;
     syncResumeBuildNameFromBasicInfo();
     // Store filename/date for persistent collapsed bar
     STATE.resumeFileName = fname;
@@ -10344,6 +10492,7 @@ async function parseResume() {
     try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
     // Auto-collapse the upload section now that resume is loaded
     collapseResumeUpload(fname, now);
+    try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('parseResume'); } catch(_){ }
     // Clear the extraction status message (FIX #1)
     const parseStatusEl = document.getElementById('parse-status');
     if (parseStatusEl) parseStatusEl.textContent = '';
@@ -14499,11 +14648,14 @@ try { window.__selectAndRender = _selectAndRender; } catch(_){}
 
 const PREVIEW_READ_ONLY = true;
 
-function disablePreviewEditing(container) {
-  if (!container) return;
-  container.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-  container.querySelectorAll('.item-del,.item-add,.item-edit-btn,.item-vis-toggle,.mobile-action-bar,.editable-action-bar,.editable-done-bar,.drag-handle').forEach(el => el.remove());
-  container.querySelectorAll('.editable-tapped,.item-tapped,.item-editing,.editing-active').forEach(el => {
+function disablePreviewEditing(root = document) {
+  if (!root) return;
+  root.querySelectorAll('[contenteditable]').forEach(el => {
+    el.removeAttribute('contenteditable');
+  });
+  root.querySelectorAll('.item-del, .mobile-action-bar').forEach(el => el.remove());
+  root.querySelectorAll('.item-add,.item-edit-btn,.item-vis-toggle,.editable-action-bar,.editable-done-bar,.drag-handle').forEach(el => el.remove());
+  root.querySelectorAll('.editable-tapped,.item-tapped,.item-editing,.editing-active').forEach(el => {
     el.classList.remove('editable-tapped', 'item-tapped', 'item-editing', 'editing-active');
   });
 }
@@ -15013,7 +15165,7 @@ function renderPreview(g, targetId) {
   // experience block at L13203, but this guarantees idempotent coverage
   // for any sub-renderers that might be called from this path.
   try { _stampExperienceAnchors(_container); } catch(_){}
-  try { if (PREVIEW_READ_ONLY) disablePreviewEditing(_container); } catch(_){ }
+  try { if (PREVIEW_READ_ONLY) disablePreviewEditing(document); } catch(_){ }
   if (STATE._debugRender) {
     try {
       console.log('[renderPreview] container=', containerId,
@@ -15027,6 +15179,7 @@ function renderPreview(g, targetId) {
     initDragAndDrop();
     initEditableTouchHandlers();
   }
+  try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('renderPreview'); } catch(_){ }
   // Update right panel with resume data
   if (typeof updateRightPanel === 'function') updateRightPanel();
 }
@@ -15709,7 +15862,7 @@ function invalidateExportModel() {
 // (data-section, data-list, semantic classes) rather than brittle indexes.
 // ─────────────────────────────────────────────────────────────────────────────
 function syncPreviewEditsToState(rootId) {
-  if (PREVIEW_READ_ONLY) return;
+  return false;
 }
 
 // Expose for console debugging / tests
@@ -15717,9 +15870,11 @@ try { window.__syncPreviewEditsToState = syncPreviewEditsToState; } catch(_){}
 
 // 2026-04-25 BUG-FIX: canonical name for the rebuilt scrape. Old name kept
 // as alias for backwards-compat (blur listener and any external callers).
-const syncExportEditsToWorkspace = PREVIEW_READ_ONLY ? function(){} : syncPreviewEditsToState;
+const syncExportEditsToWorkspace = function() { return false; };
 try { window.syncExportEditsToWorkspace = syncExportEditsToWorkspace; } catch(_){}
 try { window.syncPreviewEditsToState  = syncExportEditsToWorkspace; } catch(_){}
+try { window.syncPreviewEditsToState = () => false; } catch(_){ }
+try { window.syncExportEditsToWorkspace = () => false; } catch(_){ }
 
 // 2026-04-25 BUG-FIX: delegated input/blur listeners — guarantees that ANY
 // edit inside either preview pane triggers a write-through to the active
@@ -15813,7 +15968,12 @@ function _normalizeExperience(arr) {
     company: e.company || '',
     location: e.location || '',
     dates: e.dates || e.timeframe || '',
+    isCurrentRole: !!(e.isCurrentRole || e.current_role),
     role_summary: e.role_summary || '',
+    additional_details: e.additional_details || '',
+    responsibilities: Array.isArray(e.responsibilities) ? e.responsibilities.slice() : [],
+    achievements: Array.isArray(e.achievements) ? e.achievements.slice() : [],
+    accomplishments: Array.isArray(e.accomplishments) ? e.accomplishments.slice() : [],
     bullets: _normalizeBullets(e.bullets || e.actions || e.key_actions || [])
   }));
 }
@@ -15827,6 +15987,9 @@ function _normalizeEducation(arr) {
       year: e.year || e.graduation_year || e.date || ''
     };
   });
+}
+function normalizeEducationForExport(arr) {
+  return _normalizeEducation(arr || []);
 }
 function _normalizeCertifications(arr) {
   if (!Array.isArray(arr)) return [];
@@ -16215,7 +16378,8 @@ function buildExportModel(opts) {
   // are respected. See pickExport comment above.
   let experience     = _normalizeExperience(pickExport('experience') || []);
   let skills         = (pickExport('skills') || []).filter(Boolean);
-  let education      = _normalizeEducation(pickExport('education') || []);
+  const _vForEdu = (typeof getActiveVersion === 'function') ? getActiveVersion() : null;
+  let education      = normalizeEducationForExport((_vForEdu && _vForEdu.resume && _vForEdu.resume.education) || (_vForEdu && _vForEdu.resumeDraft && _vForEdu.resumeDraft.education) || pickExport('education') || []);
   let certifications = _normalizeCertifications(pickExport('certifications') || []);
   let achievements   = _normalizeAchievements(pickExport('achievements') || []);
   const cvDraft = (typeof getCVDraft === 'function') ? (getCVDraft() || {}) : {};
@@ -16948,6 +17112,12 @@ function exportHTML_web() {
 // wrapped in a paper-sized page frame. This is the "what you see is what
 // you get" HTML path — identical layout to the selected Word/PowerPoint
 // template.
+function stripEditorControlsForExport(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('.item-del,.mobile-action-bar').forEach(el => el.remove());
+  root.querySelectorAll('.item-add,.item-edit-btn,.item-vis-toggle,.editable-action-bar,.editable-done-bar,.drag-handle').forEach(el => el.remove());
+}
+
 async function exportHTML_template() {
   if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   try {
@@ -16976,6 +17146,10 @@ async function exportHTML_template() {
     const inner = (model.sections && model.sections[0] === 'cv')
       ? _renderCVPage(model, model.accent)
       : _selectAndRender(tid, model, model.accent);
+    const _tmpExportRoot = document.createElement('div');
+    _tmpExportRoot.innerHTML = inner;
+    stripEditorControlsForExport(_tmpExportRoot);
+    const safeInner = _tmpExportRoot.innerHTML;
 
     // Paper-size page frame: 7.5 × 10in for PPTX-family, 8.5 × 11in for DOCX
     const isDocxShape = (STATE.previewFormat === 'docx');
@@ -17005,7 +17179,7 @@ async function exportHTML_template() {
   }
 </style>
 </head><body>
-  <div class="pv-page">${inner}</div>
+  <div class="pv-page">${safeInner}</div>
 </body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -17056,6 +17230,10 @@ async function exportPDF() {
     const inner = (model.sections && model.sections[0] === 'cv')
       ? _renderCVPage(model, model.accent)
       : _selectAndRender(tid, model, model.accent);
+    const _tmpExportRoot = document.createElement('div');
+    _tmpExportRoot.innerHTML = inner;
+    stripEditorControlsForExport(_tmpExportRoot);
+    const safeInner = _tmpExportRoot.innerHTML;
 
     const isDocxShape = (STATE.previewFormat === 'docx');
     const pageW = isDocxShape ? '8.5in' : '7.5in';
@@ -17084,7 +17262,7 @@ async function exportPDF() {
   }
 </style>
 </head><body>
-  <div class="pv-page">${inner}</div>
+  <div class="pv-page">${safeInner}</div>
   <script>
     // Auto-trigger the print dialog so the user can Save as PDF.
     // Small delay lets fonts load before the print preview renders.
