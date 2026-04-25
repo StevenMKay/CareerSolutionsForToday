@@ -5445,13 +5445,20 @@ async function optimizeForJob() {
     // only mutates the resume — without this, the user has to click
     // Generate again to get plan_phases/success_*/kpis.
     try {
-      if (STATE.sections && STATE.sections.includes('plan')) {
+      const _hasPlanSection = !!(STATE.sections && STATE.sections.includes('plan'));
+      console.log('[optimize→plan] sections=', STATE.sections, ' hasPlan=', _hasPlanSection);
+      if (_hasPlanSection) {
+        console.log('[optimize→plan] calling generatePlanIntoActiveVersion()…');
         const planRes = await generatePlanIntoActiveVersion();
-        if (!planRes || !planRes.ok) {
-          console.warn('[optimize] plan generation skipped/failed:', planRes && planRes.error);
+        if (planRes && planRes.ok) {
+          console.log('[optimize→plan] OK — plan keys written to active version');
+        } else {
+          console.warn('[optimize→plan] failed:', planRes && planRes.error);
         }
+      } else {
+        console.log('[optimize→plan] skipped — "plan" not in STATE.sections');
       }
-    } catch(e) { console.warn('[optimize] plan chain failed:', e); }
+    } catch(e) { console.warn('[optimize→plan] threw:', e); }
     try {
       if (typeof generateAndRenderPreview === 'function') { generateAndRenderPreview(); }
       else if (typeof renderPreview === 'function') {
@@ -7535,7 +7542,28 @@ async function savePlan() {
   if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   // Pull any pending inline preview edits into STATE before persisting so the
   // saved document reflects what the user currently sees on screen.
-  try { syncPreviewEditsToState && syncPreviewEditsToState(); } catch(_){}
+  // 2026-04-25 BUG-FIX: target the container being edited (or the visible
+  // export pane) so we don't scrape stale DOM from the OTHER preview tab.
+  try {
+    if (typeof syncPreviewEditsToState === 'function') {
+      const ae = document.activeElement;
+      let _root = null;
+      if (ae && ae.closest) {
+        const exp = ae.closest('#preview-container-export, #preview-container-export-b');
+        if (exp) _root = exp.id;
+        else {
+          const live = ae.closest('#preview-container, #preview-container-b');
+          if (live) _root = live.id;
+        }
+      }
+      if (!_root) {
+        const exp = document.getElementById('preview-container-export');
+        if (exp && exp.offsetParent && !exp.classList.contains('hidden')) _root = 'preview-container-export';
+        else _root = 'preview-container';
+      }
+      syncPreviewEditsToState(_root);
+    }
+  } catch(_){}
   showLoading('Saving plan...');
   // Upload photo if new local data
   if (photoDataUrl && !STATE.photoUrl.startsWith('https://firebasestorage')) {
@@ -8865,14 +8893,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function addManualExperience() {
   const list = document.getElementById('manual-experience-list');
+  if (!list) return;
   const idx = list.children.length;
   const div = document.createElement('div');
   div.className = 'manual-exp-item p-3 rounded-lg border space-y-2';
   div.style.cssText = 'border-color:#E5E7EB;background:#FAFBFC';
   div.innerHTML = `
     <div class="flex items-center justify-between">
-      <span class="text-xs font-semibold" style="color:#6B7280">Position ${idx + 1}</span>
-      <button type="button" onclick="this.closest('.manual-exp-item').remove()" class="text-xs" style="color:#EF4444">Remove</button>
+      <span class="text-xs font-semibold manual-exp-pos-label" style="color:#6B7280">Position ${idx + 1}</span>
+      <button type="button" onclick="removeManualExperience(this)" class="text-xs" style="color:#EF4444">Remove Position</button>
     </div>
     <div class="grid sm:grid-cols-2 gap-2">
       <input class="input-field manual-exp-title" placeholder="Job Title">
@@ -8882,9 +8911,52 @@ function addManualExperience() {
       <input class="input-field manual-exp-dates" placeholder="Dates (e.g. Jan 2020 - Present)">
       <input class="input-field manual-exp-location" placeholder="Location (optional)">
     </div>
-    <textarea class="input-field manual-exp-bullets" placeholder="Key accomplishments (one per line)" style="min-height:60px"></textarea>`;
+    <textarea class="input-field manual-exp-summary" placeholder="Role summary (optional, 1-2 sentences)" style="min-height:50px"></textarea>
+    <div class="manual-exp-bullets-wrap">
+      <div class="flex items-center justify-between mb-1">
+        <label class="text-[11px] font-semibold uppercase tracking-wide" style="color:#475569">Role Achievements</label>
+        <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addManualBullet(this)">+ Add Bullet</button>
+      </div>
+      <div class="manual-exp-bullets-list space-y-1.5"></div>
+    </div>`;
   list.appendChild(div);
+  // Seed one empty bullet row so user sees the structure immediately
+  try { addManualBullet(div.querySelector('.manual-exp-bullets-wrap button')); } catch(_){}
   lucide?.createIcons?.();
+}
+
+// Add a single bullet row inside the position whose "+ Add Bullet" button was clicked.
+function addManualBullet(btn) {
+  const wrap = btn && btn.closest('.manual-exp-bullets-wrap');
+  if (!wrap) return null;
+  const list = wrap.querySelector('.manual-exp-bullets-list');
+  if (!list) return null;
+  const row = document.createElement('div');
+  row.className = 'manual-exp-bullet-row flex items-start gap-2';
+  row.innerHTML = `
+    <span aria-hidden="true" style="color:#94A3B8;font-size:18px;line-height:1.6;flex-shrink:0">&#8227;</span>
+    <input class="input-field manual-exp-bullet-input flex-1" placeholder="Achievement, accomplishment, or responsibility">
+    <button type="button" class="manual-exp-bullet-del" onclick="this.closest('.manual-exp-bullet-row').remove()" title="Remove bullet" style="background:transparent;border:none;color:#EF4444;cursor:pointer;font-size:16px;padding:4px 8px;line-height:1">&times;</button>`;
+  list.appendChild(row);
+  try { row.querySelector('input').focus(); } catch(_){}
+  return row;
+}
+
+// Remove a position and renumber the remaining "Position N" labels.
+function removeManualExperience(btn) {
+  const item = btn && btn.closest('.manual-exp-item');
+  if (!item) return;
+  item.remove();
+  renumberManualExperience();
+  try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
+  try { markDirty && markDirty(); } catch(_){}
+}
+
+function renumberManualExperience() {
+  document.querySelectorAll('#manual-experience-list .manual-exp-item').forEach((item, i) => {
+    const lab = item.querySelector('.manual-exp-pos-label');
+    if (lab) lab.textContent = 'Position ' + (i + 1);
+  });
 }
 
 function addManualEducation() {
@@ -9194,7 +9266,9 @@ function updateSubAccMetas() {
   } catch(_){}
 }
 
-function saveManualEntry() {
+function saveManualEntry(opts) {
+  const _opts = opts || {};
+  const _quiet = !!_opts.quiet;
   const currentTitle = document.getElementById('manual-current-title').value.trim();
   const summary = document.getElementById('manual-summary').value.trim();
   const skillsRaw = document.getElementById('manual-skills').value.trim();
@@ -9206,9 +9280,20 @@ function saveManualEntry() {
     const company = item.querySelector('.manual-exp-company').value.trim();
     const dates = item.querySelector('.manual-exp-dates').value.trim();
     const location = item.querySelector('.manual-exp-location').value.trim();
-    const bulletsRaw = item.querySelector('.manual-exp-bullets').value.trim();
-    const bullets = bulletsRaw ? bulletsRaw.split('\n').map(b => b.trim()).filter(Boolean) : [];
-    if (title || company) experience.push({ title, company, dates, location, bullets });
+    const summaryEl = item.querySelector('.manual-exp-summary');
+    const role_summary = summaryEl ? summaryEl.value.trim() : '';
+    // Prefer per-bullet rows (new structure); fall back to legacy textarea
+    // (older saved entries that haven't been re-rendered yet).
+    let bullets = [];
+    const bulletInputs = item.querySelectorAll('.manual-exp-bullet-input');
+    if (bulletInputs.length) {
+      bullets = [...bulletInputs].map(b => b.value.trim()).filter(Boolean);
+    } else {
+      const legacy = item.querySelector('.manual-exp-bullets');
+      const bulletsRaw = legacy ? legacy.value.trim() : '';
+      bullets = bulletsRaw ? bulletsRaw.split('\n').map(b => b.trim()).filter(Boolean) : [];
+    }
+    if (title || company) experience.push({ title, company, dates, location, role_summary, bullets });
   });
 
   const education = [];
@@ -9246,29 +9331,111 @@ function saveManualEntry() {
   });
 
   if (!currentTitle && !summary && !experience.length && !skills.length && !education.length && !achievements.length && !volunteering.length) {
-    showToast('Please fill in at least one field'); return;
+    if (_quiet) {
+      // Auto-save with empty form: still flush an empty snapshot so deletions
+      // of the last item propagate (otherwise removed sections would resurrect
+      // on reload because we'd skip the write).
+    } else {
+      showToast('Please fill in at least one field'); return;
+    }
   }
 
-  // Merge into STATE.resumeData (preserve existing AI-extracted data, override with manual)
+  // Merge into STATE.resumeData. Auto-save mode (`_quiet`) always overwrites
+  // editable sections with the current form snapshot — including empty ones —
+  // so deletions stick. Explicit "Save Changes" mode keeps the legacy "merge
+  // only non-empty" behavior so a user clicking Save with one section blank
+  // doesn't wipe AI-extracted data they haven't reviewed yet.
   const rd = STATE.resumeData || {};
-  if (currentTitle) rd.current_title = currentTitle;
-  if (summary) rd.summary = summary;
-  if (skills.length) rd.skills = skills;
-  if (experience.length) rd.experience = experience;
-  if (education.length) rd.education = education;
-  if (certifications.length) rd.certifications = certifications;
-  if (achievements.length) rd.achievements = achievements;
-  if (volunteering.length) rd.volunteering = volunteering;
+  if (_quiet) {
+    rd.current_title = currentTitle;
+    rd.summary       = summary;
+    rd.skills        = skills;
+    rd.experience    = experience;
+    rd.education     = education;
+    rd.certifications = certifications;
+    rd.achievements  = achievements;
+    rd.volunteering  = volunteering;
+  } else {
+    if (currentTitle) rd.current_title = currentTitle;
+    if (summary) rd.summary = summary;
+    if (skills.length) rd.skills = skills;
+    if (experience.length) rd.experience = experience;
+    if (education.length) rd.education = education;
+    if (certifications.length) rd.certifications = certifications;
+    if (achievements.length) rd.achievements = achievements;
+    if (volunteering.length) rd.volunteering = volunteering;
+  }
   // Also set name from contact field if not set
   const cName = document.getElementById('contact-name').value.trim();
   if (cName && !rd.name) rd.name = cName;
   STATE.resumeData = rd;
 
-  renderResumePreview(rd);
-  document.getElementById('resume-preview').classList.remove('hidden');
+  // Mirror About Me edits into the active version's resume so the
+  // live/export previews + buildExportModel see the new data without
+  // requiring a re-import or re-optimize.
+  try {
+    if (typeof getActiveVersion === 'function') {
+      const v = getActiveVersion();
+      if (v) {
+        v.resume = v.resume || {};
+        // Only mirror profile-shaped keys; don't clobber generated.hero etc.
+        ['current_title','summary','skills','experience','education','certifications','achievements','volunteering','name'].forEach(k => {
+          if (rd[k] !== undefined) v.resume[k] = rd[k];
+        });
+      }
+    }
+  } catch(_){}
+  // Cache is now stale — force buildExportModel to rebuild from the updated state
+  try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
+
+  if (!_quiet) {
+    renderResumePreview(rd);
+    document.getElementById('resume-preview').classList.remove('hidden');
+  }
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
-  showToast('Manual resume data saved!');
+  try { markDirty && markDirty({ needsReanalysis: false }); } catch(_){}
+  if (!_quiet) showToast('Manual resume data saved!');
 }
+
+// 2026-04-25: Auto-persist About Me edits/adds/removes to STATE without
+// requiring the user to click "Save Changes". Debounced so we don't thrash
+// during rapid typing. Idempotent install (window flag).
+try {
+  if (!window.__aboutMeAutoSaveInstalled) {
+    window.__aboutMeAutoSaveInstalled = true;
+    const _scheduleAutoSave = () => {
+      try { clearTimeout(window.__aboutMeAutoSaveTimer); } catch(_){}
+      window.__aboutMeAutoSaveTimer = setTimeout(() => {
+        try { if (typeof saveManualEntry === 'function') saveManualEntry({ quiet: true }); }
+        catch(err) { console.warn('[about-me:autosave]', err); }
+      }, 350);
+    };
+    const _isAboutMeTarget = (t) => {
+      try {
+        if (!t || !t.closest) return false;
+        // Sub-accordions live inside #about-me-subs; contact fields are
+        // outside that wrapper so include them by id prefix.
+        if (t.closest('#about-me-subs')) return true;
+        const id = t.id || '';
+        if (id.startsWith('contact-')) return true;
+        if (id === 'manual-current-title' || id === 'manual-summary' || id === 'manual-skills') return true;
+        return false;
+      } catch(_) { return false; }
+    };
+    document.addEventListener('input', (e) => { if (_isAboutMeTarget(e.target)) _scheduleAutoSave(); });
+    // blur fires when the user clicks "+ Add", removes a row, leaves a field, etc.
+    document.addEventListener('blur', (e) => { if (_isAboutMeTarget(e.target)) _scheduleAutoSave(); }, true);
+    // Mutations (rows added/removed) — observe once the list exists.
+    setTimeout(() => {
+      try {
+        const wrap = document.getElementById('about-me-subs');
+        if (wrap && typeof MutationObserver === 'function') {
+          new MutationObserver(_scheduleAutoSave).observe(wrap, { childList: true, subtree: true });
+        }
+      } catch(_){}
+    }, 1200);
+  }
+} catch(_){}
 
 function populateManualEntryFromState() {
   const rd = STATE.resumeData;
@@ -9287,8 +9454,26 @@ function populateManualEntryFromState() {
     item.querySelector('.manual-exp-company').value = e.company || '';
     item.querySelector('.manual-exp-dates').value = e.dates || '';
     item.querySelector('.manual-exp-location').value = e.location || '';
-    item.querySelector('.manual-exp-bullets').value = (e.bullets || []).join('\n');
+    const summaryEl = item.querySelector('.manual-exp-summary');
+    if (summaryEl) summaryEl.value = e.role_summary || '';
+    // Replace the seeded empty bullet row with one row per saved bullet.
+    const bulletsList = item.querySelector('.manual-exp-bullets-list');
+    if (bulletsList) {
+      bulletsList.innerHTML = '';
+      const addBtn = item.querySelector('.manual-exp-bullets-wrap button');
+      const bullets = (e.bullets || []).map(b => (typeof b === 'string' ? b : (b && b.text) || '')).filter(Boolean);
+      if (bullets.length) {
+        bullets.forEach(b => {
+          const row = addManualBullet(addBtn);
+          if (row) row.querySelector('.manual-exp-bullet-input').value = b;
+        });
+      } else {
+        // Keep one empty row so user has somewhere to type
+        addManualBullet(addBtn);
+      }
+    }
   });
+  renumberManualExperience();
   // Education
   const eduList = document.getElementById('manual-education-list');
   eduList.innerHTML = '';
@@ -15848,7 +16033,42 @@ function buildExportModel(opts) {
   // edit since the last build invalidated the cache via blur/input, but this is
   // the safety net for any caller that builds a model after DOM changes without
   // a prior invalidate (e.g. programmatic render).
-  try { syncPreviewEditsToState && syncPreviewEditsToState(); } catch(_){}
+  // 2026-04-25 BUG-FIX: previously this called syncPreviewEditsToState() with
+  // NO arg → defaulted to '#preview-container'. On the Export tab the user
+  // is editing '#preview-container-export'; the unscoped sync would scrape
+  // the stale live-preview DOM and OVERWRITE the user's export edits, which
+  // is why removed/edited items reverted on every refresh.
+  // Now: prefer the container that owns document.activeElement (i.e. the one
+  // being edited right now); fall back to whichever export pane is visible;
+  // and as a last resort skip the sync (the explicit blur/input listeners in
+  // syncExportEditsToWorkspace already keep state fresh).
+  try {
+    const _pickSyncRoot = () => {
+      try {
+        const ae = document.activeElement;
+        if (ae && ae.closest) {
+          const exp = ae.closest('#preview-container-export, #preview-container-export-b');
+          if (exp) return exp.id;
+          const live = ae.closest('#preview-container, #preview-container-b');
+          if (live) return live.id;
+        }
+      } catch(_){}
+      // No editable focus → prefer whichever export pane is currently visible
+      try {
+        const exp = document.getElementById('preview-container-export');
+        if (exp && exp.offsetParent && !exp.classList.contains('hidden')) return 'preview-container-export';
+      } catch(_){}
+      try {
+        const live = document.getElementById('preview-container');
+        if (live && live.offsetParent && !live.classList.contains('hidden')) return 'preview-container';
+      } catch(_){}
+      return null;
+    };
+    const _root = _pickSyncRoot();
+    if (_root && typeof syncPreviewEditsToState === 'function') {
+      syncPreviewEditsToState(_root);
+    }
+  } catch(_){}
   // 2026-04-24 BUG-FIX: previously the cached model object was returned by
   // reference, which meant any caller that accidentally mutated
   // `model.experience[i]` or `model.skills` would poison the cache for
@@ -16151,7 +16371,20 @@ try { window.__buildFinalExportModel = buildFinalExportModel; } catch(_){}
 // before the user notices in an export. Read-only — never mutates state.
 try { window.__auditExportDrift = function(){
   try {
-    if (typeof syncPreviewEditsToState === 'function') syncPreviewEditsToState();
+    if (typeof syncPreviewEditsToState === 'function') {
+      const ae = document.activeElement;
+      let _root = null;
+      if (ae && ae.closest) {
+        const exp = ae.closest('#preview-container-export, #preview-container-export-b');
+        if (exp) _root = exp.id;
+      }
+      if (!_root) {
+        const exp = document.getElementById('preview-container-export');
+        if (exp && exp.offsetParent && !exp.classList.contains('hidden')) _root = 'preview-container-export';
+        else _root = 'preview-container';
+      }
+      syncPreviewEditsToState(_root);
+    }
   } catch(_){}
   const model = (typeof buildFinalExportModel === 'function')
     ? buildFinalExportModel({ forceRefresh: true })
