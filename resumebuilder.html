@@ -4292,11 +4292,13 @@ function evaluateStepCompletion() {
   stepPct[3] = hasTemplate ? (hasColor ? 100 : 60) : 0;
   stepCompleted[3] = hasTemplate && hasColor;
 
-  // Step 4 — Optimize for Role: analysis run (and ideally optimize applied)
+  // Step 4 — Optimize for Role: analysis run OR optimize applied counts as complete.
+  // (Clicking Optimize always sets STATE._optimizeApplied and also populates analysisCache
+  // via the merge in runOptimization(); either signal alone is sufficient to mark done.)
   const hasAnalysis = !!(typeof analysisCache !== 'undefined' && analysisCache);
   const hasOptimize = !!(STATE._optimizeApplied);
   stepPct[4] = hasPlan ? (hasOptimize ? 100 : (hasAnalysis ? 70 : 30)) : 0;
-  stepCompleted[4] = hasAnalysis;
+  stepCompleted[4] = hasAnalysis || hasOptimize;
 
   // Step 5 — Export: saved to cloud or published or exported
   const isSaved = !!currentPlanId;
@@ -5114,6 +5116,9 @@ function showOptimizeResult(s) {
   document.body.appendChild(d);
   try { lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'}); } catch(_){}
   try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
+  // Repaint the main 5-step stepper so the Optimize chevron flips to ✓ immediately
+  // after the result drawer opens (refreshOptimizeStepUI only repaints the step-4 body).
+  try { updateStepDots && updateStepDots(); } catch(_){}
 }
 function closeOptimizeResult() {
   const d = document.getElementById('optimize-result-drawer'); if (d) d.remove();
@@ -7792,41 +7797,49 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-// Track edits on contenteditable elements in preview (debounced)
+// Track edits on contenteditable elements in EITHER preview container.
+// 2026-04-24 BUG-FIX: previously only #preview-container was watched, so
+// edits inside the Export-tab preview (#preview-container-export) never
+// fired markDirty / live-sync and never wrote back to STATE — producing
+// the "Web tab edits never apply / Refresh shows stale content" symptom.
 let _inputDirtyTimer = null;
 document.addEventListener('input', e => {
-  if (e.target.closest('#preview-container') && e.target.getAttribute('contenteditable') === 'true') {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  const inEither = t.closest('#preview-container') || t.closest('#preview-container-export');
+  if (inEither && t.getAttribute && t.getAttribute('contenteditable') === 'true') {
     if (_inputDirtyTimer) return; // already scheduled within this frame-burst
     _inputDirtyTimer = setTimeout(() => { _inputDirtyTimer = null; markDirty(); }, 150);
   }
 });
 
 // Writeback: pull preview edits into STATE on blur so STATE is always consistent
-// with what's on screen. markDirty already runs on input (invalidates the cache);
-// this blur handler does the actual state mutation so the export-strip page-count
-// and any STATE-derived UI update as soon as the user leaves a field.
-// Use capture phase because contenteditable blur doesn't bubble in all browsers.
+// with what's on screen. Now scrapes whichever container the blur came from
+// (the previous version always scraped #preview-container, silently losing
+// edits made in #preview-container-export when that pane was the editor).
 document.addEventListener('blur', e => {
   const t = e.target;
   if (!t || !t.closest) return;
-  if (t.closest('#preview-container') && t.getAttribute && t.getAttribute('contenteditable') === 'true') {
-    try { syncPreviewEditsToState && syncPreviewEditsToState(); } catch(_){}
+  if (t.getAttribute && t.getAttribute('contenteditable') === 'true') {
+    const root = t.closest('#preview-container-export') || t.closest('#preview-container');
+    if (!root) return;
+    try { syncPreviewEditsToState && syncPreviewEditsToState(root.id); } catch(_){}
     try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
   }
 }, true);
 
 // Mobile safety net: on iOS/Android WebView, tapping the Export button while a
 // preview editable is focused may NOT fire a blur before the click handler runs —
-// which would mean the in-flight edit never makes it into STATE. We listen on
-// touchstart (capture, passive) and force-blur any focused preview editable when
-// the touch starts outside the preview container.
+// which would mean the in-flight edit never makes it into STATE. Force-blur
+// any focused preview editable when the touch starts outside any preview.
 document.addEventListener('touchstart', e => {
   try {
     const ae = document.activeElement;
     if (!ae || !ae.getAttribute || ae.getAttribute('contenteditable') !== 'true') return;
-    if (!ae.closest || !ae.closest('#preview-container')) return;
+    const aeRoot = ae.closest && (ae.closest('#preview-container') || ae.closest('#preview-container-export'));
+    if (!aeRoot) return;
     const tgt = e.target;
-    if (tgt && tgt.closest && tgt.closest('#preview-container')) return; // still inside preview
+    if (tgt && tgt.closest && (tgt.closest('#preview-container') || tgt.closest('#preview-container-export'))) return; // still inside a preview
     ae.blur();
   } catch(_){}
 }, { capture: true, passive: true });
@@ -13226,7 +13239,19 @@ function renderPreview(g, targetId) {
     _container.style.padding = '1.5rem';
     _container.style.borderRadius = '0.75rem';
   }
+  // 2026-04-24 BUG-FIX: explicit clear before assign documents intent and
+  // closes the gap where a stale MutationObserver / drag handler could see
+  // duplicated nodes mid-swap. innerHTML='' fully replaces; no append.
+  _container.innerHTML = '';
   _container.innerHTML = '<div class="' + _shellClass + '"><div class="' + _innerClass + '">' + h + '</div></div>';
+  if (STATE._debugRender) {
+    try {
+      console.log('[renderPreview] container=', containerId,
+        'skills=', (g.skills||[]).length,
+        'exp=', (g.experience||[]).length,
+        'exp[0].bullets=', ((g.experience||[])[0]||{}).bullets ? g.experience[0].bullets.length : 0);
+    } catch(_){}
+  }
   lucide.createIcons();
   initDragAndDrop();
   initEditableTouchHandlers();
@@ -13753,8 +13778,13 @@ function invalidateExportModel() {
 // fail silently, unknown shapes are preserved untouched. Uses structural cues
 // (data-section, data-list, semantic classes) rather than brittle indexes.
 // ─────────────────────────────────────────────────────────────────────────────
-function syncPreviewEditsToState() {
-  const root = document.getElementById('preview-container');
+function syncPreviewEditsToState(rootId) {
+  // 2026-04-24 BUG-FIX: previously hard-coded to '#preview-container'. The
+  // Export step renders into '#preview-container-export', so edits made
+  // there were silently dropped on every refresh — producing the "Web tab
+  // edits never apply / Refresh shows stale content" symptom. Caller (the
+  // blur handler) now passes the id of whichever container lost focus.
+  const root = document.getElementById(rootId || 'preview-container');
   if (!root || !STATE || !STATE.generated) return;
   const g = STATE.generated;
   const text = el => {
@@ -13795,11 +13825,23 @@ function syncPreviewEditsToState() {
   } catch(_){}
 
   // ── SIMPLE STRING LISTS (criteria, summary, skills) ──
+  // 2026-04-24 BUG-FIX: when an `innerSelector` is supplied (skills uses
+  // .skill-text) we now REQUIRE it to match at least one row before we
+  // overwrite STATE. Otherwise a renderer that doesn't wrap text in the
+  // expected inner element (e.g. the new executive-focus / banking-executive
+  // skill rows render plain "• Skill" text without a .skill-text span) would
+  // cause `rowText(row)` to return "• Skill" — and on the NEXT render that
+  // value gets re-decorated with another "• " prefix, growing on every
+  // refresh. Skip overwrite when the legacy anchor is absent.
   const scrapeStringList = (listName, target, innerSelector) => {
     try {
       const list = root.querySelector(`[data-list="${listName}"]`);
       if (!list) return;
       const rows = [...list.querySelectorAll(':scope > .item-row')];
+      if (innerSelector) {
+        const anyInner = rows.some(r => r.querySelector(innerSelector));
+        if (!anyInner) return; // legacy anchors absent → skip writeback
+      }
       const vals = rows.map(row => {
         const inner = innerSelector ? row.querySelector(innerSelector) : null;
         return inner ? text(inner) : rowText(row);
@@ -13852,10 +13894,21 @@ function syncPreviewEditsToState() {
         // role_summary = second direct p (only present if originally had one)
         if (directPs[1] && cur.role_summary != null) cur.role_summary = text(directPs[1]);
         // Bullets
-        const bullets = [...row.querySelectorAll('[data-list="bullets"] > li.item-row')]
-          .map(li => text(li.querySelector('.bullet-text') || li))
-          .filter(Boolean);
-        cur.bullets = bullets;
+        // 2026-04-24 BUG-FIX: only overwrite when the legacy renderer's
+        // bullet anchors are present. New templates (executive-focus,
+        // modern-ats, banking-executive, etc.) emit <ul><li> WITHOUT
+        // data-list="bullets" — the previous unconditional overwrite was
+        // silently nuking STATE.experience[*].bullets to [] on every
+        // cache rebuild, which is why bullets disappeared from preview
+        // and exports.
+        const bulletList = row.querySelector('[data-list="bullets"]');
+        if (bulletList) {
+          const bullets = [...bulletList.querySelectorAll(':scope > li.item-row')]
+            .map(li => text(li.querySelector('.bullet-text') || li))
+            .filter(Boolean);
+          cur.bullets = bullets;
+        }
+        // else: no legacy anchors in DOM → leave cur.bullets untouched.
         return cur;
       });
       g.experience = next;
@@ -14299,8 +14352,26 @@ function buildExportModel(opts) {
   // the safety net for any caller that builds a model after DOM changes without
   // a prior invalidate (e.g. programmatic render).
   try { syncPreviewEditsToState && syncPreviewEditsToState(); } catch(_){}
+  // 2026-04-24 BUG-FIX: previously the cached model object was returned by
+  // reference, which meant any caller that accidentally mutated
+  // `model.experience[i]` or `model.skills` would poison the cache for
+  // every subsequent render — producing the "skills duplicate on each
+  // refresh" symptom. We now structured-clone on every return so the
+  // cache is effectively immutable from the outside.
+  const _cloneModel = (m) => {
+    try { return (typeof structuredClone === 'function') ? structuredClone(m) : JSON.parse(JSON.stringify(m)); }
+    catch(_) { return JSON.parse(JSON.stringify(m)); }
+  };
   if (!o.forceRefresh && STATE._exportModelCache && !STATE._exportModelDirty) {
-    return STATE._exportModelCache;
+    if (STATE._debugRender) {
+      try {
+        const c = STATE._exportModelCache;
+        console.log('[buildExportModel:HIT] skills.len=', (c.skills||[]).length,
+          'exp.len=', (c.experience||[]).length,
+          'exp[0].bullets.len=', ((c.experience||[])[0]||{}).bullets ? c.experience[0].bullets.length : 0);
+      } catch(_){}
+    }
+    return _cloneModel(STATE._exportModelCache);
   }
 
   const base = STATE.resumeData || {};
@@ -14422,7 +14493,16 @@ function buildExportModel(opts) {
 
   STATE._exportModelCache = model;
   STATE._exportModelDirty = false;
-  return model;
+  if (STATE._debugRender) {
+    try {
+      console.log('[buildExportModel:BUILT] skills.len=', (model.skills||[]).length,
+        'exp.len=', (model.experience||[]).length,
+        'exp[0].bullets.len=', ((model.experience||[])[0]||{}).bullets ? model.experience[0].bullets.length : 0);
+    } catch(_){}
+  }
+  // Return a clone so downstream renderers / consumers cannot mutate the
+  // canonical cache (see `_cloneModel` rationale at the top of this fn).
+  return _cloneModel(model);
 }
 
 // Dev-only drift detector. Runs on localhost only so it's silent in production.
@@ -14576,6 +14656,158 @@ function _modelToGShape(model) {
   });
 }
 try { window.__modelToGShape = _modelToGShape; } catch(_){}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-04-24 BUG-FIX VERIFICATION HELPER
+// Run from DevTools: window.testPreviewRenderIntegrity()
+//
+// Verifies the four invariants restored by the preview/bullets bug-fix pass:
+//   1. Edits inside #preview-container-export update STATE on blur.
+//   2. 5× Refresh Preview does NOT change skills.length.
+//   3. 5× Refresh Preview does NOT change experience[*].bullets length.
+//   4. The export-model cache cannot be poisoned by mutating a returned model.
+//   5. Bullets still render across executive-focus, modern-ats,
+//      banking-executive, modern-sidebar, word-classic.
+//
+// Read-only with respect to user content: always restores the original
+// STATE.exportTemplate when finished. Logs one consolidated table.
+// ─────────────────────────────────────────────────────────────────────────────
+try {
+  window.testPreviewRenderIntegrity = function() {
+    const results = [];
+    const add = (name, pass, detail) => results.push({ test: name, pass: !!pass, detail: detail || '' });
+
+    // Pre-flight: need a model with at least one experience entry + skills.
+    if (!STATE || !STATE.generated || !Object.keys(STATE.generated).length) {
+      console.warn('[integrity] No STATE.generated — generate a resume first.');
+      return null;
+    }
+
+    const origTemplate = STATE.exportTemplate;
+    const origSkills   = (STATE.generated.skills || []).slice();
+    const origExp      = JSON.parse(JSON.stringify(STATE.generated.experience || []));
+
+    // ── Test 1: blur writeback from #preview-container-export ──
+    try {
+      const exp = document.getElementById('preview-container-export');
+      if (!exp || !exp.firstChild) {
+        add('1. export-pane writeback', false, '#preview-container-export not mounted (visit Export step → Web tab first)');
+      } else {
+        // Find a contenteditable hero name in the export pane and simulate edit.
+        const editable = exp.querySelector('[contenteditable="true"]');
+        if (!editable) {
+          add('1. export-pane writeback', false, 'no contenteditable element found in export pane');
+        } else {
+          const before = (STATE.generated.hero && STATE.generated.hero.name) || '';
+          const probe = '__INTEGRITY_PROBE__' + Date.now();
+          const original = editable.textContent;
+          editable.textContent = probe;
+          try { syncPreviewEditsToState && syncPreviewEditsToState('preview-container-export'); } catch(_){}
+          // Snapshot any string field that changed
+          const after = JSON.stringify(STATE.generated).indexOf(probe) !== -1;
+          // Restore DOM (state will repaint on next render anyway)
+          editable.textContent = original;
+          try { syncPreviewEditsToState && syncPreviewEditsToState('preview-container-export'); } catch(_){}
+          add('1. export-pane writeback', after, after ? 'probe found in STATE' : 'probe NOT propagated to STATE');
+        }
+      }
+    } catch (e) { add('1. export-pane writeback', false, String(e && e.message || e)); }
+
+    // ── Test 2 & 3: refresh idempotency (skills + bullets) ──
+    try {
+      const skillsBefore = (STATE.generated.skills || []).length;
+      const bulletsBefore = (STATE.generated.experience || []).map(e => (e.bullets || []).length);
+      for (let i = 0; i < 5; i++) {
+        try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+        try { renderPreview(STATE.generated); } catch(_){}
+      }
+      const skillsAfter = (STATE.generated.skills || []).length;
+      const bulletsAfter = (STATE.generated.experience || []).map(e => (e.bullets || []).length);
+      add('2. 5x refresh skills.length stable',
+        skillsBefore === skillsAfter,
+        'before=' + skillsBefore + ' after=' + skillsAfter);
+      const bulletsMatch = bulletsBefore.length === bulletsAfter.length
+        && bulletsBefore.every((n, i) => n === bulletsAfter[i]);
+      add('3. 5x refresh experience bullets stable',
+        bulletsMatch,
+        'before=[' + bulletsBefore.join(',') + '] after=[' + bulletsAfter.join(',') + ']');
+    } catch (e) { add('2/3. refresh idempotency', false, String(e && e.message || e)); }
+
+    // ── Test 4: cache immutability ──
+    try {
+      if (typeof buildFinalExportModel !== 'function') {
+        add('4. cache immutability', false, 'buildFinalExportModel not available');
+      } else {
+        const m1 = buildFinalExportModel();
+        if (!m1) { add('4. cache immutability', false, 'no model returned'); }
+        else {
+          const poison = '__POISON__' + Date.now();
+          (m1.skills || (m1.skills = [])).push(poison);
+          if (m1.experience && m1.experience[0]) {
+            (m1.experience[0].bullets || (m1.experience[0].bullets = [])).push(poison);
+          }
+          const m2 = buildFinalExportModel();
+          const poisonedSkills  = (m2.skills || []).indexOf(poison) !== -1;
+          const poisonedBullets = m2.experience && m2.experience[0]
+            && (m2.experience[0].bullets || []).indexOf(poison) !== -1;
+          add('4. cache immutability',
+            !poisonedSkills && !poisonedBullets,
+            poisonedSkills || poisonedBullets ? 'cache was poisoned' : 'returned models are isolated clones');
+        }
+      }
+    } catch (e) { add('4. cache immutability', false, String(e && e.message || e)); }
+
+    // ── Test 5: bullets render across all named templates ──
+    try {
+      const templates = ['executive-focus', 'modern-ats', 'banking-executive', 'modern-sidebar', 'word-classic'];
+      const expCount = (STATE.generated.experience || []).filter(e => (e.bullets || []).length > 0).length;
+      if (expCount === 0) {
+        add('5. bullets render across templates', false, 'STATE has no experience entries with bullets — cannot verify');
+      } else {
+        const failures = [];
+        templates.forEach(tid => {
+          if (!PREVIEW_RENDERERS[tid]) { failures.push(tid + '(no renderer)'); return; }
+          STATE.exportTemplate = tid;
+          try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+          let html = '';
+          try {
+            const model = buildFinalExportModel({ forceRefresh: true });
+            html = (typeof _selectAndRender === 'function')
+              ? _selectAndRender(tid, model, model.accent)
+              : PREVIEW_RENDERERS[tid](_modelToGShape(model), model.accent);
+          } catch (e) { failures.push(tid + '(render threw: ' + (e.message||e) + ')'); return; }
+          // Heuristic: at least one experience bullet text fragment appears in the HTML.
+          const sample = (STATE.generated.experience || []).flatMap(e => e.bullets || []).slice(0, 3);
+          const hits = sample.filter(b => b && html.indexOf(String(b).slice(0, 30)) !== -1).length;
+          if (!hits) failures.push(tid + '(no bullet text found in rendered HTML)');
+        });
+        STATE.exportTemplate = origTemplate;
+        try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+        add('5. bullets render across templates',
+          failures.length === 0,
+          failures.length ? 'failed: ' + failures.join('; ') : 'all 5 templates rendered bullets');
+      }
+    } catch (e) {
+      STATE.exportTemplate = origTemplate;
+      add('5. bullets render across templates', false, String(e && e.message || e));
+    }
+
+    // Restore original STATE (defensive — most tests don't mutate, but Test 5
+    // forces buildExportModel rebuilds and the optimizer-merge in
+    // syncPreviewEditsToState may have touched things).
+    STATE.generated.skills = origSkills;
+    STATE.generated.experience = origExp;
+    try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+
+    const passed = results.filter(r => r.pass).length;
+    const total  = results.length;
+    console.group('%c[testPreviewRenderIntegrity] ' + passed + '/' + total + ' passed',
+      passed === total ? 'color:#059669;font-weight:700' : 'color:#DC2626;font-weight:700');
+    console.table(results);
+    console.groupEnd();
+    return { passed, total, results };
+  };
+} catch(_){}
 
 // ============ Export ============
 // Public entry point for HTML export. Dispatches between two modes:
