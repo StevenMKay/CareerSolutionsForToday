@@ -13200,7 +13200,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXPERIENCE ────
   if (STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map((e, i) => `<div class="item-row" data-exp-index="${i}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map((b, j) => `<li class="item-row flex gap-3 text-sm" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map((e, i) => `<div class="item-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
@@ -13673,8 +13673,15 @@ function addListItem(addBtn, type, iconColor, textColor) {
 function addBullet(addBtn, accent, textColor) {
   const ul = addBtn.previousElementSibling;
   if (!ul) return;
+  // 2026-04-24 BUG-FIX: stamp data-exp-index (inherited from parent <ul>)
+  // + the next data-bullet-index on the new <li> so per-row scoped scrape
+  // attributes the new bullet to the correct experience entry.
+  const expIdx = ul.getAttribute('data-exp-index');
+  const newBulletIdx = ul.querySelectorAll(':scope > li').length;
   const li = document.createElement('li');
   li.className = 'item-row flex gap-3 text-sm';
+  if (expIdx != null) li.setAttribute('data-exp-index', expIdx);
+  li.setAttribute('data-bullet-index', String(newBulletIdx));
   li.style.color = textColor;
   li.innerHTML = `<span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" contenteditable="true">New bullet point</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button>`;
   lucide.createIcons({ nodes: [li] });
@@ -13720,9 +13727,15 @@ function addExperience(addBtn) {
   const headingColor = S.headingColor, headingFont = S.headingFont, accent = C, muted = S.mutedColor, textColor = S.textColor;
   const container = addBtn.previousElementSibling;
   if (!container) return;
+  // 2026-04-24 BUG-FIX: stamp data-exp-index on the new row + bullet list +
+  // its first bullet so the per-row scoped scraper in syncPreviewEditsToState
+  // can attribute edits correctly even before the next full rerender.
+  const newIdx = container.querySelectorAll(':scope > .item-row').length;
   const div = document.createElement('div');
   div.className = 'item-row';
-  div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company — Location</p><ul class="space-y-2" data-list="bullets"><li class="item-row flex gap-3 text-sm" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
+  div.setAttribute('data-exp-index', String(newIdx));
+  div.setAttribute('data-section', 'experience');
+  div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company — Location</p><ul class="space-y-2" data-list="experience-bullets" data-exp-index="${newIdx}"><li class="item-row flex gap-3 text-sm" data-exp-index="${newIdx}" data-bullet-index="0" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
   container.appendChild(div);
   div.querySelector('.editable').focus();
   _syncContainingPreview(container);
@@ -14126,49 +14139,23 @@ function syncPreviewEditsToState(rootId) {
     }
   } catch(_){}
 
-  // Mirror the common resume fields into STATE.resumeData so anything reading
-  // from there (analysis, legacy callers, autosave payload) stays in sync.
-  try {
-    if (STATE.resumeData) {
-      if (Array.isArray(g.skills)) STATE.resumeData.skills = g.skills.slice();
-      if (Array.isArray(g.experience)) STATE.resumeData.experience = JSON.parse(JSON.stringify(g.experience));
-      if (Array.isArray(g.education)) STATE.resumeData.education = JSON.parse(JSON.stringify(g.education));
-      if (Array.isArray(g.certifications)) STATE.resumeData.certifications = JSON.parse(JSON.stringify(g.certifications));
-      if (g.executive_summary != null) STATE.resumeData.summary = g.executive_summary;
-    }
-  } catch(_){}
-
-  // ── Mirror edits into STATE.enhancedData ──
-  // When AI-enhance is ON, buildExportModel prefers STATE.enhancedData over
-  // STATE.generated. Without this block, inline preview edits would be read
-  // into STATE.generated but NOT into enhancedData, causing the export to
-  // silently drop user changes whenever the enhance toggle is active.
-  // We only mirror the fields the user can edit inline; anything enhance-
-  // specific (e.g. AI-added bullets) stays untouched if the user didn't edit.
-  try {
-    if (STATE.enhancedData && typeof STATE.enhancedData === 'object') {
-      const ed = STATE.enhancedData;
-      if (g.hero && ed.hero) {
-        if (g.hero.name != null) ed.hero.name = g.hero.name;
-        if (g.hero.target_title != null) ed.hero.target_title = g.hero.target_title;
-        if (g.hero.company != null) ed.hero.company = g.hero.company;
-        if (g.hero.subtitle != null) ed.hero.subtitle = g.hero.subtitle;
-        if (g.hero.tagline != null) ed.hero.tagline = g.hero.tagline;
-      }
-      if (g.executive_summary != null) ed.executive_summary = g.executive_summary;
-      if (Array.isArray(g.skills)) ed.skills = g.skills.slice();
-      // Deep-copy complex arrays so enhancedData does not alias generated.
-      if (Array.isArray(g.experience)) ed.experience = JSON.parse(JSON.stringify(g.experience));
-      if (Array.isArray(g.education)) ed.education = JSON.parse(JSON.stringify(g.education));
-      if (Array.isArray(g.certifications)) ed.certifications = JSON.parse(JSON.stringify(g.certifications));
-      if (Array.isArray(g.achievements)) ed.achievements = JSON.parse(JSON.stringify(g.achievements));
-      if (Array.isArray(g.plan_phases)) ed.plan_phases = JSON.parse(JSON.stringify(g.plan_phases));
-      if (Array.isArray(g.kpis)) ed.kpis = JSON.parse(JSON.stringify(g.kpis));
-      if (Array.isArray(g.success_criteria)) ed.success_criteria = g.success_criteria.slice();
-      if (Array.isArray(g.leadership)) ed.leadership = JSON.parse(JSON.stringify(g.leadership));
-      if (Array.isArray(g.leadership_engagement)) ed.leadership_engagement = JSON.parse(JSON.stringify(g.leadership_engagement));
-    }
-  } catch(_){}
+  // 2026-04-24 ARCHITECTURE FIX: do NOT mirror edits back into
+  // STATE.resumeData or STATE.enhancedData.
+  //
+  // resumeData is profile/import storage (About Me) — the user's full
+  // history. Mirroring preview deletions into it would PERMANENTLY erase
+  // content they may want to reuse in a future resume/export.
+  //
+  // enhancedData is the AI-enhanced cache. Mirroring preview edits into
+  // it would block future AI re-enhancements from surfacing content the
+  // user only *temporarily* trimmed for this export.
+  //
+  // Instead, buildExportModel uses pickExport() — generated wins over
+  // enh and base for editable sections (experience/skills/education/
+  // certifications/achievements/summary). That way:
+  //   • Deleted items stay deleted for this export (generated reflects DOM).
+  //   • Stored About Me data remains untouched for future resumes.
+  //   • AI enhance can still fill fields generated doesn't have.
 
   // Cache is now stale — force buildExportModel to rebuild from the updated state
   try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
@@ -14460,7 +14447,34 @@ function buildExportModel(opts) {
   // enhanced fields over base. If enhance hasn't run yet, fall back silently
   // to original (preview can still render).
   const enh = (STATE.useEnhanced && STATE.enhancedData) ? STATE.enhancedData : null;
-  const pick = (key) => (enh && enh[key] != null ? enh[key] : (base[key] != null ? base[key] : (generated[key] != null ? generated[key] : undefined)));
+
+  // 2026-04-24 ARCHITECTURE FIX: split picker into two variants.
+  //
+  //   pickProfile — for STABLE IDENTITY fields (name, phone, email, address,
+  //     linkedin, etc.). These live in About Me / imported resumeData and
+  //     rarely diverge between "what the user is looking at" and "what's
+  //     stored on the profile". Preference: base → generated.
+  //
+  //   pickExport — for EDITABLE RESUME/EXPORT sections (experience, skills,
+  //     certifications, achievements, education, summary). For these,
+  //     `generated` IS the current export copy. If the user deletes a bullet
+  //     or a whole job from the preview, that change MUST win. resumeData is
+  //     profile/import storage only — never allowed to resurrect deleted
+  //     content. enhancedData is also de-prioritized below generated so AI
+  //     suggestions don't undo manual deletions.
+  //
+  // Previously a single `pick()` preferred enh → base → generated. That made
+  // About Me / resumeData the export winner for editable sections, which is
+  // why deleted items kept reappearing after refresh or re-export.
+  const pickProfile = (key) => (
+    base[key] != null ? base[key]
+    : (generated[key] != null ? generated[key] : undefined)
+  );
+  const pickExport = (key) => (
+    generated[key] != null ? generated[key]
+    : (enh && enh[key] != null ? enh[key]
+    : (base[key] != null ? base[key] : undefined))
+  );
 
   // ---- Person + Contact ----
   const name = (typeof getResolvedResumePersonName === 'function')
@@ -14471,17 +14485,23 @@ function buildExportModel(opts) {
 
   const gv = (id) => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
   const contact = {
-    phone:    gv('contact-phone')    || base.phone    || '',
-    email:    gv('contact-email')    || base.email    || '',
-    linkedin: gv('contact-linkedin') || base.linkedin || '',
-    github:   gv('contact-github')   || base.github   || '',
-    website:  gv('contact-website')  || base.website  || '',
-    twitter:  gv('contact-twitter')  || base.twitter  || '',
+    phone:    gv('contact-phone')    || pickProfile('phone')    || '',
+    email:    gv('contact-email')    || pickProfile('email')    || '',
+    linkedin: gv('contact-linkedin') || pickProfile('linkedin') || '',
+    github:   gv('contact-github')   || pickProfile('github')   || '',
+    website:  gv('contact-website')  || pickProfile('website')  || '',
+    twitter:  gv('contact-twitter')  || pickProfile('twitter')  || '',
     location: address
   };
 
   // ---- Normalized content ----
-  let summary = (enh && enh.summary) || base.summary || (generated.hero && generated.hero.tagline) || generated.executive_summary || '';
+  // Summary: generated (preview/export copy) wins over enhanced and base so
+  // trimming or deletion from the preview survives re-export.
+  let summary = generated.executive_summary
+    || (generated.hero && generated.hero.tagline)
+    || (enh && enh.summary)
+    || base.summary
+    || '';
   // Enforce 500-char recruiter spec at export time. Trims at last sentence
   // boundary that fits; falls back to hard cut + ellipsis if no boundary.
   // STATE fields are left untouched so the editor still shows the full text.
@@ -14498,11 +14518,13 @@ function buildExportModel(opts) {
   } else if (typeof summary === 'string' && summary.length <= 500) {
     STATE._summaryTrimWarned = false;
   }
-  const experience = _normalizeExperience(pick('experience') || []);
-  const skills = (pick('skills') || []).filter(Boolean);
-  const education = _normalizeEducation(base.education || generated.education || []);
-  const certifications = _normalizeCertifications(base.certifications || generated.certifications || []);
-  const achievements = _normalizeAchievements(base.achievements || generated.achievements || []);
+  // Editable resume/export sections — generated wins so preview deletions
+  // are respected. See pickExport comment above.
+  const experience     = _normalizeExperience(pickExport('experience') || []);
+  const skills         = (pickExport('skills') || []).filter(Boolean);
+  const education      = _normalizeEducation(pickExport('education') || []);
+  const certifications = _normalizeCertifications(pickExport('certifications') || []);
+  const achievements   = _normalizeAchievements(pickExport('achievements') || []);
 
   // ---- Template + Accent ----
   const format = o.format || 'pptx';
@@ -15029,7 +15051,12 @@ function exportHTML_web() {
   const useModel = STATE.htmlWebMode !== 'legacy';
 
   if (useModel) {
-    (async () => {
+    // 2026-04-24 BUG-FIX: previously this IIFE was fired-and-forgotten with a
+    // bare `return;` after it, which meant runExport() resolved IMMEDIATELY
+    // and could mark _lastExportOk=true before the actual download finished
+    // (or failed). Returning the IIFE makes the await chain honest, and
+    // throwing on error lets runExport detect failure for the success panel.
+    return (async () => {
       try {
         // Prime enhanced cache if user wants it (matches DOCX/PPTX paths).
         if (STATE.useEnhanced && !STATE.enhancedData) {
@@ -15055,9 +15082,13 @@ function exportHTML_web() {
       } catch (e) {
         console.error('Web HTML export failed:', e);
         showToast('Web HTML export failed. Try Template HTML or retry.');
+        try {
+          STATE._lastExportError = (e && e.message) || String(e);
+          STATE._lastExportOk = false;
+        } catch(_){}
+        throw e;
       }
     })();
-    return;
   }
 
   // ── Legacy DOM-clone path (kept behind STATE.htmlWebMode='legacy' flag) ──
@@ -15149,6 +15180,11 @@ async function exportHTML_template() {
   } catch (e) {
     console.error('Template HTML export error:', e);
     showToast('HTML export failed: ' + (e.message || 'unknown error'));
+    try {
+      STATE._lastExportError = (e && e.message) || String(e);
+      STATE._lastExportOk = false;
+    } catch(_){}
+    throw e;
   }
 }
 
@@ -15302,6 +15338,10 @@ async function exportPDF() {
   } catch (e) {
     console.error('PDF export error:', e);
     showToast('PDF export failed: ' + (e.message || 'unknown error'));
+    try {
+      STATE._lastExportError = (e && e.message) || String(e);
+      STATE._lastExportOk = false;
+    } catch(_){}
     throw e;
   }
 }
@@ -15576,6 +15616,11 @@ async function exportDOCX() {
       : (/library/i.test(String(e.message||'')) ? e.message
       : 'Word export failed. Try again or export as HTML.');
     showToast(msg);
+    try {
+      STATE._lastExportError = (e && e.message) || String(e);
+      STATE._lastExportOk = false;
+    } catch(_){}
+    throw e;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     lucide.createIcons();
@@ -16326,6 +16371,7 @@ async function exportPPTX() {
     STATE._lastExportOk = false;
     const msg = /library/i.test(String(e.message||'')) ? e.message : 'PowerPoint export failed. Try again or export as HTML.';
     showToast(msg);
+    throw e;
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
     lucide.createIcons();
