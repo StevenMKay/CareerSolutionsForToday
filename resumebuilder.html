@@ -13796,13 +13796,35 @@ function removeItem(btn) {
   if (bulletRow) {
     if (typeof removeExperienceBulletFromState === 'function' &&
         removeExperienceBulletFromState(bulletRow)) {
+      const expIdx = bulletRow.dataset.expIndex;
+      const bIdx   = bulletRow.dataset.bulletIndex;
       bulletRow.remove();
+      // 2026-04-25 BUG-FIX (root cause of "delete on Export tab doesn't
+      // stick"): both #preview-container and #preview-container-export are
+      // mounted in the DOM simultaneously. After splicing STATE we MUST
+      // also remove the matching bullet from the OTHER pane's DOM,
+      // otherwise the next renderPreview() call invokes
+      // syncPreviewEditsToState() which scrapes the OTHER pane (still
+      // showing the bullet) and re-injects the deleted bullet back into
+      // STATE.generated. Result: bullet flashes away then reappears.
+      try {
+        ['preview-container','preview-container-export'].forEach(id => {
+          const root = document.getElementById(id);
+          if (!root) return;
+          const sel = '.bullet-row[data-exp-index="'+expIdx+'"][data-bullet-index="'+bIdx+'"]';
+          root.querySelectorAll(sel).forEach(el => el.remove());
+        });
+      } catch(_){}
       if (typeof invalidateExportModel === 'function') { try { invalidateExportModel(); } catch(_){} }
-      if (typeof markDirty === 'function') markDirty();
+      // Suppress the next syncPreviewEditsToState run so renderPreview can't
+      // immediately re-scrape stale DOM and undo the splice. Cleared by
+      // syncPreviewEditsToState itself on first call.
+      try { STATE._suppressNextPreviewScrape = true; } catch(_){}
       if (typeof renderPreview === 'function') {
         try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
         try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
       }
+      if (typeof markDirty === 'function') markDirty();
       return;
     }
   }
@@ -13934,13 +13956,26 @@ function showMobileActionBar(row) {
       const isBullet = row.classList.contains('bullet-row') && row.dataset && row.dataset.bulletIndex != null;
       if (isBullet && typeof removeExperienceBulletFromState === 'function'
           && removeExperienceBulletFromState(row)) {
+        const expIdx = row.dataset.expIndex;
+        const bIdx   = row.dataset.bulletIndex;
         row.remove();
+        // Mirror the delete to the OTHER preview pane so the next scrape
+        // can't re-inject. See removeItem() for full root-cause writeup.
+        try {
+          ['preview-container','preview-container-export'].forEach(id => {
+            const r = document.getElementById(id);
+            if (!r) return;
+            const sel = '.bullet-row[data-exp-index="'+expIdx+'"][data-bullet-index="'+bIdx+'"]';
+            r.querySelectorAll(sel).forEach(el => el.remove());
+          });
+        } catch(_){}
         if (typeof invalidateExportModel === 'function') { try { invalidateExportModel(); } catch(_){} }
-        if (typeof markDirty === 'function') markDirty();
+        try { STATE._suppressNextPreviewScrape = true; } catch(_){}
         if (typeof renderPreview === 'function') {
           try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
           try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
         }
+        if (typeof markDirty === 'function') markDirty();
         return;
       }
       const parent = row.parentElement;
@@ -14206,6 +14241,16 @@ function invalidateExportModel() {
 // (data-section, data-list, semantic classes) rather than brittle indexes.
 // ─────────────────────────────────────────────────────────────────────────────
 function syncPreviewEditsToState(rootId) {
+  // 2026-04-25 BUG-FIX: programmatic deletes (removeItem bullet path) set
+  // STATE._suppressNextPreviewScrape so this scrape can't immediately undo
+  // the splice by re-reading stale DOM from the OTHER preview pane.
+  // Self-clearing so the very next caller scrapes normally.
+  try {
+    if (STATE && STATE._suppressNextPreviewScrape) {
+      STATE._suppressNextPreviewScrape = false;
+      return;
+    }
+  } catch(_){}
   // 2026-04-24 BUG-FIX: previously hard-coded to '#preview-container'. The
   // Export step renders into '#preview-container-export', so edits made
   // there were silently dropped on every refresh — producing the "Web tab
