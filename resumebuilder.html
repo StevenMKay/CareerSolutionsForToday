@@ -16,215 +16,9 @@
 (function(){
   if (window.__rnErrBridge) return;
   window.__rnErrBridge = true;
-  function send(p){
-    try {
-      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({__rnError:true, payload:p}));
-      }
-    } catch(_){}
-  }
-  window.addEventListener('error', function(e){
-    send({
-      message: (e && e.message) || 'Unknown error',
-      source: e && e.filename,
-      lineno: e && e.lineno,
-      colno: e && e.colno,
-      stack: e && e.error && e.error.stack
-    });
-  }, true);
-  window.addEventListener('unhandledrejection', function(e){
-    var r = e && e.reason;
-    send({
-      message: (r && r.message) || String(r || 'Unhandled rejection'),
-      stack: r && r.stack
-    });
-  });
-})();
-</script>
-
-<!-- =========================================================================
-     IN-APP DETECTION + PLATFORM-SPECIFIC HIDING
-     =========================================================================
-     The Android WebView wrapper (app/index.tsx) does two things that let us
-     detect when the page is running inside the native app instead of a
-     normal browser:
-       1. Exposes window.ReactNativeWebView (react-native-webview injection)
-       2. Appends "CareerResumeBuilder/1.0" to the User-Agent string
-     This early script sets <html class="in-app"> when EITHER is true, so we
-     can target the app with pure CSS.
-
-     HOW TO HIDE ANYTHING IN THE APP (desktop/mobile web stays unaffected):
-       Just add class="hide-in-app" to the element. Example:
-         <a href="#pricing" class="hide-in-app">Subscribe</a>
-         <li class="hide-in-app"><a href="/products.html">Products</a></li>
-     Both classes can live alongside existing classes (space-separated):
-         <div class="header-item primary hide-in-app">...</div>
-
-     HOW TO *SHOW* SOMETHING ONLY IN THE APP (rare but handy):
-       Add class="show-in-app-only" — it's hidden on the normal web and
-       becomes visible inside the app.
-
-     NEED JS-level branching instead of CSS? Call isInAppWebView() which is
-     defined further down in the file (around the signInWithGoogle section).
-
-     Runs inline, before the body renders, so tagged elements never even
-     flash on screen in the app. ========================================== -->
-<script>
-(function(){
-  try {
-    var inApp = (typeof window !== 'undefined' && window.ReactNativeWebView) ||
-                /CareerResumeBuilder/i.test(navigator.userAgent || '');
-    if (inApp) {
-      document.documentElement.classList.add('in-app');
-    } else {
-      document.documentElement.classList.add('on-web');
-    }
-  } catch(_) {}
 })();
 </script>
 <style>
-  /* Hide any element tagged .hide-in-app when running inside the Android app. */
-  html.in-app .hide-in-app { display: none !important; }
-  /* Hide .show-in-app-only everywhere by default; reveal it only in the app. */
-  .show-in-app-only { display: none !important; }
-  html.in-app .show-in-app-only { display: revert !important; }
-  /* Google Play policy: no Stripe purchase UI inside the Android app.
-     Hide all monetization entry points when running in the app wrapper. */
-  html.in-app [data-testid="menu-view-plans"],
-  html.in-app [data-testid="menu-cancel-sub"],
-  html.in-app #menu-sub-btn,
-  html.in-app #paywall-upgrade-btn,
-  html.in-app #paywall-lifetime-btn,
-  html.in-app #paywall-modal .paywall-price-tag,
-  html.in-app #stripe-plan-box .paywall-price-cta { display: none !important; }
-</style>
-
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/lucide@latest" defer></script>
-<!-- Heavy libs (PptxGenJS, Cropper, PizZip, docxtemplater, pdf.js) are lazy-loaded on demand via ensureLib() -->
-
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
-<style>
-  html{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
-  body{font-family:'Manrope',sans-serif;margin:0;background:url('https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/597eb3e588368fd1ef36529e77e8fb5f5b9ac1a8/photos/ResumeBackground.png') center/cover no-repeat fixed;background-color:#5b6b7d;color:#0A0A0A;min-height:100vh;display:flex;flex-direction:column}
-  @media(min-width:641px){body{background-size:120% auto}}
-  h1,h2,h3,h4,h5,h6{font-family:'Outfit',sans-serif}
-  .step-dot{width:2.5rem;height:2.5rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;transition:all 0.3s;position:relative}
-  .step-dot.active{background:var(--c-primary,#005EB8);color:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--c-primary,#005EB8) 20%,transparent)}
-  .step-dot.done{background:#047857;color:#fff}
-  .step-dot.pending{background:#6b7a8e;color:#F1F5F9}
-  .step-warn{position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#F59E0B;color:#fff;border-radius:50%;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;animation:pulse-warn 1.5s ease infinite;line-height:1;padding:0}
-  @keyframes pulse-warn{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
-  .photo-upload.dragover{border-color:var(--c-primary,#005EB8)!important;background:#EFF6FF!important;border-style:solid!important}
-  .step-line{height:2px;flex:1;transition:background 0.4s cubic-bezier(0.4,0,0.2,1)}
-  .card{background:#fff;border:1px solid #E2E8F0;border-radius:0.75rem;padding:1rem 1.1rem;box-shadow:0 1px 3px rgba(0,0,0,0.04);width:100%;max-width:100%;box-sizing:border-box}
-  .btn-primary{background:var(--c-primary,#005EB8);color:#fff;font-weight:600;padding:0.625rem 1.5rem;border-radius:0.5rem;border:none;cursor:pointer;font-size:0.875rem;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);display:inline-flex;align-items:center;gap:0.5rem;box-shadow:0 1px 2px rgba(0,94,184,0.15)}
-  .btn-primary:hover{background:#004A94;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,94,184,0.3)}
-  .btn-primary:active{transform:translateY(0);box-shadow:0 1px 2px rgba(0,94,184,0.15)}
-  .btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none;box-shadow:none}
-  .btn-secondary{background:#fff;color:#374151;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #E2E8F0;cursor:pointer;font-size:0.875rem;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);display:inline-flex;align-items:center;gap:0.5rem}
-  .btn-secondary:hover{background:#F8FAFC;border-color:#CBD5E1;transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,0.06)}
-  .btn-secondary:active{transform:translateY(0)}
-  .btn-danger{background:#fff;color:#B91C1C;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #FEE2E2;cursor:pointer;font-size:0.875rem;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);display:inline-flex;align-items:center;gap:0.5rem}
-  .delete-modal-backdrop{position:fixed;inset:0;z-index:1600;display:none;align-items:center;justify-content:center;padding:1rem;background:rgba(15,23,42,0.68);backdrop-filter:blur(10px)}
-  .delete-modal-backdrop:not(.hidden){display:flex}
-  .delete-modal-card{width:min(560px,100%);background:linear-gradient(180deg,#FFFFFF 0%,#FFF7F7 100%);border:1px solid rgba(239,68,68,0.18);border-radius:1.25rem;box-shadow:0 28px 90px rgba(15,23,42,0.32),0 0 0 1px rgba(255,255,255,0.5);position:relative;overflow:hidden}
-  .delete-modal-card::before{content:'';position:absolute;top:0;left:0;right:0;height:5px;background:linear-gradient(90deg,#DC2626,#F97316)}
-  .delete-modal-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:999px;border:1px solid #E5E7EB;background:#FFFFFF;color:#64748B;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s}
-  .delete-modal-close:hover{background:#F8FAFC;color:#0F172A;border-color:#CBD5E1}
-  .delete-modal-shell{padding:1.6rem 1.6rem 1.35rem}
-  .delete-modal-icon{width:60px;height:60px;border-radius:18px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#FEE2E2,#FECACA);color:#B91C1C;box-shadow:inset 0 1px 0 rgba(255,255,255,0.65),0 10px 24px rgba(220,38,38,0.12);margin-bottom:1rem}
-  .delete-modal-panel{border:1px solid #FECACA;background:rgba(255,255,255,0.78);border-radius:0.9rem;padding:0.95rem 1rem}
-  .delete-modal-list{margin:0;padding-left:1.15rem;color:#7F1D1D;font-size:0.84rem;line-height:1.55}
-  .delete-modal-list li+li{margin-top:0.35rem}
-  .delete-modal-check{display:flex;align-items:flex-start;gap:0.75rem;padding:0.9rem 1rem;border:1px solid #E5E7EB;border-radius:0.9rem;background:#FFFFFF}
-  .delete-modal-check input{width:16px;height:16px;margin-top:2px;accent-color:#DC2626;flex-shrink:0}
-  .delete-modal-error{border:1px solid #FECACA;background:#FEF2F2;color:#991B1B;border-radius:0.85rem;padding:0.8rem 0.95rem;font-size:0.82rem;line-height:1.5}
-  .delete-modal-actions{display:flex;justify-content:flex-end;gap:0.75rem;flex-wrap:wrap}
-  @media(max-width:640px){.delete-modal-shell{padding:1.15rem 1rem 1rem}.delete-modal-actions{flex-direction:column-reverse}.delete-modal-actions button{width:100%;justify-content:center}}
-  .ai-changed{background-color:#DBEAFE;border-radius:4px;position:relative;overflow:visible}
-  .ai-changed.item-row{padding-right:28px}
-  .ai-changed:not(.item-row){padding-right:28px}
-  .analysis-done{position:relative}
-  .analysis-done::after{content:'\2713';position:absolute;top:-4px;right:-4px;width:16px;height:16px;background:#22C55E;color:#fff;border-radius:50%;font-size:9px;line-height:16px;text-align:center;font-weight:700;border:2px solid #fff;z-index:2}
-  /* AI accept/reject: unified bar matching mobile-action-bar style */
-  .ai-actions{position:absolute;left:50%;right:auto;top:-34px;transform:translateX(-50%);display:none;flex-direction:row;gap:4px;z-index:20;background:#fff;padding:4px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.18);border:1px solid #E2E8F0;white-space:nowrap}
-  .ai-changed.ai-tapped .ai-actions{display:flex}
-  .ai-changed .item-del{display:none!important}
-  [data-list] .ai-changed{overflow:visible}
-  .ai-action-btn{height:28px;border-radius:6px;padding:0 10px;font-size:11px;font-weight:600;border:1px solid;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;transition:background 0.15s;white-space:nowrap;box-shadow:none}
-  .ai-action-btn.accept{background:#D1FAE5;color:#166534;border-color:#22C55E}
-  .ai-action-btn.accept:hover{background:#22C55E;color:#fff}
-  .ai-action-btn.reject{background:#FEF3C7;color:#92400E;border-color:#F59E0B}
-  .ai-action-btn.reject:hover{background:#F59E0B;color:#fff}
-  .ai-action-btn.view-prev{background:#F5F3FF;color:#7C3AED;border-color:#C4B5FD}
-  .ai-action-btn.view-prev:hover{background:#7C3AED;color:#fff}
-  .ai-action-btn .ai-btn-label{display:inline}
-  .ai-accept-btn{background:rgba(34,197,94,0.15);color:#16A34A}
-  .ai-accept-btn:hover{background:rgba(34,197,94,0.3);color:#15803D}
-  .ai-reject-btn{background:rgba(245,158,11,0.15);color:#D97706}
-  .ai-reject-btn:hover{background:rgba(245,158,11,0.3);color:#B45309}
-  .ai-action-bar{display:flex;align-items:center;justify-content:space-between;padding:0.625rem 1rem;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:0.5rem;margin-bottom:0.75rem;gap:0.5rem;flex-wrap:wrap}
-  .ai-action-bar .ai-bar-text{font-size:0.8rem;color:#1E40AF;font-weight:500}
-  .ai-action-bar button{font-size:0.75rem;padding:0.375rem 0.75rem;border-radius:0.375rem;border:none;cursor:pointer;font-weight:500;transition:all 0.15s}
-  .ai-bar-accept{background:#DCFCE7;color:#15803D}
-  .ai-bar-accept:hover{background:#BBF7D0}
-  .ai-bar-reject{background:#FEF3C7;color:#92400E}
-  .ai-bar-reject:hover{background:#FDE68A}
-  .drag-handle{cursor:grab;color:#D1D5DB;flex-shrink:0;touch-action:none;display:flex;align-items:center;transition:color 0.15s;user-select:none}
-  .drag-handle:hover{color:#6B7280}
-  .drag-handle:active{cursor:grabbing}
-  .item-row.dragging{opacity:0.35;outline:2px dashed #93C5FD;outline-offset:2px}
-  .item-row.drag-over{box-shadow:0 -2px 0 0 #3B82F6}
-  .btn-danger:hover{background:#FEF2F2;border-color:#FECACA}
-  .input-field{width:100%;padding:0.625rem 0.875rem;border:1px solid #E2E8F0;border-radius:0.5rem;font-size:0.875rem;font-family:'Manrope',sans-serif;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);background:#F8FAFC;box-sizing:border-box;color:#0F172A}
-  .input-field:hover{border-color:#CBD5E1;background:#fff}
-  .input-field:focus{outline:none;border-color:var(--c-primary,#005EB8);box-shadow:0 0 0 3px color-mix(in srgb,var(--c-primary,#005EB8) 12%,transparent);background:#fff}
-  textarea.input-field{min-height:120px;resize:vertical}
-  .password-wrapper{position:relative}
-  .password-wrapper .input-field{padding-right:2.5rem}
-  .toggle-password{position:absolute;right:0.625rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:0;color:#9CA3AF;display:flex;align-items:center}
-  .toggle-password:hover{color:#6B7280}
-  .file-drop{border:2px dashed #CBD5E1;border-radius:0.75rem;padding:2rem;text-align:center;cursor:pointer;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);background:#F8FAFC}
-  .file-drop:hover,.file-drop.dragover{border-color:var(--c-primary,#005EB8);background:#EFF6FF;box-shadow:0 0 0 4px color-mix(in srgb,var(--c-primary,#005EB8) 8%,transparent)}
-  .check-card{border:2px solid #E2E8F0;border-radius:0.625rem;padding:0.75rem 1rem;cursor:pointer;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);display:flex;align-items:center;gap:0.75rem;background:#fff}
-  .check-card:hover{border-color:#93C5FD}
-  .check-card.selected{border-color:var(--c-primary,#005EB8);background:color-mix(in srgb,var(--c-primary,#005EB8) 6%,#fff)}
-  .check-card input{display:none}
-  .check-box{width:1.25rem;height:1.25rem;border:2px solid #D1D5DB;border-radius:0.25rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s}
-  .check-card.selected .check-box{background:var(--c-primary,#005EB8);border-color:var(--c-primary,#005EB8)}
-  .loader{display:inline-block;position:relative;border-radius:50%;margin-left: -30px; perspective:800px}
-  .loader .inner{position:absolute;box-sizing:border-box;width:100%;height:100%;border-radius:50%}
-  .loader .inner.one{animation:rotate-one 1s linear infinite;border-bottom:3px solid #EFEFFA}
-  .loader .inner.two{animation:rotate-two 1s linear infinite;border-right:3px solid #EFEFFA}
-  .loader .inner.three{animation:rotate-three 1s linear infinite;border-top:3px solid #EFEFFA}
-  .loader-dark .inner.one{border-bottom-color:var(--c-primary,#005EB8)}
-  .loader-dark .inner.two{border-right-color:var(--c-primary,#005EB8)}
-  .loader-dark .inner.three{border-top-color:var(--c-primary,#005EB8)}
-  @keyframes rotate-one{0%{transform:rotateX(35deg) rotateY(-50deg) rotateZ(0deg)}100%{transform:rotateX(35deg) rotateY(-50deg) rotateZ(360deg)}}
-  @keyframes rotate-two{0%{transform:rotateX(50deg) rotateY(0deg) rotateZ(0deg)}100%{transform:rotateX(50deg) rotateY(0deg) rotateZ(360deg)}}
-  @keyframes rotate-three{0%{transform:rotateX(35deg) rotateY(50deg) rotateZ(0deg)}100%{transform:rotateX(35deg) rotateY(50deg) rotateZ(360deg)}}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  @keyframes rbPulseSoft{0%,100%{opacity:1}50%{opacity:0.55}}
-  .editable:hover{outline:2px dashed #93C5FD;outline-offset:2px;border-radius:0.25rem}
-  .editable:focus{outline:2px solid var(--c-primary,#005EB8);outline-offset:2px;border-radius:0.25rem}
-  .fade-in{animation:fadeIn 0.45s cubic-bezier(0.4,0,0.2,1)}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes modalPopIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-  /* Build & Style preset pill buttons (spacing + divider) */
-  .bs-preset-btn{padding:6px 14px;background:#fff;border:none;border-right:1px solid #E2E8F0;cursor:pointer;font-family:inherit;font-size:0.76rem;font-weight:600;color:#475569;transition:all .15s}
-  .bs-preset-btn:last-child{border-right:none}
-  .bs-preset-btn:hover{background:#F1F5F9;color:#0F172A}
-  .bs-preset-btn.active{background:var(--c-primary,#005EB8);color:#fff}
-  /* Spacing presets applied to preview */
-  #preview-container.bs-spacing-compact, #preview-container-b.bs-spacing-compact{--bs-gap:0.5rem;--bs-pad:0.75rem}
-  #preview-container.bs-spacing-comfortable, #preview-container-b.bs-spacing-comfortable{--bs-gap:1rem;--bs-pad:1.25rem}
-  #preview-container.bs-spacing-roomy, #preview-container-b.bs-spacing-roomy{--bs-gap:1.75rem;--bs-pad:1.75rem}
   [class*="bs-spacing-"] .section-card,[class*="bs-spacing-"] [data-section-card]{margin-bottom:var(--bs-gap,1rem)!important;padding:var(--bs-pad,1.25rem)!important}
   /* Divider presets */
   .bs-divider-dot [data-section-divider],.bs-divider-dot .section-divider{border:none!important;text-align:center;height:12px;background:radial-gradient(circle,#CBD5E1 2px,transparent 2.5px) center / 14px 12px repeat-x}
@@ -309,62 +103,47 @@
   .photo-size-btn.active{border-color:var(--c-primary,#005EB8);background:color-mix(in srgb,var(--c-primary,#005EB8) 8%,#fff);color:var(--c-primary,#005EB8)}
   .site-footer{background:#0F172A;border-top:1px solid #1E293B;padding:1.25rem 0;text-align:center;margin-top:auto;width:100%}
   .site-footer p{color:#64748B;font-size:0.75rem;margin:0}
-  /* ── Item Action Buttons (delete ×, add +) ── */
-  .item-row{position:relative;padding-right:8px;min-width:0}
-  .item-row .drag-handle{display:flex;align-items:center;align-self:center}
-  .skill-text{min-width:0;flex:1}
-  .item-row.item-editing .skill-text,.item-row[contenteditable="true"]:focus-within .skill-text{white-space:normal;overflow:visible;text-overflow:clip}
-  /* Remove browser outline on editable items, use custom border instead */
-  .item-row[contenteditable="true"]:focus{outline:none;box-shadow:0 0 0 2px rgba(59,130,246,0.3);border-radius:4px}
-  .item-row .item-del,.item-row .item-vis-toggle,.item-row .item-edit-btn{display:none!important}
-  /* 2026-04-25 BUG-FIX: bullets emitted by renderExperienceRows() carry the
-     .bullet-row class and ship their own absolutely-positioned ✕ button.
-     Reveal that button on hover/focus so desktop users can actually click
-     it (the global rule above hides every .item-del; this override is
-     scoped strictly to .bullet-row so other item-rows still rely on the
-     mobile-action-bar pattern). */
-  .item-row.bullet-row:hover > .item-del,
-  .item-row.bullet-row:focus-within > .item-del{display:inline-flex!important;align-items:center;justify-content:center}
-  .item-add{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:6px;border:1px dashed #D1D5DB;background:transparent;color:#6B7280;font-size:12px;cursor:pointer;transition:all 0.2s;margin-top:6px}
-  .item-add:hover{border-color:var(--c-primary,#005EB8);color:var(--c-primary,#005EB8);background:color-mix(in srgb,var(--c-primary,#005EB8) 5%,transparent)}
-  .export-hide{ display:inline-block; }
-  .item-hidden{ opacity:0.3; }
-  .item-hidden .bullet-text, .item-hidden .skill-text{ text-decoration:line-through; }
-  /* Action bar (floating above item on hover/tap) */
-  .mobile-action-bar{position:absolute;left:50%;top:-34px;transform:translateX(-50%);display:none;gap:4px;z-index:20;background:#fff;padding:4px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.18);border:1px solid #E2E8F0;white-space:nowrap}
-  @media(max-width:640px){.mobile-action-bar{flex-wrap:wrap;justify-content:center;white-space:normal;max-width:220px}}
-  .item-row.item-tapped > .mobile-action-bar{display:flex}
-  .item-row:hover > .mobile-action-bar{display:flex}
-  .mobile-action-bar .mab-btn{height:28px;border-radius:6px;padding:0 10px;font-size:11px;font-weight:600;border:1px solid;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;white-space:nowrap}
-  /* Desktop: hide Edit button — click row directly to edit */
-  @media(min-width:641px){.mobile-action-bar .mab-edit{display:none}}
-  /* Mobile: prevent direct contenteditable — user must tap Edit button */
-  @media(max-width:640px){.item-row[contenteditable="true"]{-webkit-user-modify:read-only;caret-color:transparent}.item-row .editable[contenteditable="true"]{-webkit-user-modify:read-only;caret-color:transparent}.item-row.item-editing [contenteditable="true"]{-webkit-user-modify:read-write!important;caret-color:auto!important}.item-row.item-editing[contenteditable="true"]{-webkit-user-modify:read-write!important;caret-color:auto!important}}
-  /* Editable-tapped: action bar on non-item-row editables (Executive Summary etc.) */
-  .editable-action-bar{position:absolute;left:50%;top:-34px;transform:translateX(-50%);display:none;gap:4px;z-index:20;background:#fff;padding:4px 6px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.18);border:1px solid #E2E8F0;white-space:nowrap}
-  .editable-tapped > .editable-action-bar{display:flex}
-  /* Desktop: hide editable action bars (direct editing via click) */
-  @media(min-width:641px){.editable-action-bar{display:none!important}}
-  .mab-btn.mab-edit{background:#EFF6FF;color:#2563EB;border-color:#93C5FD}
-  .mab-btn.mab-view{background:#F0FDF4;color:#15803D;border-color:#86EFAC}
-  .mab-btn.mab-hide{background:#FEF9C3;color:#A16207;border-color:#FDE047}
-  .mab-btn.mab-del{background:#FEF2F2;color:#DC2626;border-color:#FCA5A5}
-  .mab-btn.mab-done{background:#059669;color:#fff;border-color:#059669}
-  .mab-btn.mab-prev{background:#F5F3FF;color:#7C3AED;border-color:#C4B5FD}
-  .mab-btn.mab-undo{background:#FEF3C7;color:#92400E;border-color:#F59E0B}
-  .mab-btn.mab-undo:hover{background:#F59E0B;color:#fff}
-  .mab-btn.mab-keep{background:#D1FAE5;color:#166534;border-color:#22C55E}
-  .mab-btn.mab-keep:hover{background:#22C55E;color:#fff}
-  .mab-btn.mab-viewprev{background:#F5F3FF;color:#7C3AED;border-color:#C4B5FD}
-  .mab-btn.mab-viewprev:hover{background:#7C3AED;color:#fff}
-  /* Hide separate ai-actions on item-rows — merged into mobile-action-bar */
-  .item-row .ai-actions{display:none!important}
-  /* Done bar below item when editing */
-  .mobile-done-bar{position:relative;display:none;justify-content:center;margin-top:4px;z-index:20}
-  .item-row.item-editing + .mobile-done-bar{display:flex}
-  .mobile-done-bar .mab-btn{height:28px;border-radius:6px;padding:0 16px;font-size:11px;font-weight:600;border:1px solid;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer}
-  /* ai-changed item rows — no extra offset needed since Undo/Keep are in same bar */
-  .ai-changed.item-row:hover > .mobile-action-bar{display:flex}
+    /* ── Preview edit-control kill-switch ───────────────────────────────────────
+       All edit-control classes (.item-del, .mobile-action-bar, .drag-handle,
+       .item-edit-btn, .editable-action-bar, .editable-done-bar, .item-add)
+       are hidden within all four preview containers. These scoped rules
+       replaced former global CSS. PREVIEW_RENDERERS no longer emits these
+       elements; the rules remain as a belt-and-suspenders guard against
+       accidental injection by future code.
+       ─────────────────────────────────────────────────────────────────────── */
+    /* ── Read-only preview stabilization ── */
+    .item-row{position:relative;min-width:0}
+    .skill-text{min-width:0;flex:1}
+    .item-hidden{opacity:0.3}
+    .item-hidden .bullet-text,.item-hidden .skill-text{text-decoration:line-through}
+    #preview-container .item-del,
+    #preview-container-b .item-del,
+    #preview-container-export .item-del,
+    #preview-container-export-b .item-del,
+    #preview-container .mobile-action-bar,
+    #preview-container-b .mobile-action-bar,
+    #preview-container-export .mobile-action-bar,
+    #preview-container-export-b .mobile-action-bar,
+    #preview-container .drag-handle,
+    #preview-container-b .drag-handle,
+    #preview-container-export .drag-handle,
+    #preview-container-export-b .drag-handle,
+    #preview-container .item-edit-btn,
+    #preview-container-b .item-edit-btn,
+    #preview-container-export .item-edit-btn,
+    #preview-container-export-b .item-edit-btn,
+    #preview-container .editable-action-bar,
+    #preview-container-b .editable-action-bar,
+    #preview-container-export .editable-action-bar,
+    #preview-container-export-b .editable-action-bar,
+    #preview-container .editable-done-bar,
+    #preview-container-b .editable-done-bar,
+    #preview-container-export .editable-done-bar,
+    #preview-container-export-b .editable-done-bar,
+    #preview-container .item-add,
+    #preview-container-b .item-add,
+    #preview-container-export .item-add,
+    #preview-container-export-b .item-add { display:none!important; }
   /* ── Analysis Slide-Out Panel ── */
   .analysis-overlay{position:fixed;inset:0;background:rgba(15,23,42,0.4);z-index:998;opacity:0;transition:opacity 0.3s;pointer-events:none;backdrop-filter:blur(4px)}
   .analysis-overlay.open{opacity:1;pointer-events:auto}
@@ -500,19 +279,9 @@
     .ai-changed p,.ai-changed li,.ai-changed span:not(.ai-actions):not(.ai-btn-label):not(.ai-action-btn){font-size:0.78rem}
     .item-row .item-vis-toggle,.item-row .item-del,.item-row .item-edit-btn{display:none!important}
     .item-row{padding-right:8px;-webkit-user-select:none;user-select:none;font-size:0.7rem;line-height:1.4;position:relative}
-    .item-row.item-editing .bullet-text,.item-row.item-editing .skill-text,.item-row.item-editing .editable,.item-row.item-editing[contenteditable="true"]{-webkit-user-select:text;user-select:text}
-    .item-row.item-editing{grid-column:1/-1}
-    .mobile-action-bar .mab-btn{font-size:10px;padding:0 7px;height:26px}
-    .mobile-done-bar .mab-btn{font-size:10px;padding:0 12px;height:26px}
-    /* Mobile: show Edit button (hidden on desktop) */
-    .mobile-action-bar .mab-edit{display:inline-flex!important}
     /* Mobile: core competencies — reduce padding to prevent mid-word wrap */
     [data-list="skills"] > .item-row{padding-left:8px!important;padding-right:4px!important;gap:4px!important;font-size:0.65rem}
     [data-list="skills"] > .item-row .skill-text{font-size:0.65rem;word-break:break-word}
-    /* Mobile: suppress direct editing on all contenteditable elements */
-    #preview-container .editable[contenteditable="true"]{-webkit-user-select:none;user-select:none}
-    #preview-container .editable.editing-active{-webkit-user-select:text;user-select:text}
-    .editable-action-bar .mab-btn{font-size:10px;padding:0 7px;height:26px}
     .ai-action-bar{flex-direction:column;align-items:stretch;text-align:center}
     .ai-enhance-desc{display:none}
     #job-tracker-list .job-row{flex-direction:column;gap:0.5rem}
@@ -894,315 +663,6 @@
   @media(max-width:640px){
     .sub-acc-head{padding:11px 12px;min-height:48px;gap:9px}
     .sub-acc-title{font-size:0.88rem}
-    /* On mobile keep the status indicator visible but compress it to a color dot when the section is closed */
-    .sub-acc-meta{display:inline-block;font-size:0;color:transparent;padding:0;width:10px;height:10px;min-width:10px;border-radius:50%;background:#CBD5E1;flex-shrink:0}
-    .sub-acc-meta.complete{background:#22C55E;color:transparent}
-    .sub-acc-meta.empty{background:#F59E0B;color:transparent}
-    .sub-acc.open .sub-acc-meta{font-size:0.68rem;color:#6B7280;width:auto;height:auto;min-width:0;padding:2px 7px;border-radius:999px;background:#F1F5F9}
-    .sub-acc.open .sub-acc-meta.complete{background:#DCFCE7;color:#166534}
-    .sub-acc.open .sub-acc-meta.empty{background:#FEF3C7;color:#92400E}
-    .sub-acc-body{padding:10px 12px 12px}
-    #about-me-subs .sub-acc-body .grid{gap:8px}
-  }
-  /* Compact disclosure for Extracted Resume Data */
-  .about-me-disclosure{margin-top:14px;border:1px solid #E5E7EB;border-radius:10px;background:#FAFAFA;overflow:hidden}
-  .about-me-disclosure[open]{border-color:#CBD5E1;background:#fff}
-  .about-me-disclosure > summary{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;list-style:none;font-size:0.82rem;font-weight:600;color:#475569;min-height:40px;user-select:none}
-  .about-me-disclosure > summary::-webkit-details-marker{display:none}
-  .about-me-disclosure > summary:hover{background:#F1F5F9}
-  .about-me-disclosure > summary .disc-chev{width:24px;height:24px;padding:5px;border-radius:6px;background:#F1F5F9;color:#64748B;flex-shrink:0;transition:transform .2s,background .15s}
-  .about-me-disclosure[open] > summary .disc-chev{transform:rotate(180deg);background:#DBEAFE;color:#005EB8}
-  .about-me-disclosure > summary:hover .disc-chev{background:#E2E8F0}
-  .about-me-disclosure-body{padding:10px 14px 14px;border-top:1px solid #E5E7EB}
-  /* Build & Style stacked layout — preview on top, options below (wider) */
-  .bs-split{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
-  .bs-left{min-width:0;order:2}
-  .bs-right{min-width:0;order:1;position:static;max-height:none;overflow:visible;background:transparent;padding:0}
-  .bs-right-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #E5E7EB}
-  .bs-right-head h3{font-size:0.85rem;font-weight:600;color:#0A2F6B;display:flex;align-items:center;gap:6px}
-  .bs-right-empty{padding:40px 20px;text-align:center;color:#9CA3AF;font-size:0.85rem;border:1px dashed #D1D5DB;border-radius:10px;background:#fff}
-  /* Preview body: cap height to roughly half of prior full-column preview */
-  #bs-style-preview{max-height:320px;overflow:auto;border-radius:10px;-webkit-overflow-scrolling:touch}
-  @media (max-width: 640px){ #bs-style-preview{max-height:260px} }
-  /* ── Left Sidebar Items ── */
-  .left-btn{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border-radius:8px;border:none;background:rgba(255,255,255,0.06);color:#CBD5E1;cursor:pointer;font-size:0.75rem;font-weight:500;transition:all 0.15s;font-family:inherit;text-align:left}
-  .left-btn:hover{background:rgba(255,255,255,0.12);color:#F1F5F9}
-  .left-btn.primary{background:rgba(0,94,184,0.2);color:#93C5FD}
-  .left-btn.primary:hover{background:rgba(0,94,184,0.35)}
-  .left-btn.success{background:rgba(4,120,87,0.2);color:#6EE7B7}
-  .left-btn.success:hover{background:rgba(4,120,87,0.35)}
-  .left-btn svg,.left-btn i{width:14px;height:14px;flex-shrink:0}
-  .left-divider{height:1px;background:rgba(255,255,255,0.08);margin:10px 0}
-  .left-label{font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748B;padding:0 4px;margin-bottom:4px}
-  /* ── Right Panel Section Cards (dark theme matching left) ── */
-  .rp-section{margin-bottom:8px;padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:8px;transition:all 0.2s}
-  .rp-section:hover{border-color:rgba(255,255,255,0.15)}
-  .rp-section-title{font-size:0.75rem;font-weight:700;color:#E2E8F0;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between}
-  .rp-section-body{font-size:0.72rem;color:#94A3B8;line-height:1.5}
-  .rp-ai-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;border:1px solid rgba(99,102,241,0.3);background:rgba(99,102,241,0.15);color:#A5B4FC;font-size:0.65rem;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit}
-  .rp-ai-btn:hover{background:rgba(99,102,241,0.3);border-color:rgba(99,102,241,0.5)}
-  .rp-ai-btn:disabled{opacity:0.6;cursor:wait}
-  .spinner-sm{display:inline-block;width:11px;height:11px;border:2px solid rgba(147,197,253,0.3);border-top-color:#93C5FD;border-radius:50%;animation:spin-sm 0.7s linear infinite;flex-shrink:0}
-  @keyframes spin-sm{to{transform:rotate(360deg)}}
-  .rp-ai-suggestion{margin-top:6px;padding:8px;background:rgba(4,120,87,0.15);border:1px solid rgba(4,120,87,0.25);border-radius:6px;font-size:0.72rem;line-height:1.4;color:#6EE7B7;display:none}
-  .rp-ai-suggestion.visible{display:block}
-  /* AI-suggested-content badge (shown when a section had no user-provided data) */
-  .rp-suggested-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:rgba(217,119,6,0.18);border:1px solid rgba(217,119,6,0.35);color:#FCD34D;font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-left:6px;white-space:nowrap}
-  .rp-suggested-note{margin-bottom:6px;padding:6px 8px;background:rgba(217,119,6,0.1);border-left:2px solid #D97706;border-radius:4px;font-size:0.68rem;color:#FCD34D;line-height:1.35;font-style:italic}
-  .rp-apply-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;border:none;background:#047857;color:#fff;font-size:0.65rem;font-weight:600;cursor:pointer;transition:all 0.15s;font-family:inherit;margin-top:4px}
-  .rp-apply-btn:hover{background:#065F46}
-  /* ── Mobile Drawers ── */
-  .mobile-drawer-toggle{display:none;position:fixed;z-index:25;width:36px;height:36px;border-radius:8px;border:none;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:all 0.2s}
-  .mobile-drawer-toggle:hover{transform:scale(1.05)}
-  .mobile-drawer-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(3px);z-index:35;opacity:0;transition:opacity 0.3s}
-  .mobile-drawer-overlay.open{opacity:1;display:block}
-  @media(max-width:1180px){
-    .builder-3col{padding:12px 14px 80px}
-    .builder-left{display:none!important}
-    .builder-center{padding:0}
-    /* Sidebar is permanently hidden — no drawer toggle needed */
-    .mobile-drawer-toggle{display:none!important}
-    .mobile-drawer-overlay{display:none!important}
-  }
-  @media(max-width:640px){
-    .header-icon-btn .header-btn-label{display:none}
-    .header-icon-btn{padding:6px 8px!important}
-  }
-</style>
-</head>
-<body>
-
-<div class="min-h-screen">
-<!-- Header -->
-<header style="background:#0F172A;border-bottom:1px solid #1E293B;position:sticky;top:0;z-index:60;backdrop-filter:blur(12px);background:rgba(15,23,42,0.95)">
-  <div class="max-w-5xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
-    <div class="flex items-center gap-2.5">
-      <i data-lucide="file-text" class="hidden sm:block" style="width:20px;height:20px;color:#fff"></i>
-      <div>
-        <h1 class="text-sm sm:text-base font-semibold tracking-tight" style="font-family:'Outfit';color:#E2E8F0;line-height:1.2">Resume Portfolio</h1>
-        <span style="font-size:10px;color:#94A3B8;display:block;line-height:1;margin-top:1px">Powered by Career Solutions</span>
-      </div>
-    </div>
-    <div class="flex items-center gap-2 sm:gap-3">
-      <button id="btn-my-plans" class="hidden text-xs py-1.5 px-2 sm:px-3 rounded-md flex items-center gap-1 sm:gap-1.5 font-medium" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#F1F5F9;transition:all 0.2s" onclick="checkUnsavedChanges(showDashboard)" data-testid="my-plans-btn"><i data-lucide="file-text" style="width:12px;height:12px"></i><span class="hidden sm:inline"> My Resumes</span></button>
-      <button id="btn-header-save" class="hidden header-icon-btn text-xs py-1.5 px-2 sm:px-3 rounded-md flex items-center gap-1 sm:gap-1.5 font-medium" style="background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.3);color:#BFDBFE;transition:all 0.2s" onclick="savePlan()" data-testid="header-save-btn" title="Save Resume"><i data-lucide="save" style="width:12px;height:12px"></i><span class="header-btn-label hidden sm:inline"> Save</span></button>
-      <button id="btn-header-new-version" class="hidden header-icon-btn text-xs py-1.5 px-2 sm:px-3 rounded-md flex items-center gap-1 sm:gap-1.5 font-medium" style="background:rgba(16,185,129,0.18);border:1px solid rgba(16,185,129,0.3);color:#A7F3D0;transition:all 0.2s" onclick="promptNewVersion()" data-testid="header-new-version-btn" title="New Version"><i data-lucide="file-plus" style="width:12px;height:12px"></i><span class="header-btn-label hidden sm:inline"> New Version</span></button>
-      <div id="user-info" class="hidden relative">
-        <button onclick="toggleUserMenu()" class="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-white/10 transition-colors" data-testid="user-menu-toggle">
-          <img id="user-avatar" class="w-7 h-7 rounded-full border-2" style="border-color:rgba(255,255,255,0.15)" src="" alt="">
-          <span id="user-name" class="text-xs font-medium hidden sm:inline" style="color:#CBD5E1"></span>
-          <i data-lucide="chevron-down" style="width:12px;height:12px;color:#9CA3AF"></i>
-        </button>
-        <div id="user-menu" class="user-menu" data-testid="user-menu-dropdown">
-          <div class="px-3 py-2.5" style="border-bottom:1px solid #E5E7EB">
-            <p id="menu-user-name" class="text-sm font-semibold" style="color:#0A2F6B"></p>
-            <p id="menu-user-email" class="text-xs" style="color:#6B7280"></p>
-          </div>
-          <div class="py-1">
-            <button class="user-menu-item" onclick="showDashboard();closeUserMenu()" data-testid="menu-my-plans"><i data-lucide="file-text" style="width:14px;height:14px;color:#6B7280"></i> My Resumes</button>
-            <button class="user-menu-item" onclick="showProfileSettings();closeUserMenu()" data-testid="menu-profile"><i data-lucide="user" style="width:14px;height:14px;color:#6B7280"></i> My Info</button>
-            <button class="user-menu-item" onclick="closeUserMenu();try{RB_TOUR.start({force:true})}catch(_){}" data-testid="menu-walkthrough"><i data-lucide="compass" style="width:14px;height:14px;color:#6B7280"></i> Show walkthrough</button>
-            <button class="user-menu-item" id="menu-tips-toggle" onclick="try{window.__rbToggleTips && window.__rbToggleTips()}catch(_){}" data-testid="menu-tips-toggle"><i data-lucide="lightbulb" style="width:14px;height:14px;color:#6B7280"></i> <span id="menu-tips-label">Show helpful tips</span></button>
-            <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Plan%20Builder%20Help" class="user-menu-item" data-testid="menu-help"><i data-lucide="mail" style="width:14px;height:14px;color:#6B7280"></i> Contact Help</a>
-            <a id="menu-members-portal" href="https://www.careersolutionsfortoday.com/CareerMembers.html" target="_blank" class="user-menu-item hidden" data-testid="menu-members-portal"><i data-lucide="users" style="width:14px;height:14px;color:#047857"></i> Career Members Portal</a>
-          </div>
-          <div class="user-menu-divider"></div>
-          <div class="py-1">
-            <button class="user-menu-item" onclick="openTermsForReview();closeUserMenu()" data-testid="menu-terms"><i data-lucide="file-text" style="width:14px;height:14px;color:#6B7280"></i> Terms of Service</button>
-            <button class="user-menu-item" onclick="openPrivacyForReview();closeUserMenu()" data-testid="menu-privacy"><i data-lucide="shield" style="width:14px;height:14px;color:#6B7280"></i> Privacy Policy</button>
-            <button class="user-menu-item" onclick="openAboutMe();closeUserMenu()"><i data-lucide="info" style="width:14px;height:14px;color:#6B7280"></i> About the Creator</button>
-          </div>
-          <div class="user-menu-divider"></div>
-          <div class="py-1">
-            <button class="user-menu-item" onclick="showPaywall();closeUserMenu()" data-testid="menu-view-plans"><i data-lucide="tag" style="width:14px;height:14px;color:#6B7280"></i> View Plans & Pricing</button>
-            <button id="menu-sub-btn" class="user-menu-item" onclick="cancelSubscription();closeUserMenu()" data-testid="menu-cancel-sub"><i id="menu-sub-icon" data-lucide="credit-card" style="width:14px;height:14px;color:#6B7280"></i> <span id="menu-sub-text">Manage Subscription</span></button>
-            <button class="user-menu-item danger" onclick="deleteAccountAndData();closeUserMenu()" data-testid="menu-delete-account"><i data-lucide="trash-2" style="width:14px;height:14px;color:#B91C1C"></i> Delete Account & Data</button>
-            <button class="user-menu-item danger" onclick="signOutUser();closeUserMenu()" data-testid="menu-signout"><i data-lucide="log-out" style="width:14px;height:14px;color:#B91C1C"></i> Sign Out</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-      <span class="ts-pct" id="ts-pct-3">0%</span>
-    </button>
-    <button type="button" class="ts-step" data-step="4" onclick="toggleAccordion(4)">
-      <span class="ts-dot" id="ts-dot-4"><i data-lucide="download" style="width:12px;height:12px"></i></span>
-      <span class="ts-label">Preview and Export</span>
-      <span class="ts-pct" id="ts-pct-4">0%</span>
-    </button>
-  </div>
-</nav>
-
-<!-- Sticky info sub-header removed — status now shown in workspace bar and Export step -->
-
-<!-- Auth Gate (hidden until auth state resolves to prevent flash) -->
-<div id="auth-gate" class="max-w-lg mx-auto px-4 py-12 sm:py-16 text-center fade-in" style="flex:1;display:none">
-  <!-- Feature highlights above card -->
-  <div style="margin-bottom:1.5rem">
-    <h2 class="text-2xl sm:text-3xl font-bold" style="font-family:'Outfit',sans-serif;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,0.3);line-height:1.3;margin:0 0 0.5rem">Your Resume + Career Plan — Built Together</h2>
-    <p class="text-sm" style="color:rgba(255,255,255,0.82);max-width:420px;margin:0 auto;line-height:1.55">More than a resume builder. Generate a tailored resume <em>and</em> a 90-day, 12-month, or 2-year career plan — edit everything in the live preview, then export or share.</p>
-  </div>
-  <div style="display:flex;justify-content:center;gap:1.25rem;margin-bottom:1.75rem;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:6px"><span style="width:20px;height:20px;border-radius:50%;background:rgba(34,197,94,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="calendar-range" style="width:11px;height:11px;color:#4ADE80"></i></span><span style="font-size:0.72rem;color:rgba(255,255,255,0.85);font-weight:500">90-day / 12-mo / 2-yr Plans</span></div>
-    <div style="display:flex;align-items:center;gap:6px"><span style="width:20px;height:20px;border-radius:50%;background:rgba(96,165,250,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="pencil" style="width:11px;height:11px;color:#60A5FA"></i></span><span style="font-size:0.72rem;color:rgba(255,255,255,0.85);font-weight:500">Editable Live Preview</span></div>
-    <div style="display:flex;align-items:center;gap:6px"><span style="width:20px;height:20px;border-radius:50%;background:rgba(251,191,36,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="share-2" style="width:11px;height:11px;color:#FBBF24"></i></span><span style="font-size:0.72rem;color:rgba(255,255,255,0.85);font-weight:500">Word, HTML & Shareable Link</span></div>
-  </div>
-
-  <!-- Sign-in card -->
-  <div class="card" style="background:rgba(255,255,255,0.97);backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,0.12),0 2px 8px rgba(0,0,0,0.04);border:1px solid rgba(255,255,255,0.6);border-radius:1rem;padding:2rem">
-    <div class="mb-5">
-      <div style="width:52px;height:52px;border-radius:14px;margin:0 auto 0.875rem;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#005EB8,#0284C7);box-shadow:0 4px 14px rgba(0,94,184,0.25)">
-        <i data-lucide="file-check-2" style="width:26px;height:26px;color:#fff"></i>
-      </div>
-      <h2 class="text-lg font-semibold" style="color:#0A2F6B;margin:0 0 0.25rem">Welcome — let's get started</h2>
-      <p class="text-sm" style="color:#6B7280;margin:0">Sign in to build your resume, generate a career plan, and save your work.</p>
-    </div>
-    <button onclick="signInWithGoogle()" style="width:100%;padding:0.7rem 1rem;border-radius:0.5rem;border:1px solid #E2E8F0;background:#fff;color:#374151;font-weight:600;font-size:0.875rem;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem;box-shadow:0 1px 3px rgba(0,0,0,0.06)" onmouseover="if(!this.disabled){this.style.background='#F8FAFC';this.style.borderColor='#CBD5E1';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'}" onmouseout="this.style.background='#fff';this.style.borderColor='#E2E8F0';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.06)'" data-testid="google-signin-btn">
-      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-      Continue with Google
-    </button>
-    <div class="relative my-4"><div class="absolute inset-0 flex items-center"><div class="w-full border-t" style="border-color:#E5E7EB"></div></div><div class="relative flex justify-center"><span class="bg-white px-3 text-xs" style="color:#9CA3AF">or use email</span></div></div>
-    <div class="space-y-3 text-left">
-      <input class="input-field" type="email" id="login-email" placeholder="Email address" autocomplete="email" data-testid="login-email-input">
-      <div class="password-wrapper">
-        <input class="input-field" type="password" id="login-password" placeholder="Password" autocomplete="current-password" data-testid="login-password-input">
-        <button type="button" class="toggle-password" onclick="togglePasswordVisibility()" aria-label="Show password" title="Show password">
-          <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          <svg id="eye-off-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-        </button>
-      </div>
-      <div class="flex items-center justify-between" style="margin:0">
-        <p class="text-xs" style="color:#9CA3AF;margin:0">New here? Just type an email & password to create an account.</p>
-        <button type="button" onclick="resetPassword()" class="text-xs font-medium" style="color:#005EB8;background:none;border:none;cursor:pointer;white-space:nowrap;padding:0;margin-left:8px" data-testid="forgot-password-btn">Forgot?</button>
-      </div>
-      <div id="login-error" class="text-xs hidden" style="color:#B91C1C;background:#FEF2F2;padding:0.5rem 0.75rem;border-radius:0.375rem;border:1px solid #FECACA" data-testid="login-error"></div>
-      <button id="email-signin-btn" onclick="signInWithEmail()" class="btn-primary w-full justify-center" data-testid="email-signin-btn">
-        <i data-lucide="log-in" style="width:16px;height:16px"></i> Sign In / Sign Up
-      </button>
-    </div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:5px;margin-top:1rem">
-      <i data-lucide="lock" style="width:11px;height:11px;color:#9CA3AF"></i>
-      <p class="text-xs" style="color:#9CA3AF;margin:0">Secured by Google Firebase</p>
-    </div>
-    <p class="text-xs" style="color:#6B7280;margin-top:0.75rem;text-align:center">By signing in you agree to our <a href="#" onclick="event.preventDefault();openTermsForReview()" style="color:#005EB8;text-decoration:underline">Terms of Service</a> and <a href="#" onclick="event.preventDefault();openPrivacyForReview()" style="color:#005EB8;text-decoration:underline">Privacy Policy</a>.</p>
-  </div>
-</div>
-
-<!-- Dashboard: My Plans -->
-<div id="dashboard" class="max-w-5xl mx-auto px-4 sm:px-6 py-6 hidden fade-in" style="flex:1;width:100%">
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h2 class="text-xl font-semibold" style="color:#E2E8F0">My Resumes</h2>
-      <p class="text-sm" style="color:#94A3B8">Create new resumes or continue editing saved ones.</p>
-    </div>
-    <button class="btn-primary" onclick="startNewPlan()" data-testid="new-plan-btn"><i data-lucide="plus" style="width:16px;height:16px"></i> New Resume</button>
-  </div>
-  <div id="plans-sort-bar" class="hidden flex items-center gap-2 mb-3">
-    <span class="text-xs font-medium" style="color:#94A3B8">Sort by</span>
-    <select id="plans-sort-select" onchange="sortDashboardCards(this.value)" class="text-xs rounded-md px-2 py-1" style="background:#1E293B;color:#E2E8F0;border:1px solid #334155;cursor:pointer">
-      <option value="updated">Last Updated</option>
-      <option value="created">Date Created</option>
-      <option value="score-desc">Score (High → Low)</option>
-      <option value="score-asc">Score (Low → High)</option>
-      <option value="name">Name (A-Z)</option>
-      <option value="company">Company (A-Z)</option>
-    </select>
-  </div>
-  <div id="plans-list" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-  <div id="plans-empty" class="hidden text-center py-16">
-    <i data-lucide="file-plus" style="width:48px;height:48px;color:#64748B;margin:0 auto 1rem"></i>
-    <p class="text-sm font-medium" style="color:#CBD5E1">No Resumes Yet</p>
-    <p id="plans-empty-subtitle" class="text-xs mt-1 mb-4" style="color:#94A3B8">Create your first resume to get started</p>
-    <button class="btn-primary" onclick="startNewPlan()"><i data-lucide="plus" style="width:16px;height:16px"></i> Create Resume</button>
-  </div>
-</div>
-
-<!-- Builder -->
-<div id="builder-wrapper" class="hidden" style="flex:1;width:100%">
-  <!-- Mobile drawer toggles -->
-  <button class="mobile-drawer-toggle" id="left-drawer-btn" style="left:12px;bottom:20px;background:#10B981;color:#fff" title="Sections & Resume Analysis" onclick="toggleLeftDrawer()"><i data-lucide="panel-left" style="width:16px;height:16px"></i></button>
-  <div class="mobile-drawer-overlay" id="drawer-overlay" onclick="closeDrawers()"></div>
-
-  <div class="builder-3col">
-    <!-- LEFT SIDEBAR -->
-    <div class="builder-left" id="left-sidebar">
-      <!-- Resume List dropdown -->
-      <div class="left-label">Resume List</div>
-      <select id="left-version-select" class="left-btn" style="background:rgba(0,94,184,0.2);color:#E2E8F0;font-size:0.8rem;font-weight:500;border:1px solid rgba(0,94,184,0.3);padding:7px 8px;appearance:auto;cursor:pointer;width:100%;margin-bottom:4px" onchange="switchVersion(this.value)" data-testid="version-select">
-        <option value="current" selected>My Main Resume</option>
-      </select>
-      <button class="left-btn" onclick="promptNewVersion()" style="margin-bottom:4px;font-size:0.68rem"><i data-lucide="plus"></i> New Version</button>
-      <div class="left-divider"></div>
-      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">
-        <button class="left-btn primary" onclick="savePlan()" data-testid="left-save-btn"><i data-lucide="save"></i> Save</button>
-        <button class="left-btn success" onclick="publishAndShare()" data-testid="left-publish-btn"><i data-lucide="globe"></i> Publish</button>
-        <div id="publish-actions" style="display:none;flex-direction:row;gap:4px;margin-top:2px">
-          <button class="left-btn" onclick="copyShareLink()" title="Copy published link" style="flex:1"><i data-lucide="link" style="width:14px;height:14px"></i> Copy Link</button>
-          <button class="left-btn" onclick="previewPublishedPage()" title="Preview published page" style="flex:1"><i data-lucide="eye" style="width:14px;height:14px"></i> Preview</button>
-        </div>
-      </div>
-      <div class="left-divider"></div>
-      <div class="left-label">Export</div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <button class="left-btn" onclick="runExport('html')"><i data-lucide="download"></i> HTML</button>
-        <button class="left-btn" onclick="runExport('docx')" data-testid="export-docx-btn"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/24f58c824e01a5a6261770144642f202636ca14b/icons/2025%20Word%20Icon.png" alt="Word" style="width:14px;height:14px"> Word</button>
-        <button class="left-btn" onclick="openPptxTemplateModal()" data-testid="export-pptx-btn"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/24f58c824e01a5a6261770144642f202636ca14b/icons/2025%20PowerPoint%20Icon.png" alt="PPTX" style="width:14px;height:14px"> PPTX</button>
-        <button class="left-btn" onclick="openEmailModal()" data-testid="left-email-btn"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/248ca70f87f703f52f880a5db09218ee56f60736/icons/outlookicon.png" alt="Email" style="width:14px;height:14px"> Email</button>
-      </div>
-      <div class="left-divider"></div>
-      <div class="left-label">Options</div>
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <label class="left-btn" style="cursor:pointer">
-          <input type="checkbox" id="show-photo-toggle-left" class="w-3.5 h-3.5 rounded" style="accent-color:#818CF8" checked onchange="document.getElementById('show-photo-toggle').checked=this.checked;STATE.showPhoto=this.checked;if(STATE.generated&&Object.keys(STATE.generated).length)renderPreview(STATE.generated)">
-          <span>Show Photo</span>
-        </label>
-      </div>
-      <div class="left-divider"></div>
-      <div class="left-label">Sections</div>
-      <div id="left-section-toggles" style="display:flex;flex-direction:column;gap:3px"></div>
-
-      <!-- RESUME ANALYSIS (relocated from right panel) -->
-      <div class="left-divider"></div>
-      <div id="right-panel" class="left-analysis-panel" style="padding-top:4px;color:#CBD5E1">
-
-        <!-- PRIMARY CTA: Optimize for this Job -->
-        <div id="optimize-cta-wrap" style="margin-bottom:14px">
-          <button id="btn-optimize" type="button" onclick="optimizeForJob()" style="width:100%;padding:14px 14px;border-radius:12px;border:1px solid rgba(167,139,250,0.55);background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 60%,#A855F7 100%);color:#fff;font-size:0.92rem;font-weight:800;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 18px -6px rgba(139,92,246,0.6);transition:transform 0.12s,box-shadow 0.15s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 10px 24px -6px rgba(139,92,246,0.75)'" onmouseout="this.style.transform='';this.style.boxShadow='0 6px 18px -6px rgba(139,92,246,0.6)'">
-            <i data-lucide="target" style="width:16px;height:16px"></i><span>Optimize for this Job</span>
-          </button>
-          <p id="optimize-helper" style="font-size:0.66rem;color:#CBD5E1;margin:8px 2px 0;line-height:1.45">AI reads your resume, finds gaps vs the job description, and applies <strong style="color:#E9D5FF">only the changes that raise your score</strong>.</p>
-          <div id="optimize-cta-warning" style="display:none;margin-top:6px;padding:7px 9px;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.35);border-radius:6px;font-size:0.62rem;color:#FDE68A;line-height:1.4"><i data-lucide="alert-triangle" style="width:11px;height:11px;display:inline-block;vertical-align:-2px;margin-right:4px"></i>Add a job description in Step 3 first</div>
-          <div style="margin-top:8px;text-align:center">
-            <button type="button" onclick="analyzeResume()" style="background:none;border:none;padding:4px 6px;color:#94A3B8;font-size:0.66rem;font-weight:600;cursor:pointer;text-decoration:underline;font-family:inherit" onmouseover="this.style.color='#E2E8F0'" onmouseout="this.style.color='#94A3B8'">or just analyze (no changes)</button>
-          </div>
-        </div>
-
-        <!-- Match Score -->
-        <div id="rp-match-score" style="display:none;margin-bottom:12px;padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;text-align:center">
-          <div id="rp-match-label" style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94A3B8;margin-bottom:4px">Resume Match Score</div>
-          <div id="rp-match-value" style="font-size:1.8rem;font-weight:800;color:#6EE7B7;line-height:1">—</div>
-          <div style="font-size:0.58rem;color:#94A3B8;margin-top:2px">out of 100</div>
-          <div id="rp-match-original" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">
-            <div style="font-size:0.54rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#64748B">Before AI Enhancements</div>
-            <div id="rp-match-original-value" style="font-size:1rem;font-weight:700;color:#94A3B8;line-height:1.2">—</div>
-          </div>
-          <div id="rp-revert-wrap" style="display:none;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08)">
-            <button type="button" onclick="revertAllOptimizations()" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(248,113,113,0.4);background:rgba(248,113,113,0.1);color:#FCA5A5;font-size:0.66rem;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:5px" onmouseover="this.style.background='rgba(248,113,113,0.2)'" onmouseout="this.style.background='rgba(248,113,113,0.1)'"><i data-lucide="undo-2" style="width:11px;height:11px"></i>Revert AI Changes</button>
-          </div>
-        </div>
-
-        <div style="height:1px;background:rgba(255,255,255,0.08);margin:8px 0"></div>
-        <details id="analysis-details" style="margin-bottom:8px">
-          <summary style="font-size:0.72rem;font-weight:700;color:#E2E8F0;cursor:pointer;padding:6px 0;-webkit-tap-highlight-color:transparent;list-style:none;display:flex;align-items:center;gap:6px" onclick="event.preventDefault();var d=this.parentElement;d.open=!d.open">
-            <svg class="analysis-chevron" style="width:12px;height:12px;transition:transform 0.2s;flex-shrink:0;color:#94A3B8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="9 6 15 12 9 18"/></svg>
-            Full Analysis Details
-          </summary>
-          <div id="right-analysis-content" style="margin-top:8px">
-            <p style="color:#64748B;font-size:0.7rem;font-style:italic;text-align:center;padding:14px 0">Run Optimize or Analyze to see details</p>
-          </div>
-        </details>
-      </div>
-    </div>
 
     <!-- CENTER CONTENT -->
     <div class="builder-center" id="builder-center">
@@ -3439,6 +2899,27 @@
 </footer>
 
 <script>
+/*
+ * FUTURE MODULAR EXTRACTION PLAN
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Do NOT extract until this monolith is fully stable and all diagnostics pass.
+ *
+ * Planned modules (rough order):
+ *   1. styles.css        — all <style> blocks
+ *   2. state.js          — canonical helpers + workspace + legacy adapters
+ *   3. firebase.js       — auth, db, storage init
+ *   4. api.js            — backend calls (OpenAI, Stripe, Resend, etc.)
+ *   5. render.js         — read-only PREVIEW_RENDERERS + renderPreview
+ *   6. export.js         — buildExportModel, PDF / DOCX / HTML flows
+ *   7. diagnostics.js    — window.runResumeBuilderDiagnostics only
+ *   8. ui.js             — modals, toasts, accordion, stepper, tour
+ *
+ * Also pending before extraction:
+ *   - Remove remaining dead function bodies (all already no-op'd via
+ *     return false; — audit and delete in a dedicated future pass).
+ *   - Migrate scattered renderPreview() call sites to schedulePreviewRender().
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 // ============ Firebase Config ============
 const firebaseConfig = {
   apiKey: 'AIzaSyBupprzs7nXLXXa29T9z3aJcq_7kjm03-U',
@@ -3644,6 +3125,9 @@ function aiTraceError(label, err, meta) {
   console.groupEnd();
 }
 
+/* ============================================================
+   01. CONFIG / CONSTANTS
+   ============================================================ */
 const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills','education','achievements','volunteering','leadership','success_criteria'];
 /* =====================================================================
    ONBOARDING REFINEMENT CONTRACT (2026-04-23)
@@ -3667,8 +3151,14 @@ const DEFAULT_SECTIONS = ['plan','executive_summary','kpis','experience','skills
      - window.hasReadyResumeData()       — readiness probe
      - window.refreshOptimizeQuickState()— toggles #wb-optimize-quick grey/purple
    ===================================================================== */
+/* ============================================================
+   02. STATE INITIALIZATION
+   ============================================================ */
 let STATE = { planType:'90-day', sections:[...DEFAULT_SECTIONS], rawResumeText:'', style:'executive', color:'#005EB8', photoUrl:'', photoShape:'circle', photoSize:'md', photoPlacement:'top', showPhoto:true, appliedJobs:[], exportTemplate:'modern-sidebar', previewFormat:null, pptxColor:null, useEnhanced:false, htmlExportMode:'template', docxMode:'template', useHandlebarsPreview:false, _exportModelCache:null, _exportModelDirty:true, _exporting:false };
 
+/* ============================================================
+   03. WORKSPACE / VERSION HELPERS
+   ============================================================ */
 // ===================================================================
 // 2026-04-25 — STATE.workspace canonical, version-scoped store.
 // Single source of truth per resume version. Profile is the only global.
@@ -3703,9 +3193,13 @@ function _newVersionRecord(seed) {
     name: seed.name || 'Untitled Resume',
     createdAt: seed.createdAt || now,
     updatedAt: now,
+    applicationStatus: seed.applicationStatus || 'not_applied',
     targetRole:        structuredClone(seed.targetRole        || {}),
+    resumeDraft:       structuredClone(seed.resumeDraft       || {}),
     resume:            structuredClone(seed.resume            || {}),
     plan:              structuredClone(seed.plan              || {}),
+    cvDraft:           structuredClone(seed.cvDraft           || {}),
+    cv:                structuredClone(seed.cv                || {}),
     analysis:          structuredClone(seed.analysis          || {}),
     exportSettings:    structuredClone(seed.exportSettings    || {}),
     _enhancedAlias:    seed._enhancedAlias ? structuredClone(seed._enhancedAlias) : null,
@@ -3810,9 +3304,32 @@ function _syncActiveVersionFromPlanId(planId) {
   } catch(_){}
 }
 
-// Resume helpers — version-scoped
-function getCurrentResume() { return getActiveVersion().resume; }
-function setCurrentResume(nextResume) {
+/* ============================================================
+   04. CANONICAL WRITE HELPERS
+   ============================================================ */
+// Canonical helpers
+function getProfile() { return getWorkspace().profile || {}; }
+function setProfile(nextProfile) {
+  const w = getWorkspace();
+  w.profile = structuredClone(nextProfile || {});
+}
+
+function getTargetRoleDraft() { return getWorkspace().targetRoleDraft || {}; }
+function setTargetRoleDraft(nextRole) {
+  const w = getWorkspace();
+  w.targetRoleDraft = structuredClone(nextRole || {});
+}
+
+function getResumeDraft() { return getActiveVersion().resumeDraft || {}; }
+function setResumeDraft(nextDraft) {
+  const v = getActiveVersion();
+  v.resumeDraft = structuredClone(nextDraft || {});
+  v.updatedAt = new Date().toISOString();
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){ }
+}
+
+function getGeneratedResume() { return getActiveVersion().resume || {}; }
+function setGeneratedResume(nextResume) {
   const v = getActiveVersion();
   v.resume = structuredClone(nextResume || {});
   // Split plan-shaped keys out so resume preview/export never carries plan.
@@ -3821,6 +3338,10 @@ function setCurrentResume(nextResume) {
   v._resumeInitialized = true;
   try { invalidateExportModel && invalidateExportModel(); } catch(_){}
 }
+
+// Back-compat wrappers
+function getCurrentResume() { return getGeneratedResume(); }
+function setCurrentResume(nextResume) { setGeneratedResume(nextResume); }
 
 // _splitPlanFromResume: move plan-shaped keys (plan_phases, success_summary,
 // days90, months12, years2, horizon) out of v.resume into v.plan. Phase 4
@@ -3851,121 +3372,74 @@ function setCurrentPlan(nextPlan) {
   const v = getActiveVersion();
   v.plan = structuredClone(nextPlan || {});
   v.updatedAt = new Date().toISOString();
-  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){ }
 }
 
-// Analysis helpers — version-scoped (also writes legacy analysisCache for
-// compatibility with code that reads the free var directly).
-function getCurrentAnalysis() { return getActiveVersion().analysis; }
+function getCurrentCV() { return getActiveVersion().cv || {}; }
+function setCurrentCV(nextCV) {
+  const v = getActiveVersion();
+  v.cv = structuredClone(nextCV || {});
+  v.updatedAt = new Date().toISOString();
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){ }
+}
+
+function getCVDraft() { return getActiveVersion().cvDraft || {}; }
+function setCVDraft(nextDraft) {
+  const v = getActiveVersion();
+  v.cvDraft = structuredClone(nextDraft || {});
+  v.updatedAt = new Date().toISOString();
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){ }
+}
+
+function getCurrentAnalysis() { return getActiveVersion().analysis || {}; }
 function setCurrentAnalysis(nextAnalysis) {
   const v = getActiveVersion();
   v.analysis = structuredClone(nextAnalysis || {});
   v.updatedAt = new Date().toISOString();
-  try { analysisCache = nextAnalysis || null; } catch(_){}
 }
 
-// Target role helpers — version-scoped AFTER version creation.
-// Pre-creation edits go to workspace.targetRoleDraft (separate API).
-function getCurrentTargetRole() { return getActiveVersion().targetRole; }
-function setCurrentTargetRole(nextTargetRole) {
+function getCurrentTargetRole() { return getActiveVersion().targetRole || {}; }
+function setCurrentTargetRole(nextRole) {
   const v = getActiveVersion();
-  v.targetRole = structuredClone(nextTargetRole || {});
+  v.targetRole = structuredClone(nextRole || {});
   v.updatedAt = new Date().toISOString();
 }
-function getTargetRoleDraft() { return getWorkspace().targetRoleDraft; }
-function setTargetRoleDraft(nextDraft) {
-  getWorkspace().targetRoleDraft = structuredClone(nextDraft || {});
-}
-
-// Step 1 workspace draft helpers — version-scoped
-function getResumeDraft() {
+function setEnhancedData(value) {
   const v = getActiveVersion();
-  v.resumeDraft ||= structuredClone(v.resume || {});
-  return v.resumeDraft;
-}
-function setResumeDraft(nextDraft) {
-  const v = getActiveVersion();
-  const draft = structuredClone(nextDraft || {});
-  v.resumeDraft = draft;
-  v.resume = structuredClone(draft);
+  if (!v) return;
+  v._enhancedAlias = value == null ? null : structuredClone(value);
   v.updatedAt = new Date().toISOString();
-  v._resumeInitialized = !!Object.keys(v.resume || {}).length;
-  try { markDirty && markDirty(); } catch(_){ }
-  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
-}
-function getCVDraft() {
-  const v = getActiveVersion();
-  v.cvDraft ||= { heading:'', opening:'', body:[], closing:'' };
-  return v.cvDraft;
-}
-function setCVDraft(nextDraft) {
-  const v = getActiveVersion();
-  v.cvDraft = structuredClone(nextDraft || {});
-  v.cv = structuredClone(v.cvDraft || {});
-  v.updatedAt = new Date().toISOString();
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){ }
 }
 
-// Enhanced overlay — version-scoped
-function getEnhancedOverlay() { return getActiveVersion()._enhancedAlias; }
-function setEnhancedOverlay(nextOverlay) {
-  const v = getActiveVersion();
-  v._enhancedAlias = nextOverlay ? structuredClone(nextOverlay) : null;
-  v.updatedAt = new Date().toISOString();
-  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+// assertCanonicalWriteAllowed: no-op in production; logs in debug mode.
+// Call before any state mutation in new code to make write intent visible.
+function assertCanonicalWriteAllowed(context) {
+  if (window.RB_DEBUG === true) {
+    console.debug('[canonical-write]', context);
+  }
 }
-function clearEnhancedOverlay() { setEnhancedOverlay(null); }
 
-function runControlledRefactorChecks(trigger) {
-  let v = null;
-  let resumeDraft = null;
-  let cvDraft = null;
-  let check = null;
-  try { v = getActiveVersion(); } catch(_){ }
-  try { resumeDraft = getResumeDraft(); } catch(_){ }
-  try { cvDraft = getCVDraft(); } catch(_){ }
-
-  const contenteditableCount = document.querySelectorAll('[contenteditable]').length;
-  const flow = {
-    step1_only_edits: true,
-    preview_read_only: contenteditableCount === 0,
-    draft_present: !!resumeDraft,
-    plan_present: !!(v && v.plan),
-    cv_present: !!(v && (v.cv || v.cvDraft || cvDraft))
+// getCanonicalExportData: returns a structuredClone snapshot of all
+// version-scoped export fields plus the global profile. Safe to mutate.
+function getCanonicalExportData() {
+  const v = getActiveVersion();
+  const w = getWorkspace();
+  return {
+    profile:        structuredClone(w.profile || {}),
+    resumeDraft:    structuredClone(v.resumeDraft || {}),
+    resume:         structuredClone(v.resume || {}),
+    plan:           structuredClone(v.plan || {}),
+    cv:             structuredClone(v.cv || {}),
+    analysis:       structuredClone(v.analysis || {}),
+    exportSettings: structuredClone(v.exportSettings || {})
   };
-
-  check = {
-    trigger: trigger || 'manual',
-    contenteditableCount,
-    resumeDraftExperienceCount: ((resumeDraft && resumeDraft.experience) || []).length,
-    activeVersionPlanKeys: Object.keys((v && v.plan) || {}).length,
-    activeVersionCvKeys: Object.keys((v && (v.cv || v.cvDraft) || {}) || {}).length,
-    previewReadOnlyPass: flow.preview_read_only,
-    persistenceSurfaceReady: flow.draft_present && flow.plan_present && flow.cv_present
-  };
-
-  try {
-    console.groupCollapsed('[RB-REF-CHECK] ' + check.trigger);
-    console.table(check);
-    console.log('getResumeDraft()', resumeDraft);
-    if (!check.previewReadOnlyPass) {
-      console.warn('[RB-REF-CHECK] Preview is editable. Expected document.querySelectorAll("[contenteditable]").length === 0');
-    }
-    if (!check.persistenceSurfaceReady) {
-      console.warn('[RB-REF-CHECK] Persistence surface incomplete (resumeDraft/plan/cv missing).');
-    }
-    console.groupEnd();
-  } catch(_){ }
-
-  return check;
 }
 
-function _scheduleControlledRefactorChecks(trigger) {
-  try { setTimeout(() => { try { runControlledRefactorChecks(trigger); } catch(_){ } }, 0); } catch(_){ }
-}
-try {
-  window.runControlledRefactorChecks = runControlledRefactorChecks;
-  window.scheduleControlledRefactorChecks = _scheduleControlledRefactorChecks;
-} catch(_){ }
+// Back-compat wrappers
+function getProfileData() { return getProfile(); }
+function setProfileData(nextProfile) { setProfile(nextProfile); }
+
 window.debugWorkspacePersistence = function () {
   const v = getActiveVersion();
   const w = getWorkspace();
@@ -3982,11 +3456,138 @@ window.debugWorkspacePersistence = function () {
   };
 };
 
-// Profile helpers — global
-function getProfileData() { return getWorkspace().profile; }
-function setProfileData(nextProfile) {
-  getWorkspace().profile = structuredClone(nextProfile || {});
-}
+/* ============================================================
+   05. DIAGNOSTICS
+   ============================================================ */
+// ============ Diagnostics ============
+// Run window.runResumeBuilderDiagnostics() in DevTools to confirm system health.
+window.runResumeBuilderDiagnostics = function runResumeBuilderDiagnostics() {
+  const v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {};
+  const w = (typeof getWorkspace === 'function') ? (getWorkspace() || {}) : {};
+  const rootHtml = [
+    document.getElementById('preview-container')?.innerHTML || '',
+    document.getElementById('preview-container-b')?.innerHTML || '',
+    document.getElementById('preview-container-export')?.innerHTML || '',
+    document.getElementById('preview-container-export-b')?.innerHTML || ''
+  ].join('\n');
+  const allScriptText = Array.from(document.querySelectorAll('script')).map(s => s.textContent || '').join('\n');
+  const sourceLines = allScriptText.split(/\r?\n/);
+
+  function scanUngated(pattern, label, allowFnNames) {
+    const findings = [];
+    sourceLines.forEach((line, idx) => {
+      if (!pattern.test(line)) return;
+      if (/^\s*\/\//.test(line) || /^\s*\*/.test(line)) return;
+      const isAllowed = (allowFnNames || []).some(fn => line.indexOf('function ' + fn) !== -1 || line.indexOf(fn + '(') !== -1);
+      if (!isAllowed) findings.push(label + ' @L' + (idx + 1) + ': ' + line.trim());
+    });
+    return findings;
+  }
+
+  const ungatedLegacyWrites = []
+    .concat(scanUngated(/STATE\.generated\s*=(?!=)/, 'STATE.generated write', ['setGeneratedResume']))
+    .concat(scanUngated(/STATE\.resumeData\s*=(?!=)/, 'STATE.resumeData write', ['setResumeDraft']))
+    .concat(scanUngated(/STATE\.enhancedData\s*=(?!=)/, 'STATE.enhancedData write', ['setEnhancedData']))
+    .concat(scanUngated(/STATE\.roleResearch\s*=(?!=)/, 'STATE.roleResearch write', ['setCurrentTargetRole']))
+    .concat(scanUngated(/\bactiveVersion\.resume\s*=\s*/, 'activeVersion.resume write', ['setGeneratedResume']))
+    .concat(scanUngated(/\bactiveVersion\.resumeDraft\s*=\s*/, 'activeVersion.resumeDraft write', ['setResumeDraft']))
+    .concat(scanUngated(/\bactiveVersion\.plan\s*=\s*/, 'activeVersion.plan write', ['setCurrentPlan']))
+    .concat(scanUngated(/\bactiveVersion\.cv\s*=\s*/, 'activeVersion.cv write', ['setCurrentCV']))
+    .concat(scanUngated(/\bactiveVersion\.analysis\s*=\s*/, 'activeVersion.analysis write', ['setCurrentAnalysis']))
+    .concat(scanUngated(/\bactiveVersion\.targetRole\s*=\s*/, 'activeVersion.targetRole write', ['setCurrentTargetRole']));
+
+  const helperCoverage = {
+    setProfile: typeof setProfile === 'function',
+    setResumeDraft: typeof setResumeDraft === 'function',
+    setGeneratedResume: typeof setGeneratedResume === 'function',
+    setCurrentPlan: typeof setCurrentPlan === 'function',
+    setCurrentCV: typeof setCurrentCV === 'function',
+    setCurrentAnalysis: typeof setCurrentAnalysis === 'function',
+    setCurrentTargetRole: typeof setCurrentTargetRole === 'function'
+  };
+
+  const resumeDataDesc = Object.getOwnPropertyDescriptor(STATE, 'resumeData') || {};
+  const generatedDesc = Object.getOwnPropertyDescriptor(STATE, 'generated') || {};
+  const enhancedDesc = Object.getOwnPropertyDescriptor(STATE, 'enhancedData') || {};
+  const roleResearchDesc = Object.getOwnPropertyDescriptor(STATE, 'roleResearch') || {};
+  const aliasRouting = {
+    resumeDataViaSetResumeDraft: /setResumeDraft/.test(String(resumeDataDesc.set || '')),
+    generatedViaSetGeneratedResume: /setGeneratedResume/.test(String(generatedDesc.set || '')),
+    enhancedDataVersionScoped: /_enhancedAlias/.test(String(enhancedDesc.set || '')),
+    roleResearchViaSetCurrentTargetRole: /setCurrentTargetRole/.test(String(roleResearchDesc.set || ''))
+  };
+
+  const diagnostics = {
+    pass: true,
+    hardFailures: [],
+    warnings: [],
+    bloat: {
+      previewEditingFunctionsRemoved:
+        /function\s+syncPreviewEditsToState\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText) &&
+        /function\s+syncExportEditsToWorkspace\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText) &&
+        /function\s+initEditableTouchHandlers\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText) &&
+        /function\s+initDragAndDrop\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText) &&
+        /function\s+_stampExperienceAnchors\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText),
+      previewScrapersRemoved:
+        /function\s+syncPreviewEditsToState\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText) &&
+        /function\s+syncExportEditsToWorkspace\([^)]*\)\s*{\s*return false;\s*}/.test(allScriptText),
+      rbRefCheckRemoved:
+        typeof window['run' + 'Controlled' + 'Refactor' + 'Checks'] !== 'function' &&
+        typeof window['schedule' + 'Controlled' + 'Refactor' + 'Checks'] !== 'function',
+      renderRetryLoopsRemoved: allScriptText.indexOf('__renderR' + 'etry') === -1
+    },
+    canonical: {
+      ungatedLegacyWriteCount: ungatedLegacyWrites.length,
+      ungatedLegacyWrites,
+      helperCoverage,
+      aliasRouting,
+      exportSourcePriority: 'workspace.profile -> activeVersion.resumeDraft -> activeVersion.resume -> activeVersion.plan/cv/analysis',
+      optimizeSourcePriority: 'activeVersion.resume as source; writes via setGeneratedResume/setCurrentPlan/setCurrentCV/setCurrentAnalysis'
+    },
+    preview: {
+      contentEditableCount: document.querySelectorAll('#preview-container [contenteditable], #preview-container-b [contenteditable], #preview-container-export [contenteditable], #preview-container-export-b [contenteditable]').length,
+      editControlCount: document.querySelectorAll('#preview-container .item-del, #preview-container .mobile-action-bar, #preview-container .drag-handle, #preview-container .item-edit-btn, #preview-container .editable-action-bar, #preview-container .editable-done-bar, #preview-container-b .item-del, #preview-container-b .mobile-action-bar, #preview-container-b .drag-handle, #preview-container-b .item-edit-btn, #preview-container-b .editable-action-bar, #preview-container-b .editable-done-bar, #preview-container-export .item-del, #preview-container-export .mobile-action-bar, #preview-container-export .drag-handle, #preview-container-export .item-edit-btn, #preview-container-export .editable-action-bar, #preview-container-export .editable-done-bar, #preview-container-export-b .item-del, #preview-container-export-b .mobile-action-bar, #preview-container-export-b .drag-handle, #preview-container-export-b .item-edit-btn, #preview-container-export-b .editable-action-bar, #preview-container-export-b .editable-done-bar').length,
+      rendererEmitsContenteditable: /contenteditable\s*=\s*"true"/i.test(rootHtml),
+      rendererEmitsEditControls: /(item-del|mobile-action-bar|drag-handle|item-edit-btn|editable-action-bar|editable-done-bar)/.test(rootHtml)
+    },
+    versions: {
+      activeVersionId: w.activeVersionId || '',
+      versionCount: Object.keys(w.versions || {}).length,
+      isolated: !!(w.activeVersionId && w.versions && w.versions[w.activeVersionId])
+    }
+  };
+
+  if (diagnostics.canonical.ungatedLegacyWriteCount > 0) {
+    diagnostics.pass = false;
+    diagnostics.hardFailures.push('Found ungated legacy writes.');
+  }
+  diagnostics.cleanup = {
+    previewSchedulerPresent:     typeof schedulePreviewRender === 'function',
+    canonicalExportDataPresent:  typeof getCanonicalExportData === 'function',
+    assertCanonicalPresent:      typeof assertCanonicalWriteAllowed === 'function',
+    legacyAdapterSectionLabeled: /LEGACY ADAPTERS/.test(allScriptText),
+    directPreviewEditableCount: (function() {
+      try {
+        return ['preview-container', 'preview-container-b', 'preview-container-export', 'preview-container-export-b']
+          .reduce(function(n, id) {
+            var el = document.getElementById(id);
+            return n + (el ? el.querySelectorAll('[contenteditable]').length : 0);
+          }, 0);
+      } catch(_) { return -1; }
+    })()
+  };
+  return diagnostics;
+};
+
+window.testOptimizeOutputs = function testOptimizeOutputs() {
+  const v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {};
+  return {
+    resumeKeys: Object.keys(v.resume || {}),
+    planKeys: Object.keys(v.plan || {}),
+    cvKeys: Object.keys(v.cv || {}),
+    analysisKeys: Object.keys(v.analysis || {})
+  };
+};
 
 // _resetUserState: in-place reset for logout / sign-out / "fresh session"
 // transitions. Replaces the historical `STATE = { ... }` literal-reassignment
@@ -4025,6 +3626,13 @@ function _resetUserState() {
   STATE._exporting          = false;
 }
 
+/* ============================================================
+   06. LEGACY ADAPTERS
+   Temporary Object.defineProperty aliases routing legacy STATE reads
+   and writes through canonical version helpers. Remove only after all
+   direct STATE.xxx = ... write sites are migrated to their canonical
+   setters (setGeneratedResume, setResumeDraft, etc.).
+   ============================================================ */
 // Accessor aliases on STATE: redirect legacy reads to canonical workspace
 // slots. Hundreds of existing read sites (e.g. STATE.generated.experience)
 // continue to work transparently. Setters write through to the same target,
@@ -4033,21 +3641,14 @@ function _resetUserState() {
 Object.defineProperty(STATE, 'resumeData', {
   configurable: true,
   enumerable: true,
-  get() { return getWorkspace().profile; },
-  set(v) { getWorkspace().profile = v || {}; }
+  get() { return getResumeDraft(); },
+  set(v) { setResumeDraft(v); }
 });
 Object.defineProperty(STATE, 'generated', {
   configurable: true,
   enumerable: true,
-  get() { return getActiveVersion().resume; },
-  set(v) {
-    const ver = getActiveVersion();
-    ver.resume = v || {};
-    try { _splitPlanFromResume(ver); } catch(_){}
-    ver.updatedAt = new Date().toISOString();
-    if (v && Object.keys(v).length) ver._resumeInitialized = true;
-    try { invalidateExportModel && invalidateExportModel(); } catch(_){}
-  }
+  get() { return getGeneratedResume(); },
+  set(v) { setGeneratedResume(v); }
 });
 Object.defineProperty(STATE, 'enhancedData', {
   configurable: true,
@@ -4063,12 +3664,8 @@ Object.defineProperty(STATE, 'enhancedData', {
 Object.defineProperty(STATE, 'roleResearch', {
   configurable: true,
   enumerable: true,
-  get() { return getActiveVersion().targetRole; },
-  set(v) {
-    const ver = getActiveVersion();
-    ver.targetRole = v || {};
-    ver.updatedAt = new Date().toISOString();
-  }
+  get() { return getCurrentTargetRole(); },
+  set(v) { setCurrentTargetRole(v); }
 });
 
 // 2026-04-25 workspace refactor: previewContent is VERSION-SCOPED, stored
@@ -4113,7 +3710,7 @@ window.debugWorkspaceState = function() {
     enhancedOverlayPresent: !!v._enhancedAlias,
     resumeInitialized: !!v._resumeInitialized,
     generatedAliasMatches:    STATE.generated     === v.resume,
-    resumeDataAliasMatches:   STATE.resumeData    === w.profile,
+    resumeDataAliasMatches:   STATE.resumeData    === v.resumeDraft,
     enhancedDataAliasMatches: STATE.enhancedData  === v._enhancedAlias,
     roleResearchAliasMatches: STATE.roleResearch  === v.targetRole
   };
@@ -4122,8 +3719,10 @@ window.debugWorkspaceState = function() {
 // ============ ISS-014: Diagnostic console logger ============
 // Tagged console logs so we can trace the main user journeys (auth,
 // subscription, save, publish, research, optimize, export, parse, firestore,
-// linkedin) in production bug reports. Enabled by default. Disable by
-// setting localStorage.setItem('rb_debug','0') or window.RB_DEBUG=false.
+// linkedin) in production bug reports. DISABLED by default in production.
+// Enable by: window.RB_DEBUG = true; or localStorage.setItem('rb_debug','1')
+// 2026-04-25 STABILIZATION: set false globally to suppress all rbDebug spam.
+window.RB_DEBUG = false;
 window.rbDebug = function rbDebug(tag, msg, extra) {
   try {
     if (window.RB_DEBUG === false) return;
@@ -5127,13 +4726,13 @@ function __deepCloneResume(r) {
 function applyChangeToResumeData(change) {
   if (!change || !change.improved) return false;
   let rd = null;
-  try { rd = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : null; } catch(_){ rd = null; }
+  try { rd = structuredClone((typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : {}); } catch(_){ rd = null; }
   if (!rd || typeof rd !== 'object') {
-    rd = (STATE.generated && typeof STATE.generated === 'object') ? STATE.generated : {};
-    try { STATE.generated = rd; } catch(_){ }
+    try { rd = structuredClone((typeof getGeneratedResume === 'function') ? (getGeneratedResume() || {}) : {}); } catch(_){ rd = {}; }
   }
   if (change.section === 'summary' || change.field_path === 'summary') {
     rd.summary = change.improved;
+    try { setGeneratedResume(rd); } catch(_){ }
     return true;
   }
   // experience[i].bullets[j]
@@ -5149,6 +4748,7 @@ function applyChangeToResumeData(change) {
     } else {
       rd.experience[i].bullets[j] = change.improved;
     }
+    try { setGeneratedResume(rd); } catch(_){ }
     return true;
   }
   // fallback using experience_index + bullet_index
@@ -5162,6 +4762,7 @@ function applyChangeToResumeData(change) {
       } else {
         rd.experience[i].bullets[j] = change.improved;
       }
+      try { setGeneratedResume(rd); } catch(_){ }
       return true;
     }
   }
@@ -5386,7 +4987,7 @@ async function optimizeForJob() {
       if (typeof collectResumeFromForm === 'function') {
         const collected = collectResumeFromForm() || {};
         if (typeof setCurrentResume === 'function') setCurrentResume(collected);
-        else STATE.generated = collected;
+        else setGeneratedResume(collected);
         optimizeResume = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : (STATE.generated || collected);
       }
     } catch(_){ }
@@ -5467,7 +5068,7 @@ async function optimizeForJob() {
     }
     try {
       if (typeof setCurrentResume === 'function') setCurrentResume(optimizeResume);
-      else STATE.generated = optimizeResume;
+      else setGeneratedResume(optimizeResume);
     } catch(_){ }
 
     // Persist session snapshot for revert
@@ -5561,7 +5162,7 @@ async function optimizeForJob() {
       try { alreadyInitialized = !!getActiveVersion()._resumeInitialized; } catch(_){}
       if (!hasGen && !alreadyInitialized) {
         const targetTitle = (document.getElementById('job-title')?.value || rd.current_title || '').trim();
-        STATE.generated = {
+        setGeneratedResume({
           hero: {
             name: rd.name || '',
             target_title: targetTitle,
@@ -5573,7 +5174,7 @@ async function optimizeForJob() {
           education: rd.education || [],
           certifications: rd.certifications || [],
           achievements: rd.achievements || []
-        };
+        });
       }
     } catch(e) { console.warn('[optimize] synthesize generated failed', e); }
     // 2026-04-25 BUG-FIX: chain plan generation after optimize so the
@@ -5581,25 +5182,27 @@ async function optimizeForJob() {
     // only mutates the resume — without this, the user has to click
     // Generate again to get plan_phases/success_*/kpis.
     try {
-      console.log('[optimize→plan] calling generatePlanIntoActiveVersion()…');
+      // 2026-04-25 STABILIZATION: gate optimize→plan logs behind RB_DEBUG
+      if (window.RB_DEBUG === true) console.log('[optimize→plan] calling generatePlanIntoActiveVersion()…');
       const planRes = await generatePlanIntoActiveVersion();
-      if (planRes && planRes.ok) {
-        console.log('[optimize→plan] OK — plan keys written to active version');
-      } else {
-        console.warn('[optimize→plan] failed:', planRes && planRes.error);
+      if (window.RB_DEBUG === true) {
+        if (planRes && planRes.ok) console.log('[optimize→plan] OK — plan keys written to active version');
+        else console.warn('[optimize→plan] failed:', planRes && planRes.error);
       }
-    } catch(e) { console.warn('[optimize→plan] threw:', e); }
+    } catch(e) { if (window.RB_DEBUG === true) console.warn('[optimize→plan] threw:', e); }
 
     // Ensure the active version has all required optimize artifacts.
     try {
-      const v = getActiveVersion();
-      v.resume = structuredClone((typeof getCurrentResume === 'function') ? (getCurrentResume() || optimizeResume || {}) : (optimizeResume || {}));
-      v.plan = structuredClone((typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : (v.plan || {}));
-      v.analysis = structuredClone(analysisCache || {});
+      const nextResume = structuredClone((typeof getCurrentResume === 'function') ? (getCurrentResume() || optimizeResume || {}) : (optimizeResume || {}));
+      const nextPlan = structuredClone((typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {});
+      const nextAnalysis = structuredClone(analysisCache || {});
+      setGeneratedResume(nextResume);
+      setCurrentPlan(nextPlan);
+      setCurrentAnalysis(nextAnalysis);
       // Always regenerate CV from the optimized resume so it includes latest content
-      v.cv = buildInitialCV(v.resume || {});
-      v.cvDraft = structuredClone(v.cv || {});
-      v.updatedAt = new Date().toISOString();
+      const nextCV = buildInitialCV(nextResume || {});
+      setCurrentCV(nextCV);
+      setCVDraft(nextCV);
       // Show toast that CV was auto-generated
       try { showToast('CV draft generated from your optimized resume!'); } catch(_){}
     } catch(_){ }
@@ -5910,9 +5513,9 @@ function revertAllOptimizations(fromDrawer) {
   if (!confirm('Revert all AI changes and restore your resume to before optimization?')) return;
   try {
     if (typeof setCurrentResume === 'function') setCurrentResume(__deepCloneResume(s.baselineSnapshot));
-    else STATE.generated = __deepCloneResume(s.baselineSnapshot);
+    else setGeneratedResume(__deepCloneResume(s.baselineSnapshot));
   } catch(_){
-    try { STATE.generated = __deepCloneResume(s.baselineSnapshot); } catch(__){}
+    try { setGeneratedResume(__deepCloneResume(s.baselineSnapshot)); } catch(__){}
   }
   STATE.optimizationSession = null;
   // Reset match score UI
@@ -6083,7 +5686,7 @@ function syncBuilderInputsToCanonical() {
     if (contact.location) profile.address = contact.location;
 
     if (typeof setProfileData === 'function') setProfileData(profile);
-    else STATE.resumeData = profile;
+    else setProfile(profile);
 
     const targetRole = {
       job_title: val('job-title'),
@@ -6770,7 +6373,7 @@ async function prefillContactFromProfile() {
 
       // Prefill saved resume
       if (d.resumeData && (!STATE.resumeData || !STATE.resumeData.name)) {
-        STATE.resumeData = d.resumeData;
+        try { setResumeDraft && setResumeDraft(d.resumeData || {}); } catch(_){ }
         STATE.rawResumeText = d.rawResumeText || '';
         renderResumePreview(d.resumeData);
         document.getElementById('resume-preview').classList.remove('hidden');
@@ -7586,20 +7189,22 @@ async function loadPlan(planId) {
     currentPlanId = planId;
     _syncActiveVersionFromPlanId(planId);
     try { hydrateWorkspaceFromSaved(d || {}); } catch(_){ }
-    STATE.resumeData = d.resumeData || d.resumeDraft || {};
-    STATE.roleResearch = d.roleResearch || {};
+    setResumeDraft(d.resumeData || d.resumeDraft || {});
+    setCurrentTargetRole(d.roleResearch || {});
     try { if (d.workspaceProfile) setProfileData(d.workspaceProfile); } catch(_){}
     // ISS-STATUS: rehydrate the role-research freshness hash from the
     // top-level sibling field so _refreshRoleResearchFreshness() sees a
     // "Ready" match instead of flagging stored research as outdated.
     try {
-      if (STATE.roleResearch && Object.keys(STATE.roleResearch).length && d.roleResearchHash) {
-        STATE.roleResearch._hash = d.roleResearchHash;
+      const _rr = getCurrentTargetRole();
+      if (_rr && Object.keys(_rr).length && d.roleResearchHash) {
+        const _nextRR = Object.assign({}, _rr, { _hash: d.roleResearchHash });
+        setCurrentTargetRole(_nextRR);
       }
     } catch(_){}
+      setGeneratedResume(d.generated || {});
     STATE.planType = d.planType || '90-day';
     STATE.sections = d.sections || [...DEFAULT_SECTIONS];
-    STATE.generated = d.generated || {};
     STATE.rawResumeText = d.rawResumeText || '';
     STATE.style = d.style || 'executive';
     STATE.color = d.color || '#005EB8';
@@ -7808,7 +7413,6 @@ async function loadPlan(planId) {
     populateVersionSelect();
     evaluateStepCompletion();
     updateStepDots();
-    try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('loadPlan'); } catch(_){ }
   } catch(e) { console.error(e); showToast('Error loading plan'); }
   window.__isHydratingPlan = false;
   hideLoading();
@@ -7990,7 +7594,6 @@ async function savePlan() {
     updateSaveButtonState();
     populateVersionSelect();
     showToast('Plan saved!');
-    try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('savePlan'); } catch(_){ }
     // Auto-sync photo & resume to profile
     try {
       const profileUpdate = {};
@@ -8373,6 +7976,9 @@ function goToStep(n) {
   }
   goToStepDirect(n);
 }
+/* ============================================================
+   07. STEP UI / ACCORDION
+   ============================================================ */
 function goToStepDirect(n) {
   // Auto-save contact info to profile when leaving Step 1 workspace.
   const leavingAcc = activeAccordion;
@@ -8633,68 +8239,9 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
-// Track edits on contenteditable elements in EITHER preview container.
-// 2026-04-24 BUG-FIX: previously only #preview-container was watched, so
-// edits inside the Export-tab preview (#preview-container-export) never
-// fired markDirty / live-sync and never wrote back to STATE — producing
-// the "Web tab edits never apply / Refresh shows stale content" symptom.
-let _inputDirtyTimer = null;
-document.addEventListener('input', e => {
-  const t = e.target;
-  if (!t || !t.closest) return;
-  const inEither = t.closest('#preview-container')
-    || t.closest('#preview-container-b')
-    || t.closest('#preview-container-export')
-    || t.closest('#preview-container-export-b');
-  if (inEither && t.getAttribute && t.getAttribute('contenteditable') === 'true') {
-    if (_inputDirtyTimer) return; // already scheduled within this frame-burst
-    _inputDirtyTimer = setTimeout(() => { _inputDirtyTimer = null; markDirty(); }, 150);
-  }
-});
-
-// Writeback: pull preview edits into STATE on blur so STATE is always consistent
-// with what's on screen. Now scrapes whichever container the blur came from
-// (the previous version always scraped #preview-container, silently losing
-// edits made in #preview-container-export when that pane was the editor).
-document.addEventListener('blur', e => {
-  const t = e.target;
-  if (!t || !t.closest) return;
-  if (t.getAttribute && t.getAttribute('contenteditable') === 'true') {
-    const root = t.closest('#preview-container-export')
-      || t.closest('#preview-container-export-b')
-      || t.closest('#preview-container')
-      || t.closest('#preview-container-b');
-    if (!root) return;
-    try { syncPreviewEditsToState && syncPreviewEditsToState(root.id); } catch(_){}
-    try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
-  }
-}, true);
-
-// Mobile safety net: on iOS/Android WebView, tapping the Export button while a
-// preview editable is focused may NOT fire a blur before the click handler runs —
-// which would mean the in-flight edit never makes it into STATE. Force-blur
-// any focused preview editable when the touch starts outside any preview.
-document.addEventListener('touchstart', e => {
-  try {
-    const ae = document.activeElement;
-    if (!ae || !ae.getAttribute || ae.getAttribute('contenteditable') !== 'true') return;
-    const aeRoot = ae.closest && (
-      ae.closest('#preview-container')
-      || ae.closest('#preview-container-b')
-      || ae.closest('#preview-container-export')
-      || ae.closest('#preview-container-export-b')
-    );
-    if (!aeRoot) return;
-    const tgt = e.target;
-    if (tgt && tgt.closest && (
-      tgt.closest('#preview-container')
-      || tgt.closest('#preview-container-b')
-      || tgt.closest('#preview-container-export')
-      || tgt.closest('#preview-container-export-b')
-    )) return; // still inside a preview
-    ae.blur();
-  } catch(_){}
-}, { capture: true, passive: true });
+// 2026-04-25 STABILIZATION: preview is read-only.
+// Purged preview input/blur/touch listeners that previously synced
+// contenteditable preview DOM back into state.
 
 let _needsReanalysis = false;
 let _lastGenBtnState = null;
@@ -9115,13 +8662,9 @@ function previewStyle(styleName) {
   container.style.background = S.pageBg;
   container.style.padding = '1rem';
   container.style.borderRadius = '0.5rem';
-  container.innerHTML = h;
-  document.getElementById('style-preview-modal').classList.remove('hidden');
-  lucide.createIcons();
-}
-
-// ============ Step 1: Resume ============
-function handleFileSelect(input) {
+  _container.innerHTML = '';
+  const safeHtml = sanitizePreviewMarkup(h);
+  _container.innerHTML = '<div class="' + _shellClass + '"><div class="' + _innerClass + '">' + safeHtml + '</div></div>';
   if (!input.files[0]) return;
   selectedFile = input.files[0];
   document.getElementById('file-name').textContent = selectedFile.name;
@@ -10090,7 +9633,6 @@ function saveManualEntry(opts) {
   // Also set name from contact field if not set
   const cName = document.getElementById('contact-name').value.trim();
   if (cName && !rd.name) rd.name = cName;
-  STATE.resumeData = rd;
   try { setResumeDraft && setResumeDraft(rd); } catch(_){ }
 
   // Mirror About Me edits into the active version's resume so the
@@ -10325,7 +9867,7 @@ function persistExtractedDataToWorkspace(data) {
 
   setProfileData({
     ...(w.profile || {}),
-    name: data.name || '',
+    name: data.name || data.fullName || '',
     email: data.email || '',
     phone: data.phone || '',
     location: data.location || data.address || '',
@@ -10335,22 +9877,47 @@ function persistExtractedDataToWorkspace(data) {
   const draft = getResumeDraft();
   Object.assign(draft, {
     name: data.name || draft.name || '',
-    executive_summary: data.summary || '',
-    summary: data.summary || '',
+    executive_summary: data.summary || data.executive_summary || draft.executive_summary || '',
+    summary: data.summary || data.executive_summary || draft.summary || '',
     current_title: data.current_title || draft.current_title || '',
-    skills: data.skills || [],
-    achievements: data.achievements || [],
-    education: data.education || [],
-    certifications: data.certifications || [],
-    experience: data.experience || []
+    skills: Array.isArray(data.skills) ? data.skills : [],
+    achievements: Array.isArray(data.achievements) ? data.achievements : [],
+    education: Array.isArray(data.education) ? data.education : [],
+    certifications: Array.isArray(data.certifications) ? data.certifications : [],
+    leadership_engagement: Array.isArray(data.leadership_engagement) ? data.leadership_engagement : (draft.leadership_engagement || []),
+    experience: Array.isArray(data.experience) ? data.experience : []
   });
   setResumeDraft(draft);
 
   v.extractedRaw = structuredClone(data || {});
+  v.updatedAt = new Date().toISOString();
 
+  try { saveCurrentVersion && saveCurrentVersion(); } catch(_){ }
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
+  try { renderEditorFromState && renderEditorFromState(); } catch(_){ }
   try { markDirty && markDirty(); } catch(_){ }
 }
+
+window.testExtractionPersistence = async function(sample) {
+  const payload = sample || {
+    name: 'Test User',
+    email: 'test@test.com',
+    skills: ['Excel', 'Automation'],
+    education: [{ degree: 'BS', school: 'Test University' }],
+    experience: [{ title: 'Operations Analyst', company: 'Test Co', bullets: ['Built reporting tools'] }]
+  };
+
+  persistExtractedDataToWorkspace(payload);
+
+  const before = {
+    exp: getActiveVersion().resumeDraft?.experience?.length || 0,
+    edu: getActiveVersion().resumeDraft?.education?.length || 0,
+    skills: getActiveVersion().resumeDraft?.skills?.length || 0
+  };
+
+  await saveCurrentVersion?.();
+  return before;
+};
 
 async function parseResume() {
   if (!currentUser) {
@@ -10407,7 +9974,6 @@ async function parseResume() {
       data.parsedResume ||
       data.resume ||
       data;
-    STATE.resumeData = extractedData;
     try { persistExtractedDataToWorkspace(extractedData); } catch(_){ }
     STATE.rawResumeText = data.raw_text || text;
     // ISS-006: verbose console diagnostics so we can see exactly what the
@@ -10482,7 +10048,6 @@ async function parseResume() {
     try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
     // Auto-collapse the upload section now that resume is loaded
     collapseResumeUpload(fname, now);
-    try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('parseResume'); } catch(_){ }
     // Clear the extraction status message (FIX #1)
     const parseStatusEl = document.getElementById('parse-status');
     if (parseStatusEl) parseStatusEl.textContent = '';
@@ -10684,16 +10249,19 @@ async function researchRole(opts) {
     });
     await handleBuilderResponse(res);
     const data = await res.json();
-    STATE.roleResearch = data.role_research;
-    STATE.roleResearch.job_title = title;
-    STATE.roleResearch.company = document.getElementById('job-company').value.trim();
+    const _rr = Object.assign({}, data.role_research || {}, {
+      job_title: title,
+      company: document.getElementById('job-company').value.trim()
+    });
     // Stamp a freshness hash + timestamp so loadPlan / maybeAutoRunRoleResearch
     // can detect whether saved research still matches the current inputs.
     try {
-      STATE.roleResearch._hash = _currentRoleResearchHash();
-      STATE.roleResearch._savedAt = Date.now();
+      _rr._hash = _currentRoleResearchHash();
+      _rr._savedAt = Date.now();
     } catch(_){}
-    renderRolePreview(data.role_research);
+    setCurrentTargetRole(_rr);
+    renderRolePreview(_rr);
+      setGeneratedResume(data.generated);
     document.getElementById('role-preview').classList.remove('hidden');
     const rpe = document.getElementById('role-preview-empty'); if (rpe) rpe.classList.add('hidden');
     const s2cb = document.getElementById('step2-continue-btn');
@@ -12586,7 +12154,7 @@ async function generatePlan() {
     });
     await handleBuilderResponse(res);
     const data = await res.json();
-    STATE.generated = data.generated;
+    setGeneratedResume(data.generated);
     // Mark the active version as initialized so the synthesize-bootstrap
     // gate in optimizeForJob() won't clobber the newly generated content.
     try { getActiveVersion()._resumeInitialized = !!(data.generated && Object.keys(data.generated).length); } catch(_){}
@@ -12682,9 +12250,9 @@ async function generatePlanIntoActiveVersion() {
     // which reads from `g` directly. Resume keys from /builder/generate
     // response are intentionally DISCARDED — optimize already produced them.
     try {
-      const stateGen = STATE.generated || {};
+      const stateGen = (typeof getGeneratedResume === 'function') ? (getGeneratedResume() || {}) : (STATE.generated || {});
       PLAN_KEYS.forEach(k => { if (gen[k] !== undefined) stateGen[k] = gen[k]; });
-      STATE.generated = stateGen;
+      setGeneratedResume(stateGen);
     } catch(_){}
     try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
     return { ok: true };
@@ -13850,161 +13418,9 @@ function _pvSectionTitle(text, accent, variant){
 //
 // Idempotent — re-running on already-stamped DOM is a no-op.
 function _stampExperienceAnchors(container) {
-  if (!container || !container.querySelectorAll) return;
-  try {
-    const expLists = container.querySelectorAll('[data-list="experience"]');
-    expLists.forEach(expList => {
-      // Direct-child experience entries. Skip nodes that are clearly not
-      // entries (button, hr, comment-only wrappers).
-      const entries = [...expList.children].filter(el =>
-        el.nodeType === 1 && !/^(BUTTON|HR|SCRIPT|STYLE)$/i.test(el.tagName));
-      entries.forEach((row, i) => {
-        if (row.getAttribute('data-exp-index') == null) {
-          row.setAttribute('data-exp-index', String(i));
-        }
-        if (!row.getAttribute('data-section')) {
-          row.setAttribute('data-section', 'experience');
-        }
-        if (!row.classList.contains('experience-row')) {
-          row.classList.add('experience-row');
-        }
-        if (!row.classList.contains('item-row')) {
-          row.classList.add('item-row');
-        }
-        // Locate bullet container.
-        let bulletList = row.querySelector(':scope ul');
-        if (!bulletList) {
-          // Heuristic for the "fake bullet" pattern used by modern-sidebar /
-          // classic-serif / minimal / etc.: a wrapper <div> whose children
-          // are <div style="padding-left:...;position:relative">. Pick the
-          // div that contains the most such children.
-          let best = null, bestCount = 0;
-          row.querySelectorAll(':scope div').forEach(d => {
-            const kids = [...d.children].filter(c =>
-              c.tagName === 'DIV' &&
-              /padding-left/.test(c.getAttribute('style') || '') &&
-              /position\s*:\s*absolute/.test((c.firstElementChild?.getAttribute('style') || '')));
-            if (kids.length > bestCount) { best = d; bestCount = kids.length; }
-          });
-          if (best && bestCount > 0) bulletList = best;
-        }
-        if (!bulletList) return;
-        if (!bulletList.getAttribute('data-list')) {
-          bulletList.setAttribute('data-list', 'experience-bullets');
-        }
-        bulletList.setAttribute('data-exp-index', String(i));
-        // Bullet children: <li> for UL paths, padding-left <div> for fake-bullet paths.
-        const bulletKids = [...bulletList.children].filter(c =>
-          c.tagName === 'LI' ||
-          (c.tagName === 'DIV' && /padding-left/.test(c.getAttribute('style') || ''))
-        );
-        bulletKids.forEach((b, j) => {
-          if (b.getAttribute('data-bullet-index') == null) {
-            b.setAttribute('data-bullet-index', String(j));
-          }
-          b.setAttribute('data-exp-index', String(i));
-          if (!b.classList.contains('item-row')) b.classList.add('item-row');
-          if (!b.classList.contains('bullet-row')) b.classList.add('bullet-row');
-          // Wrap visible text in .bullet-text if not already wrapped.
-          if (!b.querySelector(':scope > .bullet-text')) {
-            // Find the first text-bearing child node that isn't the absolute-positioned bullet glyph.
-            const childNodes = [...b.childNodes];
-            const glyph = b.firstElementChild &&
-              /position\s*:\s*absolute/.test(b.firstElementChild.getAttribute('style') || '')
-              ? b.firstElementChild : null;
-            const textParts = childNodes.filter(n =>
-              n !== glyph &&
-              !(n.nodeType === 1 && (n.classList.contains('item-del') || n.classList.contains('item-edit-btn') || n.classList.contains('item-vis-toggle') || n.classList.contains('mobile-action-bar') || n.classList.contains('drag-handle')))
-            );
-            const span = document.createElement('span');
-            span.className = 'bullet-text';
-            textParts.forEach(n => span.appendChild(n));
-            // Insert after glyph if present, else at start.
-            if (glyph && glyph.parentNode === b) {
-              glyph.after(span);
-            } else {
-              b.insertBefore(span, b.firstChild);
-            }
-          }
-          // Inject a delete button if none is present so users can remove bullets
-          // on PREVIEW_RENDERERS templates (modern-sidebar / modern-ats / banking).
-          if (!b.querySelector(':scope > .item-del')) {
-            const del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'item-del export-hide';
-            del.setAttribute('contenteditable', 'false');
-            del.setAttribute('onclick', 'removeItem(this)');
-            del.setAttribute('title', 'Delete bullet');
-            del.setAttribute('aria-label', 'Delete bullet');
-            del.innerHTML = '&times;';
-            // Minimal inline style so the button is clickable without
-            // depending on any specific template's CSS.
-            del.setAttribute('style',
-              'position:absolute;top:0;right:0;width:18px;height:18px;line-height:14px;' +
-              'border:none;background:rgba(220,38,38,0.85);color:#fff;border-radius:50%;' +
-              'font-size:12px;cursor:pointer;padding:0;z-index:5');
-            // Ensure the bullet row is a positioning context.
-            const cur = b.getAttribute('style') || '';
-            if (!/position\s*:\s*(absolute|relative|fixed)/.test(cur)) {
-              b.setAttribute('style', cur + ';position:relative');
-            }
-            b.appendChild(del);
-          }
-        });
-      });
-    });
-  } catch (e) {
-    try { console.warn('[_stampExperienceAnchors] failed:', e?.message); } catch(_){}
-  }
+  return false;
 }
 
-// QA helper — paste in DevTools, expect every bullet's expIndex to match its row.
-try {
-  window.debugExperienceAnchors = function(rootId) {
-    const root = document.getElementById(rootId || 'preview-container');
-    if (!root) { console.warn('debugExperienceAnchors: container not found'); return []; }
-    const rows = [...root.querySelectorAll('[data-list="experience"] > [data-exp-index]')];
-    const out = rows.map(row => ({
-      expIndex: row.dataset.expIndex,
-      title: row.querySelector('h4, strong')?.textContent?.trim() || '',
-      bullets: [...row.querySelectorAll(':scope [data-list="experience-bullets"] > [data-bullet-index]')]
-        .map(li => ({
-          expIndex: li.dataset.expIndex,
-          bulletIndex: li.dataset.bulletIndex,
-          text: (li.querySelector('.bullet-text') || li).textContent?.trim().slice(0, 80) || ''
-        }))
-    }));
-    console.table(out.flatMap(r => r.bullets.map(b => ({
-      job: r.expIndex + ' (' + r.title.slice(0, 30) + ')',
-      bIdx: b.bulletIndex, bExp: b.expIndex, text: b.text
-    }))));
-    return out;
-  };
-} catch(_){}
-
-// 2026-04-25 RUNTIME-VERIFICATION: confirm the patched renderer is the one
-// the browser is actually executing. If `hasRendererMarker` is false after
-// a hard reload, the page is loading a cached or hosted build that does NOT
-// contain the experience-helper-v2 source — STATE/delete fixes are correct
-// but a stale renderer is overwriting them at paint time.
-try {
-  window.debugActiveExperienceRenderer = function () {
-    const root = document.getElementById('preview-container');
-    if (!root) return { error: 'preview-container not found' };
-    const tpl = (typeof STATE !== 'undefined')
-      ? (STATE.selectedTemplate || STATE.templateId || STATE.template || null)
-      : null;
-    const expSection = root.querySelector('[data-section="experience"]');
-    return {
-      templateId: tpl,
-      hasRendererMarker: !!root.querySelector('[data-renderer-version="experience-helper-v2"]'),
-      experienceWrapperCount: root.querySelectorAll('[data-list="experience"]').length,
-      experienceRowCount: root.querySelectorAll('.experience-row[data-exp-index]').length,
-      bulletRowCount: root.querySelectorAll('.bullet-row[data-exp-index][data-bullet-index]').length,
-      htmlSample: expSection ? expSection.outerHTML.slice(0, 1000) : null
-    };
-  };
-} catch(_){}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2026-04-25 BUG-FIX (source-renderer fix for bullet cross-contamination):
@@ -14018,7 +13434,7 @@ try {
 //     <ul data-list="experience-bullets" data-exp-index="i">
 //       <li class="item-row bullet-row" data-exp-index="i" data-bullet-index="j">
 //         <span class="bullet-text">b</span>
-//         <button class="item-del export-hide" onclick="removeItem(this)">×</button>
+//         
 //       </li>
 //     </ul>
 //   </div>
@@ -14084,7 +13500,7 @@ function renderExperienceRows(experience, opts) {
     const bulletsHtml = bullets.length
       ? `<ul data-list="experience-bullets" data-exp-index="${i}" style="margin:5px 0 0;padding-left:${bulletPadLeft};list-style:disc${bulletGlyphColor?';color:'+bulletGlyphColor:''}">${bullets.map((b, j) => {
           const bt = bulletTrunc ? truncate(b, bulletTrunc) : b;
-          return `<li class="item-row bullet-row" data-exp-index="${i}" data-bullet-index="${j}" style="position:relative;font-size:${bulletSize};line-height:${bulletLineHeight};color:${textColor};margin-bottom:2px;padding-right:22px"><span class="bullet-text" data-field="bullet">${_pvEsc(bt)}</span><button type="button" class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" title="Delete bullet" aria-label="Delete bullet" style="position:absolute;top:0;right:0;width:18px;height:18px;line-height:14px;border:none;background:rgba(220,38,38,0.85);color:#fff;border-radius:50%;font-size:12px;cursor:pointer;padding:0;z-index:5">&times;</button></li>`;
+          return `<li class="item-row bullet-row" data-exp-index="${i}" data-bullet-index="${j}" style="font-size:${bulletSize};line-height:${bulletLineHeight};color:${textColor};margin-bottom:2px"><span class="bullet-text" data-field="bullet">${_pvEsc(bt)}</span></li>`;
         }).join('')}</ul>`
       : '';
 
@@ -14092,6 +13508,12 @@ function renderExperienceRows(experience, opts) {
   }).join('');
 }
 
+/* ============================================================
+   08. PREVIEW RENDERERS (READ-ONLY)
+   Renderers in this section MUST NOT emit contenteditable attributes
+   or edit-control classes. PREVIEW_READ_ONLY = true enforces this at
+   the renderPreview() call level via disablePreviewEditing().
+   ============================================================ */
 const PREVIEW_RENDERERS = {
   // ── PowerPoint · Modern Sidebar ─────────────────────────────────────────────
   // Portrait 7.5 × 10 in. Mirrors exportPPTX layout 1:1 (sidebar 2.3in, accent
@@ -14650,6 +14072,22 @@ function disablePreviewEditing(root = document) {
   });
 }
 
+function sanitizePreviewMarkup(html) {
+  const source = String(html || '');
+  if (!source) return '';
+  const tpl = document.createElement('template');
+  tpl.innerHTML = source;
+  tpl.content.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+  tpl.content.querySelectorAll('.item-del,.item-add,.mobile-action-bar,.drag-handle,.item-edit-btn,.item-vis-toggle,.editable-action-bar,.editable-done-bar,.mobile-done-bar,.export-hide').forEach(el => el.remove());
+  tpl.content.querySelectorAll('[onclick]').forEach(el => {
+    const js = (el.getAttribute('onclick') || '').toLowerCase();
+    if (js.includes('removeitem(') || js.includes('addlistitem(') || js.includes('addbullet(') || js.includes('addskill(') || js.includes('addkpi(') || js.includes('addeducation(') || js.includes('addcertification(') || js.includes('addachievement(') || js.includes('addexperience(') || js.includes('edititemrow(') || js.includes('toggleitemvisibility(')) {
+      el.removeAttribute('onclick');
+    }
+  });
+  return tpl.innerHTML;
+}
+
 function _renderFormatAccuratePreview(g, containerId){
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -14681,6 +14119,7 @@ function _renderFormatAccuratePreview(g, containerId){
   const pageInner = _routeModel
     ? _selectAndRender(renderTemplateId, _routeModel, accent)
     : (PREVIEW_RENDERERS[renderTemplateId] || PREVIEW_RENDERERS['modern-sidebar'])(g, accent);
+  const safePageInner = sanitizePreviewMarkup(pageInner);
   const fmtClass = (fmt === 'docx') ? 'pv-format-docx' : 'pv-format-pptx';
   const templateLabel = (fmt === 'docx')
     ? 'Word · Classic'
@@ -14702,14 +14141,9 @@ function _renderFormatAccuratePreview(g, containerId){
         </span>
       </div>
       <div class="pv-pages-stack">
-        <div class="pv-page">${pageInner}<span class="pv-pageno">1</span></div>
+        <div class="pv-page">${safePageInner}<span class="pv-pageno">1</span></div>
       </div>
     </div>`;
-  // 2026-04-25 BUG-FIX: stamp per-bullet dataset anchors + inject delete
-  // buttons so removeItem and syncPreviewEditsToState can scope edits to
-  // the right job. Without this every PREVIEW_RENDERERS template would
-  // continue producing un-anchored bullets that bleed across jobs.
-  try { _stampExperienceAnchors(container); } catch(_){}
   try { if (PREVIEW_READ_ONLY) disablePreviewEditing(container); } catch(_){ }
   try { lucide.createIcons(); } catch(_){}
   // Keep Document/Web toggle active-state and re-sync spacing/divider presets
@@ -14775,6 +14209,35 @@ window.refreshDocumentPreview = function(btn){
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 };
+
+/* ── Preview render scheduler ────────────────────────────────────────────────────────────
+   schedulePreviewRender() is a debounced wrapper for renderPreview().
+   Call sites may be migrated here in a future pass; this is a stub only.
+   ────────────────────────────────────────────────────────────────────────────────────── */
+let _rbPreviewRenderTimer = null;
+let _rbPreviewRenderBusy = false;
+function schedulePreviewRender(reason = 'unknown') {
+  if (_rbPreviewRenderTimer) clearTimeout(_rbPreviewRenderTimer);
+
+  _rbPreviewRenderTimer = setTimeout(() => {
+    _rbPreviewRenderTimer = null;
+
+    if (_rbPreviewRenderBusy) return;
+
+    _rbPreviewRenderBusy = true;
+    try {
+      renderPreview?.();
+      const target =
+        document.getElementById('preview-container-export') ||
+        document.getElementById('preview-container') ||
+        document;
+
+      disablePreviewEditing?.(target);
+    } finally {
+      _rbPreviewRenderBusy = false;
+    }
+  }, 80);
+}
 
 let __renderPreviewBusy = false;
 
@@ -14902,27 +14365,27 @@ function renderPreview(g, targetId) {
         <style>.sm\\:\\!grid-cols-\\[260px_1fr\\]{grid-template-columns:1fr}@media(min-width:640px){.sm\\:\\!grid-cols-\\[260px_1fr\\]{grid-template-columns:260px 1fr}}</style>
         <div style="background:${S.sidebarBg};padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem;font-family:${S.bodyFont}">
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4" style="border-color:${C}60">` : ''}
-          <h1 class="text-xl font-semibold text-center editable" contenteditable="true" data-field="hero_name" style="color:${S.sidebarText};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-          <p class="text-sm font-medium text-center editable" contenteditable="true" data-field="hero_target_title" style="color:${S.sidebarText};opacity:0.85">${g.hero.target_title || ''}</p>
-          ${g.hero.company ? `<p class="text-xs text-center editable" contenteditable="true" data-field="hero_company" style="color:${S.sidebarMuted}">${g.hero.company}</p>` : ''}
+          <h1 class="text-xl font-semibold text-center editable" data-field="hero_name" style="color:${S.sidebarText};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+          <p class="text-sm font-medium text-center editable" data-field="hero_target_title" style="color:${S.sidebarText};opacity:0.85">${g.hero.target_title || ''}</p>
+          ${g.hero.company ? `<p class="text-xs text-center editable" data-field="hero_company" style="color:${S.sidebarMuted}">${g.hero.company}</p>` : ''}
           <div style="width:60%;height:1px;background:${S.sidebarMuted}40;margin:0.5rem 0"></div>
           <div class="flex flex-col gap-2 text-xs w-full" style="color:${S.sidebarText};opacity:0.8">${contactBar(S.sidebarText)}</div>
         </div>
         <div style="background:${S.cardBg};padding:2rem;font-family:${S.bodyFont}">
-          <p class="text-xs font-bold uppercase tracking-wider mb-3 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em">${planLabel}</p>
-          ${g.hero.tagline ? `<p class="text-sm leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
-          ${g.hero.subtitle ? `<p class="text-sm mt-2 editable" contenteditable="true" data-field="hero_subtitle" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+          <p class="text-xs font-bold uppercase tracking-wider mb-3 editable" style="color:${C};letter-spacing:0.2em">${planLabel}</p>
+          ${g.hero.tagline ? `<p class="text-sm leading-relaxed editable" data-field="hero_tagline" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          ${g.hero.subtitle ? `<p class="text-sm mt-2 editable" data-field="hero_subtitle" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
         </div>
       </div>`;
     } else if (S.layout === 'banner') {
       // Classic: centered top banner
       h += card(`<div class="text-center">
         ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 mx-auto mb-4" style="border-color:${C}30">` : ''}
-        <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.bodyFont}">${planLabel}</p>
-        <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight editable" contenteditable="true" data-field="hero_name" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-        <p class="text-lg font-medium mt-1 editable" contenteditable="true" data-field="hero_target_title" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
-        ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_company" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
-        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
+        <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" style="color:${C};letter-spacing:0.2em;font-family:${S.bodyFont}">${planLabel}</p>
+        <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight editable" data-field="hero_name" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+        <p class="text-lg font-medium mt-1 editable" data-field="hero_target_title" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
+        ${g.hero.company ? `<p class="text-sm mt-0.5 editable" data-field="hero_company" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
+        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed editable" data-field="hero_tagline" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
         <div class="flex flex-wrap justify-center gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         <div style="${S.dividerStyle !== 'none' ? 'border-bottom:' + S.dividerStyle + ';margin-top:1.5rem' : ''}"></div>
       </div>`, `background:${S.cardBg}`, 'hero');
@@ -14933,11 +14396,11 @@ function renderPreview(g, targetId) {
         <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6" style="position:relative;z-index:1">
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:rgba(255,255,255,0.3)">` : ''}
           <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
-            <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:rgba(255,255,255,0.7);letter-spacing:0.2em">${planLabel}</p>
-            <h1 class="text-3xl sm:text-4xl font-bold tracking-tight editable" contenteditable="true" data-field="hero_name" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-            <p class="text-lg font-medium mt-1 editable" contenteditable="true" data-field="hero_target_title" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
-            ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_company" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
-            ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:rgba(255,255,255,0.8)">${g.hero.tagline}</p>` : ''}
+            <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" style="color:rgba(255,255,255,0.7);letter-spacing:0.2em">${planLabel}</p>
+            <h1 class="text-3xl sm:text-4xl font-bold tracking-tight editable" data-field="hero_name" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+            <p class="text-lg font-medium mt-1 editable" data-field="hero_target_title" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
+            ${g.hero.company ? `<p class="text-sm mt-0.5 editable" data-field="hero_company" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
+            ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" data-field="hero_tagline" style="color:rgba(255,255,255,0.8)">${g.hero.tagline}</p>` : ''}
             <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:rgba(255,255,255,0.8)">${contactBar('rgba(255,255,255,0.8)')}</div>
           </div>
         </div>
@@ -14948,12 +14411,12 @@ function renderPreview(g, targetId) {
       h += card(`<div class="flex flex-col sm:flex-row items-center sm:items-start gap-6">
         ${photo ? `<img src="${photo}" class="${isDark ? 'w-24 h-24 rounded-lg' : 'w-24 h-24 photo-shape-' + STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:${C}30">` : ''}
         <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
-          <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.headingFont}">${planLabel}</p>
-          <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" contenteditable="true" data-field="hero_name" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-          <p class="text-lg font-medium mt-1 editable" contenteditable="true" data-field="hero_target_title" style="color:${C}">${g.hero.target_title || ''}</p>
-          ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_subtitle" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
-          ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_company" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
-          ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" style="color:${C};letter-spacing:0.2em;font-family:${S.headingFont}">${planLabel}</p>
+          <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" data-field="hero_name" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+          <p class="text-lg font-medium mt-1 editable" data-field="hero_target_title" style="color:${C}">${g.hero.target_title || ''}</p>
+          ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" data-field="hero_subtitle" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+          ${g.hero.company ? `<p class="text-sm mt-0.5 editable" data-field="hero_company" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
+          ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" data-field="hero_tagline" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
           <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         </div>
       </div>`, `background:${isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + lighter + ')'};border-color:${C}30`, 'hero');
@@ -14987,7 +14450,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXECUTIVE SUMMARY ────
   if (_inContent('executive_summary') && STATE.sections.includes('executive_summary') && g.executive_summary) {
-    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" data-field="summary" style="color:${S.textColor}">${g.executive_summary}</div>`, '', 'executive_summary');
+    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" data-field="summary" style="color:${S.textColor}">${g.executive_summary}</div>`, '', 'executive_summary');
   }
 
   // ──── PLAN PHASES ────
@@ -15023,24 +14486,24 @@ function renderPreview(g, targetId) {
           <div class="flex-1">
             <span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${phaseLabel}</span>
             <span class="text-xs px-2 py-0.5 rounded-full font-medium ml-2" style="background:${light};color:${C}">${phaseTimeframe}</span>
-            <h3 class="text-xl font-bold mt-1 editable" contenteditable="true" data-field="plan_phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>
+            <h3 class="text-xl font-bold mt-1 editable" data-field="plan_phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>
           </div>
         </div>`;
       } else if (S.sectionLabelStyle === 'terminal') {
         inner += `<div class="flex items-center gap-3 mb-1"><span style="color:${C};font-family:${S.headingFont};font-size:0.75rem;font-weight:700">phase[${idx}]</span><span class="text-xs px-2 py-0.5 rounded font-medium" style="background:${light};color:${C};font-family:${S.headingFont}">${phaseTimeframe}</span></div>
-        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" data-field="plan_phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
+        <h3 class="text-xl font-semibold mt-2 editable" data-field="plan_phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
       } else {
         inner += `<div class="flex items-center gap-3 mb-1"><i data-lucide="${icon}" style="width:20px;height:20px;color:${C}"></i><span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${phaseLabel}</span><span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${light};color:${C}">${phaseTimeframe}</span></div>
-        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" data-field="plan_phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
+        <h3 class="text-xl font-semibold mt-2 editable" data-field="plan_phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
       }
 
       if (objective) {
-        inner += `<p class="text-sm mt-2 leading-relaxed editable" contenteditable="true" data-field="phase_objective" style="color:${S.mutedColor}">${objective}</p>`;
+        inner += `<p class="text-sm mt-2 leading-relaxed editable" data-field="phase_objective" style="color:${S.mutedColor}">${objective}</p>`;
       }
 
       // Actions
       if (actions.length) {
-        inner += `<div class="mt-5">${sectionLabel('list-checks', 'Key Actions')}<div class="space-y-2" data-list="actions">${actions.map(a => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_action">${a}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'action','${C}','${S.textColor}')">+ Add Action</button></div>`;
+        inner += `<div class="mt-5">${sectionLabel('list-checks', 'Key Actions')}<div class="space-y-2" data-list="actions">${actions.map(a => `<div class="item-row flex gap-3 text-sm editable" style="color:${S.textColor}"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_action">${a}</span></div>`).join('')}</div></div>`;
       }
 
       // Tools
@@ -15049,18 +14512,18 @@ function renderPreview(g, targetId) {
           const tName = typeof t === 'string' ? t : (t.name || '');
           const tDesc = typeof t === 'string' ? '' : (t.description || '');
           const tIcon = (typeof t === 'object' && t.icon) ? t.icon : 'monitor';
-          return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_tool">${tName}${tDesc ? ' — ' + tDesc : ''}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`;
-        }).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'tool','${C}','${S.textColor}')">+ Add Tool</button></div>`;
+          return `<div class="item-row flex gap-3 text-sm editable" style="color:${S.textColor}"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_tool">${tName}${tDesc ? ' — ' + tDesc : ''}</span></div>`;
+        }).join('')}</div></div>`;
       }
 
       // Milestones
       if (p.milestones?.length) {
-        inner += `<div class="mt-5">${sectionLabel('trophy', 'Key Milestones')}<div class="space-y-2" data-list="milestones">${p.milestones.map(m => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="phase_milestone">${m}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'milestone','#047857','${S.textColor}')">+ Add Milestone</button></div>`;
+        inner += `<div class="mt-5">${sectionLabel('trophy', 'Key Milestones')}<div class="space-y-2" data-list="milestones">${p.milestones.map(m => `<div class="item-row flex gap-3 text-sm editable" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="phase_milestone">${m}</span></div>`).join('')}</div></div>`;
       }
 
       // Executive Value
       if (execValue) {
-        inner += `<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}">${sectionLabel('gem', 'Executive Value')}<p class="text-sm leading-relaxed editable" contenteditable="true" data-field="phase_exec_value" style="color:${S.textColor}">${execValue}</p></div>`;
+        inner += `<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}">${sectionLabel('gem', 'Executive Value')}<p class="text-sm leading-relaxed editable" data-field="phase_exec_value" style="color:${S.textColor}">${execValue}</p></div>`;
       }
 
       const borderLeft = S.layout === 'bold' ? '' : `border-left:4px solid ${C};`;
@@ -15070,28 +14533,28 @@ function renderPreview(g, targetId) {
 
   // ──── SUCCESS CRITERIA ────
   if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
-    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="success_criterion">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
+    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="success_criterion">${s}</span></div>`).join('')}</div>`, '', 'success_criteria');
   }
 
   // ──── SUCCESS SUMMARY (Day 90 summary) ────
   if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_summary?.length) {
-    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary" data-field="success_summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="success_outcome">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
+    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary" data-field="success_summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="success_outcome">${s}</span></div>`).join('')}</div>`, '', 'success_summary');
   }
 
   // ──── KPIS ────
   if (_inContent('kpis') && STATE.sections.includes('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
-    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" data-field="kpi_metric" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" data-field="kpi_target" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`, '', 'kpis');
+    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" style="border:${S.borderStyle}"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" data-field="kpi_metric" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" data-field="kpi_target" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div>`, '', 'kpis');
   }
 
   // ──── EXPERIENCE ────
   if (_inContent('experience') && STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" data-field="title" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" data-field="dates" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" data-field="company_location" style="color:${S.mutedColor}"><span data-field="company">${e.company}</span>${e.location ? ' — <span data-field="location">' + e.location + '</span>' : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" data-field="role_summary" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" data-field="bullet">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><div class="editable"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" data-field="title" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" data-field="dates" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" data-field="company_location" style="color:${S.mutedColor}"><span data-field="company">${e.company}</span>${e.location ? ' — <span data-field="location">' + e.location + '</span>' : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" data-field="role_summary" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" data-field="bullet">${b}</span></li>`).join('')}</ul></div></div>`).join('')}</div>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
   if (_inContent('leadership') && STATE.sections.includes('leadership') && g.leadership_engagement?.length) {
-    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><h4 class="text-sm font-semibold mb-1" data-field="leadership_title" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" data-field="leadership_org" style="color:${C}">${l.organization || ''}</p><p class="text-sm" data-field="leadership_description" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership_engagement');
+    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" style="border:${S.borderStyle}"><h4 class="text-sm font-semibold mb-1" data-field="leadership_title" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" data-field="leadership_org" style="color:${C}">${l.organization || ''}</p><p class="text-sm" data-field="leadership_description" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership_engagement');
   }
 
   // ──── SKILLS ────
@@ -15100,14 +14563,14 @@ function renderPreview(g, targetId) {
     const skillStyle = S.sectionLabelStyle === 'terminal'
       ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
       : `border:${S.borderStyle};color:${S.textColor}`;
-    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text" data-field="skill">${s}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`, '', 'skills');
+    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text" data-field="skill">${s}</span></div>`).join('')}</div>`, '', 'skills');
   }
 
   // ──── EDUCATION & CERTS ────
   if (_inContent('education') && STATE.sections.includes('education')) {
     let eduCert = '<div class="grid sm:grid-cols-2 gap-6">';
-    eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${(g.education || []).map(e => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" data-field="degree" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" data-field="school" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" data-field="year" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" data-field="details" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addEducation(this)">+ Add Education</button>`, '', 'education');
-    eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${(g.certifications || []).map(c => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" data-field="cert_name" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" data-field="cert_issuer" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" data-field="cert_year" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addCertification(this)">+ Add Certification</button>`, '', 'certifications');
+    eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${(g.education || []).map(e => `<div class="item-row editable"><p class="font-semibold" data-field="degree" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" data-field="school" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" data-field="year" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" data-field="details" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div>`, '', 'education');
+    eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${(g.certifications || []).map(c => `<div class="item-row editable"><p class="font-semibold" data-field="cert_name" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" data-field="cert_issuer" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" data-field="cert_year" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div>`, '', 'certifications');
     eduCert += '</div>';
     h += eduCert;
   }
@@ -15118,13 +14581,13 @@ function renderPreview(g, targetId) {
       const aTitle = typeof a === 'string' ? a : (a.title || '');
       const aDesc = typeof a === 'string' ? '' : (a.description || '');
       const aIcon = (typeof a === 'object' && a.icon) ? a.icon : 'award';
-      return `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><div class="flex items-start gap-3"><i data-lucide="${aIcon}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" data-field="achievement_title" style="color:${S.headingColor}">${aTitle}</p>${aDesc ? `<p class="text-sm mt-1" data-field="achievement_description" style="color:${S.mutedColor}">${aDesc}</p>` : ''}</div></div></div>`;
-    }).join('')}</div><button class="item-add export-hide" onclick="addAchievement(this)">+ Add Achievement</button>`, '', 'achievements');
+      return `<div class="item-row editable"><div class="flex items-start gap-3"><i data-lucide="${aIcon}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" data-field="achievement_title" style="color:${S.headingColor}">${aTitle}</p>${aDesc ? `<p class="text-sm mt-1" data-field="achievement_description" style="color:${S.mutedColor}">${aDesc}</p>` : ''}</div></div></div>`;
+    }).join('')}</div>`, '', 'achievements');
   }
 
   // ──── LEADERSHIP ────
   if (_inContent('leadership') && STATE.sections.includes('leadership') && g.leadership?.length) {
-    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" data-field="leadership_role" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" data-field="leadership_description" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership');
+    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable"><p class="font-semibold" data-field="leadership_role" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" data-field="leadership_description" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership');
   }
 
   // ──── FOOTER ────
@@ -15160,15 +14623,9 @@ function renderPreview(g, targetId) {
   // experience block at L13203, but this guarantees idempotent coverage
   // for any sub-renderers that might be called from this path.
   try { _stampExperienceAnchors(_container); } catch(_){}
-  try { if (PREVIEW_READ_ONLY) disablePreviewEditing(document); } catch(_){ }
-  if (STATE._debugRender) {
-    try {
-      console.log('[renderPreview] container=', containerId,
-        'skills=', (g.skills||[]).length,
-        'exp=', (g.experience||[]).length,
-        'exp[0].bullets=', ((g.experience||[])[0]||{}).bullets ? g.experience[0].bullets.length : 0);
-    } catch(_){}
-  }
+  // 2026-04-25 STABILIZATION: scope to _container only — do NOT pass document
+  // or disablePreviewEditing will strip contenteditable from Step-1 form fields.
+  try { if (PREVIEW_READ_ONLY) disablePreviewEditing(_container); } catch(_){ }
   lucide.createIcons();
   if (!PREVIEW_READ_ONLY) {
     initDragAndDrop();
@@ -15181,6 +14638,12 @@ function renderPreview(g, targetId) {
   }
 }
 
+/* ============================================================
+   09. ITEM ACTIONS / NO-OP SHIMS
+   All edit-action functions below are intentionally no-op'd (return false).
+   Preview is read-only per plan. Body removal is deferred to a dedicated
+   future audit pass after full call-site inventory.
+   ============================================================ */
 // ============ Drag-and-Drop Reordering ============
 function initDragAndDrop() {
   return false;
@@ -15281,33 +14744,7 @@ function removeItem(btn) {
 // read DIRECTLY from the bullet-row dataset. resumeData is the import/profile
 // library and must NOT be mutated here.
 function removeExperienceBulletFromState(row) {
-  try {
-    if (!row || !row.dataset) return false;
-    const expIndex    = Number(row.dataset.expIndex);
-    const bulletIndex = Number(row.dataset.bulletIndex);
-    if (!Number.isInteger(expIndex)    || expIndex    < 0) return false;
-    if (!Number.isInteger(bulletIndex) || bulletIndex < 0) return false;
-    const sources = [
-      (typeof STATE !== 'undefined') ? STATE.generated    : null,
-      (typeof STATE !== 'undefined') ? STATE.enhancedData : null
-    ];
-    let mutated = false;
-    sources.forEach(src => {
-      if (!src || !Array.isArray(src.experience)) return;
-      const exp = src.experience[expIndex];
-      if (!exp || !Array.isArray(exp.bullets)) return;
-      if (bulletIndex >= exp.bullets.length) return;
-      exp.bullets.splice(bulletIndex, 1);
-      mutated = true;
-    });
-    if (mutated && typeof invalidateExportModel === 'function') {
-      try { invalidateExportModel(); } catch(_){}
-    }
-    return mutated;
-  } catch(e) {
-    try { console.warn('[removeExperienceBulletFromState] failed:', e?.message); } catch(_){}
-    return false;
-  }
+  return false;
 }
 
 function editItemRow(btn) {
@@ -15352,147 +14789,38 @@ function copyInfoBarLink() {
   });
 }
 
-// Clear item-tapped when tapping outside any item-row (desktop clicks too)
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.item-row') && !e.target.closest('.mobile-action-bar')) {
-    document.querySelectorAll('.item-tapped').forEach(el => el.classList.remove('item-tapped'));
-    document.querySelectorAll('.item-editing').forEach(el => doneEditingRow(el));
-  }
-});
+// 2026-04-25 STABILIZATION: preview editing/tap state handling removed.
 
 function addListItem(addBtn, type, iconColor, textColor) {
-  const container = addBtn.previousElementSibling;
-  if (!container) return;
-  const iconName = type === 'action' ? 'chevron-right' : 'check-circle';
-  const div = document.createElement('div');
-  div.className = 'item-row flex gap-3 text-sm editable';
-  div.contentEditable = 'true';
-  div.style.color = textColor;
-  div.innerHTML = `<i data-lucide="${iconName}" style="width:16px;height:16px;color:${iconColor};flex-shrink:0;margin-top:2px"></i><span>New ${type}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button>`;
-  container.appendChild(div);
-  lucide.createIcons({ nodes: [div] });
-  div.focus();
-  _syncContainingPreview(container);
-  markDirty();
+  return false;
 }
 
 function addBullet(addBtn, accent, textColor) {
-  const ul = addBtn.previousElementSibling;
-  if (!ul) return;
-  // 2026-04-24 BUG-FIX: stamp data-exp-index (inherited from parent <ul>)
-  // + the next data-bullet-index on the new <li> so per-row scoped scrape
-  // attributes the new bullet to the correct experience entry.
-  const expIdx = ul.getAttribute('data-exp-index');
-  const newBulletIdx = ul.querySelectorAll(':scope > li').length;
-  const li = document.createElement('li');
-  li.className = 'item-row flex gap-3 text-sm';
-  if (expIdx != null) li.setAttribute('data-exp-index', expIdx);
-  li.setAttribute('data-bullet-index', String(newBulletIdx));
-  li.style.color = textColor;
-  li.innerHTML = `<span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" contenteditable="true">New bullet point</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button>`;
-  lucide.createIcons({ nodes: [li] });
-  ul.appendChild(li);
-  li.querySelector('span[contenteditable]').focus();
-  _syncContainingPreview(ul);
-  markDirty();
+  return false;
 }
 
 function addSkill(addBtn, accent, styleStr) {
-  const grid = addBtn.previousElementSibling;
-  if (!grid) return;
-  const div = document.createElement('div');
-  div.className = 'item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable';
-  div.contentEditable = 'true';
-  div.setAttribute('style', styleStr);
-  div.innerHTML = `<i data-lucide="check-circle" style="width:14px;height:14px;color:${accent};flex-shrink:0"></i><span class="skill-text">New Skill</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button>`;
-  grid.appendChild(div);
-  lucide.createIcons({ nodes: [div] });
-  div.focus();
-  _syncContainingPreview(grid);
-  markDirty();
+  return false;
 }
 
 function addKpi(addBtn, accent, muted, heading, borderStr) {
-  const grid = addBtn.previousElementSibling;
-  if (!grid) return;
-  const div = document.createElement('div');
-  div.className = 'item-row p-3 rounded-lg text-center editable';
-  div.contentEditable = 'true';
-  div.setAttribute('style', 'border:' + borderStr);
-  div.innerHTML = `<button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><i data-lucide="target" style="width:20px;height:20px;color:${accent};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${muted}">New Metric</p><p class="text-lg font-bold mt-1" style="color:${heading}">Target</p>`;
-  grid.appendChild(div);
-  lucide.createIcons({ nodes: [div] });
-  div.focus();
-  _syncContainingPreview(grid);
-  markDirty();
+  return false;
 }
 
 function addExperience(addBtn) {
-  const S = STYLE_CONFIG[STATE.style];
-  const C = STATE.color;
-  const headingColor = S.headingColor, headingFont = S.headingFont, accent = C, muted = S.mutedColor, textColor = S.textColor;
-  const container = addBtn.previousElementSibling;
-  if (!container) return;
-  // 2026-04-24 BUG-FIX: stamp data-exp-index on the new row + bullet list +
-  // its first bullet so the per-row scoped scraper in syncPreviewEditsToState
-  // can attribute edits correctly even before the next full rerender.
-  const newIdx = container.querySelectorAll(':scope > .item-row').length;
-  const div = document.createElement('div');
-  div.className = 'item-row';
-  div.setAttribute('data-exp-index', String(newIdx));
-  div.setAttribute('data-section', 'experience');
-  div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company — Location</p><ul class="space-y-2" data-list="experience-bullets" data-exp-index="${newIdx}"><li class="item-row flex gap-3 text-sm" data-exp-index="${newIdx}" data-bullet-index="0" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
-  container.appendChild(div);
-  div.querySelector('.editable').focus();
-  _syncContainingPreview(container);
-  markDirty();
+  return false;
 }
 
 function addEducation(addBtn) {
-  const S = STYLE_CONFIG[STATE.style];
-  const container = addBtn.previousElementSibling;
-  if (!container) return;
-  const div = document.createElement('div');
-  div.className = 'item-row editable';
-  div.contentEditable = 'true';
-  div.innerHTML = `<button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">Degree</p><p class="text-sm" style="color:${S.mutedColor}">School</p><p class="text-xs" style="color:${S.mutedColor}">Year</p>`;
-  container.appendChild(div);
-  lucide.createIcons({ nodes: [div] });
-  div.focus();
-  _syncContainingPreview(container);
-  markDirty();
+  return false;
 }
 
 function addCertification(addBtn) {
-  const S = STYLE_CONFIG[STATE.style];
-  const C = STATE.color;
-  const container = addBtn.previousElementSibling;
-  if (!container) return;
-  const div = document.createElement('div');
-  div.className = 'item-row editable';
-  div.contentEditable = 'true';
-  div.innerHTML = `<button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">Certification Name</p><p class="text-sm" style="color:${S.mutedColor}">Issuer</p><p class="text-xs" style="color:${S.mutedColor}">Year</p>`;
-  container.appendChild(div);
-  lucide.createIcons({ nodes: [div] });
-  div.focus();
-  _syncContainingPreview(container);
-  markDirty();
+  return false;
 }
 
 function addAchievement(addBtn) {
-  const S = STYLE_CONFIG[STATE.style];
-  const C = STATE.color;
-  const container = addBtn.previousElementSibling;
-  if (!container) return;
-  const div = document.createElement('div');
-  div.className = 'item-row editable';
-  div.contentEditable = 'true';
-  div.innerHTML = `<button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><div class="flex items-start gap-3"><i data-lucide="award" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" style="color:${S.headingColor}">New Achievement</p><p class="text-sm mt-1" style="color:${S.mutedColor}">Description</p></div></div>`;
-  container.appendChild(div);
-  lucide.createIcons({ nodes: [div] });
-  div.focus();
-  _syncContainingPreview(container);
-  markDirty();
+  return false;
 }
 
 // Strip action buttons from HTML before export
@@ -15529,24 +14857,13 @@ function syncPreviewEditsToState(rootId) {
   return false;
 }
 
-// Expose for console debugging / tests
+function syncExportEditsToWorkspace() {
+  return false;
+}
+
 try { window.__syncPreviewEditsToState = syncPreviewEditsToState; } catch(_){}
-
-// 2026-04-25 BUG-FIX: canonical name for the rebuilt scrape. Old name kept
-// as alias for backwards-compat (blur listener and any external callers).
-const syncExportEditsToWorkspace = function() { return false; };
+try { window.syncPreviewEditsToState = syncPreviewEditsToState; } catch(_){}
 try { window.syncExportEditsToWorkspace = syncExportEditsToWorkspace; } catch(_){}
-try { window.syncPreviewEditsToState  = syncExportEditsToWorkspace; } catch(_){}
-try { window.syncPreviewEditsToState = () => false; } catch(_){ }
-try { window.syncExportEditsToWorkspace = () => false; } catch(_){ }
-
-// 2026-04-25 BUG-FIX: delegated input/blur listeners — guarantees that ANY
-// edit inside either preview pane triggers a write-through to the active
-// version, regardless of which component owns the contenteditable element.
-// Installed once at module init; idempotent via window flag.
-try {
-  window.__previewEditDelegationInstalled = false;
-} catch(_){}
 
 // 2026-04-25 BUG-FIX: validation helper for the editable-field write-back
 // path. Returns a snapshot of the active version's resume + plan state so
@@ -15822,7 +15139,10 @@ try { window.__AI = AI; } catch(_){}
 // Subsequent calls return the cache instead of re-hitting the server.
 // Returns { ok:true, data } on success, { ok:false, reason } on failure.
 async function ensureEnhancedData() {
-  if (STATE.enhancedData) return { ok: true, data: STATE.enhancedData };
+  try {
+    const _cached = (getActiveVersion() || {})._enhancedAlias;
+    if (_cached) return { ok: true, data: _cached };
+  } catch(_){ }
   const base = STATE.resumeData || {};
   try {
     const jobDesc = document.getElementById('job-desc')?.value?.trim() || '';
@@ -15844,14 +15164,16 @@ async function ensureEnhancedData() {
     }
     if (!res.ok) return { ok: false, reason: 'http-' + res.status };
     const json = await res.json();
-    STATE.enhancedData = json.enhanced_data || json;
-    invalidateExportModel();
-    return { ok: true, data: STATE.enhancedData };
+    setEnhancedData(json.enhanced_data || json);
+    return { ok: true, data: (getActiveVersion() || {})._enhancedAlias || null };
   } catch (e) {
     return { ok: false, reason: 'network', error: e };
   }
 }
 
+/* ============================================================
+   10. EXPORT
+   ============================================================ */
 // Build (or return cached) canonical export model. Reads current STATE +
 // contact DOM inputs + enhanced cache when useEnhanced is on. Does NOT fetch
 // the enhanced data here — callers call ensureEnhancedData() first if they
@@ -15860,46 +15182,7 @@ function buildExportModel(opts) {
   const o = opts || {};
   // Keep canonical state aligned with current form edits before building.
   try { syncBuilderInputsToCanonical && syncBuilderInputsToCanonical(); } catch(_){ }
-  // Pull any inline preview edits into STATE BEFORE checking the cache — a DOM
-  // edit since the last build invalidated the cache via blur/input, but this is
-  // the safety net for any caller that builds a model after DOM changes without
-  // a prior invalidate (e.g. programmatic render).
-  // 2026-04-25 BUG-FIX: previously this called syncPreviewEditsToState() with
-  // NO arg → defaulted to '#preview-container'. On the Export tab the user
-  // is editing '#preview-container-export'; the unscoped sync would scrape
-  // the stale live-preview DOM and OVERWRITE the user's export edits, which
-  // is why removed/edited items reverted on every refresh.
-  // Now: prefer the container that owns document.activeElement (i.e. the one
-  // being edited right now); fall back to whichever export pane is visible;
-  // and as a last resort skip the sync (the explicit blur/input listeners in
-  // syncExportEditsToWorkspace already keep state fresh).
-  try {
-    const _pickSyncRoot = () => {
-      try {
-        const ae = document.activeElement;
-        if (ae && ae.closest) {
-          const exp = ae.closest('#preview-container-export, #preview-container-export-b');
-          if (exp) return exp.id;
-          const live = ae.closest('#preview-container, #preview-container-b');
-          if (live) return live.id;
-        }
-      } catch(_){}
-      // No editable focus → prefer whichever export pane is currently visible
-      try {
-        const exp = document.getElementById('preview-container-export');
-        if (exp && exp.offsetParent && !exp.classList.contains('hidden')) return 'preview-container-export';
-      } catch(_){}
-      try {
-        const live = document.getElementById('preview-container');
-        if (live && live.offsetParent && !live.classList.contains('hidden')) return 'preview-container';
-      } catch(_){}
-      return null;
-    };
-    const _root = _pickSyncRoot();
-    if (_root && typeof syncPreviewEditsToState === 'function') {
-      syncPreviewEditsToState(_root);
-    }
-  } catch(_){}
+  // 2026-04-25 STABILIZATION: preview is read-only; no preview->state sync.
   // 2026-04-24 BUG-FIX: previously the cached model object was returned by
   // reference, which meant any caller that accidentally mutated
   // `model.experience[i]` or `model.skills` would poison the cache for
@@ -15931,12 +15214,13 @@ function buildExportModel(opts) {
     }
   }
 
-  const base = STATE.resumeData || {};
-  const generated = STATE.generated || {};
-  // When AI-enhance is active AND we've already cached enhanced data, prefer
-  // enhanced fields over base. If enhance hasn't run yet, fall back silently
-  // to original (preview can still render).
-  const enh = (STATE.useEnhanced && STATE.enhancedData) ? STATE.enhancedData : null;
+  const _vCanonical = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {};
+  const _wCanonical = (typeof getWorkspace === 'function') ? (getWorkspace() || {}) : {};
+  const base = Object.assign({}, _wCanonical.profile || {}, _vCanonical.resumeDraft || {});
+  const generated = _vCanonical.resume || {};
+  // 2026-04-25 STABILIZATION: prevent stale enhanced overlays from overriding
+  // canonical user-edited draft and generated output.
+  const enh = null;
 
   // 2026-04-24 ARCHITECTURE FIX: split picker into two variants.
   //
@@ -19225,12 +18509,14 @@ document.getElementById('ai-enhance-toggle').addEventListener('change', async fu
       if (res.ok) {
         const enhanced = await res.json();
         const ed = enhanced.enhanced_data || {};
-        if (ed.summary) STATE.generated.executive_summary = ed.summary;
-        if (ed.experience?.length) STATE.generated.experience = ed.experience;
-        if (ed.skills?.length) STATE.generated.skills = ed.skills;
+        const nextGenerated = structuredClone((typeof getGeneratedResume === 'function') ? (getGeneratedResume() || {}) : (STATE.generated || {}));
+        if (ed.summary) nextGenerated.executive_summary = ed.summary;
+        if (ed.experience?.length) nextGenerated.experience = ed.experience;
+        if (ed.skills?.length) nextGenerated.skills = ed.skills;
+        setGeneratedResume(nextGenerated);
         // Cache the full enhanced payload so exportDOCX/exportPPTX/exportHTML
         // can pull from it via ensureEnhancedData() without re-fetching.
-        STATE.enhancedData = ed;
+        setEnhancedData(ed);
         try { invalidateExportModel && invalidateExportModel(); } catch(_){}
         try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
         // Expand Optimize accordion so highlights are visible even if step is currently collapsed.
@@ -19257,31 +18543,19 @@ document.getElementById('ai-enhance-toggle').addEventListener('change', async fu
     }
   } else {
     if (_preEnhanceGenerated) {
-      STATE.generated = JSON.parse(JSON.stringify(_preEnhanceGenerated));
+      setGeneratedResume(JSON.parse(JSON.stringify(_preEnhanceGenerated)));
       renderPreview(STATE.generated);
       showToast('Reverted to original resume data');
       markDirty();
     }
     // Clear the cached enhanced payload so exports revert to original content
-    STATE.enhancedData = null;
+    setEnhancedData(null);
     try { invalidateExportModel && invalidateExportModel(); } catch(_){}
     try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
   }
 });
 
 // ============ AI Change Highlighting with Accept/Reject ============
-// Tap-to-reveal AI actions on mobile (and also works as click on PC)
-document.addEventListener('click', function(e) {
-  const tapped = e.target.closest('.ai-changed');
-  // Don't toggle if clicking the action buttons themselves
-  if (e.target.closest('.ai-actions')) return;
-  // Remove ai-tapped from all other items
-  document.querySelectorAll('.ai-changed.ai-tapped').forEach(el => {
-    if (el !== tapped) el.classList.remove('ai-tapped');
-  });
-  // Toggle on the clicked item
-  if (tapped) tapped.classList.toggle('ai-tapped');
-});
 
 function highlightAIChanges() {
   const container = document.getElementById('preview-container');
@@ -19289,7 +18563,7 @@ function highlightAIChanges() {
   let changeCount = 0;
   // actionsHTML only injected on non-item-row elements (executive summary etc.)
   // Item-rows use mobile-action-bar instead (rebuilt below after marking .ai-changed)
-  const actionsHTML = '<span class="ai-actions export-hide" contenteditable="false"><button class="ai-action-btn reject" onclick="rejectAIChange(this)" title="Reject change">&#8617; Undo</button><button class="ai-action-btn accept" onclick="acceptAIChange(this)" title="Accept change">&#10003; Keep</button><button class="ai-action-btn view-prev" onclick="showOriginalText(this.closest(&apos;.ai-changed&apos;))" title="View previous">&#9664; Previous</button></span>';
+  const actionsHTML = '<span class="ai-actions export-hide"><button class="ai-action-btn reject" onclick="rejectAIChange(this)" title="Reject change">&#8617; Undo</button><button class="ai-action-btn accept" onclick="acceptAIChange(this)" title="Accept change">&#10003; Keep</button><button class="ai-action-btn view-prev" onclick="showOriginalText(this.closest(&apos;.ai-changed&apos;))" title="View previous">&#9664; Previous</button></span>';
   // \u2500\u2500 Summary \u2500\u2500
   const oldSummary = _preEnhanceGenerated.executive_summary || '';
   if (oldSummary && STATE.generated?.executive_summary && oldSummary !== STATE.generated.executive_summary) {
@@ -19344,12 +18618,6 @@ function highlightAIChanges() {
       }
     });
   }
-  // Refresh mobile-action-bars for AI-changed item-rows so they include Undo/Keep/Previous
-  container.querySelectorAll('.item-row.ai-changed').forEach(row => {
-    const existingBar = row.querySelector('.mobile-action-bar');
-    if (existingBar) existingBar.remove();
-    showMobileActionBar(row);
-  });
   // \u2500\u2500 Floating action bar \u2500\u2500
   if (changeCount > 0) {
     const bar = document.createElement('div');
@@ -19371,12 +18639,6 @@ function acceptAIChange(btn) {
   item.style.paddingRight = '';
   const actions = item.querySelector('.ai-actions');
   if (actions) actions.remove();
-  // Rebuild action bar without Undo/Keep/Previous
-  if (item.classList.contains('item-row')) {
-    const bar = item.querySelector('.mobile-action-bar');
-    if (bar) bar.remove();
-    showMobileActionBar(item);
-  }
   checkAIActionBar();
   markDirty();
   // If all AI changes accepted, trigger enhanced score update
@@ -19420,12 +18682,6 @@ function acceptAllAIChanges() {
     el.style.paddingRight = '';
     const actions = el.querySelector('.ai-actions');
     if (actions) actions.remove();
-    // Rebuild action bar without Undo/Keep/Previous
-    if (el.classList.contains('item-row')) {
-      const bar = el.querySelector('.mobile-action-bar');
-      if (bar) bar.remove();
-      showMobileActionBar(el);
-    }
   });
   checkAIActionBar();
   showToast('All AI changes accepted');
@@ -19436,7 +18692,7 @@ function acceptAllAIChanges() {
 
 function rejectAllAIChanges() {
   if (_preEnhanceGenerated) {
-    STATE.generated = JSON.parse(JSON.stringify(_preEnhanceGenerated));
+    setGeneratedResume(JSON.parse(JSON.stringify(_preEnhanceGenerated)));
     try { getActiveVersion()._resumeInitialized = !!(Object.keys(_preEnhanceGenerated).length); } catch(_){}
     renderPreview(STATE.generated);
     document.getElementById('ai-enhance-toggle').checked = false;
@@ -21279,7 +20535,7 @@ function openPrivacyForReview() {
       try {
         rrData.job_title = title;
         rrData.company = company;
-        window.STATE.roleResearch = rrData;
+        setCurrentTargetRole(rrData);
       } catch(_){}
       // Update preview if visible
       try {
@@ -22380,3 +21636,4 @@ function openPrivacyForReview() {
 
 </body>
 </html>
+
