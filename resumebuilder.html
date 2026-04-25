@@ -2117,8 +2117,11 @@
         </button>
         <div class="sub-acc-body open">
 
-      <!-- Before → After score banner (shown after optimization run) -->
-      <div id="opt-score-banner" class="hidden rounded-xl p-4 mb-5" style="background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:1px solid #E0E7FF">
+      <!-- Before → After score banner (DEPRECATED 2026-04-25 — superseded by
+           the single Resume Match Score card below. Kept in DOM so legacy
+           code paths that toggle its hidden state don't throw, but always
+           force-hidden via inline style as defense in depth.) -->
+      <div id="opt-score-banner" class="hidden rounded-xl p-4 mb-5" style="display:none !important;background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:1px solid #E0E7FF">
         <div class="flex items-center gap-2 mb-2">
           <i data-lucide="trending-up" style="width:16px;height:16px;color:#7C3AED"></i>
           <span class="text-xs font-semibold uppercase tracking-wider" style="color:#7C3AED">Optimization Result</span>
@@ -5063,6 +5066,30 @@ async function optimizeForJob() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-04-25 BUG-FIX (score consolidation):
+// `getResumeMatchScore()` is the SINGLE source of truth for the number
+// rendered in #opt-match-card, the sub-accordion meta chip, the compare
+// drawer, and any other UI surface that displays a "Resume Match Score".
+// Resolution order:
+//   1. STATE.optimizationSession.improvedScore — the user's most recent
+//      post-optimize score (only present after they accept any AI changes).
+//   2. analysisCache.resume_match_score / overall_score — populated by the
+//      pre-optimize analyze run.
+// Returns null when neither is available so callers can hide their UI.
+// ─────────────────────────────────────────────────────────────────────────────
+function getResumeMatchScore() {
+  try {
+    const s = (typeof STATE !== 'undefined') ? STATE.optimizationSession : null;
+    if (s && typeof s.improvedScore === 'number') return s.improvedScore;
+    const a = (typeof analysisCache !== 'undefined') ? analysisCache : null;
+    if (a && typeof a.resume_match_score === 'number') return a.resume_match_score;
+    if (a && typeof a.overall_score === 'number') return a.overall_score;
+  } catch(_){}
+  return null;
+}
+try { window.getResumeMatchScore = getResumeMatchScore; } catch(_){}
+
 // ---------- RESULT DRAWER ----------
 function showOptimizeResult(s) {
   if (!s) return;
@@ -5157,9 +5184,7 @@ function refreshOptimizeStepUI() {
     el.className = 'sub-acc-meta' + (cls ? ' ' + cls : '');
   };
   try {
-    const a = (typeof analysisCache !== 'undefined') ? analysisCache : null;
-    const score = a ? ((typeof a.resume_match_score === 'number') ? a.resume_match_score
-                    : (typeof a.overall_score === 'number') ? a.overall_score : null) : null;
+    const score = (typeof getResumeMatchScore === 'function') ? getResumeMatchScore() : null;
     if (score != null) setOptMeta('results', score + '/100', 'complete');
     else setOptMeta('results', '', '');
   } catch(_){}
@@ -5177,62 +5202,57 @@ function refreshOptimizeStepUI() {
     }
   } catch(_){}
 
-  // Match score card from analysisCache
+  // 2026-04-25 BUG-FIX: SINGLE Resume Match Score card. Sources, in order:
+  //   1. STATE.optimizationSession.improvedScore (post-optimize)
+  //   2. analysisCache.resume_match_score / overall_score (post-analyze)
+  // When an optimization session is present, render the assessment line as
+  // "Improved from X to Y (+Z)." instead of duplicating that information in
+  // a second banner card.
   const mc = document.getElementById('opt-match-card');
   const mv = document.getElementById('opt-match-value');
   const mp = document.getElementById('opt-match-pill');
   const ma = document.getElementById('opt-match-assessment');
   const a = (typeof analysisCache !== 'undefined') ? analysisCache : null;
-  if (a && mc) {
-    const score = (typeof a.resume_match_score === 'number') ? a.resume_match_score
-                : (typeof a.overall_score === 'number') ? a.overall_score : null;
-    if (score != null) {
-      mc.classList.remove('hidden');
-      if (mv) { mv.textContent = score; mv.style.color = score >= 75 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'; }
-      if (mp) {
-        const label = a.status || (score >= 85 ? 'Strong' : score >= 75 ? 'Competitive' : score >= 60 ? 'Borderline' : score >= 45 ? 'Weak' : 'High Risk');
-        const key = String(label).toLowerCase();
-        const styles = { strong:['#D1FAE5','#065F46'], competitive:['#DBEAFE','#1E40AF'], borderline:['#FEF3C7','#92400E'], weak:['#FEE2E2','#991B1B'], 'high risk':['#FEE2E2','#7F1D1D'] };
-        const [bg, fg] = styles[key] || styles.borderline;
-        mp.textContent = label;
-        mp.style.background = bg;
-        mp.style.color = fg;
+  const sess = STATE.optimizationSession;
+  const hasSess = !!(sess && typeof sess.improvedScore === 'number');
+  const score = (typeof getResumeMatchScore === 'function') ? getResumeMatchScore() : null;
+  if (mc && score != null) {
+    mc.classList.remove('hidden');
+    if (mv) { mv.textContent = score; mv.style.color = score >= 75 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'; }
+    if (mp) {
+      const label = (a && a.status) || (score >= 85 ? 'Strong' : score >= 75 ? 'Competitive' : score >= 60 ? 'Borderline' : score >= 45 ? 'Weak' : 'High Risk');
+      const key = String(label).toLowerCase();
+      const styles = { strong:['#D1FAE5','#065F46'], competitive:['#DBEAFE','#1E40AF'], borderline:['#FEF3C7','#92400E'], weak:['#FEE2E2','#991B1B'], 'high risk':['#FEE2E2','#7F1D1D'] };
+      const [bg, fg] = styles[key] || styles.borderline;
+      mp.textContent = label;
+      mp.style.background = bg;
+      mp.style.color = fg;
+    }
+    if (ma) {
+      if (hasSess) {
+        const before = sess.originalScore ?? 0;
+        const after  = sess.improvedScore;
+        const delta  = (sess.delta != null) ? sess.delta : (after - before);
+        const sign   = delta > 0 ? '+' : '';
+        ma.textContent = 'Improved from ' + before + ' to ' + after + ' (' + sign + delta + ').';
+      } else {
+        ma.textContent = (a && (a.overall_assessment || a.overall_summary || a.interview_likelihood)) || '';
       }
-      if (ma) ma.textContent = a.overall_assessment || a.overall_summary || a.interview_likelihood || '';
-    } else {
-      mc.classList.add('hidden');
     }
   } else if (mc) {
     mc.classList.add('hidden');
   }
 
-  // Optimization session banner + not-applied list
+  // 2026-04-25 BUG-FIX: legacy before→after banner is permanently retired —
+  // its information is now folded into the single match card above. Force
+  // it hidden so any older code path that toggles its `hidden` class can't
+  // reintroduce the duplicate UI.
   const s = STATE.optimizationSession;
   const banner = document.getElementById('opt-score-banner');
   const notApp = document.getElementById('opt-not-applied');
   const revertBtn = document.getElementById('opt-revert-btn');
-  if (s && banner) {
-    banner.classList.remove('hidden');
-    const before = s.originalScore ?? 0;
-    const after = s.improvedScore ?? before;
-    const delta = (s.delta != null) ? s.delta : (after - before);
-    const deltaColor = delta > 0 ? '#10B981' : (delta < 0 ? '#EF4444' : '#F59E0B');
-    const sign = delta > 0 ? '+' : '';
-    document.getElementById('opt-score-before').textContent = before;
-    const aftEl = document.getElementById('opt-score-after');
-    aftEl.textContent = after; aftEl.style.color = deltaColor;
-    const dEl = document.getElementById('opt-score-delta');
-    dEl.textContent = sign + delta + ' pts';
-    dEl.style.color = deltaColor;
-    dEl.style.background = 'rgba(16,185,129,0.12)';
-    const kept = (s.summaryStats && s.summaryStats.changes_kept) || (s.acceptedChanges||[]).length;
-    const total = (s.summaryStats && s.summaryStats.changes_proposed) || ((s.acceptedChanges||[]).length + (s.discardedChanges||[]).length);
-    document.getElementById('opt-score-summary').textContent = 'Kept ' + kept + ' of ' + total + ' proposed changes — only those raised your score.';
-    if (revertBtn) revertBtn.style.display = '';
-  } else if (banner) {
-    banner.classList.add('hidden');
-    if (revertBtn) revertBtn.style.display = 'none';
-  }
+  if (banner) banner.classList.add('hidden');
+  if (revertBtn) revertBtn.style.display = s ? '' : 'none';
   if (notApp) {
     const discarded = (s && s.discardedChanges) || [];
     const allApplied = document.getElementById('opt-all-applied');
@@ -12393,6 +12413,92 @@ try {
   };
 } catch(_){}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-04-25 BUG-FIX (source-renderer fix for bullet cross-contamination):
+// `renderExperienceRows(experience, opts)` is the SINGLE source of truth for
+// emitting experience entries + bullets in migrated preview templates.
+// Guarantees the canonical anchored markup that `removeItem`,
+// `removeExperienceBulletFromState`, and `syncPreviewEditsToState` rely on:
+//
+//   <div class="item-row experience-row" data-section="experience" data-exp-index="i">
+//     ...heading...
+//     <ul data-list="experience-bullets" data-exp-index="i">
+//       <li class="item-row bullet-row" data-exp-index="i" data-bullet-index="j">
+//         <span class="bullet-text">b</span>
+//         <button class="item-del export-hide" onclick="removeItem(this)">×</button>
+//       </li>
+//     </ul>
+//   </div>
+//
+// Each bullet `<li>` carries its own data-exp-index so `removeItem` can read
+// the index off the element itself without walking the DOM. Templates pass
+// `opts` to control colors, font sizes, max bullet count, separator rules,
+// and company-line styling so visual parity with the previous per-template
+// HTML is preserved.
+// ─────────────────────────────────────────────────────────────────────────────
+function renderExperienceRows(experience, opts) {
+  const o = opts || {};
+  const headColor   = o.headColor   || '#0F172A';
+  const textColor   = o.textColor   || '#1F2937';
+  const mutedColor  = o.mutedColor  || '#475569';
+  const accent      = o.accent      || '#0F172A';
+  const titleSize   = o.titleSize   || '12px';
+  const dateSize    = o.dateSize    || '10.5px';
+  const companySize = o.companySize || '11px';
+  const bulletSize  = o.bulletSize  || '10.5px';
+  const bulletLineHeight = o.bulletLineHeight || '1.55';
+  const titleFont   = o.titleFont   || "'Inter','Helvetica Neue',Arial,sans-serif";
+  const maxBullets  = (typeof o.maxBullets === 'number') ? o.maxBullets : 6;
+  const rowMargin   = o.rowMargin   || '10px';
+  const rowSepRule  = o.rowSepRule  || '';
+  const headerLayout = o.headerLayout || 'split';
+  const companyItalic = o.companyItalic !== false;
+  const dateItalic    = !!o.dateItalic;
+  const bulletPadLeft = o.bulletPadLeft || '18px';
+  const bulletGlyphColor = o.bulletGlyphColor || '';
+  const bulletTrunc  = o.bulletTrunc  || 0;
+  const summaryTrunc = o.summaryTrunc || 0;
+  const truncate = (s, n) => (n && s.length > n) ? s.slice(0, n) : s;
+
+  return (experience || []).map((job, i) => {
+    if (!job) return '';
+    const title    = (job.title || '').toString();
+    const company  = (job.company || '').toString();
+    const location = (job.location || '').toString();
+    const dates    = (job.dates || job.timeframe || '').toString();
+    const roleSum  = (job.role_summary || '').toString();
+    const bullets  = (Array.isArray(job.bullets) ? job.bullets
+                    : Array.isArray(job.actions) ? job.actions
+                    : Array.isArray(job.key_actions) ? job.key_actions
+                    : [])
+      .map(b => typeof b === 'string' ? b : (b && (b.text || b.action || b.bullet) || ''))
+      .filter(Boolean)
+      .slice(0, maxBullets);
+
+    const sepStyle = i > 0 ? rowSepRule : '';
+    const headerHtml = headerLayout === 'split'
+      ? `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">${title?`<h4 style="margin:0;font-size:${titleSize};color:${headColor};font-weight:700;font-family:${titleFont};line-height:1.25">${_pvEsc(title)}</h4>`:''}${dates?`<span style="font-size:${dateSize};color:${mutedColor};${dateItalic?'font-style:italic;':''}white-space:nowrap">${_pvEsc(dates)}</span>`:''}</div>`
+      : `${title?`<h4 style="margin:0;font-size:${titleSize};color:${headColor};font-weight:700;font-family:${titleFont};line-height:1.25;display:inline">${_pvEsc(title)}</h4>`:''}${dates?`<span style="font-size:${dateSize};color:${mutedColor};${dateItalic?'font-style:italic;':''}margin-left:6px">${_pvEsc(dates)}</span>`:''}`;
+
+    const companyHtml = (company || location)
+      ? `<p style="margin:1px 0 0;font-size:${companySize};color:${accent};${companyItalic?'font-style:italic;':'font-weight:600;'}">${_pvEsc(company)}${location?`<span style="color:${mutedColor};font-style:normal;font-weight:500">  —  ${_pvEsc(location)}</span>`:''}</p>`
+      : '';
+
+    const summaryHtml = roleSum
+      ? `<p style="margin:4px 0 0;font-size:${bulletSize};color:${textColor};line-height:1.55">${_pvEsc(summaryTrunc?truncate(roleSum,summaryTrunc):roleSum)}</p>`
+      : '';
+
+    const bulletsHtml = bullets.length
+      ? `<ul data-list="experience-bullets" data-exp-index="${i}" style="margin:5px 0 0;padding-left:${bulletPadLeft};list-style:disc${bulletGlyphColor?';color:'+bulletGlyphColor:''}">${bullets.map((b, j) => {
+          const bt = bulletTrunc ? truncate(b, bulletTrunc) : b;
+          return `<li class="item-row bullet-row" data-exp-index="${i}" data-bullet-index="${j}" style="position:relative;font-size:${bulletSize};line-height:${bulletLineHeight};color:${textColor};margin-bottom:2px;padding-right:22px"><span class="bullet-text">${_pvEsc(bt)}</span><button type="button" class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" title="Delete bullet" aria-label="Delete bullet" style="position:absolute;top:0;right:0;width:18px;height:18px;line-height:14px;border:none;background:rgba(220,38,38,0.85);color:#fff;border-radius:50%;font-size:12px;cursor:pointer;padding:0;z-index:5">&times;</button></li>`;
+        }).join('')}</ul>`
+      : '';
+
+    return `<div class="item-row experience-row" data-section="experience" data-exp-index="${i}" style="${sepStyle}margin-bottom:${rowMargin}"><div>${headerHtml}${companyHtml}${summaryHtml}${bulletsHtml}</div></div>`;
+  }).join('');
+}
+
 const PREVIEW_RENDERERS = {
   // ── PowerPoint · Modern Sidebar ─────────────────────────────────────────────
   // Portrait 7.5 × 10 in. Mirrors exportPPTX layout 1:1 (sidebar 2.3in, accent
@@ -12447,19 +12553,13 @@ const PREVIEW_RENDERERS = {
         <div style="padding:18px 18px 14px 14px;overflow:hidden;color:${DARK}">
           ${sumText?`<div data-section="executive_summary">`+mainLabel('Professional Summary')+`<div style="font-size:9px;line-height:1.5;color:${DARK};margin-bottom:10px">${_pvEsc(String(sumText))}</div></div>`:''}
 
-          ${experience.filter(e=>e && (e.title||e.company)).length?`<div data-section="experience">`+mainLabel('Professional Experience')+experience.filter(e=>e && (e.title||e.company)).slice(0,3).map(e=>{
-            const dates = e.dates || e.timeframe || '';
-            const company = e.company || '';
-            const loc = e.location || '';
-            const rs = e.role_summary || '';
-            const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,4);
-            return `<div style="margin-bottom:9px">
-              ${e.title?`<div style="font-size:10px;line-height:1.25"><strong style="color:${DARK};font-weight:700">${_pvEsc(e.title)}</strong>${dates?`<span style="font-size:9px;color:${GRAY};font-style:italic">&nbsp;&nbsp;&nbsp;&nbsp;${_pvEsc(dates)}</span>`:''}</div>`:''}
-              ${company?`<div style="font-size:9px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(company)}${loc?'  —  '+_pvEsc(loc):''}</div>`:''}
-              ${rs?`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;margin-top:2px">${_pvEsc(rs).slice(0,220)}</div>`:''}
-              ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;padding-left:10px;position:relative"><span style="position:absolute;left:0;color:${GRAY}">•</span>${_pvEsc(b).slice(0,200)}</div>`).join('')}</div>`:''}
-            </div>`;
-          }).join('')+`</div>`:''}
+          ${experience.filter(e=>e && (e.title||e.company)).length?`<div data-section="experience">`+mainLabel('Professional Experience')+`<div data-list="experience">`+renderExperienceRows(experience.filter(e=>e && (e.title||e.company)).slice(0,3), {
+            accent, headColor: DARK, mutedColor: GRAY, textColor: GRAY,
+            titleSize:'10px', dateSize:'9px', companySize:'9px', bulletSize:'8.5px',
+            bulletLineHeight:'1.5', maxBullets:4, rowMargin:'9px',
+            headerLayout:'inline', dateItalic:true, bulletPadLeft:'14px',
+            bulletTrunc:200, summaryTrunc:220
+          })+`</div></div>`:''}
         </div>
       </div>`;
   },
@@ -12687,18 +12787,13 @@ const PREVIEW_RENDERERS = {
       </div>
       <div style="border-top:3px solid ${accent};margin-bottom:6px"></div>
       ${g.executive_summary?`<div data-section="executive_summary">${sec('Executive Summary')}<div class="editable" style="font-size:11px;line-height:1.6;color:${TEXT};font-family:'Georgia',serif">${_pvEsc(g.executive_summary)}</div></div>`:''}
-      ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${exp.slice(0,4).map(e=>{
-        const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,5);
-        return `<div class="item-row" style="margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-            <strong style="font-size:12px;color:${HEAD};font-family:'Georgia',serif">${_pvEsc(e.title||'')}</strong>
-            <span style="font-size:10.5px;color:${MUTED};font-style:italic;white-space:nowrap">${_pvEsc(e.dates||e.timeframe||'')}</span>
-          </div>
-          ${e.company?`<div style="font-size:11px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(e.company)}${e.location?' — '+_pvEsc(e.location):''}</div>`:''}
-          ${e.role_summary?`<div style="font-size:10.5px;color:${TEXT};line-height:1.55;margin-top:4px">${_pvEsc(e.role_summary)}</div>`:''}
-          ${bullets.length?`<ul style="margin:4px 0 0;padding-left:18px">${bullets.map(b=>`<li style="font-size:10.5px;line-height:1.55;color:${TEXT};margin-bottom:2px">${_pvEsc(b)}</li>`).join('')}</ul>`:''}
-        </div>`;
-      }).join('')}</div></div>`:''}
+      ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,4), {
+        accent, headColor: HEAD, mutedColor: MUTED, textColor: TEXT,
+        titleSize:'12px', dateSize:'10.5px', companySize:'11px', bulletSize:'10.5px',
+        bulletLineHeight:'1.55', maxBullets:5, rowMargin:'10px',
+        titleFont:"'Georgia',serif",
+        headerLayout:'split', companyItalic:true, dateItalic:true, bulletPadLeft:'18px'
+      })}</div></div>`:''}
       ${skills.length?`<div data-section="skills">${sec('Core Competencies')}<div data-list="skills" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px 16px">${skills.slice(0,18).map(s=>`<div class="item-row" style="font-size:10.5px;color:${TEXT};line-height:1.45">• ${_pvEsc(s)}</div>`).join('')}</div></div>`:''}
       ${achs.length?`<div data-section="achievements">${sec('Selected Achievements')}<ul data-list="achievements" style="margin:0;padding-left:18px">${achs.slice(0,5).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.55;color:${TEXT};margin-bottom:3px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}
       ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,3).map(e=>`<div class="item-row" style="margin-bottom:4px;font-size:10.5px;line-height:1.45;color:${TEXT}"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?' — '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
@@ -12734,14 +12829,12 @@ const PREVIEW_RENDERERS = {
         ${contact.length?`<div style="font-size:10.5px;color:${MUTED};margin-top:4px;line-height:1.5">${contact.map(c=>`<span data-contact-field="${c.kind}">${_pvEsc(c.text)}</span>`).join(' &nbsp;|&nbsp; ')}</div>`:''}
       </div>
       ${g.executive_summary?`<div data-section="executive_summary">${sec('Summary')}<div class="editable" style="font-size:10.5px;line-height:1.5;color:${TEXT}">${_pvEsc(g.executive_summary)}</div></div>`:''}
-      ${exp.length?`<div data-section="experience">${sec('Experience')}<div data-list="experience">${exp.slice(0,5).map(e=>{
-        const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,6);
-        return `<div class="item-row" style="margin-bottom:8px">
-          <div style="font-size:11px;color:${HEAD}"><strong>${_pvEsc(e.title||'')}</strong>${e.company?', '+_pvEsc(e.company):''}${e.location?', '+_pvEsc(e.location):''}${(e.dates||e.timeframe)?'  —  '+_pvEsc(e.dates||e.timeframe):''}</div>
-          ${e.role_summary?`<div style="font-size:10.5px;color:${TEXT};line-height:1.5;margin-top:2px">${_pvEsc(e.role_summary)}</div>`:''}
-          ${bullets.length?`<ul style="margin:2px 0 0;padding-left:16px">${bullets.map(b=>`<li style="font-size:10.5px;line-height:1.5;color:${TEXT};margin-bottom:1px">${_pvEsc(b)}</li>`).join('')}</ul>`:''}
-        </div>`;
-      }).join('')}</div></div>`:''}
+      ${exp.length?`<div data-section="experience">${sec('Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,5), {
+        accent, headColor: HEAD, mutedColor: MUTED, textColor: TEXT,
+        titleSize:'11px', dateSize:'10.5px', companySize:'10.5px', bulletSize:'10.5px',
+        bulletLineHeight:'1.5', maxBullets:6, rowMargin:'8px',
+        headerLayout:'inline', companyItalic:false, bulletPadLeft:'16px'
+      })}</div></div>`:''}
       ${skills.length?`<div data-section="skills">${sec('Skills')}<div data-list="skills" style="font-size:10.5px;color:${TEXT};line-height:1.5">${skills.slice(0,30).map(s=>`<span class="item-row" style="display:inline">${_pvEsc(s)}</span>`).join(', ')}</div></div>`:''}
       ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,4).map(e=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?', '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
       ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,8).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:1px"><strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' — '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}
@@ -12800,21 +12893,13 @@ const PREVIEW_RENDERERS = {
 
         ${g.executive_summary?`<div data-section="executive_summary">${sec('Executive Summary')}<div class="editable" style="font-size:11px;line-height:1.65;color:${TEXT};max-width:6.5in">${_pvEsc(g.executive_summary)}</div></div>`:''}
 
-        ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${exp.slice(0,5).map((e,i)=>{
-          const bullets = (e.bullets || e.actions || e.key_actions || []).map(b => typeof b === 'string' ? b : (b.text || b.action || '')).filter(Boolean).slice(0,6);
-          // Subtle thin rule between roles (not on the first entry) to
-          // reinforce hierarchy without resorting to cards/boxes.
-          const sep = i > 0 ? `border-top:1px solid ${RULE};padding-top:9px;` : '';
-          return `<div class="item-row" style="${sep}margin-bottom:11px">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
-              <strong style="font-size:12px;color:${HEAD};font-weight:700;letter-spacing:0.01em">${_pvEsc(e.title||'')}</strong>
-              <span style="font-size:10.5px;color:${MUTED};white-space:nowrap;font-weight:500">${_pvEsc(e.dates||e.timeframe||'')}</span>
-            </div>
-            ${(e.company||e.location)?`<div style="font-size:11px;color:${accent};font-weight:600;margin-top:1px">${_pvEsc(e.company||'')}${e.location?`<span style="color:${MUTED};font-weight:500">  \u00B7  ${_pvEsc(e.location)}</span>`:''}</div>`:''}
-            ${e.role_summary?`<div style="font-size:10.5px;color:${TEXT};line-height:1.6;margin-top:5px">${_pvEsc(e.role_summary)}</div>`:''}
-            ${bullets.length?`<ul style="margin:5px 0 0;padding-left:18px">${bullets.map(b=>`<li style="font-size:10.5px;line-height:1.6;color:${TEXT};margin-bottom:2px">${_pvEsc(b)}</li>`).join('')}</ul>`:''}
-          </div>`;
-        }).join('')}</div></div>`:''}
+        ${exp.length?`<div data-section="experience">${sec('Professional Experience')}<div data-list="experience">${renderExperienceRows(exp.slice(0,5), {
+          accent, headColor: HEAD, mutedColor: MUTED, textColor: TEXT,
+          titleSize:'12px', dateSize:'10.5px', companySize:'11px', bulletSize:'10.5px',
+          bulletLineHeight:'1.6', maxBullets:6, rowMargin:'11px',
+          rowSepRule:'border-top:1px solid '+RULE+';padding-top:9px;',
+          headerLayout:'split', companyItalic:false, bulletPadLeft:'18px'
+        })}</div></div>`:''}
 
         ${skills.length?`<div data-section="skills">${sec('Core Competencies')}<div data-list="skills" style="display:grid;grid-template-columns:1fr 1fr;column-gap:24px;row-gap:1px">${skillsHtml}</div></div>`:''}
 
@@ -13357,7 +13442,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXPERIENCE ────
   if (STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map((e, i) => `<div class="item-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
@@ -13670,49 +13755,49 @@ function _syncContainingPreview(el) {
 }
 
 function removeItem(btn) {
-  const row = btn.closest('.item-row') || btn.parentElement;
-  if (!row) return;
-  // 2026-04-24 BUG-FIX: when the user deletes an experience BULLET, mutate
-  // STATE directly via data-exp-index/data-bullet-index (the only anchors we
-  // can trust), then rerender from STATE. Scrape-then-render is fragile if
-  // the row about to be removed shares a container with bullets we did NOT
-  // mean to touch — direct splice on the canonical STATE.generated array
-  // (and the matching enhancedData copy) eliminates that whole class of
-  // cross-contamination. resumeData is the import/profile library and must
-  // NOT be mutated here.
-  if (typeof removeExperienceBulletFromState === 'function' && removeExperienceBulletFromState(row)) {
-    row.remove();
-    if (typeof markDirty === 'function') markDirty();
-    if (typeof renderPreview === 'function') {
-      try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
-      try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+  // 2026-04-25 BUG-FIX: scope the bullet-delete fast path to elements that
+  // explicitly opt in via class+attribute. Anything else (whole experience
+  // rows, skill chips, KPIs, education entries, etc.) falls through to the
+  // generic scrape-rerender path. This eliminates accidental matches on
+  // the experience-row itself when the helper renders bullets inside it.
+  const bulletRow = btn?.closest?.('.bullet-row[data-bullet-index]');
+  if (bulletRow) {
+    if (typeof removeExperienceBulletFromState === 'function' &&
+        removeExperienceBulletFromState(bulletRow)) {
+      bulletRow.remove();
+      if (typeof invalidateExportModel === 'function') { try { invalidateExportModel(); } catch(_){} }
+      if (typeof markDirty === 'function') markDirty();
+      if (typeof renderPreview === 'function') {
+        try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
+        try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+      }
+      return;
     }
-    return;
   }
-  // Fallback (skills, KPIs, education, certs, achievements, whole experience
-  // rows etc.): scrape DOM into STATE then mark dirty so the debounced live
+  // Fallback: skills, KPIs, education, certs, achievements, whole experience
+  // rows etc. — scrape DOM into STATE then mark dirty so the debounced live
   // rerender repaints from fresh STATE.
+  const row = btn?.closest?.('.item-row') || btn?.parentElement;
+  if (!row) return;
   const parent = row.parentElement; // capture before removal — closest() won't work post-detach
   row.remove();
   _syncContainingPreview(parent);
-  markDirty();
+  if (typeof markDirty === 'function') markDirty();
 }
 
-// 2026-04-24 BUG-FIX: dedicated helper — splice a single experience bullet
-// out of STATE.generated AND STATE.enhancedData using DOM data-* anchors.
-// Returns true iff the row was a bullet and STATE was mutated.
+// 2026-04-25 BUG-FIX: dedicated helper — splice a single experience bullet
+// out of STATE.generated AND STATE.enhancedData using DOM data-* anchors
+// read DIRECTLY from the bullet-row dataset. resumeData is the import/profile
+// library and must NOT be mutated here.
 function removeExperienceBulletFromState(row) {
   try {
-    if (!row || !row.closest) return false;
-    const bullet = row.matches && row.matches('[data-bullet-index]') ? row : row.closest('[data-bullet-index]');
-    const expRow = row.closest('[data-exp-index][data-section="experience"]') || row.closest('[data-exp-index]');
-    if (!bullet || !expRow) return false;
-    const expIndex = Number(expRow.getAttribute('data-exp-index'));
-    const bulletIndex = Number(bullet.getAttribute('data-bullet-index'));
-    if (!Number.isInteger(expIndex) || expIndex < 0) return false;
+    if (!row || !row.dataset) return false;
+    const expIndex    = Number(row.dataset.expIndex);
+    const bulletIndex = Number(row.dataset.bulletIndex);
+    if (!Number.isInteger(expIndex)    || expIndex    < 0) return false;
     if (!Number.isInteger(bulletIndex) || bulletIndex < 0) return false;
     const sources = [
-      (typeof STATE !== 'undefined') ? STATE.generated : null,
+      (typeof STATE !== 'undefined') ? STATE.generated    : null,
       (typeof STATE !== 'undefined') ? STATE.enhancedData : null
     ];
     let mutated = false;
@@ -14165,15 +14250,16 @@ function syncPreviewEditsToState(rootId) {
   try {
     const expList = root.querySelector('[data-list="experience"]');
     if (expList && Array.isArray(g.experience)) {
-      const rows = [...expList.querySelectorAll(':scope > .item-row')];
-      // 2026-04-24 BUG-FIX: positional-index scrape caused Job #2 edits/deletes
-      // to contaminate Job #1 whenever a reorder or partial render left the
-      // DOM order out of sync with STATE. Prefer explicit data-exp-index
-      // (emitted by the legacy renderer) and fall back to positional only
-      // when the anchor is absent.
+      // 2026-04-25 BUG-FIX: strict scope to .experience-row[data-exp-index]
+      // — drop the legacy [data-list="bullets"] fallback. All active
+      // renderers now emit the canonical anchored markup via
+      // renderExperienceRows() (or, in the legacy renderer, the equivalent
+      // markup with experience-row + bullet-row classes). Looser scopes
+      // were the source of cross-job contamination.
+      const rows = [...expList.querySelectorAll(':scope > .experience-row[data-exp-index]')];
       const next = g.experience.map(x => x && typeof x === 'object' ? { ...x } : x);
       rows.forEach((row, i) => {
-        const expIdxAttr = row.getAttribute && row.getAttribute('data-exp-index');
+        const expIdxAttr = row.getAttribute('data-exp-index');
         const idx = expIdxAttr != null && expIdxAttr !== '' ? Number(expIdxAttr) : i;
         if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return; // skip orphan rows
         const cur = next[idx] || {};
@@ -14196,20 +14282,25 @@ function syncPreviewEditsToState(rootId) {
         }
         // role_summary = second direct p (only present if originally had one)
         if (directPs[1] && cur.role_summary != null) cur.role_summary = text(directPs[1]);
-        // Bullets — ONLY scan within this row's own bullet list. Prefer the
-        // canonical [data-list="experience-bullets"] anchor; fall back to the
-        // legacy [data-list="bullets"] anchor for older templates. Either way
-        // the lookup is :scope-restricted to *this* row, so Job #2's bullets
-        // can never leak into Job #1's STATE entry.
-        const bulletList = row.querySelector(':scope [data-list="experience-bullets"]')
-                        || row.querySelector(':scope [data-list="bullets"]');
+        // Bullets — strict scope. Only the canonical
+        // [data-list="experience-bullets"] anchor inside *this* row counts,
+        // and only direct children with .bullet-row[data-bullet-index]
+        // are scraped. Map text from the inner .bullet-text span to avoid
+        // capturing the delete button's "×".
+        const bulletList = row.querySelector(':scope [data-list="experience-bullets"]');
         if (bulletList) {
-          const bullets = [...bulletList.querySelectorAll(':scope > li, :scope > .item-row')]
-            .map(li => text(li.querySelector('.bullet-text') || li))
+          const bullets = [...bulletList.querySelectorAll(':scope > .bullet-row[data-bullet-index]')]
+            .map(li => (li.querySelector('.bullet-text')?.textContent || '').trim())
             .filter(Boolean);
-          cur.bullets = bullets;
+          cur.bullets = [...bullets];
+          // Mirror to enhancedData so the export model stays in sync.
+          try {
+            if (STATE.enhancedData && Array.isArray(STATE.enhancedData.experience)
+                && STATE.enhancedData.experience[idx]) {
+              STATE.enhancedData.experience[idx].bullets = [...bullets];
+            }
+          } catch(_){}
         }
-        // else: no legacy anchors in DOM → leave cur.bullets untouched.
         next[idx] = cur;
       });
       // Trim STATE to match the number of DOM rows if explicit indices are
@@ -17452,9 +17543,12 @@ function displayAnalysisResults(a, interviewPrep) {
   const _hp = (s) => (s == null ? '' : String(s).replace(/\[([^\[\]]{1,32})\]/g, '<mark class="ai-placeholder" title="Click to fill in your own number">[$1]</mark>'));
   const _esc = (s) => (s == null ? '' : String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])));
 
-  // Accept both new (resume_match_score) and legacy (overall_score) shapes
-  const score = (typeof a.resume_match_score === 'number') ? a.resume_match_score
-               : (typeof a.overall_score === 'number') ? a.overall_score : 0;
+  // 2026-04-25 BUG-FIX: route through the canonical getResumeMatchScore()
+  // so the analyze drawer reflects the post-optimize score when one exists.
+  const score = (typeof getResumeMatchScore === 'function' && getResumeMatchScore() != null)
+                ? getResumeMatchScore()
+                : ((typeof a.resume_match_score === 'number') ? a.resume_match_score
+                  : (typeof a.overall_score === 'number') ? a.overall_score : 0);
   const sc = getAScoreColor(score);
 
   // Status -> color band
