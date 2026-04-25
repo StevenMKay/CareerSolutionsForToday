@@ -9427,11 +9427,27 @@ function updateExportBadge() {
   // Badge removed — no export limits
 }
 
+// ============ Shared DOM helpers ============
+// Universal null-safe classList toggle. Returns false (and logs once) when
+// the element is missing so callers can early-return without crashing during
+// step transitions, Plan loads, or any other DOM-not-mounted window.
+function safeClassToggle(selector, className, force) {
+  const el = typeof selector === 'string' ? document.querySelector(selector) : selector;
+  if (!el) {
+    try { console.warn('[safeClassToggle] missing:', selector); } catch(_){}
+    return false;
+  }
+  el.classList.toggle(className, force);
+  return true;
+}
+
 // ============ Job Application Tracker ============
 let _jobTrackerOpen = false;
 function toggleJobTracker() {
+  const body = document.getElementById('job-tracker-body');
+  if (!body) return; // tracker UI not mounted (e.g. during Plan load before step render)
   _jobTrackerOpen = !_jobTrackerOpen;
-  document.getElementById('job-tracker-body').classList.toggle('hidden', !_jobTrackerOpen);
+  safeClassToggle(body, 'hidden', !_jobTrackerOpen);
   const chev = document.getElementById('job-tracker-chevron');
   if (chev) chev.style.transform = _jobTrackerOpen ? 'rotate(180deg)' : '';
 }
@@ -9441,6 +9457,7 @@ function renderJobTracker() {
   // Always visible in Target Role section now
   const list = document.getElementById('job-tracker-list');
   const badge = document.getElementById('job-count-badge');
+  if (!list || !badge) return; // tracker UI not mounted yet
   badge.textContent = STATE.appliedJobs.length;
   if (!STATE.appliedJobs.length) {
     list.innerHTML = '<p class="text-xs" style="color:#9CA3AF">No jobs tracked yet. Click "Add Job" to start.</p>';
@@ -9489,8 +9506,12 @@ function addJobRow(prefill) {
     status: 'not_applied',
     addedAt: new Date().toISOString()
   });
-  renderJobTracker();
-  if (!_jobTrackerOpen) toggleJobTracker();
+  // UI updates are best-effort — tracker DOM may not be mounted yet (e.g.
+  // during Plan load, autoPopulateJobFromTargetRole firing before step render).
+  try { renderJobTracker(); } catch(e){ try { console.warn('[addJobRow] render skipped:', e?.message); } catch(_){} }
+  if (!_jobTrackerOpen && document.getElementById('job-tracker-body')) {
+    try { toggleJobTracker(); } catch(_){}
+  }
   markDirty();
 }
 function toggleJobApplied(idx) {
@@ -9513,27 +9534,31 @@ function updateJobField(idx, field, value) {
   markDirty();
 }
 function autoPopulateJobFromTargetRole() {
-  const jt = (document.getElementById('job-title')?.value || '').trim();
-  const jc = (document.getElementById('job-company')?.value || '').trim();
-  if (!jt && !jc) return;
-  // If tracker is empty, add a new row
-  if (!STATE.appliedJobs.length) {
+  try {
+    const jt = (document.getElementById('job-title')?.value || '').trim();
+    const jc = (document.getElementById('job-company')?.value || '').trim();
+    if (!jt && !jc) return;
+    // If tracker is empty, add a new row
+    if (!STATE.appliedJobs.length) {
+      addJobRow({ title: jt, company: jc });
+      return;
+    }
+    // If the most recent row has the same title/company, no action needed
+    const last = STATE.appliedJobs[STATE.appliedJobs.length - 1];
+    if (last.title === jt && last.company === jc) return;
+    // If the most recent row is blank (no title AND no company), fill it
+    if (!last.title && !last.company) {
+      last.title = jt;
+      last.company = jc;
+      try { renderJobTracker(); } catch(_){}
+      markDirty();
+      return;
+    }
+    // Otherwise add a new row with the current target role
     addJobRow({ title: jt, company: jc });
-    return;
+  } catch(e) {
+    try { console.warn('[autoPopulateJobFromTargetRole] skipped:', e?.message); } catch(_){}
   }
-  // If the most recent row has the same title/company, no action needed
-  const last = STATE.appliedJobs[STATE.appliedJobs.length - 1];
-  if (last.title === jt && last.company === jc) return;
-  // If the most recent row is blank (no title AND no company), fill it
-  if (!last.title && !last.company) {
-    last.title = jt;
-    last.company = jc;
-    renderJobTracker();
-    markDirty();
-    return;
-  }
-  // Otherwise add a new row with the current target role
-  addJobRow({ title: jt, company: jc });
 }
 
 // ============ About Me Modal ============
@@ -13175,7 +13200,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXPERIENCE ────
   if (STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map(e => `<div class="item-row"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map(b => `<li class="item-row flex gap-3 text-sm" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience">${g.experience.map((e, i) => `<div class="item-row" data-exp-index="${i}"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="bullets">${(e.bullets || []).map((b, j) => `<li class="item-row flex gap-3 text-sm" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
@@ -13461,9 +13486,34 @@ function _getDragAfter(container, y) {
 }
 
 // ============ Item Actions (Delete/Add/Edit) ============
+// 2026-04-24 BUG-FIX: every DOM mutation that changes preview structure
+// (add/remove item, add experience, etc.) must scrape the resulting DOM into
+// STATE before calling markDirty(). Otherwise the 200ms debounced live-sync
+// rerender repaints from stale STATE.generated, causing deleted items to
+// "come back" and added items to disappear. This helper locates the
+// containing preview and triggers the scrape.
+function _syncContainingPreview(el) {
+  try {
+    if (!el || !el.closest) return null;
+    const root = el.closest('#preview-container-export') || el.closest('#preview-container');
+    if (!root) return null;
+    if (typeof syncPreviewEditsToState === 'function') {
+      syncPreviewEditsToState(root.id);
+    }
+    return root.id;
+  } catch(e) {
+    try { console.warn('[_syncContainingPreview] failed:', e?.message); } catch(_){}
+    return null;
+  }
+}
+
 function removeItem(btn) {
   const row = btn.closest('.item-row') || btn.parentElement;
-  if (row) { row.remove(); markDirty(); }
+  if (!row) return;
+  const parent = row.parentElement; // capture before removal — closest() won't work post-detach
+  row.remove();
+  _syncContainingPreview(parent);
+  markDirty();
 }
 
 function editItemRow(btn) {
@@ -13541,7 +13591,12 @@ function showMobileActionBar(row) {
       else { row.classList.toggle('item-hidden'); markDirty(); }
       bar.remove(); showMobileActionBar(row);
     }
-    else if (action === 'del') { row.remove(); markDirty(); }
+    else if (action === 'del') {
+      const parent = row.parentElement;
+      row.remove();
+      _syncContainingPreview(parent);
+      markDirty();
+    }
     else if (action === 'undo') { rejectAIChange(btn); if (row.parentNode) showMobileActionBar(row); }
     else if (action === 'keep') { acceptAIChange(btn); if (row.parentNode) showMobileActionBar(row); }
     else if (action === 'viewprev') { showOriginalText(row); }
@@ -13611,6 +13666,7 @@ function addListItem(addBtn, type, iconColor, textColor) {
   container.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
+  _syncContainingPreview(container);
   markDirty();
 }
 
@@ -13624,6 +13680,7 @@ function addBullet(addBtn, accent, textColor) {
   lucide.createIcons({ nodes: [li] });
   ul.appendChild(li);
   li.querySelector('span[contenteditable]').focus();
+  _syncContainingPreview(ul);
   markDirty();
 }
 
@@ -13638,6 +13695,7 @@ function addSkill(addBtn, accent, styleStr) {
   grid.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
+  _syncContainingPreview(grid);
   markDirty();
 }
 
@@ -13652,6 +13710,7 @@ function addKpi(addBtn, accent, muted, heading, borderStr) {
   grid.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
+  _syncContainingPreview(grid);
   markDirty();
 }
 
@@ -13666,6 +13725,7 @@ function addExperience(addBtn) {
   div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company — Location</p><ul class="space-y-2" data-list="bullets"><li class="item-row flex gap-3 text-sm" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span>Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
   container.appendChild(div);
   div.querySelector('.editable').focus();
+  _syncContainingPreview(container);
   markDirty();
 }
 
@@ -13680,6 +13740,7 @@ function addEducation(addBtn) {
   container.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
+  _syncContainingPreview(container);
   markDirty();
 }
 
@@ -13695,6 +13756,7 @@ function addCertification(addBtn) {
   container.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
+  _syncContainingPreview(container);
   markDirty();
 }
 
@@ -13710,6 +13772,7 @@ function addAchievement(addBtn) {
   container.appendChild(div);
   lucide.createIcons({ nodes: [div] });
   div.focus();
+  _syncContainingPreview(container);
   markDirty();
 }
 
@@ -13872,8 +13935,17 @@ function syncPreviewEditsToState(rootId) {
     const expList = root.querySelector('[data-list="experience"]');
     if (expList && Array.isArray(g.experience)) {
       const rows = [...expList.querySelectorAll(':scope > .item-row')];
-      const next = rows.map((row, i) => {
-        const cur = g.experience[i] || {};
+      // 2026-04-24 BUG-FIX: positional-index scrape caused Job #2 edits/deletes
+      // to contaminate Job #1 whenever a reorder or partial render left the
+      // DOM order out of sync with STATE. Prefer explicit data-exp-index
+      // (emitted by the legacy renderer) and fall back to positional only
+      // when the anchor is absent.
+      const next = g.experience.map(x => x && typeof x === 'object' ? { ...x } : x);
+      rows.forEach((row, i) => {
+        const expIdxAttr = row.getAttribute && row.getAttribute('data-exp-index');
+        const idx = expIdxAttr != null && expIdxAttr !== '' ? Number(expIdxAttr) : i;
+        if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return; // skip orphan rows
+        const cur = next[idx] || {};
         const h4 = row.querySelector('h4');
         if (h4) cur.title = text(h4);
         const dateSpan = row.querySelector('h4 + span, h4 ~ span.text-sm.font-medium');
@@ -13893,14 +13965,9 @@ function syncPreviewEditsToState(rootId) {
         }
         // role_summary = second direct p (only present if originally had one)
         if (directPs[1] && cur.role_summary != null) cur.role_summary = text(directPs[1]);
-        // Bullets
-        // 2026-04-24 BUG-FIX: only overwrite when the legacy renderer's
-        // bullet anchors are present. New templates (executive-focus,
-        // modern-ats, banking-executive, etc.) emit <ul><li> WITHOUT
-        // data-list="bullets" — the previous unconditional overwrite was
-        // silently nuking STATE.experience[*].bullets to [] on every
-        // cache rebuild, which is why bullets disappeared from preview
-        // and exports.
+        // Bullets — ONLY scan within this row's own bullet list (scoped by
+        // data-list="bullets" descendant of this row) so Job #2's bullets
+        // never leak into Job #1's STATE entry.
         const bulletList = row.querySelector('[data-list="bullets"]');
         if (bulletList) {
           const bullets = [...bulletList.querySelectorAll(':scope > li.item-row')]
@@ -13909,9 +13976,22 @@ function syncPreviewEditsToState(rootId) {
           cur.bullets = bullets;
         }
         // else: no legacy anchors in DOM → leave cur.bullets untouched.
-        return cur;
+        next[idx] = cur;
       });
-      g.experience = next;
+      // Trim STATE to match the number of DOM rows if explicit indices are
+      // in use (handles deletions of whole experiences from the DOM). When
+      // data-exp-index is absent everywhere we fall back to the previous
+      // truncate-by-length behavior.
+      const hasExplicitIndices = rows.some(r => r.getAttribute && r.getAttribute('data-exp-index') != null);
+      if (hasExplicitIndices) {
+        const keptIndices = new Set(rows.map((r, i) => {
+          const a = r.getAttribute('data-exp-index');
+          return a != null && a !== '' ? Number(a) : i;
+        }).filter(n => Number.isInteger(n) && n >= 0));
+        g.experience = next.filter((_, idx) => keptIndices.has(idx));
+      } else {
+        g.experience = next.slice(0, rows.length);
+      }
     }
   } catch(_){}
 
@@ -14792,6 +14872,119 @@ try {
       add('5. bullets render across templates', false, String(e && e.message || e));
     }
 
+    // ── Test 6: delete persistence (removeItem must write-through) ──
+    // Confirms the 2026-04-24 delete-reappear fix: a bullet removed via
+    // the × button stays gone from STATE and from the DOM after the
+    // live-sync debounce window would have fired.
+    try {
+      const pv = document.getElementById('preview-container');
+      const expList = pv && pv.querySelector('[data-list="experience"]');
+      const firstExpRow = expList && expList.querySelector(':scope > .item-row');
+      const firstBullet = firstExpRow && firstExpRow.querySelector('[data-list="bullets"] > li.item-row');
+      const delBtn = firstBullet && firstBullet.querySelector('.item-del');
+      if (!delBtn) {
+        add('6. delete persistence', false, 'no bullet with × button found in #preview-container');
+      } else {
+        const bulletTextBefore = (firstBullet.querySelector('.bullet-text') || firstBullet).textContent.trim();
+        const bulletsBefore = (STATE.generated.experience[0]?.bullets || []).slice();
+        const countBefore = bulletsBefore.length;
+        if (countBefore === 0) {
+          add('6. delete persistence', false, 'experience[0] had no bullets to delete');
+        } else {
+          try { removeItem(delBtn); } catch(e) {
+            add('6. delete persistence', false, 'removeItem threw: ' + (e.message||e));
+            throw e;
+          }
+          const countAfter = (STATE.generated.experience[0]?.bullets || []).length;
+          const domBulletStillThere = !!(expList.querySelector(':scope > .item-row [data-list="bullets"] > li.item-row .bullet-text')
+            && [...expList.querySelectorAll(':scope > .item-row [data-list="bullets"] > li.item-row')]
+               .some(li => (li.querySelector('.bullet-text') || li).textContent.trim() === bulletTextBefore));
+          const pass = (countAfter === countBefore - 1) && !domBulletStillThere;
+          add('6. delete persistence', pass,
+            'STATE before=' + countBefore + ' after=' + countAfter +
+            (domBulletStillThere ? ' (bullet still in DOM)' : ''));
+          // Restore
+          STATE.generated.experience[0].bullets = bulletsBefore;
+          try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+          try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
+        }
+      }
+    } catch (e) { add('6. delete persistence', false, String(e && e.message || e)); }
+
+    // ── Test 7: Job #2 delete does not contaminate Job #1 ──
+    // Guards the data-exp-index / per-row bullet-list scoping. After
+    // deleting Job #2's last bullet, Job #1's bullets (text identity)
+    // must be byte-identical to what they were before.
+    try {
+      if ((STATE.generated.experience || []).length < 2) {
+        add('7. cross-role isolation', false, 'need at least 2 experiences to verify — resume has ' + (STATE.generated.experience || []).length);
+      } else {
+        const job1Before = (STATE.generated.experience[0].bullets || []).slice();
+        const job2Before = (STATE.generated.experience[1].bullets || []).slice();
+        if (!job2Before.length) {
+          add('7. cross-role isolation', false, 'experience[1] has no bullets to delete');
+        } else {
+          const pv = document.getElementById('preview-container');
+          const expList = pv && pv.querySelector('[data-list="experience"]');
+          const expRows = expList ? [...expList.querySelectorAll(':scope > .item-row')] : [];
+          // Prefer data-exp-index=1; fallback to positional.
+          const job2Row = expRows.find(r => r.getAttribute && r.getAttribute('data-exp-index') === '1') || expRows[1];
+          const job2Bullets = job2Row && [...job2Row.querySelectorAll('[data-list="bullets"] > li.item-row')];
+          const lastBulletBtn = job2Bullets && job2Bullets[job2Bullets.length - 1] && job2Bullets[job2Bullets.length - 1].querySelector('.item-del');
+          if (!lastBulletBtn) {
+            add('7. cross-role isolation', false, 'could not locate Job #2 last-bullet × button');
+          } else {
+            removeItem(lastBulletBtn);
+            const job1After = (STATE.generated.experience[0].bullets || []).slice();
+            const job2After = (STATE.generated.experience[1].bullets || []).slice();
+            const job1Identical = job1After.length === job1Before.length
+              && job1Before.every((b, i) => b === job1After[i]);
+            const job2ShrankByOne = job2After.length === job2Before.length - 1;
+            add('7. cross-role isolation', job1Identical && job2ShrankByOne,
+              'job1 bullets text-identity ' + (job1Identical ? 'OK' : 'DIFFERS') +
+              '; job2 ' + job2Before.length + '→' + job2After.length);
+            // Restore
+            STATE.generated.experience[0].bullets = job1Before;
+            STATE.generated.experience[1].bullets = job2Before;
+            try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+            try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
+          }
+        }
+      }
+    } catch (e) { add('7. cross-role isolation', false, String(e && e.message || e)); }
+
+    // ── Test 8: Web vs Document preview bullet-count parity ──
+    // Both previews must reflect the same canonical model. The DOM bullet
+    // count under [data-list="experience"] [data-exp-index="i"] must equal
+    // buildFinalExportModel().experience[i].bullets.length — for each
+    // container that is currently mounted. (Skips containers not mounted.)
+    try {
+      const model = (typeof buildFinalExportModel === 'function') ? buildFinalExportModel({ forceRefresh: true }) : null;
+      if (!model || !Array.isArray(model.experience)) {
+        add('8. web/document parity', false, 'no export model / no experience');
+      } else {
+        const expected = model.experience.map(e => (e.bullets || []).length);
+        const mismatches = [];
+        ['preview-container', 'preview-container-export'].forEach(cid => {
+          const c = document.getElementById(cid);
+          if (!c || c.offsetParent === null) return; // skip hidden / unmounted
+          const expList = c.querySelector('[data-list="experience"]');
+          if (!expList) return; // template without legacy anchors — skip
+          const rows = [...expList.querySelectorAll(':scope > .item-row')];
+          rows.forEach((row, i) => {
+            const idxAttr = row.getAttribute && row.getAttribute('data-exp-index');
+            const idx = idxAttr != null && idxAttr !== '' ? Number(idxAttr) : i;
+            const domCount = [...row.querySelectorAll('[data-list="bullets"] > li.item-row')].length;
+            if (Number.isInteger(idx) && idx < expected.length && domCount !== expected[idx]) {
+              mismatches.push(cid + '[' + idx + ']: model=' + expected[idx] + ' dom=' + domCount);
+            }
+          });
+        });
+        add('8. web/document parity', mismatches.length === 0,
+          mismatches.length ? mismatches.join('; ') : 'model and both previews agree');
+      }
+    } catch (e) { add('8. web/document parity', false, String(e && e.message || e)); }
+
     // Restore original STATE (defensive — most tests don't mutate, but Test 5
     // forces buildExportModel rebuilds and the optimizer-merge in
     // syncPreviewEditsToState may have touched things).
@@ -14855,6 +15048,7 @@ function exportHTML_web() {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = nm.replace(/\s+/g, '-').toLowerCase() + suffix + '-' + (STATE.planType || 'resume') + '-plan.html';
+        try { STATE._lastExportFileName = a.download; } catch(_){}
         a.click();
         URL.revokeObjectURL(a.href);
         showToast('HTML file downloaded!');
@@ -14878,6 +15072,7 @@ function exportHTML_web() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = nm.replace(/\s+/g, '-').toLowerCase() + suffix + '-' + STATE.planType + '-plan.html';
+  try { STATE._lastExportFileName = a.download; } catch(_){}
   a.click();
   showToast('HTML file downloaded!');
 }
@@ -14947,6 +15142,7 @@ async function exportHTML_template() {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename;
+    try { STATE._lastExportFileName = filename; } catch(_){}
     a.click();
     URL.revokeObjectURL(a.href);
     showToast('HTML file downloaded!');
