@@ -11792,6 +11792,20 @@ async function generatePlan() {
     await handleBuilderResponse(res);
     const data = await res.json();
     STATE.generated = data.generated;
+    // Mark the active version as initialized so the synthesize-bootstrap
+    // gate in optimizeForJob() won't clobber the newly generated content.
+    try { getActiveVersion()._resumeInitialized = !!(data.generated && Object.keys(data.generated).length); } catch(_){}
+    // Mirror plan-shaped keys from the generated response into v.plan so
+    // getCurrentPlan() is consistent without requiring a separate optimize call.
+    try {
+      const _gen = data.generated || {};
+      const _planKeys = ['plan_phases','success_summary','success_criteria','kpis','days90','months12','years2','horizon'];
+      const _planSlice = {};
+      _planKeys.forEach(k => { if (_gen[k] !== undefined) _planSlice[k] = _gen[k]; });
+      if (Object.keys(_planSlice).length && typeof setCurrentPlan === 'function') {
+        setCurrentPlan(Object.assign({}, (typeof getCurrentPlan === 'function' ? getCurrentPlan() : null) || {}, _planSlice));
+      }
+    } catch(_){}
     renderPreview(data.generated);
     // Auto-prefill first job row from Step 2 if tracker is empty
     if (!STATE.appliedJobs.length) {
@@ -19499,6 +19513,7 @@ function acceptAllAIChanges() {
 function rejectAllAIChanges() {
   if (_preEnhanceGenerated) {
     STATE.generated = JSON.parse(JSON.stringify(_preEnhanceGenerated));
+    try { getActiveVersion()._resumeInitialized = !!(Object.keys(_preEnhanceGenerated).length); } catch(_){}
     renderPreview(STATE.generated);
     document.getElementById('ai-enhance-toggle').checked = false;
     showToast('All AI changes reverted');
