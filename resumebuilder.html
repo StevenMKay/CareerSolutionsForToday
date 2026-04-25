@@ -5440,6 +5440,18 @@ async function optimizeForJob() {
         };
       }
     } catch(e) { console.warn('[optimize] synthesize generated failed', e); }
+    // 2026-04-25 BUG-FIX: chain plan generation after optimize so the
+    // selected plan actually populates getActiveVersion().plan. Optimize
+    // only mutates the resume — without this, the user has to click
+    // Generate again to get plan_phases/success_*/kpis.
+    try {
+      if (STATE.sections && STATE.sections.includes('plan')) {
+        const planRes = await generatePlanIntoActiveVersion();
+        if (!planRes || !planRes.ok) {
+          console.warn('[optimize] plan generation skipped/failed:', planRes && planRes.error);
+        }
+      }
+    } catch(e) { console.warn('[optimize] plan chain failed:', e); }
     try {
       if (typeof generateAndRenderPreview === 'function') { generateAndRenderPreview(); }
       else if (typeof renderPreview === 'function') {
@@ -11630,6 +11642,64 @@ async function generatePlan() {
   hideLoading();
 }
 
+// 2026-04-25 BUG-FIX: Optimize→Plan chain.
+// `optimizeForJob()` calls `/builder/optimize` which mutates `STATE.resumeData`
+// + `analysisCache` but never populates `getActiveVersion().plan`. This helper
+// runs `/builder/generate` to populate ONLY the plan-shaped keys without
+// touching `v.resume` (optimize already produced the resume content).
+//
+// Returns { ok, error? }. Non-fatal — caller swallows failures.
+async function generatePlanIntoActiveVersion() {
+  try {
+    if (!STATE.sections || !STATE.sections.includes('plan')) {
+      return { ok: false, error: 'plan section not selected' };
+    }
+    const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
+    const payload = {
+      resume_data: STATE.resumeData,
+      role_context: STATE.roleResearch,
+      plan_type: STATE.planType,
+      sections: STATE.sections,
+      job_description: (document.getElementById('job-desc')?.value || '').trim(),
+      plan_context: (document.getElementById('plan-context')?.value || '').trim(),
+      additional_details: (document.getElementById('additional-resume-details')?.value || '').trim(),
+      editing_plan_id: currentPlanId || ''
+    };
+    const res = await fetch(API_BASE + '/builder/generate', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>'');
+      return { ok: false, error: 'HTTP ' + res.status + ' ' + txt.slice(0, 200) };
+    }
+    const data = await res.json();
+    const gen = (data && data.generated) || {};
+    const PLAN_KEYS = ['plan_phases','success_summary','success_criteria','kpis','days90','months12','years2','horizon'];
+    const planSlice = {};
+    PLAN_KEYS.forEach(k => { if (gen[k] !== undefined) planSlice[k] = gen[k]; });
+    if (typeof setCurrentPlan === 'function') {
+      const cur = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
+      setCurrentPlan(Object.assign({}, cur, planSlice));
+    }
+    // Mirror plan-shaped keys into STATE.generated (= v.resume via accessor)
+    // so `g.plan_phases` etc. are visible to the legacy `card()` renderer
+    // which reads from `g` directly. Resume keys from /builder/generate
+    // response are intentionally DISCARDED — optimize already produced them.
+    try {
+      const stateGen = STATE.generated || {};
+      PLAN_KEYS.forEach(k => { if (gen[k] !== undefined) stateGen[k] = gen[k]; });
+      STATE.generated = stateGen;
+    } catch(_){}
+    try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
+  }
+}
+try { window.generatePlanIntoActiveVersion = generatePlanIntoActiveVersion; } catch(_){}
+
 // ============ Style Config ============
 const STYLE_CONFIG = {
   executive: {
@@ -12999,21 +13069,21 @@ function renderExperienceRows(experience, opts) {
 
     const sepStyle = i > 0 ? rowSepRule : '';
     const headerHtml = headerLayout === 'split'
-      ? `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">${title?`<h4 style="margin:0;font-size:${titleSize};color:${headColor};font-weight:700;font-family:${titleFont};line-height:1.25">${_pvEsc(title)}</h4>`:''}${dates?`<span style="font-size:${dateSize};color:${mutedColor};${dateItalic?'font-style:italic;':''}white-space:nowrap">${_pvEsc(dates)}</span>`:''}</div>`
-      : `${title?`<h4 style="margin:0;font-size:${titleSize};color:${headColor};font-weight:700;font-family:${titleFont};line-height:1.25;display:inline">${_pvEsc(title)}</h4>`:''}${dates?`<span style="font-size:${dateSize};color:${mutedColor};${dateItalic?'font-style:italic;':''}margin-left:6px">${_pvEsc(dates)}</span>`:''}`;
+      ? `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">${title?`<h4 data-field="title" style="margin:0;font-size:${titleSize};color:${headColor};font-weight:700;font-family:${titleFont};line-height:1.25">${_pvEsc(title)}</h4>`:''}${dates?`<span data-field="dates" style="font-size:${dateSize};color:${mutedColor};${dateItalic?'font-style:italic;':''}white-space:nowrap">${_pvEsc(dates)}</span>`:''}</div>`
+      : `${title?`<h4 data-field="title" style="margin:0;font-size:${titleSize};color:${headColor};font-weight:700;font-family:${titleFont};line-height:1.25;display:inline">${_pvEsc(title)}</h4>`:''}${dates?`<span data-field="dates" style="font-size:${dateSize};color:${mutedColor};${dateItalic?'font-style:italic;':''}margin-left:6px">${_pvEsc(dates)}</span>`:''}`;
 
     const companyHtml = (company || location)
-      ? `<p style="margin:1px 0 0;font-size:${companySize};color:${accent};${companyItalic?'font-style:italic;':'font-weight:600;'}">${_pvEsc(company)}${location?`<span style="color:${mutedColor};font-style:normal;font-weight:500">  —  ${_pvEsc(location)}</span>`:''}</p>`
+      ? `<p data-field="company_location" style="margin:1px 0 0;font-size:${companySize};color:${accent};${companyItalic?'font-style:italic;':'font-weight:600;'}">${_pvEsc(company)}${location?`<span style="color:${mutedColor};font-style:normal;font-weight:500">  —  ${_pvEsc(location)}</span>`:''}</p>`
       : '';
 
     const summaryHtml = roleSum
-      ? `<p style="margin:4px 0 0;font-size:${bulletSize};color:${textColor};line-height:1.55">${_pvEsc(summaryTrunc?truncate(roleSum,summaryTrunc):roleSum)}</p>`
+      ? `<p data-field="role_summary" style="margin:4px 0 0;font-size:${bulletSize};color:${textColor};line-height:1.55">${_pvEsc(summaryTrunc?truncate(roleSum,summaryTrunc):roleSum)}</p>`
       : '';
 
     const bulletsHtml = bullets.length
       ? `<ul data-list="experience-bullets" data-exp-index="${i}" style="margin:5px 0 0;padding-left:${bulletPadLeft};list-style:disc${bulletGlyphColor?';color:'+bulletGlyphColor:''}">${bullets.map((b, j) => {
           const bt = bulletTrunc ? truncate(b, bulletTrunc) : b;
-          return `<li class="item-row bullet-row" data-exp-index="${i}" data-bullet-index="${j}" style="position:relative;font-size:${bulletSize};line-height:${bulletLineHeight};color:${textColor};margin-bottom:2px;padding-right:22px"><span class="bullet-text">${_pvEsc(bt)}</span><button type="button" class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" title="Delete bullet" aria-label="Delete bullet" style="position:absolute;top:0;right:0;width:18px;height:18px;line-height:14px;border:none;background:rgba(220,38,38,0.85);color:#fff;border-radius:50%;font-size:12px;cursor:pointer;padding:0;z-index:5">&times;</button></li>`;
+          return `<li class="item-row bullet-row" data-exp-index="${i}" data-bullet-index="${j}" style="position:relative;font-size:${bulletSize};line-height:${bulletLineHeight};color:${textColor};margin-bottom:2px;padding-right:22px"><span class="bullet-text" data-field="bullet">${_pvEsc(bt)}</span><button type="button" class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" title="Delete bullet" aria-label="Delete bullet" style="position:absolute;top:0;right:0;width:18px;height:18px;line-height:14px;border:none;background:rgba(220,38,38,0.85);color:#fff;border-radius:50%;font-size:12px;cursor:pointer;padding:0;z-index:5">&times;</button></li>`;
         }).join('')}</ul>`
       : '';
 
@@ -13805,16 +13875,16 @@ function renderPreview(g, targetId) {
         <style>.sm\\:\\!grid-cols-\\[260px_1fr\\]{grid-template-columns:1fr}@media(min-width:640px){.sm\\:\\!grid-cols-\\[260px_1fr\\]{grid-template-columns:260px 1fr}}</style>
         <div style="background:${S.sidebarBg};padding:2rem 1.5rem;display:flex;flex-direction:column;align-items:center;gap:1rem;font-family:${S.bodyFont}">
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4" style="border-color:${C}60">` : ''}
-          <h1 class="text-xl font-semibold text-center editable" contenteditable="true" style="color:${S.sidebarText};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-          <p class="text-sm font-medium text-center editable" contenteditable="true" style="color:${S.sidebarText};opacity:0.85">${g.hero.target_title || ''}</p>
-          ${g.hero.company ? `<p class="text-xs text-center editable" contenteditable="true" style="color:${S.sidebarMuted}">${g.hero.company}</p>` : ''}
+          <h1 class="text-xl font-semibold text-center editable" contenteditable="true" data-field="hero_name" style="color:${S.sidebarText};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+          <p class="text-sm font-medium text-center editable" contenteditable="true" data-field="hero_target_title" style="color:${S.sidebarText};opacity:0.85">${g.hero.target_title || ''}</p>
+          ${g.hero.company ? `<p class="text-xs text-center editable" contenteditable="true" data-field="hero_company" style="color:${S.sidebarMuted}">${g.hero.company}</p>` : ''}
           <div style="width:60%;height:1px;background:${S.sidebarMuted}40;margin:0.5rem 0"></div>
           <div class="flex flex-col gap-2 text-xs w-full" style="color:${S.sidebarText};opacity:0.8">${contactBar(S.sidebarText)}</div>
         </div>
         <div style="background:${S.cardBg};padding:2rem;font-family:${S.bodyFont}">
           <p class="text-xs font-bold uppercase tracking-wider mb-3 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em">${planLabel}</p>
-          ${g.hero.tagline ? `<p class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
-          ${g.hero.subtitle ? `<p class="text-sm mt-2 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+          ${g.hero.tagline ? `<p class="text-sm leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          ${g.hero.subtitle ? `<p class="text-sm mt-2 editable" contenteditable="true" data-field="hero_subtitle" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
         </div>
       </div>`;
     } else if (S.layout === 'banner') {
@@ -13822,10 +13892,10 @@ function renderPreview(g, targetId) {
       h += card(`<div class="text-center">
         ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 mx-auto mb-4" style="border-color:${C}30">` : ''}
         <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.bodyFont}">${planLabel}</p>
-        <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-        <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
-        ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
-        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
+        <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight editable" contenteditable="true" data-field="hero_name" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+        <p class="text-lg font-medium mt-1 editable" contenteditable="true" data-field="hero_target_title" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
+        ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_company" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
+        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
         <div class="flex flex-wrap justify-center gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         <div style="${S.dividerStyle !== 'none' ? 'border-bottom:' + S.dividerStyle + ';margin-top:1.5rem' : ''}"></div>
       </div>`, `background:${S.cardBg}`, 'hero');
@@ -13837,10 +13907,10 @@ function renderPreview(g, targetId) {
           ${photo ? `<img src="${photo}" class="w-28 h-28 photo-shape-${STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:rgba(255,255,255,0.3)">` : ''}
           <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
             <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:rgba(255,255,255,0.7);letter-spacing:0.2em">${planLabel}</p>
-            <h1 class="text-3xl sm:text-4xl font-bold tracking-tight editable" contenteditable="true" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-            <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
-            ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
-            ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" style="color:rgba(255,255,255,0.8)">${g.hero.tagline}</p>` : ''}
+            <h1 class="text-3xl sm:text-4xl font-bold tracking-tight editable" contenteditable="true" data-field="hero_name" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+            <p class="text-lg font-medium mt-1 editable" contenteditable="true" data-field="hero_target_title" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
+            ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_company" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
+            ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:rgba(255,255,255,0.8)">${g.hero.tagline}</p>` : ''}
             <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:rgba(255,255,255,0.8)">${contactBar('rgba(255,255,255,0.8)')}</div>
           </div>
         </div>
@@ -13852,11 +13922,11 @@ function renderPreview(g, targetId) {
         ${photo ? `<img src="${photo}" class="${isDark ? 'w-24 h-24 rounded-lg' : 'w-24 h-24 photo-shape-' + STATE.photoShape} object-cover border-4 flex-shrink-0" style="border-color:${C}30">` : ''}
         <div class="flex-1 ${photo ? '' : 'text-center sm:text-left'}">
           <p class="text-xs font-bold uppercase tracking-wider mb-2 editable" contenteditable="true" style="color:${C};letter-spacing:0.2em;font-family:${S.headingFont}">${planLabel}</p>
-          <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
-          <p class="text-lg font-medium mt-1 editable" contenteditable="true" style="color:${C}">${g.hero.target_title || ''}</p>
-          ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
-          ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
-          ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          <h1 class="text-3xl sm:text-4xl font-light tracking-tight editable" contenteditable="true" data-field="hero_name" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
+          <p class="text-lg font-medium mt-1 editable" contenteditable="true" data-field="hero_target_title" style="color:${C}">${g.hero.target_title || ''}</p>
+          ${g.hero.subtitle ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_subtitle" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+          ${g.hero.company ? `<p class="text-sm mt-0.5 editable" contenteditable="true" data-field="hero_company" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
+          ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed editable" contenteditable="true" data-field="hero_tagline" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
           <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         </div>
       </div>`, `background:${isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + lighter + ')'};border-color:${C}30`, 'hero');
@@ -13879,7 +13949,7 @@ function renderPreview(g, targetId) {
 
   // ──── EXECUTIVE SUMMARY ────
   if (_inContent('executive_summary') && STATE.sections.includes('executive_summary') && g.executive_summary) {
-    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${g.executive_summary}</div>`, '', 'executive_summary');
+    h += card(`${sectionLabel('sparkles', 'Executive Summary')}<div class="text-sm leading-relaxed editable" contenteditable="true" data-field="summary" style="color:${S.textColor}">${g.executive_summary}</div>`, '', 'executive_summary');
   }
 
   // ──── PLAN PHASES ────
@@ -13915,24 +13985,24 @@ function renderPreview(g, targetId) {
           <div class="flex-1">
             <span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${phaseLabel}</span>
             <span class="text-xs px-2 py-0.5 rounded-full font-medium ml-2" style="background:${light};color:${C}">${phaseTimeframe}</span>
-            <h3 class="text-xl font-bold mt-1 editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>
+            <h3 class="text-xl font-bold mt-1 editable" contenteditable="true" data-field="phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>
           </div>
         </div>`;
       } else if (S.sectionLabelStyle === 'terminal') {
         inner += `<div class="flex items-center gap-3 mb-1"><span style="color:${C};font-family:${S.headingFont};font-size:0.75rem;font-weight:700">phase[${idx}]</span><span class="text-xs px-2 py-0.5 rounded font-medium" style="background:${light};color:${C};font-family:${S.headingFont}">${phaseTimeframe}</span></div>
-        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
+        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" data-field="phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
       } else {
         inner += `<div class="flex items-center gap-3 mb-1"><i data-lucide="${icon}" style="width:20px;height:20px;color:${C}"></i><span class="text-xs font-bold tracking-wider uppercase" style="color:${C}">${phaseLabel}</span><span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${light};color:${C}">${phaseTimeframe}</span></div>
-        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
+        <h3 class="text-xl font-semibold mt-2 editable" contenteditable="true" data-field="phase_title" style="color:${S.headingColor};font-family:${S.headingFont}">${p.title}</h3>`;
       }
 
       if (objective) {
-        inner += `<p class="text-sm mt-2 leading-relaxed editable" contenteditable="true" style="color:${S.mutedColor}">${objective}</p>`;
+        inner += `<p class="text-sm mt-2 leading-relaxed editable" contenteditable="true" data-field="phase_objective" style="color:${S.mutedColor}">${objective}</p>`;
       }
 
       // Actions
       if (actions.length) {
-        inner += `<div class="mt-5">${sectionLabel('list-checks', 'Key Actions')}<div class="space-y-2" data-list="actions">${actions.map(a => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${a}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'action','${C}','${S.textColor}')">+ Add Action</button></div>`;
+        inner += `<div class="mt-5">${sectionLabel('list-checks', 'Key Actions')}<div class="space-y-2" data-list="actions">${actions.map(a => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="chevron-right" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_action">${a}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'action','${C}','${S.textColor}')">+ Add Action</button></div>`;
       }
 
       // Tools
@@ -13941,49 +14011,49 @@ function renderPreview(g, targetId) {
           const tName = typeof t === 'string' ? t : (t.name || '');
           const tDesc = typeof t === 'string' ? '' : (t.description || '');
           const tIcon = (typeof t === 'object' && t.icon) ? t.icon : 'monitor';
-          return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${tName}${tDesc ? ' — ' + tDesc : ''}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`;
+          return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_tool">${tName}${tDesc ? ' — ' + tDesc : ''}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`;
         }).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'tool','${C}','${S.textColor}')">+ Add Tool</button></div>`;
       }
 
       // Milestones
       if (p.milestones?.length) {
-        inner += `<div class="mt-5">${sectionLabel('trophy', 'Key Milestones')}<div class="space-y-2" data-list="milestones">${p.milestones.map(m => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${m}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'milestone','#047857','${S.textColor}')">+ Add Milestone</button></div>`;
+        inner += `<div class="mt-5">${sectionLabel('trophy', 'Key Milestones')}<div class="space-y-2" data-list="milestones">${p.milestones.map(m => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="phase_milestone">${m}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'milestone','#047857','${S.textColor}')">+ Add Milestone</button></div>`;
       }
 
       // Executive Value
       if (execValue) {
-        inner += `<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}">${sectionLabel('gem', 'Executive Value')}<p class="text-sm leading-relaxed editable" contenteditable="true" style="color:${S.textColor}">${execValue}</p></div>`;
+        inner += `<div class="mt-5 p-4 rounded-lg" style="background:${light};border-left:3px solid ${C}">${sectionLabel('gem', 'Executive Value')}<p class="text-sm leading-relaxed editable" contenteditable="true" data-field="phase_exec_value" style="color:${S.textColor}">${execValue}</p></div>`;
       }
 
       const borderLeft = S.layout === 'bold' ? '' : `border-left:4px solid ${C};`;
-      return `<div data-section="plan_phases" style="background:${S.cardBg};border:${S.borderStyle};${borderLeft}border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont}">${inner}</div>`;
+      return `<div data-section="plan_phases" data-phase-index="${idx}" style="background:${S.cardBg};border:${S.borderStyle};${borderLeft}border-radius:${S.cardRadius};padding:1.5rem;box-shadow:${S.cardShadow};font-family:${S.bodyFont}">${inner}</div>`;
     }).join('');
   }
 
   // ──── SUCCESS CRITERIA ────
   if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
-    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
+    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="success_criterion">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
   }
 
   // ──── SUCCESS SUMMARY (Day 90 summary) ────
   if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_summary?.length) {
-    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span>${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
+    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="success_outcome">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
   }
 
   // ──── KPIS ────
   if (_inContent('kpis') && STATE.sections.includes('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
-    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`, '', 'kpis');
+    h += card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3" data-list="kpis">${g.kpis.map(k => `<div class="item-row p-3 rounded-lg text-center editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" data-field="kpi_metric" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" data-field="kpi_target" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div><button class="item-add export-hide" onclick="addKpi(this,'${C}','${S.mutedColor}','${S.headingColor}','${S.borderStyle.replace(/'/g,'')}')">+ Add KPI</button>`, '', 'kpis');
   }
 
   // ──── EXPERIENCE ────
   if (_inContent('experience') && STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" data-field="title" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" data-field="dates" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" data-field="company_location" style="color:${S.mutedColor}">${e.company}${e.location ? ' — ' + e.location : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" data-field="role_summary" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" data-field="bullet">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ──── LEADERSHIP ENGAGEMENT ────
   if (_inContent('leadership') && STATE.sections.includes('leadership') && g.leadership_engagement?.length) {
-    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership_engagement');
+    h += card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4" data-list="leadership-engagement">${g.leadership_engagement.map(l => `<div class="item-row p-4 rounded-lg editable" contenteditable="true" style="border:${S.borderStyle}"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><h4 class="text-sm font-semibold mb-1" data-field="leadership_title" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" data-field="leadership_org" style="color:${C}">${l.organization || ''}</p><p class="text-sm" data-field="leadership_description" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership_engagement');
   }
 
   // ──── SKILLS ────
@@ -13992,14 +14062,14 @@ function renderPreview(g, targetId) {
     const skillStyle = S.sectionLabelStyle === 'terminal'
       ? `background:${S.cardBg};border:${S.borderStyle};color:${S.textColor};font-family:${S.headingFont};font-size:0.8rem`
       : `border:${S.borderStyle};color:${S.textColor}`;
-    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text">${s}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`, '', 'skills');
+    h += card(`${sectionLabel('layers', 'Core Competencies')}<div class="grid grid-cols-2 sm:grid-cols-${sCols} gap-2" data-list="skills">${g.skills.map(s => `<div class="item-row flex items-center gap-2 px-3 py-2 rounded-lg text-sm editable" contenteditable="true" style="${skillStyle}"><i data-lucide="check-circle" style="width:14px;height:14px;color:${C};flex-shrink:0"></i><span class="skill-text" data-field="skill">${s}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:2px">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addSkill(this,'${C}','${skillStyle.replace(/'/g,'')}')">+ Add Skill</button>`, '', 'skills');
   }
 
   // ──── EDUCATION & CERTS ────
   if (_inContent('education') && STATE.sections.includes('education')) {
     let eduCert = '<div class="grid sm:grid-cols-2 gap-6">';
-    eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${(g.education || []).map(e => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addEducation(this)">+ Add Education</button>`, '', 'education');
-    eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${(g.certifications || []).map(c => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addCertification(this)">+ Add Certification</button>`, '', 'certifications');
+    eduCert += card(`${sectionLabel('graduation-cap', 'Education')}<div class="space-y-4" data-list="education">${(g.education || []).map(e => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" data-field="degree" style="color:${S.headingColor};font-family:${S.headingFont}">${e.degree}</p><p class="text-sm" data-field="school" style="color:${S.mutedColor}">${e.school}</p><p class="text-xs" data-field="year" style="color:${S.mutedColor}">${e.year || ''}</p>${e.details ? `<p class="text-xs mt-1" data-field="details" style="color:${S.mutedColor}">${e.details}</p>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addEducation(this)">+ Add Education</button>`, '', 'education');
+    eduCert += card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4" data-list="certifications">${(g.certifications || []).map(c => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" data-field="cert_name" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" data-field="cert_issuer" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" data-field="cert_year" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div><button class="item-add export-hide" onclick="addCertification(this)">+ Add Certification</button>`, '', 'certifications');
     eduCert += '</div>';
     h += eduCert;
   }
@@ -14010,13 +14080,13 @@ function renderPreview(g, targetId) {
       const aTitle = typeof a === 'string' ? a : (a.title || '');
       const aDesc = typeof a === 'string' ? '' : (a.description || '');
       const aIcon = (typeof a === 'object' && a.icon) ? a.icon : 'award';
-      return `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><div class="flex items-start gap-3"><i data-lucide="${aIcon}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" style="color:${S.headingColor}">${aTitle}</p>${aDesc ? `<p class="text-sm mt-1" style="color:${S.mutedColor}">${aDesc}</p>` : ''}</div></div></div>`;
+      return `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><div class="flex items-start gap-3"><i data-lucide="${aIcon}" style="width:18px;height:18px;color:${C};flex-shrink:0;margin-top:2px"></i><div><p class="font-semibold" data-field="achievement_title" style="color:${S.headingColor}">${aTitle}</p>${aDesc ? `<p class="text-sm mt-1" data-field="achievement_description" style="color:${S.mutedColor}">${aDesc}</p>` : ''}</div></div></div>`;
     }).join('')}</div><button class="item-add export-hide" onclick="addAchievement(this)">+ Add Achievement</button>`, '', 'achievements');
   }
 
   // ──── LEADERSHIP ────
   if (_inContent('leadership') && STATE.sections.includes('leadership') && g.leadership?.length) {
-    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership');
+    h += card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4" data-list="leadership">${g.leadership.map(l => `<div class="item-row editable" contenteditable="true"><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button><p class="font-semibold" data-field="leadership_role" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" data-field="leadership_description" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`, '', 'leadership');
   }
 
   // ──── FOOTER ────
@@ -14777,8 +14847,338 @@ function syncPreviewEditsToState(rootId) {
     return text(c);
   };
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2026-04-25 PRIMARY PASS — data-field anchored writes
+  //
+  // The legacy renderer + renderExperienceRows now emit explicit `data-field`
+  // attributes on every editable element. Read those FIRST and write through
+  // canonical helpers (setCurrentPlan for plan-shaped keys; STATE.generated
+  // mutation for resume-shaped keys, which routes to v.resume via accessor).
+  //
+  // After the primary pass, `_fieldHandled` records which top-level resume/plan
+  // keys we already wrote so the legacy positional fallback below skips them.
+  // Sections that emit no data-field anchors (e.g. compare-view markup or
+  // un-migrated PREVIEW_RENDERERS templates) still get scraped by the
+  // fallback, preserving full backwards-compat.
+  // ─────────────────────────────────────────────────────────────────────────
+  const _fieldHandled = Object.create(null);
+  const _planEdits = {};
+  const _scopeText = (scope, sel) => {
+    if (!scope) return '';
+    const el = scope.querySelector(sel);
+    return el ? text(el) : '';
+  };
+  const _scopeAll = (scope, sel) => {
+    if (!scope) return [];
+    return [...scope.querySelectorAll(sel)].map(text).filter(v => v != null);
+  };
+
+  // ── HERO (data-field) ──
+  try {
+    const hero = root.querySelector('[data-section="hero"]');
+    if (hero && g.hero) {
+      const nameEl   = hero.querySelector('[data-field="hero_name"]');
+      const titleEl  = hero.querySelector('[data-field="hero_target_title"]');
+      const compEl   = hero.querySelector('[data-field="hero_company"]');
+      const subEl    = hero.querySelector('[data-field="hero_subtitle"]');
+      const tagEl    = hero.querySelector('[data-field="hero_tagline"]');
+      let any = false;
+      if (nameEl)  { g.hero.name         = text(nameEl);   any = true; }
+      if (titleEl) { g.hero.target_title = text(titleEl);  any = true; }
+      if (compEl)  { g.hero.company      = text(compEl);   any = true; }
+      if (subEl)   { g.hero.subtitle     = text(subEl);    any = true; }
+      if (tagEl)   { g.hero.tagline      = text(tagEl);    any = true; }
+      if (any) _fieldHandled.hero = true;
+    }
+  } catch(_){}
+
+  // ── EXECUTIVE SUMMARY (data-field) ──
+  try {
+    const summaryEl = root.querySelector('[data-section="executive_summary"] [data-field="summary"]');
+    if (summaryEl) { g.executive_summary = text(summaryEl); _fieldHandled.executive_summary = true; }
+  } catch(_){}
+
+  // ── EXPERIENCE (data-field) ──
+  try {
+    const expRows = [...root.querySelectorAll('[data-section="experience"][data-exp-index]')];
+    // Filter out experience-block container (which has no data-exp-index unless it's a row)
+    const indexedRows = expRows.filter(r => r.getAttribute('data-exp-index') != null);
+    if (indexedRows.length && Array.isArray(g.experience)) {
+      const next = g.experience.map(x => x && typeof x === 'object' ? { ...x } : x);
+      let anyAnchored = false;
+      indexedRows.forEach((row, i) => {
+        const expIdxAttr = row.getAttribute('data-exp-index');
+        const idx = expIdxAttr != null && expIdxAttr !== '' ? Number(expIdxAttr) : i;
+        if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return;
+        const cur = next[idx] || {};
+        const tEl = row.querySelector('[data-field="title"]');
+        const dEl = row.querySelector('[data-field="dates"]');
+        const cEl = row.querySelector('[data-field="company_location"]');
+        const rEl = row.querySelector('[data-field="role_summary"]');
+        const bulletEls = [...row.querySelectorAll(':scope [data-list="experience-bullets"] > .bullet-row[data-bullet-index] [data-field="bullet"]')];
+        const hasAnchor = !!(tEl || dEl || cEl || rEl || bulletEls.length);
+        if (!hasAnchor) return;
+        anyAnchored = true;
+        if (tEl) cur.title = text(tEl);
+        if (dEl) cur.dates = text(dEl);
+        if (cEl) {
+          const t = text(cEl);
+          if (t.includes(' — ')) {
+            const [co, loc] = t.split(' — ');
+            cur.company = co.trim();
+            cur.location = loc.trim();
+          } else {
+            cur.company = t;
+            // Don't clobber existing location if anchor only carries company
+          }
+        }
+        if (rEl) cur.role_summary = text(rEl);
+        if (bulletEls.length) {
+          const bullets = bulletEls.map(b => (b.textContent || '').trim()).filter(Boolean);
+          cur.bullets = bullets;
+          try {
+            if (STATE.enhancedData && Array.isArray(STATE.enhancedData.experience)
+                && STATE.enhancedData.experience[idx]) {
+              STATE.enhancedData.experience[idx].bullets = [...bullets];
+            }
+          } catch(_){}
+        }
+        next[idx] = cur;
+      });
+      if (anyAnchored) {
+        // Trim to surviving rows (handles whole-row deletes)
+        const keptIndices = new Set(indexedRows.map((r, i) => {
+          const a = r.getAttribute('data-exp-index');
+          return a != null && a !== '' ? Number(a) : i;
+        }).filter(n => Number.isInteger(n) && n >= 0));
+        g.experience = next.filter((_, idx) => keptIndices.has(idx));
+        _fieldHandled.experience = true;
+      }
+    }
+  } catch(_){}
+
+  // ── SKILLS (data-field) ──
+  try {
+    const skillEls = [...root.querySelectorAll('[data-list="skills"] [data-field="skill"]')];
+    if (skillEls.length) {
+      const vals = skillEls.map(text).map(v => (v || '').trim()).filter(Boolean);
+      g.skills = vals;
+      _fieldHandled.skills = true;
+    }
+  } catch(_){}
+
+  // ── EDUCATION (data-field) ──
+  try {
+    const eduRows = [...root.querySelectorAll('[data-list="education"] > .item-row')];
+    const anyAnchored = eduRows.some(r => r.querySelector('[data-field="degree"], [data-field="school"], [data-field="year"], [data-field="details"]'));
+    if (anyAnchored && Array.isArray(g.education)) {
+      g.education = eduRows.map((row, i) => {
+        const cur = (g.education[i] && typeof g.education[i] === 'object') ? { ...g.education[i] } : {};
+        const dEl = row.querySelector('[data-field="degree"]');
+        const sEl = row.querySelector('[data-field="school"]');
+        const yEl = row.querySelector('[data-field="year"]');
+        const xEl = row.querySelector('[data-field="details"]');
+        if (dEl) cur.degree = text(dEl);
+        if (sEl) cur.school = text(sEl);
+        if (yEl) cur.year = text(yEl);
+        if (xEl) cur.details = text(xEl);
+        return cur;
+      });
+      _fieldHandled.education = true;
+    }
+  } catch(_){}
+
+  // ── CERTIFICATIONS (data-field) ──
+  try {
+    const certRows = [...root.querySelectorAll('[data-list="certifications"] > .item-row')];
+    const anyAnchored = certRows.some(r => r.querySelector('[data-field="cert_name"], [data-field="cert_issuer"], [data-field="cert_year"]'));
+    if (anyAnchored && Array.isArray(g.certifications)) {
+      g.certifications = certRows.map((row, i) => {
+        const cur = (g.certifications[i] && typeof g.certifications[i] === 'object') ? { ...g.certifications[i] } : {};
+        const nEl = row.querySelector('[data-field="cert_name"]');
+        const iEl = row.querySelector('[data-field="cert_issuer"]');
+        const yEl = row.querySelector('[data-field="cert_year"]');
+        if (nEl) cur.name = text(nEl);
+        if (iEl) cur.issuer = text(iEl);
+        if (yEl) cur.year = text(yEl);
+        return cur;
+      });
+      _fieldHandled.certifications = true;
+    }
+  } catch(_){}
+
+  // ── ACHIEVEMENTS (data-field) ──
+  try {
+    const achRows = [...root.querySelectorAll('[data-list="achievements"] > .item-row')];
+    const anyAnchored = achRows.some(r => r.querySelector('[data-field="achievement_title"], [data-field="achievement_description"]'));
+    if (anyAnchored && Array.isArray(g.achievements)) {
+      g.achievements = achRows.map((row, i) => {
+        const cur = g.achievements[i];
+        const tEl = row.querySelector('[data-field="achievement_title"]');
+        const xEl = row.querySelector('[data-field="achievement_description"]');
+        const title = tEl ? text(tEl) : '';
+        const desc  = xEl ? text(xEl) : '';
+        if (typeof cur === 'string') return title + (desc ? ' — ' + desc : '');
+        const obj = (typeof cur === 'object' && cur) ? { ...cur } : {};
+        obj.title = title;
+        if (xEl || obj.description != null) obj.description = desc;
+        return obj;
+      });
+      _fieldHandled.achievements = true;
+    }
+  } catch(_){}
+
+  // ── LEADERSHIP ENGAGEMENT (data-field) ──
+  try {
+    const leRows = [...root.querySelectorAll('[data-list="leadership-engagement"] > .item-row')];
+    const anyAnchored = leRows.some(r => r.querySelector('[data-field="leadership_title"], [data-field="leadership_org"], [data-field="leadership_description"]'));
+    if (anyAnchored && Array.isArray(g.leadership_engagement)) {
+      g.leadership_engagement = leRows.map((row, i) => {
+        const cur = (g.leadership_engagement[i] && typeof g.leadership_engagement[i] === 'object') ? { ...g.leadership_engagement[i] } : {};
+        const tEl = row.querySelector('[data-field="leadership_title"]');
+        const oEl = row.querySelector('[data-field="leadership_org"]');
+        const dEl = row.querySelector('[data-field="leadership_description"]');
+        if (tEl) cur.title = text(tEl);
+        if (oEl) cur.organization = text(oEl);
+        if (dEl) cur.description = text(dEl);
+        return cur;
+      });
+      _fieldHandled.leadership_engagement = true;
+    }
+  } catch(_){}
+
+  // ── LEADERSHIP (simple, data-field) ──
+  try {
+    const leadRows = [...root.querySelectorAll('[data-list="leadership"] > .item-row')];
+    const anyAnchored = leadRows.some(r => r.querySelector('[data-field="leadership_role"], [data-field="leadership_description"]'));
+    if (anyAnchored && Array.isArray(g.leadership)) {
+      g.leadership = leadRows.map((row, i) => {
+        const cur = (g.leadership[i] && typeof g.leadership[i] === 'object') ? { ...g.leadership[i] } : {};
+        const rEl = row.querySelector('[data-field="leadership_role"]');
+        const dEl = row.querySelector('[data-field="leadership_description"]');
+        if (rEl) cur.role = text(rEl);
+        if (dEl) cur.description = text(dEl);
+        return cur;
+      });
+      _fieldHandled.leadership = true;
+    }
+  } catch(_){}
+
+  // ── SUCCESS CRITERIA (data-field, plan) ──
+  try {
+    const sc = [...root.querySelectorAll('[data-list="criteria"] [data-field="success_criterion"]')];
+    if (sc.length) {
+      _planEdits.success_criteria = sc.map(text).map(v => (v || '').trim()).filter(Boolean);
+      g.success_criteria = _planEdits.success_criteria.slice();
+      _fieldHandled.success_criteria = true;
+    }
+  } catch(_){}
+
+  // ── SUCCESS SUMMARY (data-field, plan) ──
+  try {
+    const ss = [...root.querySelectorAll('[data-list="summary"] [data-field="success_outcome"]')];
+    if (ss.length) {
+      _planEdits.success_summary = ss.map(text).map(v => (v || '').trim()).filter(Boolean);
+      g.success_summary = _planEdits.success_summary.slice();
+      _fieldHandled.success_summary = true;
+    }
+  } catch(_){}
+
+  // ── KPIS (data-field, plan) ──
+  try {
+    const kpiRows = [...root.querySelectorAll('[data-list="kpis"] > .item-row')];
+    const anyAnchored = kpiRows.some(r => r.querySelector('[data-field="kpi_metric"], [data-field="kpi_target"]'));
+    if (anyAnchored && Array.isArray(g.kpis)) {
+      const next = kpiRows.map((row, i) => {
+        const cur = (g.kpis[i] && typeof g.kpis[i] === 'object') ? { ...g.kpis[i] } : {};
+        const mEl = row.querySelector('[data-field="kpi_metric"]');
+        const tEl = row.querySelector('[data-field="kpi_target"]');
+        if (mEl) cur.metric = text(mEl);
+        if (tEl) cur.target = text(tEl);
+        return cur;
+      });
+      _planEdits.kpis = next;
+      g.kpis = next.slice();
+      _fieldHandled.kpis = true;
+    }
+  } catch(_){}
+
+  // ── PLAN PHASES (data-field, plan) ──
+  try {
+    const phaseBlocks = [...root.querySelectorAll('[data-section="plan_phases"][data-phase-index]')];
+    if (phaseBlocks.length && Array.isArray(g.plan_phases)) {
+      const next = g.plan_phases.map(p => p && typeof p === 'object' ? { ...p } : p);
+      let any = false;
+      phaseBlocks.forEach((block, i) => {
+        const idxAttr = block.getAttribute('data-phase-index');
+        const idx = idxAttr != null && idxAttr !== '' ? Number(idxAttr) : i;
+        if (!Number.isInteger(idx) || idx < 0 || idx >= next.length) return;
+        const cur = next[idx] || {};
+        const tEl = block.querySelector('[data-field="phase_title"]');
+        const oEl = block.querySelector('[data-field="phase_objective"]');
+        const actEls = [...block.querySelectorAll('[data-field="phase_action"]')];
+        const toolEls = [...block.querySelectorAll('[data-field="phase_tool"]')];
+        const milEls = [...block.querySelectorAll('[data-field="phase_milestone"]')];
+        const evEl = block.querySelector('[data-field="phase_exec_value"]');
+        const hasAnchor = !!(tEl || oEl || actEls.length || toolEls.length || milEls.length || evEl);
+        if (!hasAnchor) return;
+        any = true;
+        if (tEl) cur.title = text(tEl);
+        if (oEl) cur.objective = text(oEl);
+        if (actEls.length) {
+          const acts = actEls.map(text).map(v => (v || '').trim()).filter(Boolean);
+          if ('actions' in cur) cur.actions = acts;
+          else if ('key_actions' in cur) cur.key_actions = acts;
+          else cur.actions = acts;
+        }
+        if (toolEls.length) {
+          const tools = toolEls.map(text).map(v => (v || '').trim()).filter(Boolean);
+          if (Array.isArray(cur.tools) && cur.tools.length && typeof cur.tools[0] === 'object') {
+            cur.tools = tools.map(t => ({ name: t }));
+          } else if ('tools_and_technology' in cur) {
+            cur.tools_and_technology = tools;
+          } else {
+            cur.tools = tools;
+          }
+        }
+        if (milEls.length) cur.milestones = milEls.map(text).map(v => (v || '').trim()).filter(Boolean);
+        if (evEl) {
+          if ('exec_value' in cur) cur.exec_value = text(evEl);
+          else if ('executive_value' in cur) cur.executive_value = text(evEl);
+          else if ('value' in cur) cur.value = text(evEl);
+          else cur.exec_value = text(evEl);
+        }
+        next[idx] = cur;
+      });
+      if (any) {
+        _planEdits.plan_phases = next;
+        g.plan_phases = next.slice();
+        _fieldHandled.plan_phases = true;
+      }
+    }
+  } catch(_){}
+
+  // Skip the legacy positional pass for sections we already handled above.
+  // The fallback pass is kept intact for sections whose markup hasn't been
+  // anchored yet (compare view, un-migrated templates, etc.).
+  const _hasAnyAnchor = !!(_fieldHandled.hero || _fieldHandled.experience
+    || _fieldHandled.skills || _fieldHandled.education
+    || _fieldHandled.certifications || _fieldHandled.achievements
+    || _fieldHandled.executive_summary || _fieldHandled.leadership_engagement
+    || _fieldHandled.leadership || _fieldHandled.success_criteria
+    || _fieldHandled.success_summary || _fieldHandled.kpis
+    || _fieldHandled.plan_phases);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // FALLBACK PASS — legacy positional scrapes
+  // Runs ONLY for sections the primary anchored pass didn't handle. This
+  // preserves backwards-compat with markup that doesn't yet emit
+  // `data-field` attributes (e.g. compare-view, third-party templates).
+  // ─────────────────────────────────────────────────────────────────────────
+
   // ── HERO (name, title, company, tagline) ──
   try {
+    if (_fieldHandled.hero) throw 0;
     const hero = root.querySelector('[data-section="hero"]');
     if (hero && g.hero) {
       const h1 = hero.querySelector('h1.editable[contenteditable="true"]');
@@ -14796,6 +15196,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── EXECUTIVE SUMMARY ──
   try {
+    if (_fieldHandled.executive_summary) throw 0;
     const sum = root.querySelector('[data-section="executive_summary"] .editable[contenteditable="true"]');
     if (sum && g.executive_summary != null) g.executive_summary = text(sum);
   } catch(_){}
@@ -14811,6 +15212,7 @@ function syncPreviewEditsToState(rootId) {
   // refresh. Skip overwrite when the legacy anchor is absent.
   const scrapeStringList = (listName, target, innerSelector) => {
     try {
+      if (_fieldHandled[target]) return;
       const list = root.querySelector(`[data-list="${listName}"]`);
       if (!list) return;
       const rows = [...list.querySelectorAll(':scope > .item-row')];
@@ -14831,6 +15233,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── KPIs (metric + target) ──
   try {
+    if (_fieldHandled.kpis) throw 0;
     const kpiList = root.querySelector('[data-list="kpis"]');
     if (kpiList && Array.isArray(g.kpis)) {
       const rows = [...kpiList.querySelectorAll(':scope > .item-row')];
@@ -14845,6 +15248,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── EXPERIENCE ──
   try {
+    if (_fieldHandled.experience) throw 0;
     const expList = root.querySelector('[data-list="experience"]');
     if (expList && Array.isArray(g.experience)) {
       // 2026-04-25 BUG-FIX: strict scope to .experience-row[data-exp-index]
@@ -14919,6 +15323,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── PLAN PHASES (title, objective, actions, tools) ──
   try {
+    if (_fieldHandled.plan_phases) throw 0;
     const planWrap = root.querySelector('[data-section="plan_phases"]');
     if (planWrap && Array.isArray(g.plan_phases)) {
       // Each phase is emitted as a sibling div. Grab h3.editable per block.
@@ -14959,6 +15364,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── EDUCATION ──
   try {
+    if (_fieldHandled.education) throw 0;
     const eduList = root.querySelector('[data-list="education"]');
     if (eduList && Array.isArray(g.education)) {
       const rows = [...eduList.querySelectorAll(':scope > .item-row')];
@@ -14977,6 +15383,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── CERTIFICATIONS ──
   try {
+    if (_fieldHandled.certifications) throw 0;
     const certList = root.querySelector('[data-list="certifications"]');
     if (certList && Array.isArray(g.certifications)) {
       const rows = [...certList.querySelectorAll(':scope > .item-row')];
@@ -14994,6 +15401,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── ACHIEVEMENTS ──
   try {
+    if (_fieldHandled.achievements) throw 0;
     const achList = root.querySelector('[data-list="achievements"]');
     if (achList && Array.isArray(g.achievements)) {
       const rows = [...achList.querySelectorAll(':scope > .item-row')];
@@ -15016,6 +15424,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── LEADERSHIP (simple) ──
   try {
+    if (_fieldHandled.leadership) throw 0;
     const leadList = root.querySelector('[data-list="leadership"]');
     if (leadList && Array.isArray(g.leadership)) {
       const rows = [...leadList.querySelectorAll(':scope > .item-row')];
@@ -15032,6 +15441,7 @@ function syncPreviewEditsToState(rootId) {
 
   // ── LEADERSHIP ENGAGEMENT ──
   try {
+    if (_fieldHandled.leadership_engagement) throw 0;
     const leList = root.querySelector('[data-list="leadership-engagement"]');
     if (leList && Array.isArray(g.leadership_engagement)) {
       const rows = [...leList.querySelectorAll(':scope > .item-row')];
@@ -15066,11 +15476,86 @@ function syncPreviewEditsToState(rootId) {
   //   • Stored About Me data remains untouched for future resumes.
   //   • AI enhance can still fill fields generated doesn't have.
 
+  // 2026-04-25 workspace refactor: mirror plan-shaped keys from `g`
+  // (== getCurrentResume()) into the canonical `getCurrentPlan()` bucket.
+  // The legacy renderer/scraper writes to `g.plan_phases` / `g.success_*`
+  // in place; without this mirror, edits to plan content would land only
+  // in v.resume and never reach v.plan.
+  try {
+    if (typeof getCurrentPlan === 'function' && typeof setCurrentPlan === 'function') {
+      const _plan = Object.assign({}, getCurrentPlan() || {});
+      let _planChanged = false;
+      // Prefer the freshly-anchored values from the primary data-field pass
+      // when present (they're already cloned-safe object structures), and
+      // fall back to mirroring whatever the legacy positional pass wrote
+      // onto `g`.
+      ['plan_phases','success_summary','success_criteria','kpis','horizon','days90','months12','years2'].forEach(k => {
+        const v = (_planEdits && _planEdits[k] !== undefined) ? _planEdits[k] : g[k];
+        if (v !== undefined) {
+          _plan[k] = (typeof structuredClone === 'function')
+            ? structuredClone(v)
+            : JSON.parse(JSON.stringify(v));
+          _planChanged = true;
+        }
+      });
+      if (_planChanged) setCurrentPlan(_plan);
+    }
+  } catch(_){}
+
   // Cache is now stale — force buildExportModel to rebuild from the updated state
   try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
 }
 // Expose for console debugging / tests
 try { window.__syncPreviewEditsToState = syncPreviewEditsToState; } catch(_){}
+
+// 2026-04-25 BUG-FIX: canonical name for the rebuilt scrape. Old name kept
+// as alias for backwards-compat (blur listener and any external callers).
+const syncExportEditsToWorkspace = syncPreviewEditsToState;
+try { window.syncExportEditsToWorkspace = syncExportEditsToWorkspace; } catch(_){}
+
+// 2026-04-25 BUG-FIX: validation helper for the editable-field write-back
+// path. Returns a snapshot of the active version's resume + plan state so
+// users can confirm edits actually persisted. Use in DevTools after a blur:
+//   syncExportEditsToWorkspace('preview-container');
+//   debugEditableSync();
+try {
+  window.debugEditableSync = function () {
+    let v = null, ws = null;
+    try { v = getActiveVersion(); } catch(_){}
+    try { ws = (typeof getWorkspace === 'function') ? getWorkspace() : null; } catch(_){}
+    const r = (v && v.resume) || {};
+    const p = (v && v.plan)   || {};
+    const a = (v && v.analysis) || null;
+    return {
+      activeVersionId:   ws && ws.activeVersionId || null,
+      resumeInitialized: !!(v && v._resumeInitialized),
+      hero:              r.hero ? { ...r.hero } : null,
+      executive_summary: r.executive_summary || '',
+      experience: (r.experience || []).map(e => ({
+        title:        e && e.title || '',
+        company:      e && e.company || '',
+        location:     e && e.location || '',
+        dates:        e && e.dates || '',
+        role_summary: e && e.role_summary || '',
+        bullets:      Array.isArray(e && e.bullets) ? e.bullets.slice() : []
+      })),
+      skills:         Array.isArray(r.skills) ? r.skills.slice() : [],
+      achievements:   Array.isArray(r.achievements) ? r.achievements.slice() : [],
+      education:      Array.isArray(r.education) ? r.education.slice() : [],
+      certifications: Array.isArray(r.certifications) ? r.certifications.slice() : [],
+      leadership_engagement: Array.isArray(r.leadership_engagement) ? r.leadership_engagement.slice() : [],
+      leadership:     Array.isArray(r.leadership) ? r.leadership.slice() : [],
+      plan: {
+        plan_phases:     Array.isArray(p.plan_phases) ? p.plan_phases.slice() : [],
+        success_summary: Array.isArray(p.success_summary) ? p.success_summary.slice() : [],
+        success_criteria: Array.isArray(p.success_criteria) ? p.success_criteria.slice() : [],
+        kpis:            Array.isArray(p.kpis) ? p.kpis.slice() : [],
+        horizon:         p.horizon || null
+      },
+      analysis: a ? Object.keys(a) : []
+    };
+  };
+} catch(_){}
 
 // Normalize a bullet list into plain strings. Some upstream paths store bullets
 // as {text} / {action}; the export must get a flat string[] every time.
@@ -15477,16 +15962,33 @@ function buildExportModel(opts) {
   // ---- Structured Plan (90-day / 12-month / 2-year) ----
   // 2026-04-25 workspace refactor: opts.includePlan controls whether plan
   // content (plan_phases / success_summary / kpis) is included in the
-  // returned model. Default true preserves legacy behavior; resume-only
-  // exporters can pass `{ includePlan: false }` to exclude plan from the
-  // exported document. The opts.includePlanOnly flag conversely returns
-  // ONLY plan content (caller is exporting a plan-only document).
-  const includePlan = (o.includePlan === undefined) ? true : !!o.includePlan;
-  // The backend currently returns one horizon at a time under generated.plan_phases.
+  // returned model.
+  //   - When the caller passes opts.format (i.e. an exporter), default is
+  //     FALSE — resume export is resume-only by default per spec. Exporters
+  //     that want a combined document must pass `{ includePlan: true }`.
+  //   - When no format is passed (preview path / cache build), default is
+  //     TRUE so combined preview keeps showing plan content.
+  //   - opts.includePlan, when explicitly set, always wins.
+  const _includePlanDefault = (o.format === undefined);
+  const includePlan = (o.includePlan === undefined) ? _includePlanDefault : !!o.includePlan;
+  // 2026-04-25 workspace refactor: read plan content from the canonical
+  // `version.plan` bucket via getCurrentPlan(). Fall back to generated.*
+  // (== version.resume.*) for legacy plans loaded before the split.
+  let _planSrc = {};
+  try { _planSrc = (typeof getCurrentPlan === 'function' ? (getCurrentPlan() || {}) : {}); } catch(_){ _planSrc = {}; }
+  const _planPhasesSrc      = (Array.isArray(_planSrc.plan_phases)     && _planSrc.plan_phases.length)     ? _planSrc.plan_phases
+                            : ((enh && enh.plan_phases) || generated.plan_phases || []);
+  const _successCriteriaSrc = Array.isArray(_planSrc.success_criteria) ? _planSrc.success_criteria
+                            : (Array.isArray(generated.success_criteria) ? generated.success_criteria : []);
+  const _successSummarySrc  = Array.isArray(_planSrc.success_summary)  ? _planSrc.success_summary
+                            : (Array.isArray(generated.success_summary)  ? generated.success_summary  : []);
+  const _kpisSrc            = Array.isArray(_planSrc.kpis)             ? _planSrc.kpis
+                            : (Array.isArray(generated.kpis)             ? generated.kpis             : []);
+  // The backend currently returns one horizon at a time under plan.plan_phases.
   // We normalize those phases into a uniform milestone[] and expose the active
   // horizon under the requested tri-bucket shape. Hidden/other horizons stay [].
   const planMilestones = includePlan
-    ? _normalizePlanMilestones((enh && enh.plan_phases) || generated.plan_phases || [], STATE.planType)
+    ? _normalizePlanMilestones(_planPhasesSrc, STATE.planType)
     : [];
   const plan = includePlan ? {
     horizon: STATE.planType || '90-day',
@@ -15494,9 +15996,9 @@ function buildExportModel(opts) {
     days90:   (STATE.planType === '90-day')   ? planMilestones : [],
     months12: (STATE.planType === '12-month') ? planMilestones : [],
     years2:   (STATE.planType === '2-year')   ? planMilestones : [],
-    success_criteria: Array.isArray(generated.success_criteria) ? generated.success_criteria.slice() : [],
-    success_summary:  Array.isArray(generated.success_summary)  ? generated.success_summary.slice()  : [],
-    kpis:             Array.isArray(generated.kpis)             ? JSON.parse(JSON.stringify(generated.kpis)) : []
+    success_criteria: _successCriteriaSrc.slice(),
+    success_summary:  _successSummarySrc.slice(),
+    kpis:             JSON.parse(JSON.stringify(_kpisSrc || []))
   } : {
     horizon: STATE.planType || '90-day',
     milestones: [],
