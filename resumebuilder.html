@@ -317,6 +317,14 @@
   /* Remove browser outline on editable items, use custom border instead */
   .item-row[contenteditable="true"]:focus{outline:none;box-shadow:0 0 0 2px rgba(59,130,246,0.3);border-radius:4px}
   .item-row .item-del,.item-row .item-vis-toggle,.item-row .item-edit-btn{display:none!important}
+  /* 2026-04-25 BUG-FIX: bullets emitted by renderExperienceRows() carry the
+     .bullet-row class and ship their own absolutely-positioned ✕ button.
+     Reveal that button on hover/focus so desktop users can actually click
+     it (the global rule above hides every .item-del; this override is
+     scoped strictly to .bullet-row so other item-rows still rely on the
+     mobile-action-bar pattern). */
+  .item-row.bullet-row:hover > .item-del,
+  .item-row.bullet-row:focus-within > .item-del{display:inline-flex!important;align-items:center;justify-content:center}
   .item-add{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:6px;border:1px dashed #D1D5DB;background:transparent;color:#6B7280;font-size:12px;cursor:pointer;transition:all 0.2s;margin-top:6px}
   .item-add:hover{border-color:var(--c-primary,#005EB8);color:var(--c-primary,#005EB8);background:color-mix(in srgb,var(--c-primary,#005EB8) 5%,transparent)}
   .export-hide{ display:inline-block; }
@@ -13919,6 +13927,22 @@ function showMobileActionBar(row) {
       bar.remove(); showMobileActionBar(row);
     }
     else if (action === 'del') {
+      // 2026-04-25 BUG-FIX: route bullet deletes through the canonical
+      // splice path so STATE.generated + STATE.enhancedData stay in sync
+      // and the next live-sync rerender does not re-introduce the bullet
+      // from a stale model. Non-bullet rows fall back to scrape-rerender.
+      const isBullet = row.classList.contains('bullet-row') && row.dataset && row.dataset.bulletIndex != null;
+      if (isBullet && typeof removeExperienceBulletFromState === 'function'
+          && removeExperienceBulletFromState(row)) {
+        row.remove();
+        if (typeof invalidateExportModel === 'function') { try { invalidateExportModel(); } catch(_){} }
+        if (typeof markDirty === 'function') markDirty();
+        if (typeof renderPreview === 'function') {
+          try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
+          try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+        }
+        return;
+      }
       const parent = row.parentElement;
       row.remove();
       _syncContainingPreview(parent);
