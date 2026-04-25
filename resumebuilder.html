@@ -13510,10 +13510,66 @@ function _syncContainingPreview(el) {
 function removeItem(btn) {
   const row = btn.closest('.item-row') || btn.parentElement;
   if (!row) return;
+  // 2026-04-24 BUG-FIX: when the user deletes an experience BULLET, mutate
+  // STATE directly via data-exp-index/data-bullet-index (the only anchors we
+  // can trust), then rerender from STATE. Scrape-then-render is fragile if
+  // the row about to be removed shares a container with bullets we did NOT
+  // mean to touch — direct splice on the canonical STATE.generated array
+  // (and the matching enhancedData copy) eliminates that whole class of
+  // cross-contamination. resumeData is the import/profile library and must
+  // NOT be mutated here.
+  if (typeof removeExperienceBulletFromState === 'function' && removeExperienceBulletFromState(row)) {
+    row.remove();
+    if (typeof markDirty === 'function') markDirty();
+    if (typeof renderPreview === 'function') {
+      try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
+      try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+    }
+    return;
+  }
+  // Fallback (skills, KPIs, education, certs, achievements, whole experience
+  // rows etc.): scrape DOM into STATE then mark dirty so the debounced live
+  // rerender repaints from fresh STATE.
   const parent = row.parentElement; // capture before removal — closest() won't work post-detach
   row.remove();
   _syncContainingPreview(parent);
   markDirty();
+}
+
+// 2026-04-24 BUG-FIX: dedicated helper — splice a single experience bullet
+// out of STATE.generated AND STATE.enhancedData using DOM data-* anchors.
+// Returns true iff the row was a bullet and STATE was mutated.
+function removeExperienceBulletFromState(row) {
+  try {
+    if (!row || !row.closest) return false;
+    const bullet = row.matches && row.matches('[data-bullet-index]') ? row : row.closest('[data-bullet-index]');
+    const expRow = row.closest('[data-exp-index][data-section="experience"]') || row.closest('[data-exp-index]');
+    if (!bullet || !expRow) return false;
+    const expIndex = Number(expRow.getAttribute('data-exp-index'));
+    const bulletIndex = Number(bullet.getAttribute('data-bullet-index'));
+    if (!Number.isInteger(expIndex) || expIndex < 0) return false;
+    if (!Number.isInteger(bulletIndex) || bulletIndex < 0) return false;
+    const sources = [
+      (typeof STATE !== 'undefined') ? STATE.generated : null,
+      (typeof STATE !== 'undefined') ? STATE.enhancedData : null
+    ];
+    let mutated = false;
+    sources.forEach(src => {
+      if (!src || !Array.isArray(src.experience)) return;
+      const exp = src.experience[expIndex];
+      if (!exp || !Array.isArray(exp.bullets)) return;
+      if (bulletIndex >= exp.bullets.length) return;
+      exp.bullets.splice(bulletIndex, 1);
+      mutated = true;
+    });
+    if (mutated && typeof invalidateExportModel === 'function') {
+      try { invalidateExportModel(); } catch(_){}
+    }
+    return mutated;
+  } catch(e) {
+    try { console.warn('[removeExperienceBulletFromState] failed:', e?.message); } catch(_){}
+    return false;
+  }
 }
 
 function editItemRow(btn) {
@@ -13978,12 +14034,15 @@ function syncPreviewEditsToState(rootId) {
         }
         // role_summary = second direct p (only present if originally had one)
         if (directPs[1] && cur.role_summary != null) cur.role_summary = text(directPs[1]);
-        // Bullets — ONLY scan within this row's own bullet list (scoped by
-        // data-list="bullets" descendant of this row) so Job #2's bullets
-        // never leak into Job #1's STATE entry.
-        const bulletList = row.querySelector('[data-list="bullets"]');
+        // Bullets — ONLY scan within this row's own bullet list. Prefer the
+        // canonical [data-list="experience-bullets"] anchor; fall back to the
+        // legacy [data-list="bullets"] anchor for older templates. Either way
+        // the lookup is :scope-restricted to *this* row, so Job #2's bullets
+        // can never leak into Job #1's STATE entry.
+        const bulletList = row.querySelector(':scope [data-list="experience-bullets"]')
+                        || row.querySelector(':scope [data-list="bullets"]');
         if (bulletList) {
-          const bullets = [...bulletList.querySelectorAll(':scope > li.item-row')]
+          const bullets = [...bulletList.querySelectorAll(':scope > li, :scope > .item-row')]
             .map(li => text(li.querySelector('.bullet-text') || li))
             .filter(Boolean);
           cur.bullets = bullets;
@@ -14902,7 +14961,7 @@ try {
       const pv = document.getElementById('preview-container');
       const expList = pv && pv.querySelector('[data-list="experience"]');
       const firstExpRow = expList && expList.querySelector(':scope > .item-row');
-      const firstBullet = firstExpRow && firstExpRow.querySelector('[data-list="bullets"] > li.item-row');
+      const firstBullet = firstExpRow && (firstExpRow.querySelector('[data-list="experience-bullets"] > li, [data-list="experience-bullets"] > .item-row') || firstExpRow.querySelector('[data-list="bullets"] > li.item-row'));
       const delBtn = firstBullet && firstBullet.querySelector('.item-del');
       if (!delBtn) {
         add('6. delete persistence', false, 'no bullet with × button found in #preview-container');
@@ -14918,8 +14977,8 @@ try {
             throw e;
           }
           const countAfter = (STATE.generated.experience[0]?.bullets || []).length;
-          const domBulletStillThere = !!(expList.querySelector(':scope > .item-row [data-list="bullets"] > li.item-row .bullet-text')
-            && [...expList.querySelectorAll(':scope > .item-row [data-list="bullets"] > li.item-row')]
+          const domBulletStillThere = !!(expList.querySelector(':scope > .item-row [data-list="experience-bullets"] > li .bullet-text, :scope > .item-row [data-list="bullets"] > li.item-row .bullet-text')
+            && [...expList.querySelectorAll(':scope > .item-row [data-list="experience-bullets"] > li, :scope > .item-row [data-list="bullets"] > li.item-row')]
                .some(li => (li.querySelector('.bullet-text') || li).textContent.trim() === bulletTextBefore));
           const pass = (countAfter === countBefore - 1) && !domBulletStillThere;
           add('6. delete persistence', pass,
@@ -14951,7 +15010,7 @@ try {
           const expRows = expList ? [...expList.querySelectorAll(':scope > .item-row')] : [];
           // Prefer data-exp-index=1; fallback to positional.
           const job2Row = expRows.find(r => r.getAttribute && r.getAttribute('data-exp-index') === '1') || expRows[1];
-          const job2Bullets = job2Row && [...job2Row.querySelectorAll('[data-list="bullets"] > li.item-row')];
+          const job2Bullets = job2Row && [...job2Row.querySelectorAll('[data-list="experience-bullets"] > li, [data-list="bullets"] > li.item-row')];
           const lastBulletBtn = job2Bullets && job2Bullets[job2Bullets.length - 1] && job2Bullets[job2Bullets.length - 1].querySelector('.item-del');
           if (!lastBulletBtn) {
             add('7. cross-role isolation', false, 'could not locate Job #2 last-bullet × button');
@@ -14996,7 +15055,7 @@ try {
           rows.forEach((row, i) => {
             const idxAttr = row.getAttribute && row.getAttribute('data-exp-index');
             const idx = idxAttr != null && idxAttr !== '' ? Number(idxAttr) : i;
-            const domCount = [...row.querySelectorAll('[data-list="bullets"] > li.item-row')].length;
+            const domCount = [...row.querySelectorAll('[data-list="experience-bullets"] > li, [data-list="bullets"] > li.item-row')].length;
             if (Number.isInteger(idx) && idx < expected.length && domCount !== expected[idx]) {
               mismatches.push(cid + '[' + idx + ']: model=' + expected[idx] + ' dom=' + domCount);
             }
@@ -15021,6 +15080,50 @@ try {
     console.table(results);
     console.groupEnd();
     return { passed, total, results };
+  };
+} catch(_){}
+
+// ============================================================================
+// 2026-04-24 BUG-FIX: bullet-isolation QA helper.
+// Run from DevTools: window.testJobBulletIsolation()
+// Captures Job #1 + Job #2 bullets BEFORE any mutation and again AFTER, so the
+// caller can verify that deleting/editing a bullet on one job left the other
+// completely untouched.
+// ============================================================================
+try {
+  window.testJobBulletIsolation = function testJobBulletIsolation() {
+    const snapshot = () => {
+      const exp = (STATE && STATE.generated && Array.isArray(STATE.generated.experience))
+        ? STATE.generated.experience : [];
+      return {
+        job1: { title: exp[0]?.title || '', bullets: (exp[0]?.bullets || []).slice() },
+        job2: { title: exp[1]?.title || '', bullets: (exp[1]?.bullets || []).slice() }
+      };
+    };
+    const cache = window.__bulletIsoCache = window.__bulletIsoCache || { job1Before: null, job2Before: null };
+    if (!cache.job1Before) {
+      const s = snapshot();
+      cache.job1Before = s.job1;
+      cache.job2Before = s.job2;
+      console.log('[testJobBulletIsolation] BEFORE captured. Mutate a bullet, then call again.');
+      return { job1Before: cache.job1Before, job2Before: cache.job2Before, current: s };
+    }
+    const current = snapshot();
+    const out = { job1Before: cache.job1Before, job2Before: cache.job2Before, current };
+    const job2Untouched = JSON.stringify(current.job2.bullets) === JSON.stringify(cache.job2Before.bullets);
+    const job1Untouched = JSON.stringify(current.job1.bullets) === JSON.stringify(cache.job1Before.bullets);
+    console.group('%c[testJobBulletIsolation]', job1Untouched && job2Untouched ? 'color:#059669;font-weight:700' : 'color:#DC2626;font-weight:700');
+    console.log('Job #1 (' + current.job1.title + ') unchanged from baseline:', job1Untouched);
+    console.log('Job #2 (' + current.job2.title + ') unchanged from baseline:', job2Untouched);
+    console.log('To reset baseline: delete window.__bulletIsoCache');
+    console.table([
+      { job: '1 before', bullets: cache.job1Before.bullets.join(' | ') },
+      { job: '1 now',    bullets: current.job1.bullets.join(' | ') },
+      { job: '2 before', bullets: cache.job2Before.bullets.join(' | ') },
+      { job: '2 now',    bullets: current.job2.bullets.join(' | ') }
+    ]);
+    console.groupEnd();
+    return out;
   };
 } catch(_){}
 
@@ -17622,7 +17725,7 @@ function highlightAIChanges() {
     const oldMatch = oldExp.find(o => matchKey(o) === matchKey(ne)) || oldExp[i];
     const ob = oldMatch?.bullets || [];
     const nb = ne.bullets || [];
-    const lis = block.querySelectorAll('[data-list="bullets"] > li');
+    const lis = block.querySelectorAll('[data-list="experience-bullets"] > li, [data-list="bullets"] > li');
     lis.forEach((li, j) => {
       if (j < nb.length && j < ob.length && nb[j] !== ob[j]) {
         li.classList.add('ai-changed');
