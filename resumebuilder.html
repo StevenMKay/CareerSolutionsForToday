@@ -1023,34 +1023,6 @@
       </div>
     </div>
   </div>
-</header>
-
-<!-- =====================================================================
-     Horizontal Top Stepper — 4-step flow (workspace-first, preview read-only).
-     SYNC CONTRACT (keep in lockstep if you ever add/remove/rename a step):
-       (a) ACCORDION_MAP in <script>           (search: "ACCORDION_MAP = ")
-       (b) goToStepDirect stepToAcc map         (function goToStepDirect)
-       (c) RB_TOUR STEPS array anchors/actions (search: "const STEPS")
-       (d) every numeric toggleAccordion(N) / .ts-step[data-step="N"] usage
-       (e) any mirrored builder copy (e.g. resumebuildertest.html, Android
-           WebView copy in "Android App Files - Resume Portfolio/")
-     Current map: 1=Build/Edit Workspace · 2=Optimize · 3=Choose Style · 4=Preview & Export
-     ===================================================================== -->
-<nav id="top-stepper" class="top-stepper hidden" aria-label="Builder steps">
-  <div class="top-stepper-inner">
-    <button type="button" class="ts-step active" data-step="1" onclick="toggleAccordion(1)" aria-current="step">
-      <span class="ts-dot" id="ts-dot-1"><i data-lucide="user" style="width:12px;height:12px"></i></span>
-      <span class="ts-label">Build / Edit Workspace</span>
-      <span class="ts-pct" id="ts-pct-1">0%</span>
-    </button>
-    <button type="button" class="ts-step" data-step="2" onclick="toggleAccordion(2)">
-      <span class="ts-dot" id="ts-dot-2"><i data-lucide="sparkles" style="width:12px;height:12px"></i></span>
-      <span class="ts-label">Optimize</span>
-      <span class="ts-pct" id="ts-pct-2">0%</span>
-    </button>
-    <button type="button" class="ts-step" data-step="3" onclick="toggleAccordion(3)">
-      <span class="ts-dot" id="ts-dot-3"><i data-lucide="paintbrush" style="width:12px;height:12px"></i></span>
-      <span class="ts-label">Choose Style</span>
       <span class="ts-pct" id="ts-pct-3">0%</span>
     </button>
     <button type="button" class="ts-step" data-step="4" onclick="toggleAccordion(4)">
@@ -3975,8 +3947,6 @@ function runControlledRefactorChecks(trigger) {
     console.groupCollapsed('[RB-REF-CHECK] ' + check.trigger);
     console.table(check);
     console.log('getResumeDraft()', resumeDraft);
-    console.log('getActiveVersion().plan', (v && v.plan) || {});
-    console.log('getActiveVersion().cv', (v && v.cv) || {});
     if (!check.previewReadOnlyPass) {
       console.warn('[RB-REF-CHECK] Preview is editable. Expected document.querySelectorAll("[contenteditable]").length === 0');
     }
@@ -3996,6 +3966,21 @@ try {
   window.runControlledRefactorChecks = runControlledRefactorChecks;
   window.scheduleControlledRefactorChecks = _scheduleControlledRefactorChecks;
 } catch(_){ }
+window.debugWorkspacePersistence = function () {
+  const v = getActiveVersion();
+  const w = getWorkspace();
+
+  return {
+    profileKeys: Object.keys(w.profile || {}),
+    resumeDraftKeys: Object.keys(v.resumeDraft || {}),
+    resumeDraftExperienceCount: v.resumeDraft?.experience?.length || 0,
+    resumeDraftEducationCount: v.resumeDraft?.education?.length || 0,
+    resumeDraftSkillsCount: v.resumeDraft?.skills?.length || 0,
+    savedPayloadPreview: typeof buildPersistencePayload === 'function'
+      ? buildPersistencePayload()
+      : null
+  };
+};
 
 // Profile helpers — global
 function getProfileData() { return getWorkspace().profile; }
@@ -10416,7 +10401,12 @@ async function parseResume() {
     await handleBuilderResponse(res);
     const data = await res.json();
     if (data.error) { throw new Error(data.error); }
-    const extractedData = data.resume_data || {};
+    const extractedData =
+      data.resume_data ||
+      data.resumeData ||
+      data.parsedResume ||
+      data.resume ||
+      data;
     STATE.resumeData = extractedData;
     try { persistExtractedDataToWorkspace(extractedData); } catch(_){ }
     STATE.rawResumeText = data.raw_text || text;
@@ -14654,7 +14644,7 @@ function disablePreviewEditing(root = document) {
     el.removeAttribute('contenteditable');
   });
   root.querySelectorAll('.item-del, .mobile-action-bar').forEach(el => el.remove());
-  root.querySelectorAll('.item-add,.item-edit-btn,.item-vis-toggle,.editable-action-bar,.editable-done-bar,.drag-handle').forEach(el => el.remove());
+  root.querySelectorAll('.item-add,.item-edit-btn,.item-vis-toggle,.editable-action-bar,.editable-done-bar,.drag-handle,.export-hide').forEach(el => el.remove());
   root.querySelectorAll('.editable-tapped,.item-tapped,.item-editing,.editing-active').forEach(el => {
     el.classList.remove('editable-tapped', 'item-tapped', 'item-editing', 'editing-active');
   });
@@ -14786,7 +14776,12 @@ window.refreshDocumentPreview = function(btn){
   }
 };
 
+let __renderPreviewBusy = false;
+
 function renderPreview(g, targetId) {
+  if (__renderPreviewBusy) return;
+  __renderPreviewBusy = true;
+  try {
   const containerId = targetId || 'preview-container';
   // ─── Preview ↔ Model routing ───
   // If the caller handed us STATE.generated (or nothing), we route through the
@@ -15179,201 +15174,22 @@ function renderPreview(g, targetId) {
     initDragAndDrop();
     initEditableTouchHandlers();
   }
-  try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('renderPreview'); } catch(_){ }
   // Update right panel with resume data
   if (typeof updateRightPanel === 'function') updateRightPanel();
+  } finally {
+    __renderPreviewBusy = false;
+  }
 }
 
 // ============ Drag-and-Drop Reordering ============
 function initDragAndDrop() {
-  const gripSVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="4" r="1.5"/><circle cx="15" cy="4" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="20" r="1.5"/><circle cx="15" cy="20" r="1.5"/></svg>';
-  let _dragItem = null;
-  document.querySelectorAll('#preview-container [data-list], #preview-container-b [data-list], #preview-container-export [data-list]').forEach(container => {
-    const items = [...container.querySelectorAll(':scope > .item-row')];
-    // Inject action bars into all item-rows (desktop + mobile)
-    items.forEach(item => {
-      if (!item.querySelector('.mobile-action-bar')) showMobileActionBar(item);
-    });
-    if (items.length < 2) return;
-    items.forEach(item => {
-      if (item.querySelector('.drag-handle')) return;
-      const handle = document.createElement('span');
-      handle.className = 'drag-handle export-hide';
-      handle.setAttribute('contenteditable', 'false');
-      handle.innerHTML = gripSVG;
-      item.insertBefore(handle, item.firstChild);
-      handle.addEventListener('mousedown', () => item.setAttribute('draggable', 'true'));
-    });
-    container.addEventListener('dragstart', (e) => {
-      const item = e.target.closest('.item-row');
-      if (!item || item.parentNode !== container || item.getAttribute('draggable') !== 'true') { e.preventDefault(); return; }
-      _dragItem = item;
-      item.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
-    });
-    container.addEventListener('dragover', (e) => {
-      if (!_dragItem) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-      const after = _getDragAfter(container, e.clientY);
-      if (after && after !== _dragItem) after.classList.add('drag-over');
-    });
-    container.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (!_dragItem) return;
-      const after = _getDragAfter(container, e.clientY);
-      if (after) container.insertBefore(_dragItem, after);
-      else container.appendChild(_dragItem);
-    });
-    container.addEventListener('dragend', () => {
-      if (_dragItem) { _dragItem.classList.remove('dragging'); _dragItem.removeAttribute('draggable'); _dragItem = null; }
-      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-      markDirty();
-    });
-    // ── Touch: tap toggles action icons, long-press (500ms) drags ──
-    let _tItem = null, _tClone = null, _tTimer = null, _tActive = false, _tMoved = false, _tLastY = 0;
-    container.addEventListener('touchstart', (e) => {
-      _tMoved = false;
-      // Tap on action bar / vis-toggle / del / edit button — let their onclick fire
-      if (e.target.closest('.mobile-action-bar') || e.target.closest('.item-vis-toggle') || e.target.closest('.item-del') || e.target.closest('.item-edit-btn')) return;
-      const item = e.target.closest('.item-row');
-      if (!item || item.parentNode !== container) return;
-      // Don't interfere with active editing
-      if (item.classList.contains('item-editing')) return;
-      // Suppress contenteditable to prevent keyboard/focus on touch
-      if (item.getAttribute('contenteditable') === 'true') item.setAttribute('contenteditable', 'false');
-      item.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
-      _tItem = item;
-      const t = e.touches[0];
-      _tLastY = t.clientY;
-      _tTimer = setTimeout(() => {
-        _tActive = true;
-        item.style.userSelect = 'none';
-        item.classList.add('dragging');
-        _tClone = item.cloneNode(true);
-        _tClone.style.cssText = 'position:fixed;z-index:1000;pointer-events:none;opacity:0.85;width:' + item.offsetWidth + 'px;left:' + item.getBoundingClientRect().left + 'px;top:' + (t.clientY - 20) + 'px;background:#fff;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.2)';
-        document.body.appendChild(_tClone);
-        if (navigator.vibrate) navigator.vibrate(30);
-      }, 500);
-    }, {passive: true});
-    container.addEventListener('touchmove', (e) => {
-      _tMoved = true;
-      if (!_tActive) { if (_tTimer) { clearTimeout(_tTimer); _tTimer = null; } return; }
-      e.preventDefault();
-      const y = e.touches[0].clientY;
-      _tLastY = y;
-      if (_tClone) _tClone.style.top = (y - 20) + 'px';
-      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-      const after = _getDragAfter(container, y);
-      if (after && after !== _tItem) after.classList.add('drag-over');
-    }, {passive: false});
-    container.addEventListener('touchend', () => {
-      clearTimeout(_tTimer); _tTimer = null;
-      if (_tActive && _tItem) {
-        const over = container.querySelector('.drag-over');
-        if (over) {
-          container.insertBefore(_tItem, over);
-        } else {
-          // Dragged below all items — append to end
-          const after = _getDragAfter(container, _tLastY);
-          if (after) container.insertBefore(_tItem, after);
-          else container.appendChild(_tItem);
-        }
-        markDirty();
-      } else if (_tItem && !_tMoved) {
-        // Short tap — toggle action bar visibility via class
-        const wasActive = _tItem.classList.contains('item-tapped');
-        document.querySelectorAll('.item-tapped').forEach(el => el.classList.remove('item-tapped'));
-        if (!wasActive) _tItem.classList.add('item-tapped');
-      }
-      // Always clean up drag state
-      if (_tItem) { _tItem.classList.remove('dragging'); _tItem.style.userSelect = ''; }
-      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-      if (_tClone) { _tClone.remove(); _tClone = null; }
-      _tItem = null; _tActive = false; _tMoved = false;
-    });
-    // Safety cleanup if touch is interrupted (e.g. notification, gesture)
-    container.addEventListener('touchcancel', () => {
-      clearTimeout(_tTimer); _tTimer = null;
-      if (_tItem) { _tItem.classList.remove('dragging'); _tItem.style.userSelect = ''; }
-      container.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-      if (_tClone) { _tClone.remove(); _tClone = null; }
-      _tItem = null; _tActive = false; _tMoved = false;
-    });
-  });
-  if (!initDragAndDrop._bound) {
-    initDragAndDrop._bound = true;
-    document.addEventListener('mouseup', () => {
-      document.querySelectorAll('#preview-container [draggable="true"], #preview-container-b [draggable="true"], #preview-container-export [draggable="true"]').forEach(el => el.removeAttribute('draggable'));
-    });
-  }
+  return false;
 }
 
 // ============ Mobile: Consistent action bar for ALL editable sections ============
 // Handles non-item-row editables (Executive Summary, Executive Value, hero fields, plan titles, etc.)
 function initEditableTouchHandlers() {
-  const isMobile = window.matchMedia('(max-width:640px)').matches;
-  if (!isMobile) return;
-  ['preview-container','preview-container-b','preview-container-export'].forEach(_cid => {
-    const container = document.getElementById(_cid);
-    if (!container) return;
-  // Suppress contenteditable on all .editable elements on mobile (keyboard prevented until Edit tapped)
-  container.querySelectorAll('.editable[contenteditable="true"]').forEach(el => {
-    // Skip item-rows — they already have touch handling from initDragAndDrop
-    if (el.closest('.item-row') || el.classList.contains('item-row')) return;
-    el.setAttribute('contenteditable', 'false');
-    el.style.position = 'relative';
-    // Remove existing editable action bar if any
-    const oldBar = el.querySelector('.editable-action-bar');
-    if (oldBar) oldBar.remove();
-    // Build bar
-    const bar = document.createElement('div');
-    bar.className = 'editable-action-bar export-hide';
-    bar.innerHTML = '<button class="mab-btn mab-edit" data-action="edit">Edit</button>';
-    bar.addEventListener('click', function(e) {
-      e.stopPropagation();
-      const btn = e.target.closest('.mab-btn');
-      if (!btn) return;
-      if (btn.dataset.action === 'edit') {
-        el.setAttribute('contenteditable', 'true');
-        el.classList.add('editing-active');
-        el.focus();
-        el.classList.remove('editable-tapped');
-        // Add done bar
-        let doneBar = el.querySelector('.editable-done-bar');
-        if (!doneBar) {
-          doneBar = document.createElement('div');
-          doneBar.className = 'editable-done-bar export-hide';
-          doneBar.style.cssText = 'display:flex;justify-content:center;margin-top:6px';
-          doneBar.innerHTML = '<button class="mab-btn mab-done">\u2713 Done</button>';
-          doneBar.addEventListener('click', function(ev) {
-            ev.stopPropagation();
-            el.setAttribute('contenteditable', 'false');
-            el.classList.remove('editing-active', 'editable-tapped');
-            doneBar.remove();
-            if (document.activeElement && el.contains(document.activeElement)) document.activeElement.blur();
-            markDirty();
-          });
-          el.appendChild(doneBar);
-        }
-      }
-    });
-    el.insertBefore(bar, el.firstChild);
-    // Tap to toggle bar
-    el.addEventListener('touchend', function(e) {
-      if (el.classList.contains('editing-active')) return; // don't interfere with active editing
-      if (e.target.closest('.editable-action-bar') || e.target.closest('.editable-done-bar')) return;
-      e.preventDefault();
-      const wasTapped = el.classList.contains('editable-tapped');
-      // Clear all other tapped
-      container.querySelectorAll('.editable-tapped').forEach(et => et.classList.remove('editable-tapped'));
-      container.querySelectorAll('.item-tapped').forEach(et => et.classList.remove('item-tapped'));
-      if (!wasTapped) el.classList.add('editable-tapped');
-    });
-  });
-  });
+  return false;
 }
 
 function _getDragAfter(container, y) {
@@ -15495,133 +15311,16 @@ function removeExperienceBulletFromState(row) {
 }
 
 function editItemRow(btn) {
-  const row = btn.closest ? btn.closest('.item-row') : btn;
-  if (!row) return;
-  row.classList.add('item-editing');
-  // Restore contenteditable if suppressed by touch handler
-  let el = row.querySelector('.bullet-text, .skill-text');
-  if (el) {
-    el.setAttribute('contenteditable', 'true');
-  } else {
-    const inner = row.querySelector('.editable');
-    el = inner || (row.classList.contains('editable') ? row : null);
-    if (el) el.setAttribute('contenteditable', 'true');
-  }
-  if (el) {
-    el.focus();
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-  // Refresh action bar to show Done button
-  const existingBar = row.querySelector('.mobile-action-bar');
-  if (existingBar) existingBar.remove();
-  showMobileActionBar(row);
+  return false;
 }
 function doneEditingRow(row) {
-  if (!row) return;
-  row.classList.remove('item-editing','item-tapped');
-  // Suppress contenteditable again
-  if (row.getAttribute('contenteditable') === 'true') row.setAttribute('contenteditable', 'false');
-  row.querySelectorAll('[contenteditable="true"]').forEach(el => el.setAttribute('contenteditable', 'false'));
-  if (document.activeElement && row.contains(document.activeElement)) document.activeElement.blur();
-  // Remove done bar below
-  let doneBar = row.nextElementSibling;
-  if (doneBar && doneBar.classList.contains('mobile-done-bar')) doneBar.remove();
-  // Refresh action bar back to Edit/Visible/Delete
-  const bar = row.querySelector('.mobile-action-bar');
-  if (bar) bar.remove();
-  showMobileActionBar(row);
-  markDirty();
+  return false;
 }
 function showMobileActionBar(row) {
-  let bar = row.querySelector('.mobile-action-bar');
-  if (bar) bar.remove();
-  let doneBar = row.nextElementSibling;
-  if (doneBar && doneBar.classList.contains('mobile-done-bar')) doneBar.remove();
-  bar = document.createElement('div');
-  bar.className = 'mobile-action-bar export-hide';
-  const isHidden = row.classList.contains('item-hidden');
-  const isAI = row.classList.contains('ai-changed');
-  var btns = '<button class="mab-btn mab-edit" data-action="edit">Edit</button>'
-    + '<button class="mab-btn ' + (isHidden ? 'mab-hide' : 'mab-view') + '" data-action="vis">' + (isHidden ? 'Hidden' : 'Visible') + '</button>'
-    + '<button class="mab-btn mab-del" data-action="del">Delete</button>';
-  if (isAI && (row.getAttribute('data-original-text') || row.getAttribute('data-is-new'))) {
-    btns += '<button class="mab-btn mab-undo" data-action="undo">\u21A9 Undo</button>'
-      + '<button class="mab-btn mab-keep" data-action="keep">\u2713 Keep</button>';
-    if (row.getAttribute('data-original-text')) {
-      btns += '<button class="mab-btn mab-viewprev" data-action="viewprev">\u25C0 Previous</button>';
-    }
+  if (row && row.querySelectorAll) {
+    row.querySelectorAll('.mobile-action-bar, .mobile-done-bar').forEach(el => el.remove());
   }
-  bar.innerHTML = btns;
-  bar.addEventListener('click', function(e) {
-    const btn = e.target.closest('.mab-btn');
-    if (!btn) return;
-    e.stopPropagation();
-    const action = btn.dataset.action;
-    if (action === 'edit') { editItemRow(row); }
-    else if (action === 'vis') {
-      const vb = row.querySelector('.item-vis-toggle');
-      if (vb) vb.click();
-      else { row.classList.toggle('item-hidden'); markDirty(); }
-      bar.remove(); showMobileActionBar(row);
-    }
-    else if (action === 'del') {
-      // 2026-04-25 BUG-FIX: route bullet deletes through the canonical
-      // splice path so STATE.generated + STATE.enhancedData stay in sync
-      // and the next live-sync rerender does not re-introduce the bullet
-      // from a stale model. Non-bullet rows fall back to scrape-rerender.
-      const isBullet = row.classList.contains('bullet-row') && row.dataset && row.dataset.bulletIndex != null;
-      if (isBullet && typeof removeExperienceBulletFromState === 'function'
-          && removeExperienceBulletFromState(row)) {
-        const expIdx = row.dataset.expIndex;
-        const bIdx   = row.dataset.bulletIndex;
-        row.remove();
-        // Mirror the delete to the OTHER preview pane so the next scrape
-        // can't re-inject. See removeItem() for full root-cause writeup.
-        try {
-          ['preview-container','preview-container-export'].forEach(id => {
-            const r = document.getElementById(id);
-            if (!r) return;
-            const sel = '.bullet-row[data-exp-index="'+expIdx+'"][data-bullet-index="'+bIdx+'"]';
-            r.querySelectorAll(sel).forEach(el => el.remove());
-          });
-        } catch(_){}
-        if (typeof invalidateExportModel === 'function') { try { invalidateExportModel(); } catch(_){} }
-        try { STATE._suppressNextPreviewScrape = true; } catch(_){}
-        if (typeof renderPreview === 'function') {
-          try { renderPreview(STATE.generated, 'preview-container'); } catch(_){}
-          try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
-        }
-        if (typeof markDirty === 'function') markDirty();
-        return;
-      }
-      const parent = row.parentElement;
-      row.remove();
-      _syncContainingPreview(parent);
-      markDirty();
-    }
-    else if (action === 'undo') { rejectAIChange(btn); if (row.parentNode) showMobileActionBar(row); }
-    else if (action === 'keep') { acceptAIChange(btn); if (row.parentNode) showMobileActionBar(row); }
-    else if (action === 'viewprev') { showOriginalText(row); }
-  });
-  row.style.position = 'relative';
-  row.insertBefore(bar, row.firstChild);
-  // If editing, add Done bar BELOW the row
-  if (row.classList.contains('item-editing')) {
-    doneBar = document.createElement('div');
-    doneBar.className = 'mobile-done-bar export-hide';
-    doneBar.innerHTML = '<button class="mab-btn mab-done">\u2713 Done</button>';
-    doneBar.style.display = 'flex';
-    doneBar.addEventListener('click', function(e) {
-      e.stopPropagation();
-      doneEditingRow(row);
-    });
-    row.parentNode.insertBefore(doneBar, row.nextSibling);
-  }
+  return null;
 }
 function showOriginalText(row) {
   const orig = row.getAttribute('data-original-text');
@@ -15810,41 +15509,6 @@ function toggleItemVisibility(btn) {
   markDirty();
 }
 
-function getCleanPreviewHTML() {
-  const clone = document.getElementById('preview-container').cloneNode(true);
-  clone.querySelectorAll('.item-hidden').forEach(el => el.remove());
-  clone.querySelectorAll('.export-hide').forEach(el => el.remove());
-  clone.querySelectorAll('.ai-changed').forEach(el => el.classList.remove('ai-changed'));
-  clone.querySelectorAll('.item-row').forEach(el => {
-    // Keep content but remove the item-row class (cosmetic only)
-    el.classList.remove('item-row');
-  });
-  return clone.innerHTML;
-}
-
-// ============ Export Model (single source of truth) ============
-// One canonical object that the live preview AND every exporter (HTML/DOCX/PPTX)
-// read from. Eliminates drift where the preview renders one thing and the
-// downloaded file contains another. Cached on STATE._exportModelCache and
-// invalidated via invalidateExportModel() on any data-affecting edit.
-//
-// Shape:
-//   {
-//     person:     { name, title, address },
-//     contact:    { phone, email, linkedin, github, website, twitter, location },
-//     summary:    string,
-//     experience: [{ title, company, location, dates, role_summary, bullets[] }],
-//     skills:     [string],
-//     education:  [{ degree, school, year }],
-//     certifications: [{ name, issuer, year }],
-//     achievements:   [string],
-//     sections:   [string]         // ordered, filtered
-//     template:   string           // selected export template id
-//     accent:     string           // #RRGGBB
-//     format:     'docx'|'pptx'|'html'   // current export target (for preview matching)
-//     source:     'original'|'enhanced'  // which content variant is active
-//   }
-
 function invalidateExportModel() {
   try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
 }
@@ -15881,32 +15545,7 @@ try { window.syncExportEditsToWorkspace = () => false; } catch(_){ }
 // version, regardless of which component owns the contenteditable element.
 // Installed once at module init; idempotent via window flag.
 try {
-  if (!window.__previewEditDelegationInstalled) {
-    window.__previewEditDelegationInstalled = true;
-    const _previewRootIdFromTarget = (t) => {
-      try {
-        if (!t || !t.closest) return null;
-        if (t.closest('#preview-container-export-b')) return 'preview-container-export-b';
-        if (t.closest('#preview-container-export')) return 'preview-container-export';
-        if (t.closest('#preview-container-b'))       return 'preview-container-b';
-        if (t.closest('#preview-container'))        return 'preview-container';
-        return null;
-      } catch(_) { return null; }
-    };
-    document.addEventListener('input', (e) => {
-      const id = _previewRootIdFromTarget(e.target);
-      if (!id) return;
-      try { clearTimeout(window.__previewEditSyncTimer); } catch(_){}
-      window.__previewEditSyncTimer = setTimeout(() => {
-        try { syncExportEditsToWorkspace(id); } catch(err) { console.warn('[edit-sync:input]', err); }
-      }, 250);
-    });
-    document.addEventListener('blur', (e) => {
-      const id = _previewRootIdFromTarget(e.target);
-      if (!id) return;
-      try { syncExportEditsToWorkspace(id); } catch(err) { console.warn('[edit-sync:blur]', err); }
-    }, true);
-  }
+  window.__previewEditDelegationInstalled = false;
 } catch(_){}
 
 // 2026-04-25 BUG-FIX: validation helper for the editable-field write-back
