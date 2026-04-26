@@ -4847,7 +4847,7 @@ async function flushAutosaveNow(reason = 'flush') {
   autosaveReason = reason;
   showSaveStatus('Saving...');
   try {
-    await savePlan();
+    await savePlan({ silent: true, source: 'autosave' });
     _lastAutosaveHash = getAutosaveHash();
     _lastAutosaveAt = Date.now();
     autosaveQueued = false;
@@ -4898,7 +4898,7 @@ function scheduleAutosave(reason = 'edit', delay = 1200) {
     showSaveStatus('Saving...');
 
     try {
-      await savePlan();
+      await savePlan({ silent: true, source: 'autosave' });
       _lastAutosaveHash = nextHash;
       _lastAutosaveAt = Date.now();
       autosaveQueued = false;
@@ -6166,7 +6166,7 @@ function revertAllOptimizations(fromDrawer) {
   showToast('Reverted all AI changes');
   try { STATE._optimizeApplied = false; } catch(_){}
   try { STATE._optimizeAppliedAt = null; } catch(_){}
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
   try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
 }
 
@@ -6180,7 +6180,7 @@ function updateRightPanel() {
   // because the user's resume didn't include that section.
   const hasArr = v => Array.isArray(v) && v.length > 0;
   const hasStr = v => typeof v === 'string' && v.trim().length > 0;
-  const SUGGESTED_BADGE = '<span class="rp-suggested-badge" title="No resume details were provided for this section ? content below is an AI suggestion based on your target role.">? Suggested</span>';
+  const SUGGESTED_BADGE = '<span class="rp-suggested-badge" title="No resume details were provided for this section - content below is an AI suggestion based on your target role.">Suggested</span>';
   const SUGGESTED_NOTE = '<div class="rp-suggested-note">AI suggestion ? no resume details provided for this section.</div>';
   function setTitleBadge(sectionId, isSuggested) {
     const sec = document.getElementById(sectionId);
@@ -6196,7 +6196,7 @@ function updateRightPanel() {
     const badge = document.createElement('span');
     badge.className = 'rp-suggested-badge';
     badge.title = 'No resume details were provided for this section ? content below is an AI suggestion based on your target role.';
-    badge.innerHTML = '? Suggested';
+    badge.innerHTML = 'Suggested';
     if (aiBtn) titleEl.insertBefore(badge, aiBtn); else titleEl.appendChild(badge);
   }
 
@@ -6230,7 +6230,7 @@ function updateRightPanel() {
   const eduSuggested = !hasArr(rd.education) && !hasArr(rd.certifications) && hasArr(g.education);
   const eduEl = document.getElementById('rp-education-body');
   if (eduEl && g.education?.length) {
-    eduEl.innerHTML = (eduSuggested ? SUGGESTED_NOTE : '') + g.education.map(e => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${e.degree||e.name||''}</strong> ? ${e.school||e.institution||''}</div>`).join('');
+    eduEl.innerHTML = (eduSuggested ? SUGGESTED_NOTE : '') + g.education.map(e => `<div style="margin-bottom:4px;font-size:0.78rem;color:#CBD5E1"><strong style="color:#F1F5F9">${e.degree||e.name||''}</strong> - ${e.school||e.institution||''}</div>`).join('');
   }
   setTitleBadge('rp-education', eduSuggested);
 
@@ -6240,7 +6240,7 @@ function updateRightPanel() {
   if (achEl && g.achievements?.length) {
     achEl.innerHTML = (achSuggested ? SUGGESTED_NOTE : '') + `<ul style="padding-left:16px;margin:0;color:#CBD5E1">${g.achievements.map(a => {
       if (typeof a === 'string') return `<li style="margin:3px 0;font-size:0.78rem">${a}</li>`;
-      return `<li style="margin:3px 0;font-size:0.78rem"><strong style="color:#F1F5F9">${a.title||a.name||''}</strong>${a.description ? ' ? '+a.description : ''}</li>`;
+      return `<li style="margin:3px 0;font-size:0.78rem"><strong style="color:#F1F5F9">${a.title||a.name||''}</strong>${a.description ? ' - '+a.description : ''}</li>`;
     }).join('')}</ul>`;
   }
   setTitleBadge('rp-achievements', achSuggested);
@@ -8133,7 +8133,8 @@ function sanitizeForFirestore(value, depth){
   return null;
 }
 
-async function savePlan() {
+async function savePlan(options = {}) {
+  const isSilentSave = options?.silent === true;
   if (!currentUser) return showToast('Please sign in first');
   if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   try { saveWorkspaceStepToState && saveWorkspaceStepToState(); } catch(_){}
@@ -8165,7 +8166,7 @@ async function savePlan() {
       syncPreviewEditsToState(_root);
     }
   } catch(_){}
-  showLoading('Saving plan...');
+  if (!isSilentSave) showLoading('Saving plan...');
   // Upload photo if new local data
   if (photoDataUrl && !STATE.photoUrl.startsWith('https://firebasestorage')) {
     try {
@@ -8270,8 +8271,10 @@ async function savePlan() {
     const savedName = getResolvedResumeBuildName();
     if (savedName) updateVersionBar(savedName);
     updateSaveButtonState();
-    populateVersionSelect();
-    showToast('Plan saved!');
+    if (!isSilentSave) {
+      populateVersionSelect();
+      showToast('Plan saved!');
+    }
     try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('savePlan'); } catch(_){ }
     // Auto-sync photo & resume to profile
     try {
@@ -8284,8 +8287,11 @@ async function savePlan() {
         await db.collection('builderProfiles').doc(currentUser.uid).set(profileUpdate, { merge: true });
       }
     } catch(e) { console.debug('Auto-sync to profile:', e); }
-  } catch(e) { console.error(e); showToast('Error saving: ' + e.message); }
-  hideLoading();
+  } catch(e) {
+    console.error(e);
+    if (!isSilentSave) showToast('Error saving: ' + e.message);
+  }
+  if (!isSilentSave) hideLoading();
 }
 
 let _pendingDeleteId = null;
@@ -8821,6 +8827,7 @@ function selectStyle(el) {
   STATE.style = el.dataset.value;
   try { const _v = getActiveVersion(); _v.exportSettings = _v.exportSettings || {}; _v.exportSettings.style = STATE.style; } catch(_){}
   try { renderStylePreview && renderStylePreview(); } catch(_){}
+  try { markDirty && markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
   try { updateStepDots && updateStepDots(); } catch(_){}
 }
@@ -8829,6 +8836,7 @@ function selectColor(el) {
   el.classList.add('selected');
   setColor(el.dataset.color);
   try { const _v = getActiveVersion(); _v.exportSettings = _v.exportSettings || {}; _v.exportSettings.color = STATE.color; } catch(_){}
+  try { markDirty && markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
   try { updateStepDots && updateStepDots(); } catch(_){}
 }
@@ -9206,6 +9214,7 @@ function markDirty(options) {
   if (window.__isHydratingPlan && !options?.allowDuringHydration) return;
   if (window.__previewViewSwitching && !options?.allowDuringPreviewSwitch) return;
   const needsReanalysis = options?.needsReanalysis !== false;
+  const touchOptimize = options?.touchOptimize !== false;
   isDirty = true;
   // Canonical source-of-truth sync: mirror current builder inputs into
   // workspace/profile/version state before downstream render/export reads.
@@ -9236,10 +9245,10 @@ function markDirty(options) {
   // or not a plan has been generated yet, because users expect the visual
   // dirty signal as soon as they touch content.
   try {
-    if (activeAccordion && activeAccordion !== 2) {
+    if (touchOptimize && activeAccordion && activeAccordion !== 2) {
       stepDirty[2] = true;
     }
-  } catch(_){}
+  } catch(_){ }
   // ISS-C: mark published content as out-of-sync so the Export-tab tile
   // flips from "Publish" ? "Update Published Link" on the next refresh.
   try { if (STATE && STATE._isPublished) STATE._publishContentDirty = true; } catch(_){}
@@ -9489,7 +9498,7 @@ function _setSkillsList(arr){
   const ta = document.getElementById('manual-skills');
   if (ta) { ta.value = uniq.join(', '); ta.dispatchEvent(new Event('input', { bubbles: true })); }
   renderSkillsChips();
-  try { markDirty && markDirty(); } catch(_){}
+  try { markDirty && markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
 }
 function renderSkillsChips(){
   const host = document.getElementById('skills-chips');
@@ -9667,7 +9676,7 @@ function removeManualExperience(btn) {
   item.remove();
   renumberManualExperience();
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
-  try { markDirty && markDirty(); } catch(_){}
+  try { markDirty && markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
 }
 
 function renumberManualExperience() {
@@ -13304,7 +13313,7 @@ function openPptxTemplateModal(mode) {
 }
 function confirmPptxTemplateSelection() {
   // Select-only mode: persist style choice, refresh preview, close modal ? no download.
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
   if (STATE.generated && Object.keys(STATE.generated).length){
     try { renderPreview(STATE.generated); } catch(_){}
     if (document.getElementById('preview-container-export')) {
@@ -13348,7 +13357,7 @@ function selectPptxColor(hex){
   if (document.getElementById('preview-container-export')) {
     try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
   }
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){}
 }
 function resetPptxColor(){
   STATE.pptxColor = null;
@@ -13357,7 +13366,7 @@ function resetPptxColor(){
   if (document.getElementById('preview-container-export')) {
     try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
   }
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){}
 }
 function onPptxColorHexInput(el){
   const v = (el.value || '').trim();
@@ -13793,7 +13802,7 @@ function setShowPhoto(val){
   if (leftCb) leftCb.checked = !!val;
   if (STATE.generated && Object.keys(STATE.generated).length) renderPreview(STATE.generated);
   try { renderStylePreview && renderStylePreview(); } catch(_){}
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
 }
 function _applyPreviewPresets(){
   const sp = STATE._spacingPreset || 'comfortable';
@@ -13973,13 +13982,13 @@ function setSpacingPreset(key, btn){
   STATE._spacingPreset = key;
   if (btn){ const grp = btn.parentElement; if (grp) grp.querySelectorAll('.bs-preset-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
   _applyPreviewPresets();
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
 }
 function setDividerStyle(key, btn){
   STATE._dividerStyle = key;
   if (btn){ const grp = btn.parentElement; if (grp) grp.querySelectorAll('.bs-preset-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); }
   _applyPreviewPresets();
-  try { markDirty(); } catch(_){}
+  try { markDirty({ needsReanalysis: false, touchOptimize: false, skipAutosave: true, reason: 'style-change' }); } catch(_){ }
 }
 
 // ============ Step 4 Style Preview (generic fonts/colors/spacing sample) ============
@@ -14509,7 +14518,7 @@ const PREVIEW_RENDERERS = {
     const skills = Array.isArray(g.skills) ? g.skills : [];
     const edu = Array.isArray(g.education) ? g.education : [];
     const certs = Array.isArray(g.certifications) ? g.certifications : [];
-    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a==='string'?a:((a.title||'')+(a.description?' ? '+a.description:''))).filter(Boolean) : [];
+    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a==='string'?a:((a.title||'')+(a.description?' - '+a.description:''))).filter(Boolean) : [];
     const sumText = g.executive_summary || '';
     const lLabel = (t) => `<div style="font-size:9px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.18em;margin:9px 0 2px">${_pvEsc(t)}</div><div style="border-bottom:0.5px solid ${accent};margin-bottom:7px"></div>`;
     const rLabel = (t) => `<div style="font-size:10px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.18em;margin:10px 0 2px">${_pvEsc(t)}</div><div style="border-bottom:0.6px solid ${accent};margin-bottom:8px"></div>`;
@@ -14523,10 +14532,10 @@ const PREVIEW_RENDERERS = {
         </div>
         <div style="display:grid;grid-template-columns:40% 60%;flex:1;overflow:hidden">
           <div style="padding:10px 18px 14px;box-sizing:border-box;border-right:0.5px solid #E5E7EB">
-            ${(show('skills')&&skills.length)?lLabel('Skills')+skills.slice(0,16).map(s=>`<div style="font-size:8.5px;color:#0F172A;line-height:1.4;padding-left:10px;position:relative;margin-bottom:1px"><span style="position:absolute;left:0">?</span>${_pvEsc(s)}</div>`).join(''):''}
-            ${(show('education')&&edu.length)?lLabel('Education')+edu.slice(0,3).map(e=>`<div style="margin-bottom:5px"><div style="font-size:9px;font-weight:700;color:#0F172A">${_pvEsc(e.degree||'')}</div>${e.school?`<div style="font-size:8.5px;color:#475569">${_pvEsc(e.school)}${e.year?'  ?  '+_pvEsc(e.year):''}</div>`:''}</div>`).join(''):''}
+            ${(show('skills')&&skills.length)?lLabel('Skills')+skills.slice(0,16).map(s=>`<div style="font-size:8.5px;color:#0F172A;line-height:1.4;padding-left:10px;position:relative;margin-bottom:1px"><span style="position:absolute;left:0">&bull;</span>${_pvEsc(s)}</div>`).join(''):''}
+            ${(show('education')&&edu.length)?lLabel('Education')+edu.slice(0,3).map(e=>`<div style="margin-bottom:5px"><div style="font-size:9px;font-weight:700;color:#0F172A">${_pvEsc(e.degree||'')}</div>${e.school?`<div style="font-size:8.5px;color:#475569">${_pvEsc(e.school)}${e.year?'  -  '+_pvEsc(e.year):''}</div>`:''}</div>`).join(''):''}
             ${(show('education')&&certs.length&&certs[0].name)?lLabel('Certifications')+certs.slice(0,4).map(c=>`<div style="margin-bottom:4px"><div style="font-size:9px;font-weight:700;color:#0F172A;line-height:1.3">${_pvEsc(c.name||'')}</div>${(c.issuer||c.year)?`<div style="font-size:8.5px;color:#475569">${_pvEsc(c.issuer||'')}${c.year?'  ('+_pvEsc(c.year)+')':''}</div>`:''}</div>`).join(''):''}
-            ${(show('achievements')&&achs.length)?lLabel('Achievements')+achs.slice(0,4).map(a=>`<div style="font-size:8px;color:#0F172A;line-height:1.4;padding-left:10px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0">?</span>${_pvEsc(a).slice(0,140)}</div>`).join(''):''}
+            ${(show('achievements')&&achs.length)?lLabel('Achievements')+achs.slice(0,4).map(a=>`<div style="font-size:8px;color:#0F172A;line-height:1.4;padding-left:10px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0">&bull;</span>${_pvEsc(a).slice(0,140)}</div>`).join(''):''}
           </div>
           <div style="padding:10px 20px 14px;box-sizing:border-box">
             ${sumText?rLabel('Summary')+`<div style="font-size:9.5px;line-height:1.5;color:#0F172A;margin-bottom:8px">${_pvEsc(sumText)}</div>`:''}
@@ -14534,8 +14543,8 @@ const PREVIEW_RENDERERS = {
               const bullets = (e.bullets||e.actions||e.key_actions||[]).map(b=>typeof b==='string'?b:(b.text||b.action||'')).filter(Boolean).slice(0,4);
               return `<div style="margin-bottom:7px">
                 ${e.title?`<div style="font-size:10px;line-height:1.25"><strong style="color:#0F172A">${_pvEsc(e.title)}</strong>${e.dates?`<span style="font-size:9px;color:#475569;font-style:italic">&nbsp;&nbsp;&nbsp;${_pvEsc(e.dates)}</span>`:''}</div>`:''}
-                ${e.company?`<div style="font-size:9px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(e.company)}${e.location?'  ?  '+_pvEsc(e.location):''}</div>`:''}
-                ${bullets.length?`<div style="margin-top:2px">${bullets.map(b=>`<div style="font-size:8.5px;line-height:1.45;color:#0F172A;padding-left:12px;position:relative"><span style="position:absolute;left:0">?</span>${_pvEsc(b).slice(0,170)}</div>`).join('')}</div>`:''}
+                ${e.company?`<div style="font-size:9px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(e.company)}${e.location?'  -  '+_pvEsc(e.location):''}</div>`:''}
+                ${bullets.length?`<div style="margin-top:2px">${bullets.map(b=>`<div style="font-size:8.5px;line-height:1.45;color:#0F172A;padding-left:12px;position:relative"><span style="position:absolute;left:0">&bull;</span>${_pvEsc(b).slice(0,170)}</div>`).join('')}</div>`:''}
               </div>`;
             }).join(''):''}
           </div>
@@ -14551,7 +14560,7 @@ const PREVIEW_RENDERERS = {
     const skills = Array.isArray(g.skills) ? g.skills : [];
     const edu = Array.isArray(g.education) ? g.education : [];
     const certs = Array.isArray(g.certifications) ? g.certifications : [];
-    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a==='string'?a:((a.title||'')+(a.description?' ? '+a.description:''))).filter(Boolean) : [];
+    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a==='string'?a:((a.title||'')+(a.description?' - '+a.description:''))).filter(Boolean) : [];
     const sumText = g.executive_summary || '';
     const TEXT='#E2E8F0', MUTED='#94A3B8';
     const sec = (t) => `<div style="font-size:12px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.06em;margin:11px 0 4px">## ${_pvEsc(t)}</div>`;
@@ -14566,13 +14575,13 @@ const PREVIEW_RENDERERS = {
           const bullets = (e.bullets||e.actions||e.key_actions||[]).map(b=>typeof b==='string'?b:(b.text||b.action||'')).filter(Boolean).slice(0,3);
           return `<div style="margin-bottom:8px">
             ${e.title?`<div style="font-size:10.5px;line-height:1.25"><span style="color:${accent};font-weight:700">&gt; </span><strong style="color:${TEXT}">${_pvEsc(e.title)}</strong>${e.dates?`<span style="color:${MUTED}">&nbsp;&nbsp;[${_pvEsc(e.dates)}]</span>`:''}</div>`:''}
-            ${e.company?`<div style="font-size:9.5px;color:${accent};margin-top:1px">&nbsp;&nbsp;@ ${_pvEsc(e.company)}${e.location?'  ?  '+_pvEsc(e.location):''}</div>`:''}
+            ${e.company?`<div style="font-size:9.5px;color:${accent};margin-top:1px">&nbsp;&nbsp;@ ${_pvEsc(e.company)}${e.location?'  -  '+_pvEsc(e.location):''}</div>`:''}
             ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:9px;line-height:1.5;color:${TEXT};padding-left:14px;position:relative"><span style="position:absolute;left:0;color:${accent}">-</span>${_pvEsc(b).slice(0,170)}</div>`).join('')}</div>`:''}
           </div>`;
         }).join(''):''}
         ${(show('skills')&&skills.length)?sec('skills')+`<div style="font-size:9px;color:${TEXT};line-height:1.55">[${skills.slice(0,20).map(_pvEsc).join(', ')}]</div>`:''}
         ${(show('education')&&edu.length)?sec('education')+edu.slice(0,2).map(e=>`<div style="margin-bottom:3px"><div style="font-size:9.5px;color:${TEXT}"><span style="color:${accent}">&gt; </span><strong>${_pvEsc(e.degree||'')}</strong></div>${e.school?`<div style="font-size:9px;color:${MUTED};padding-left:12px">${_pvEsc(e.school)}${e.year?'  ('+_pvEsc(e.year)+')':''}</div>`:''}</div>`).join(''):''}
-        ${(show('education')&&certs.length&&certs[0].name)?sec('certifications')+certs.slice(0,3).map(c=>`<div style="font-size:9px;color:${TEXT};padding-left:12px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0;color:${accent}">-</span>${_pvEsc(c.name||'')}${c.issuer?'  ?  '+_pvEsc(c.issuer):''}${c.year?'  ('+_pvEsc(c.year)+')':''}</div>`).join(''):''}
+        ${(show('education')&&certs.length&&certs[0].name)?sec('certifications')+certs.slice(0,3).map(c=>`<div style="font-size:9px;color:${TEXT};padding-left:12px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0;color:${accent}">-</span>${_pvEsc(c.name||'')}${c.issuer?'  -  '+_pvEsc(c.issuer):''}${c.year?'  ('+_pvEsc(c.year)+')':''}</div>`).join(''):''}
         ${(show('achievements')&&achs.length)?sec('achievements')+achs.slice(0,3).map(a=>`<div style="font-size:9px;line-height:1.5;color:${TEXT};padding-left:14px;position:relative;margin-bottom:2px"><span style="position:absolute;left:0;color:${accent};font-weight:700">*</span>${_pvEsc(a).slice(0,170)}</div>`).join(''):''}
       </div>`;
   },
@@ -14583,14 +14592,14 @@ const PREVIEW_RENDERERS = {
     return `
       <div style="text-align:center;margin-bottom:12px">
         <div style="font-size:22px;font-weight:700;color:#111;letter-spacing:0.01em">${_pvEsc(h.name||'Your Name')}</div>
-        <div style="font-size:11px;color:#444;margin-top:2px">${_pvEsc(h.target_title||'')}${h.company?' ? '+_pvEsc(h.company):''}</div>
+        <div style="font-size:11px;color:#444;margin-top:2px">${_pvEsc(h.target_title||'')}${h.company?' - '+_pvEsc(h.company):''}</div>
         <div style="font-size:10px;color:#555;margin-top:4px">${contact.map(c=>_pvContactIcon(c.kind,10)+_pvEsc(c.text)).join('  |  ')}</div>
       </div>
       <div style="border-top:1.5px solid ${accent};margin-bottom:10px"></div>
       ${g.executive_summary?`<div data-section="executive_summary"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Summary</div><div style="font-size:11px;line-height:1.45;color:#1F2937;margin-bottom:8px">${_pvEsc(g.executive_summary)}</div></div>`:''}
-      ${(g.experience&&g.experience.length)?`<div data-section="experience"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Professional Experience</div>${(g.experience||[]).slice(0,4).map(e=>`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:11px;color:#111">${_pvEsc(e.title||'')}</strong><span style="font-size:10.5px;color:#444">${_pvEsc(e.dates||'')}</span></div><div style="font-size:10.5px;color:#555;font-style:italic;margin-bottom:2px">${_pvEsc(e.company||'')}${e.location?', '+_pvEsc(e.location):''}</div>${(e.bullets||[]).slice(0,5).map(b=>`<div style="font-size:10.5px;line-height:1.35;padding-left:14px;position:relative;color:#1F2937"><span style="position:absolute;left:0">?</span>${_pvEsc(b)}</div>`).join('')}</div>`).join('')}</div>`:''}
+      ${(g.experience&&g.experience.length)?`<div data-section="experience"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Professional Experience</div>${(g.experience||[]).slice(0,4).map(e=>`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;gap:8px"><strong style="font-size:11px;color:#111">${_pvEsc(e.title||'')}</strong><span style="font-size:10.5px;color:#444">${_pvEsc(e.dates||'')}</span></div><div style="font-size:10.5px;color:#555;font-style:italic;margin-bottom:2px">${_pvEsc(e.company||'')}${e.location?', '+_pvEsc(e.location):''}</div>${(e.bullets||[]).slice(0,5).map(b=>`<div style="font-size:10.5px;line-height:1.35;padding-left:14px;position:relative;color:#1F2937"><span style="position:absolute;left:0">&bull;</span>${_pvEsc(b)}</div>`).join('')}</div>`).join('')}</div>`:''}
       ${(g.skills&&g.skills.length)?`<div data-section="skills"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Skills</div><div style="font-size:10.5px;line-height:1.55;color:#1F2937">${g.skills.slice(0,16).map(_pvEsc).join(' | ')}</div></div>`:''}
-      ${(g.education&&g.education.length)?`<div data-section="education"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Education</div>${g.education.slice(0,3).map(e=>`<div style="font-size:10.5px;line-height:1.4;margin-bottom:3px"><strong style="color:#111">${_pvEsc(e.degree||'')}</strong> ? ${_pvEsc(e.school||'')}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div>`:''}`;
+      ${(g.education&&g.education.length)?`<div data-section="education"><div style="font-size:11px;font-weight:700;color:#111;text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #111;padding-bottom:2px;margin:8px 0 5px">Education</div>${g.education.slice(0,3).map(e=>`<div style="font-size:10.5px;line-height:1.4;margin-bottom:3px"><strong style="color:#111">${_pvEsc(e.degree||'')}</strong> - ${_pvEsc(e.school||'')}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div>`:''}`;
   },
 
   // -- Executive Focus (Phase 4a) -----------------------------------------
@@ -14613,7 +14622,7 @@ const PREVIEW_RENDERERS = {
     const skills = Array.isArray(g.skills) ? g.skills : [];
     const edu = Array.isArray(g.education) ? g.education : [];
     const certs = Array.isArray(g.certifications) ? g.certifications : [];
-    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' ? '+a.description:''))).filter(Boolean) : [];
+    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' - '+a.description:''))).filter(Boolean) : [];
     return `
       <div data-section="hero" style="text-align:center;margin-bottom:14px;font-family:'Georgia','Times New Roman',serif">
         <div style="font-size:28px;font-weight:700;color:${HEAD};letter-spacing:0.02em;line-height:1.1">${_pvEsc(name)}</div>
@@ -14629,10 +14638,10 @@ const PREVIEW_RENDERERS = {
         titleFont:"'Georgia',serif",
         headerLayout:'split', companyItalic:true, dateItalic:true, bulletPadLeft:'18px'
       })}</div></div>`:''}
-      ${skills.length?`<div data-section="skills">${sec('Core Competencies')}<div data-list="skills" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px 16px">${skills.slice(0,18).map(s=>`<div class="item-row" style="font-size:10.5px;color:${TEXT};line-height:1.45">? ${_pvEsc(s)}</div>`).join('')}</div></div>`:''}
+      ${skills.length?`<div data-section="skills">${sec('Core Competencies')}<div data-list="skills" style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px 16px">${skills.slice(0,18).map(s=>`<div class="item-row" style="font-size:10.5px;color:${TEXT};line-height:1.45">&bull; ${_pvEsc(s)}</div>`).join('')}</div></div>`:''}
       ${achs.length?`<div data-section="achievements">${sec('Selected Achievements')}<ul data-list="achievements" style="margin:0;padding-left:18px">${achs.slice(0,5).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.55;color:${TEXT};margin-bottom:3px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}
-      ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,3).map(e=>`<div class="item-row" style="margin-bottom:4px;font-size:10.5px;line-height:1.45;color:${TEXT}"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?' ? '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
-      ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,5).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px">? <strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' ? '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}`;
+      ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,3).map(e=>`<div class="item-row" style="margin-bottom:4px;font-size:10.5px;line-height:1.45;color:${TEXT}"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?' - '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
+      ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,5).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px">&bull; <strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' - '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}`;
   },
 
   // -- Modern ATS (Phase 4a) ----------------------------------------------
@@ -14656,7 +14665,7 @@ const PREVIEW_RENDERERS = {
     const skills = Array.isArray(g.skills) ? g.skills : [];
     const edu = Array.isArray(g.education) ? g.education : [];
     const certs = Array.isArray(g.certifications) ? g.certifications : [];
-    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' ? '+a.description:''))).filter(Boolean) : [];
+    const achs = Array.isArray(g.achievements) ? g.achievements.map(a => typeof a === 'string' ? a : ((a.title||'') + (a.description?' - '+a.description:''))).filter(Boolean) : [];
     return `
       <div data-section="hero" style="margin-bottom:8px;font-family:'Inter','Arial',sans-serif">
         <div style="font-size:22px;font-weight:700;color:${HEAD};line-height:1.1">${_pvEsc(name)}</div>
@@ -14672,7 +14681,7 @@ const PREVIEW_RENDERERS = {
       })}</div></div>`:''}
       ${skills.length?`<div data-section="skills">${sec('Skills')}<div data-list="skills" style="font-size:10.5px;color:${TEXT};line-height:1.5">${skills.slice(0,30).map(s=>`<span class="item-row" style="display:inline">${_pvEsc(s)}</span>`).join(', ')}</div></div>`:''}
       ${edu.length?`<div data-section="education">${sec('Education')}<div data-list="education">${edu.slice(0,4).map(e=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:2px"><strong style="color:${HEAD}">${_pvEsc(e.degree||'')}</strong>${e.school?', '+_pvEsc(e.school):''}${e.year?' ('+_pvEsc(e.year)+')':''}</div>`).join('')}</div></div>`:''}
-      ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,8).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:1px"><strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' ? '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}
+      ${(certs.length && certs[0] && certs[0].name)?`<div data-section="certifications">${sec('Certifications')}<div data-list="certifications">${certs.slice(0,8).map(c=>`<div class="item-row" style="font-size:10.5px;line-height:1.45;color:${TEXT};margin-bottom:1px"><strong style="color:${HEAD}">${_pvEsc(c.name||'')}</strong>${c.issuer?' - '+_pvEsc(c.issuer):''}${c.year?' ('+_pvEsc(c.year)+')':''}</div>`).join('')}</div></div>`:''}
       ${achs.length?`<div data-section="achievements">${sec('Achievements')}<ul data-list="achievements" style="margin:0;padding-left:16px">${achs.slice(0,6).map(a=>`<li class="item-row" style="font-size:10.5px;line-height:1.5;color:${TEXT};margin-bottom:1px">${_pvEsc(a)}</li>`).join('')}</ul></div>`:''}`;
   },
 
@@ -14819,9 +14828,9 @@ const MODEL_RENDERERS = {
           ${(contact.length)?sbLabel('Contact')+contact.map(v=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3;display:flex;align-items:center">${_pvContactIcon(v.kind,9)}<span style="overflow:hidden;text-overflow:ellipsis">${_pvEsc(v.text)}</span></div>`).join(''):''}
           ${(contact.length)?sbDivider:''}
 
-          ${(skills.length)?sbLabel('Core Competencies')+skills.slice(0,12).map(s=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3">?&nbsp;&nbsp;${_pvEsc(s)}</div>`).join(''):''}
+          ${(skills.length)?sbLabel('Core Competencies')+skills.slice(0,12).map(s=>`<div style="font-size:7.5px;color:${SIDEBAR_TEXT};margin-bottom:2px;line-height:1.3">&bull;&nbsp;&nbsp;${_pvEsc(s)}</div>`).join(''):''}
 
-          ${(achievements.filter(Boolean).length)?sbDivider+sbLabel('Key Achievements')+achievements.filter(Boolean).slice(0,3).map(a=>`<div style="font-size:7px;color:${SIDEBAR_TEXT};margin-bottom:3px;line-height:1.35">?&nbsp;&nbsp;${_pvEsc(a).slice(0,140)}</div>`).join(''):''}
+          ${(achievements.filter(Boolean).length)?sbDivider+sbLabel('Key Achievements')+achievements.filter(Boolean).slice(0,3).map(a=>`<div style="font-size:7px;color:${SIDEBAR_TEXT};margin-bottom:3px;line-height:1.35">&bull;&nbsp;&nbsp;${_pvEsc(a).slice(0,140)}</div>`).join(''):''}
 
           ${(certifications.length && certifications[0] && certifications[0].name)?sbDivider+sbLabel('Certifications')+certifications.slice(0,3).map(cc=>`<div style="margin-bottom:4px"><div style="font-size:7.5px;font-weight:700;color:${SIDEBAR_TEXT};line-height:1.25">${_pvEsc(cc.name||'')}</div>${(cc.issuer||cc.year)?`<div style="font-size:7.5px;color:${SIDEBAR_MUTED};line-height:1.25">${_pvEsc((cc.issuer||'')+(cc.year?' ('+cc.year+')':''))}</div>`:''}</div>`).join(''):''}
         </div>
@@ -14841,7 +14850,7 @@ const MODEL_RENDERERS = {
               ${e.title?`<div style="font-size:10px;line-height:1.25"><strong style="color:${DARK};font-weight:700">${_pvEsc(e.title)}</strong>${dates?`<span style="font-size:9px;color:${GRAY};font-style:italic">&nbsp;&nbsp;&nbsp;&nbsp;${_pvEsc(dates)}</span>`:''}</div>`:''}
               ${company?`<div style="font-size:9px;color:${accent};font-style:italic;margin-top:1px">${_pvEsc(company)}${loc?'  ?  '+_pvEsc(loc):''}</div>`:''}
               ${rs?`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;margin-top:2px">${_pvEsc(rs).slice(0,220)}</div>`:''}
-              ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;padding-left:10px;position:relative"><span style="position:absolute;left:0;color:${GRAY}">?</span>${_pvEsc(b).slice(0,200)}</div>`).join('')}</div>`:''}
+              ${bullets.length?`<div style="margin-top:3px">${bullets.map(b=>`<div style="font-size:8.5px;color:${GRAY};line-height:1.5;padding-left:10px;position:relative"><span style="position:absolute;left:0;color:${GRAY}">&bull;</span>${_pvEsc(b).slice(0,200)}</div>`).join('')}</div>`:''}
             </div>`;
           }).join(''):''}
         </div>
@@ -14954,16 +14963,16 @@ function _renderFormatAccuratePreview(g, containerId){
     : (PREVIEW_RENDERERS[renderTemplateId] || PREVIEW_RENDERERS['modern-sidebar'])(g, accent);
   const fmtClass = (fmt === 'docx') ? 'pv-format-docx' : 'pv-format-pptx';
   const templateLabel = (fmt === 'docx')
-    ? 'Word ? Classic'
+    ? 'Word - Classic'
     : ((typeof PPTX_TEMPLATES !== 'undefined' && PPTX_TEMPLATES.find(t=>t.id===selectedTemplateId)||{}).name || 'PowerPoint');
-  const dimLabel = (fmt === 'docx') ? 'Letter 8.5 ? 11 in' : 'Slide 7.5 ? 10 in (portrait)';
+  const dimLabel = (fmt === 'docx') ? 'Letter 8.5 x 11 in' : 'Slide 7.5 x 10 in (portrait)';
   container.style.background = 'transparent';
   container.style.padding = '0';
   container.style.borderRadius = '0';
   container.innerHTML = `
     <div class="${fmtClass}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 6px 8px;font-size:10px;color:#64748B">
-        <span><strong style="color:#0F172A">${_pvEsc(templateLabel)}</strong> preview ? ${dimLabel}</span>
+        <span><strong style="color:#0F172A">${_pvEsc(templateLabel)}</strong> preview - ${dimLabel}</span>
         <span style="display:flex;gap:6px;align-items:center">
           <button type="button" onclick="refreshDocumentPreview(this)" title="Re-render this preview using the latest resume content, template, and color" style="font-size:10px;padding:3px 10px;border:1px solid ${accent};border-radius:6px;background:${accent};color:#fff;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:4px">
             <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
@@ -15274,7 +15283,7 @@ function renderPreview(g, targetId) {
       (Array.isArray(_rr.responsibilities) && _rr.responsibilities.length)
     );
     if (!_hasRoleCtx) {
-      h += `<div class="export-hide" data-section="plan_phases_suggested_note" style="margin-bottom:12px;padding:10px 12px;background:#FFFBEB;border:1px dashed #F59E0B;border-radius:${S.cardRadius||8}px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap"><span style="font-size:0.62rem;font-weight:700;background:#F59E0B;color:#78350F;padding:3px 9px;border-radius:999px;flex-shrink:0;white-space:nowrap;letter-spacing:0.02em">? Suggested</span><div style="font-size:0.78rem;color:#78350F;line-height:1.45;min-width:0;flex:1">This plan is a generic template based on assumptions. Add a target job title, company, or job description in Step 2 and regenerate for a role-specific plan.</div></div>`;
+      h += `<div class="export-hide" data-section="plan_phases_suggested_note" style="margin-bottom:12px;padding:10px 12px;background:#FFFBEB;border:1px dashed #F59E0B;border-radius:${S.cardRadius||8}px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap"><span style="font-size:0.62rem;font-weight:700;background:#F59E0B;color:#78350F;padding:3px 9px;border-radius:999px;flex-shrink:0;white-space:nowrap;letter-spacing:0.02em">Suggested</span><div style="font-size:0.78rem;color:#78350F;line-height:1.45;min-width:0;flex:1">This plan is a generic template based on assumptions. Add a target job title, company, or job description in Step 2 and regenerate for a role-specific plan.</div></div>`;
     }
     h += g.plan_phases.map((p, idx) => {
       const icon = p.icon || 'target';
@@ -15320,7 +15329,7 @@ function renderPreview(g, targetId) {
           const tName = typeof t === 'string' ? t : (t.name || '');
           const tDesc = typeof t === 'string' ? '' : (t.description || '');
           const tIcon = (typeof t === 'object' && t.icon) ? t.icon : 'monitor';
-          return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_tool">${tName}${tDesc ? ' ? ' + tDesc : ''}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`;
+          return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="${tIcon}" style="width:14px;height:14px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="phase_tool">${tName}${tDesc ? ' - ' + tDesc : ''}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`;
         }).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'tool','${C}','${S.textColor}')">+ Add Tool</button></div>`;
       }
 
@@ -15357,7 +15366,7 @@ function renderPreview(g, targetId) {
 
   // ---- EXPERIENCE ----
   if (_inContent('experience') && STATE.sections.includes('experience') && g.experience?.length) {
-    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" data-field="title" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" data-field="dates" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" data-field="company_location" style="color:${S.mutedColor}"><span data-field="company">${e.company}</span>${e.location ? ' ? <span data-field="location">' + e.location + '</span>' : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" data-field="role_summary" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" data-field="bullet">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
+    h += card(`${sectionLabel('briefcase', 'Professional Experience')}<div class="space-y-8" data-list="experience" data-renderer-version="experience-helper-v2">${g.experience.map((e, i) => `<div class="item-row experience-row" data-exp-index="${i}" data-section="experience"><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" data-field="title" style="color:${S.headingColor};font-family:${S.headingFont}">${e.title}</h4><span class="text-sm font-medium" data-field="dates" style="color:${C}">${e.dates}</span></div><p class="text-sm mb-3" data-field="company_location" style="color:${S.mutedColor}"><span data-field="company">${e.company}</span>${e.location ? ' - <span data-field="location">' + e.location + '</span>' : ''}</p>${e.role_summary ? `<p class="text-sm mb-3" data-field="role_summary" style="color:${S.textColor}">${e.role_summary}</p>` : ''}<ul class="space-y-2" data-list="experience-bullets" data-exp-index="${i}">${(e.bullets || []).map((b, j) => `<li class="item-row bullet-row flex gap-3 text-sm" data-exp-index="${i}" data-bullet-index="${j}" style="color:${S.textColor}"><span style="color:${C};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text" data-field="bullet">${b}</span><button class="item-edit-btn export-hide" contenteditable="false" onclick="editItemRow(this)" title="Edit"><i data-lucide="pencil" style="width:12px;height:12px;color:#3B82F6"></i></button><button class="item-vis-toggle export-hide" contenteditable="false" onclick="toggleItemVisibility(this)" title="Show/hide in export"><i data-lucide="eye" style="width:14px;height:14px"></i></button><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li>`).join('')}</ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${C}','${S.textColor}')">+ Add Bullet</button></div></div>`).join('')}</div><button class="item-add export-hide" onclick="addExperience(this)">+ Add Position</button>`, '', 'experience');
   }
 
   // ---- LEADERSHIP ENGAGEMENT ----
@@ -15698,7 +15707,7 @@ function addExperience(addBtn) {
   div.className = 'item-row';
   div.setAttribute('data-exp-index', String(newIdx));
   div.setAttribute('data-section', 'experience');
-  div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company ? Location</p><ul class="space-y-2" data-list="experience-bullets" data-exp-index="${newIdx}"><li class="item-row flex gap-3 text-sm" data-exp-index="${newIdx}" data-bullet-index="0" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
+  div.innerHTML = `<button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)" style="right:0;top:0;transform:none">&times;</button><div class="editable" contenteditable="true"><div class="flex flex-col sm:flex-row sm:items-baseline sm:justify-between mb-1"><h4 class="text-base font-semibold" style="color:${headingColor};font-family:${headingFont}">New Title</h4><span class="text-sm font-medium" style="color:${accent}">Dates</span></div><p class="text-sm mb-3" style="color:${muted}">Company - Location</p><ul class="space-y-2" data-list="experience-bullets" data-exp-index="${newIdx}"><li class="item-row flex gap-3 text-sm" data-exp-index="${newIdx}" data-bullet-index="0" style="color:${textColor}"><span style="color:${accent};flex-shrink:0;font-size:18px;line-height:1">&#8227;</span><span class="bullet-text">Achievement</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></li></ul><button class="item-add export-hide" contenteditable="false" onclick="addBullet(this,'${accent}','${textColor}')">+ Add Bullet</button></div>`;
   container.appendChild(div);
   div.querySelector('.editable').focus();
   _syncContainingPreview(container);
@@ -15979,7 +15988,7 @@ function _normalizeCertifications(arr) {
 }
 function _normalizeAchievements(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr.map(a => typeof a === 'string' ? a : ((a && a.title ? a.title : '') + (a && a.description ? ' ? ' + a.description : ''))).filter(Boolean);
+  return arr.map(a => typeof a === 'string' ? a : ((a && a.title ? a.title : '') + (a && a.description ? ' - ' + a.description : ''))).filter(Boolean);
 }
 
 // Normalize a raw plan_phases array into a uniform milestone[] shape.
