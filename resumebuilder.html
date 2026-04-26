@@ -212,7 +212,7 @@
   @keyframes rotate-three{0%{transform:rotateX(35deg) rotateY(50deg) rotateZ(0deg)}100%{transform:rotateX(35deg) rotateY(50deg) rotateZ(360deg)}}
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes rbPulseSoft{0%,100%{opacity:1}50%{opacity:0.55}}
-  .editable:hover{outline:2px dashed #93C5FD;outline-offset:2px;border-radius:0.25rem}
+  .editable:hover{outline:none}
   .editable:focus{outline:2px solid var(--c-primary,#005EB8);outline-offset:2px;border-radius:0.25rem}
   .fade-in{animation:fadeIn 0.45s cubic-bezier(0.4,0,0.2,1)}
   @keyframes fadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
@@ -575,6 +575,7 @@
     .workspace-bar{gap:5px;padding:6px 8px}
     .workspace-bar .wb-label{display:none}
     .workspace-bar .wb-select{min-width:110px;max-width:160px;font-size:0.74rem;padding:6px 22px 6px 9px}
+    .workspace-bar #wb-save-state{display:none!important}
     /* Hide ALL button text on mobile — icons only, including Save + Publish. */
     .workspace-bar .wb-btn span{display:none}
     .workspace-bar .wb-btn{padding:6px 8px;min-height:34px;min-width:34px;justify-content:center}
@@ -4105,45 +4106,37 @@ Object.defineProperty(STATE, 'roleResearch', {
 // All writes must go through setPreviewContent() (which writes to the version).
 function getPreviewContent() {
   try {
-    const v = getActiveVersion();
-    const pc = v && v.exportSettings && v.exportSettings.previewContent;
+    const ver = getActiveVersion?.() || {};
+    const pc = ver.exportSettings?.previewContent || 'combined';
     return (pc === 'resume' || pc === 'cv' || pc === 'plan' || pc === 'combined') ? pc : 'combined';
-  } catch(_) { return 'combined'; }
+  } catch(_) {
+    return 'combined';
+  }
 }
+
 Object.defineProperty(STATE, 'previewContent', {
   configurable: true,
   enumerable: true,
-  get() { return getPreviewContent(); },
+  get() {
+    return getPreviewContent();
+  },
   set(v) {
-    // Route writes through the version's exportSettings bucket so legacy
-    // `STATE.previewContent = X` paths still update the canonical store.
-    const ver = getActiveVersion();
-    ver.exportSettings = ver.exportSettings || {};
-    ver.exportSettings.previewContent = (v === 'resume' || v === 'cv' || v === 'plan' || v === 'combined') ? v : 'combined';
-    ver.updatedAt = new Date().toISOString();
+    try {
+      const ver = getActiveVersion();
+      ver.exportSettings = ver.exportSettings || {};
+      ver.exportSettings.previewContent = (v === 'resume' || v === 'cv' || v === 'plan' || v === 'combined') ? v : 'combined';
+      ver.updatedAt = new Date().toISOString();
+    } catch(_){ }
   }
 });
 
-// Debug surface
-window.debugWorkspaceState = function() {
-  const w = getWorkspace();
-  const v = getActiveVersion();
+window.debugWorkspaceAliases = function debugWorkspaceAliases() {
+  const v = getActiveVersion?.() || {};
   return {
-    hasProfile: !!Object.keys(w.profile||{}).length,
-    activeVersionId: w.activeVersionId,
-    versionCount: Object.keys(w.versions||{}).length,
-    versionIds: Object.keys(w.versions||{}),
-    resumeJobs: v.resume?.experience?.length || 0,
-    planSections: Object.keys(v.plan||{}),
-    targetRoleKeys: Object.keys(v.targetRole||{}),
-    targetRoleDraftKeys: Object.keys(w.targetRoleDraft||{}),
-    analysisHasData: !!Object.keys(v.analysis||{}).length,
-    enhancedOverlayPresent: !!v._enhancedAlias,
-    resumeInitialized: !!v._resumeInitialized,
-    generatedAliasMatches:    STATE.generated     === v.resume,
-    resumeDataAliasMatches:   STATE.resumeData    === v.resumeDraft,
-    enhancedDataAliasMatches: STATE.enhancedData  === v._enhancedAlias,
-    roleResearchAliasMatches: STATE.roleResearch  === v.targetRole
+    activeVersionId: getWorkspace?.()?.activeVersionId || '',
+    resumeDataAliasMatches:   STATE.resumeData   === v.resumeDraft,
+    enhancedDataAliasMatches: STATE.enhancedData === v._enhancedAlias,
+    roleResearchAliasMatches: STATE.roleResearch === v.targetRole
   };
 };
 
@@ -4159,7 +4152,7 @@ window.rbDebug = function rbDebug(tag, msg, extra) {
     const prefix = '[rb:' + (tag || 'log') + ']';
     if (extra === undefined) console.log(prefix, msg);
     else console.log(prefix, msg, extra);
-  } catch(_){}
+  } catch(_){ }
 };
 const rbDebug = window.rbDebug;
 // Surface uncaught errors/promise rejections under the same tag.
@@ -4733,6 +4726,37 @@ let _lastAutosaveHash = '';
 let _lastAutosaveAt = 0;
 window.__suspendAutosave = false;
 
+function setWorkspaceSaveButtonVisual(state) {
+  const btn = document.querySelector('[data-testid="wb-save"]');
+  if (!btn) return;
+
+  // Base shape stays from CSS; we only set semantic status colors.
+  if (state === 'unsaved' || state === 'dirty') {
+    btn.style.background = '#FEF3C7';
+    btn.style.borderColor = '#F59E0B';
+    btn.style.color = '#78350F';
+    return;
+  }
+  if (state === 'saving') {
+    btn.style.background = '#F59E0B';
+    btn.style.borderColor = '#D97706';
+    btn.style.color = '#FFFFFF';
+    return;
+  }
+  if (state === 'saved') {
+    btn.style.background = '#059669';
+    btn.style.borderColor = '#059669';
+    btn.style.color = '#FFFFFF';
+    return;
+  }
+  if (state === 'error') {
+    btn.style.background = '#FCA5A5';
+    btn.style.borderColor = '#EF4444';
+    btn.style.color = '#7F1D1D';
+    return;
+  }
+}
+
 function showSaveStatus(status) {
   const pill = document.getElementById('wb-save-state');
   const txt = document.getElementById('wb-save-state-text');
@@ -4741,27 +4765,32 @@ function showSaveStatus(status) {
   if (status === 'Saving...') {
     pill.className = 'wb-pill dirty';
     txt.textContent = 'Saving...';
+    setWorkspaceSaveButtonVisual('saving');
     return;
   }
   if (status === 'Saved') {
     pill.className = 'wb-pill saved';
     txt.textContent = 'Saved';
+    setWorkspaceSaveButtonVisual('saved');
     return;
   }
   if (status === 'Offline - saved on this device') {
     pill.className = 'wb-pill dirty';
     txt.textContent = 'Offline - saved on this device';
+    setWorkspaceSaveButtonVisual('unsaved');
     return;
   }
   if (status === 'Save failed - tap to retry') {
     pill.className = 'wb-pill dirty';
     txt.textContent = 'Save failed - tap to retry';
+    setWorkspaceSaveButtonVisual('error');
     pill.onclick = () => { try { scheduleAutosave('retry', 250); } catch(_){ } };
     return;
   }
 
   pill.className = 'wb-pill dirty';
   txt.textContent = 'Unsaved changes';
+  setWorkspaceSaveButtonVisual('unsaved');
 }
 
 function getAutosaveHash() {
@@ -5053,8 +5082,8 @@ function updateStepDots(activeN) {
 
     if (dot) {
       if (state === 'active') { dot.className = 'acc-num active'; dot.innerHTML = _stepIconHTML(i); _needLucide = true; }
-      else if (state === 'modified') { dot.className = 'acc-num modified'; dot.textContent = '?'; }
-      else if (state === 'done') { dot.className = 'acc-num done'; dot.textContent = '?'; }
+      else if (state === 'modified') { dot.className = 'acc-num modified'; dot.innerHTML = '<i data-lucide="alert-circle" style="width:12px;height:12px"></i>'; _needLucide = true; }
+      else if (state === 'done') { dot.className = 'acc-num done'; dot.innerHTML = '<i data-lucide="check" style="width:12px;height:12px"></i>'; _needLucide = true; }
       else { dot.className = 'acc-num pending'; dot.innerHTML = _stepIconHTML(i); _needLucide = true; }
       // Mirror done state onto the accordion-header so its chevron can go green via CSS.
       const accHead = dot.closest('.accordion-header');
@@ -5082,8 +5111,8 @@ function updateStepDots(activeN) {
       if (state === 'modified') tsStep.classList.add('modified');
     }
     if (tsDot) {
-      if (state === 'done') tsDot.textContent = '?';
-      else if (state === 'modified') tsDot.textContent = '?';
+      if (state === 'done') { tsDot.innerHTML = '<i data-lucide="check" style="width:12px;height:12px"></i>'; _needLucide = true; }
+      else if (state === 'modified') { tsDot.innerHTML = '<i data-lucide="alert-circle" style="width:12px;height:12px"></i>'; _needLucide = true; }
       else { tsDot.innerHTML = _stepIconHTML(i); _needLucide = true; }
     }
     // All % chips are hidden ? chevron color alone communicates step state.
@@ -9175,6 +9204,7 @@ function refreshSavedFieldBaseline() {
 
 function markDirty(options) {
   if (window.__isHydratingPlan && !options?.allowDuringHydration) return;
+  if (window.__previewViewSwitching && !options?.allowDuringPreviewSwitch) return;
   const needsReanalysis = options?.needsReanalysis !== false;
   isDirty = true;
   // Canonical source-of-truth sync: mirror current builder inputs into
@@ -9238,7 +9268,8 @@ function updateSaveButtonState() {
         pill.className = 'wb-pill dirty';
         pill.onclick = () => { try { savePlan(); } catch(_){} };
         pill.title = 'Click to save now';
-        txt.textContent = 'Unsaved ? Save Now';
+        txt.textContent = 'Unsaved - Save Now';
+        try { setWorkspaceSaveButtonVisual('unsaved'); } catch(_){ }
         const ic = pill.querySelector('i[data-lucide]');
         if (ic) ic.setAttribute('data-lucide','alert-circle');
       } else {
@@ -9246,8 +9277,9 @@ function updateSaveButtonState() {
         pill.className = 'wb-pill saved';
         pill.onclick = null;
         const ts = STATE._lastSavedAt;
-        txt.textContent = ts ? ('Saved ? ' + _wbRelTime(ts)) : 'Saved';
+        txt.textContent = ts ? ('Saved - ' + _wbRelTime(ts)) : 'Saved';
         pill.title = ts ? ('Last saved ' + new Date(ts).toLocaleString()) : 'All changes saved';
+        try { setWorkspaceSaveButtonVisual('saved'); } catch(_){ }
         const ic = pill.querySelector('i[data-lucide]');
         if (ic) ic.setAttribute('data-lucide','check');
         if (wasDirty){
@@ -13798,91 +13830,91 @@ function _applyPreviewPresets(){
 // Resume reads from getActiveVersion().resume, plan reads from
 // getActiveVersion().plan. Combined renders both without merging state.
 function setPreviewContent(content, btn){
-  const ALLOWED = ['resume','cv','plan','combined'];
-  if (!ALLOWED.includes(content)) content = 'combined';
-  let changed = false;
-
-  // Ensure in-progress inline edits are committed before content-mode rerender.
-  try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
-
-  // Write to the active version's exportSettings bucket. Active version is
-  // lazily created (the 'draft' record) if no version exists yet, so this
-  // is safe pre-save.
+  window.__previewViewSwitching = true;
   try {
-    const v = getActiveVersion();
-    v.exportSettings = v.exportSettings || {};
-    const prev = v.exportSettings.previewContent || 'combined';
-    if (prev === content) {
-      try { schedulePreviewRender && schedulePreviewRender('preview-content-same', 120); } catch(_){ }
-      return;
-    }
-    v.exportSettings.previewContent = content;
-    v.updatedAt = new Date().toISOString();
-    changed = true;
-  } catch(e) { console.warn('[setPreviewContent] failed to persist', e); }
+    const ALLOWED = ['resume','cv','plan','combined'];
+    if (!ALLOWED.includes(content)) content = 'combined';
 
-  // Toggle visual active state across both preview surfaces.
-  try {
-    document.querySelectorAll('[data-pv-content]').forEach(b => {
-      if (b.getAttribute('data-pv-content') === content) b.classList.add('active');
-      else b.classList.remove('active');
-    });
-  } catch(_){}
-  // Re-render both preview containers so the gating takes effect.
-  try {
-    if (STATE.generated && Object.keys(STATE.generated).length){
-      renderPreview(STATE.generated);
-      if (document.getElementById('preview-container-export')) {
-        try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+    // Ensure in-progress inline edits are committed before content-mode rerender.
+    try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
+
+    // Write to the active version's exportSettings bucket. Active version is
+    // lazily created (the 'draft' record) if no version exists yet, so this
+    // is safe pre-save.
+    try {
+      const v = getActiveVersion();
+      v.exportSettings = v.exportSettings || {};
+      const prev = v.exportSettings.previewContent || 'combined';
+      if (prev === content) {
+        try { schedulePreviewRender && schedulePreviewRender('preview-content-same', 120); } catch(_){ }
+        return;
       }
-    }
-  } catch(_){}
-  if (changed) {
-    try { isDirty = true; } catch(_){ }
-    try { updateSaveButtonState && updateSaveButtonState(); } catch(_){ }
-    try { scheduleAutosave && scheduleAutosave('preview-content-preference', 1100); } catch(_){ }
+      v.exportSettings.previewContent = content;
+      v.updatedAt = new Date().toISOString();
+    } catch(e) { console.warn('[setPreviewContent] failed to persist', e); }
+
+    // Toggle visual active state across both preview surfaces.
+    try {
+      document.querySelectorAll('[data-pv-content]').forEach(b => {
+        if (b.getAttribute('data-pv-content') === content) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+    } catch(_){ }
+    // Re-render both preview containers so the gating takes effect.
+    try {
+      if (STATE.generated && Object.keys(STATE.generated).length){
+        renderPreview(STATE.generated);
+        if (document.getElementById('preview-container-export')) {
+          try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){ }
+        }
+      }
+    } catch(_){ }
+  } finally {
+    setTimeout(() => { try { window.__previewViewSwitching = false; } catch(_){ } }, 260);
   }
 }
 try { window.setPreviewContent = setPreviewContent; } catch(_){}
 
 function setPreviewMode(mode, btn){
-  // Ensure in-progress inline edits are committed before mode rerender.
-  try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
-
-  // First time a user clicks "Document" in the Export-step live preview with no format chosen,
-  // prompt them to pick Word or PowerPoint so the preview matches the actual export.
-  if (mode === 'doc' && !STATE.previewFormat) {
-    showPreviewFormatModal();
-    return;
-  }
-  const prevMode = STATE._previewMode || 'web';
-  if (prevMode === mode) {
-    try { _applyPreviewPresets(); } catch(_){ }
-    return;
-  }
-  STATE._previewMode = mode;
-  _applyPreviewPresets();
-  // Re-render so doc/web shell wrapper matches the new mode
-  if (STATE.generated && Object.keys(STATE.generated).length){
-    renderPreview(STATE.generated);
-    if (document.getElementById('preview-container-export')) {
-      try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
-    }
-  }
-  // If compare mode is active, both panes were just re-rendered above which
-  // wiped any diff highlights. Re-render Version B from its cached model and
-  // re-apply the diff painter so highlights don't vanish on mode switch.
+  window.__previewViewSwitching = true;
   try {
-    const c = STATE && STATE.compare;
-    if (c && c.active) {
-      if (typeof renderCompareViews === 'function') renderCompareViews();
-      if (typeof _compareLockEditing === 'function') _compareLockEditing(true);
-      if (typeof applyCompareDiffs === 'function') applyCompareDiffs();
+    // Ensure in-progress inline edits are committed before mode rerender.
+    try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
+
+    // First time a user clicks "Document" in the Export-step live preview with no format chosen,
+    // prompt them to pick Word or PowerPoint so the preview matches the actual export.
+    if (mode === 'doc' && !STATE.previewFormat) {
+      showPreviewFormatModal();
+      return;
     }
-  } catch(_){}
-  try { isDirty = true; } catch(_){ }
-  try { updateSaveButtonState && updateSaveButtonState(); } catch(_){ }
-  try { scheduleAutosave('preview-mode-preference', 1100); } catch(_){ }
+    const prevMode = STATE._previewMode || 'web';
+    if (prevMode === mode) {
+      try { _applyPreviewPresets(); } catch(_){ }
+      return;
+    }
+    STATE._previewMode = mode;
+    _applyPreviewPresets();
+    // Re-render so doc/web shell wrapper matches the new mode
+    if (STATE.generated && Object.keys(STATE.generated).length){
+      renderPreview(STATE.generated);
+      if (document.getElementById('preview-container-export')) {
+        try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){ }
+      }
+    }
+    // If compare mode is active, both panes were just re-rendered above which
+    // wiped any diff highlights. Re-render Version B from its cached model and
+    // re-apply the diff painter so highlights don't vanish on mode switch.
+    try {
+      const c = STATE && STATE.compare;
+      if (c && c.active) {
+        if (typeof renderCompareViews === 'function') renderCompareViews();
+        if (typeof _compareLockEditing === 'function') _compareLockEditing(true);
+        if (typeof applyCompareDiffs === 'function') applyCompareDiffs();
+      }
+    } catch(_){ }
+  } finally {
+    setTimeout(() => { try { window.__previewViewSwitching = false; } catch(_){ } }, 260);
+  }
 }
 
 // ============ Preview Format Modal (Word vs PowerPoint) ============
@@ -13902,28 +13934,32 @@ function closePreviewFormatModal(){
   m.style.display = '';
 }
 function choosePreviewFormat(fmt){
-  if (fmt !== 'pptx' && fmt !== 'docx') return;
-  try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
-  STATE.previewFormat = fmt;
-  if (fmt === 'docx') {
-    STATE.exportTemplate = 'word-classic';
-  } else if (!STATE.exportTemplate || STATE.exportTemplate === 'word-classic') {
-    STATE.exportTemplate = 'modern-sidebar';
-  }
-  closePreviewFormatModal();
-  STATE._previewMode = 'doc';
-  _applyPreviewPresets();
-  if (STATE.generated && Object.keys(STATE.generated).length){
-    try { renderPreview(STATE.generated); } catch(_){}
-    if (document.getElementById('preview-container-export')) {
-      try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
+  window.__previewViewSwitching = true;
+  try {
+    if (fmt !== 'pptx' && fmt !== 'docx') return;
+    try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
+    STATE.previewFormat = fmt;
+    if (fmt === 'docx') {
+      STATE.exportTemplate = 'word-classic';
+    } else if (!STATE.exportTemplate || STATE.exportTemplate === 'word-classic') {
+      STATE.exportTemplate = 'modern-sidebar';
     }
-  }
-  try { markDirty(); } catch(_){}
-  // For PowerPoint, open the template picker in SELECT-ONLY mode so users can choose a style
-  // without being pushed toward downloading. The Export CTA stays in the Export step.
-  if (fmt === 'pptx') {
-    try { openPptxTemplateModal('select'); } catch(_){}
+    closePreviewFormatModal();
+    STATE._previewMode = 'doc';
+    _applyPreviewPresets();
+    if (STATE.generated && Object.keys(STATE.generated).length){
+      try { renderPreview(STATE.generated); } catch(_){ }
+      if (document.getElementById('preview-container-export')) {
+        try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){ }
+      }
+    }
+    // For PowerPoint, open the template picker in SELECT-ONLY mode so users can choose a style
+    // without being pushed toward downloading. The Export CTA stays in the Export step.
+    if (fmt === 'pptx') {
+      try { openPptxTemplateModal('select'); } catch(_){ }
+    }
+  } finally {
+    setTimeout(() => { try { window.__previewViewSwitching = false; } catch(_){ } }, 260);
   }
 }
 // Escape dismisses the preview-format modal too
