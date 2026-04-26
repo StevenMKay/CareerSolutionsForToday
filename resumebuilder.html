@@ -636,6 +636,8 @@
   .top-stepper .ts-label{display:block;font-weight:inherit;font-size:0.88rem;line-height:1.2;padding:0 6px;white-space:normal;word-break:break-word}
   .top-stepper .ts-pct{position:absolute;top:6px;right:32px;font-size:0.64rem;font-weight:700;color:inherit;background:rgba(255,255,255,0.3);padding:1px 7px;border-radius:999px;letter-spacing:0.02em;line-height:1.2;flex-shrink:0}
   .top-stepper .ts-step:not(.active):not(.done):not(.modified) .ts-pct{background:#fff;color:#94A3B8;border:1px solid #E2E8F0}
+  /* Style step removed from user flow — hidden in stepper, controls moved into Export */
+  .top-stepper .ts-step[data-step="3"]{display:none!important}
   @media(max-width:900px){
     .top-stepper-inner{overflow-x:visible;scroll-snap-type:none}
     .top-stepper .ts-step{flex:1 1 0;min-width:0;padding:10px 8px 10px 12px;font-size:0.68rem;margin-right:-8px;min-height:60px;gap:1px;justify-content:center}
@@ -2206,7 +2208,7 @@
       <!-- Footer CTAs -->
       <div class="flex items-center justify-between pt-4" style="border-top:1px solid #E5E7EB">
         <button class="btn-secondary" onclick="toggleAccordion(1)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to About Me &amp; Target Job</button>
-        <button class="btn-primary" onclick="toggleAccordion(3)" style="background:#059669">Continue to Style <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
+        <button class="btn-primary" onclick="toggleAccordion(4)" style="background:#0F172A;min-height:44px;justify-content:center">Continue to Preview &amp; Export <i data-lucide="arrow-right" style="width:14px;height:14px"></i></button>
       </div>
     </div>
   </div>
@@ -2432,7 +2434,7 @@
       </div><!-- /sub-acc-group export-subs -->
 
       <div class="flex items-center justify-between pt-4" style="border-top:1px solid #E5E7EB">
-        <button class="btn-secondary" onclick="toggleAccordion(3)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Style</button>
+        <button class="btn-secondary" onclick="toggleAccordion(2)"><i data-lucide="arrow-left" style="width:14px;height:14px"></i> Back to Optimize</button>
         <!-- PDF export is now available via the Word and PowerPoint template modals (ISS-009). Stale "coming soon" copy removed. -->
       </div>
     </div>
@@ -4273,6 +4275,9 @@ function initAccordionLayout() {
     stepExport.classList.add('hidden');
   }
   
+  // Relocate Style controls into Export step before opening accordion 1
+  mountStyleControlsInExport();
+
   // Open accordion 1 (About Me) by default
   toggleAccordion(1);
   
@@ -4287,7 +4292,50 @@ function initAccordionLayout() {
   if (buildName) updateVersionBar(buildName);
 }
 
+// ===== Mount Style Controls Into Export Step (called once on init) =====
+// Lifts #bs-left-subs (all Style sub-accordions) from the old Step 3 into a
+// new "Style & Layout" sub-accordion inside #export-subs, before the
+// Download/Share/Save actions panel. After relocation, old step-3 is hidden.
+// All existing handler references (#bs-left-subs, .style-card, .color-swatch,
+// etc.) remain valid because we move the real DOM nodes, not clones.
+function mountStyleControlsInExport() {
+  const exportSubs = document.getElementById('export-subs');
+  const exportActionsAcc = exportSubs?.querySelector('.sub-acc[data-sub="export-actions"]');
+  const styleGroup = document.getElementById('bs-left-subs');
+  if (!exportSubs || !exportActionsAcc || !styleGroup) return;
+  if (document.getElementById('export-style-host')) return; // already mounted
+
+  // Build the wrapper sub-accordion
+  const styleAcc = document.createElement('div');
+  styleAcc.className = 'sub-acc open';
+  styleAcc.setAttribute('data-sub', 'export-style');
+  styleAcc.innerHTML =
+    '<button type="button" class="sub-acc-head" onclick="toggleSubAcc(this,true)">' +
+      '<span class="sub-acc-num"><i data-lucide="paintbrush" style="width:14px;height:14px"></i></span>' +
+      '<span class="sub-acc-title">Style &amp; Layout</span>' +
+      '<span class="sub-acc-meta" id="sub-meta-export-style"></span>' +
+      '<svg class="sub-acc-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>' +
+    '</button>' +
+    '<div class="sub-acc-body open" id="export-style-host"></div>';
+
+  // Insert before the Download/Share/Save accordion
+  exportSubs.insertBefore(styleAcc, exportActionsAcc);
+
+  // Move the real style controls DOM node into the host
+  const host = document.getElementById('export-style-host');
+  if (host) host.appendChild(styleGroup);
+
+  // Hide the old Step 3 container so it can never be shown again
+  const step3 = document.getElementById('step-3');
+  if (step3) { step3.classList.add('hidden'); step3.style.display = 'none'; }
+
+  try { lucide.createIcons(); } catch(_){}
+  try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
+}
+
 function toggleAccordion(n) {
+  // Redirect old Style step calls straight to Preview & Export
+  if (n === 3) n = 4;
   if (!ACCORDION_MAP[n]) return;
   const targetId = ACCORDION_MAP[n];
 
@@ -4343,6 +4391,9 @@ function toggleAccordion(n) {
         renderPreview(STATE.generated || {}, 'preview-container-export');
         _applyPreviewPresets();
       }
+      // Also refresh the style mini-preview (bs-style-preview) so swatches
+      // reflect current STATE when the user lands on this step.
+      try { renderStylePreview && renderStylePreview(); } catch(_){}
     } catch(_){}
   }
 
@@ -8666,9 +8717,9 @@ function goToStepDirect(n) {
   const leavingAcc = activeAccordion;
   if (leavingAcc === 1 && n > 1) autoSaveContactToProfile();
 
-  // 4-step flow mapping (direct):
-  // 1=About Me & Target Job, 2=Optimize, 3=Style, 4=Preview & Export
-  const stepToAcc = {1:1, 2:2, 3:3, 4:4};
+  // 3-step flow mapping (direct): Style merged into Export, step 3 → accordion 4.
+  // 1=About Me & Target Job, 2=Optimize, 3(legacy)→4=Preview & Export
+  const stepToAcc = {1:1, 2:2, 3:4, 4:4};
   const accN = stepToAcc[n] || n;
 
   // If navigating to Optimize without enough content, show guidance modal.
@@ -9277,7 +9328,7 @@ function updateSaveButtonState() {
         pill.className = 'wb-pill dirty';
         pill.onclick = () => { try { savePlan(); } catch(_){} };
         pill.title = 'Click to save now';
-        txt.textContent = 'Unsaved - Save Now';
+        txt.textContent = 'Unsaved';
         try { setWorkspaceSaveButtonVisual('unsaved'); } catch(_){ }
         const ic = pill.querySelector('i[data-lucide]');
         if (ic) ic.setAttribute('data-lucide','alert-circle');
@@ -9286,7 +9337,7 @@ function updateSaveButtonState() {
         pill.className = 'wb-pill saved';
         pill.onclick = null;
         const ts = STATE._lastSavedAt;
-        txt.textContent = ts ? ('Saved - ' + _wbRelTime(ts)) : 'Saved';
+        txt.textContent = 'Saved';
         pill.title = ts ? ('Last saved ' + new Date(ts).toLocaleString()) : 'All changes saved';
         try { setWorkspaceSaveButtonVisual('saved'); } catch(_){ }
         const ic = pill.querySelector('i[data-lucide]');
