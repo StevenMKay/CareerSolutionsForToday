@@ -3951,6 +3951,43 @@ window.debugWorkspacePersistence = function () {
 function getProfileData() { return getWorkspace().profile; }
 function setProfileData(nextProfile) {
   getWorkspace().profile = structuredClone(nextProfile || {});
+
+// Export settings helpers — version-scoped.
+// Legacy STATE.style / STATE.color / STATE.exportTemplate continue to work as
+// aliases but canonical value is always activeVersion.exportSettings.
+function getExportSettings() {
+  const v = getActiveVersion();
+  return v.exportSettings || {};
+}
+function setExportSettings(next) {
+  const v = getActiveVersion();
+  v.exportSettings = structuredClone(next || {});
+  v.updatedAt = new Date().toISOString();
+  // Mirror to STATE globals so legacy callers (style-card clicks, export modals) stay in sync.
+  const es = v.exportSettings;
+  if (es.style)          STATE.style = es.style;
+  if (es.color)          { STATE.color = es.color; try { setColor && setColor(es.color); } catch(_){} }
+  if (es.exportTemplate) STATE.exportTemplate = es.exportTemplate;
+  if (es.previewFormat !== undefined) STATE.previewFormat = es.previewFormat;
+  try { invalidateExportModel && invalidateExportModel(); } catch(_){}
+}
+
+// getPreviewModel — canonical source of truth for preview + export renderers.
+// Priority: generated resume (if present) > resumeDraft; canonical version
+// fields always win over STATE globals.
+function getPreviewModel() {
+  const v = getActiveVersion();
+  const w = getWorkspace();
+  return {
+    profile:        structuredClone(w.profile || {}),
+    resume:         structuredClone((v.resume && Object.keys(v.resume).length > 0) ? v.resume : (v.resumeDraft || {})),
+    plan:           structuredClone(v.plan || {}),
+    cv:             structuredClone(v.cv || v.cvDraft || {}),
+    analysis:       structuredClone(v.analysis || {}),
+    exportSettings: structuredClone(v.exportSettings || {})
+  };
+}
+try { window.getPreviewModel = getPreviewModel; } catch(_){}
 }
 
 // _resetUserState: in-place reset for logout / sign-out / "fresh session"
@@ -7532,33 +7569,63 @@ function buildPersistencePayload() {
   const v = getActiveVersion();
   const w = getWorkspace();
 
+  // Ensure exportSettings mirrors the current STATE globals so legacy and
+  // canonical values are always in sync before writing.
+  const _es = v.exportSettings || {};
+  if (!_es.style)          _es.style          = STATE.style          || 'executive';
+  if (!_es.color)          _es.color          = STATE.color          || '#005EB8';
+  if (!_es.exportTemplate) _es.exportTemplate = STATE.exportTemplate || 'modern-sidebar';
+  if (_es.previewFormat === undefined) _es.previewFormat = STATE.previewFormat || null;
+  if (!_es.previewContent) _es.previewContent = getPreviewContent();
+  v.exportSettings = _es;
+
   return {
-    profile: w.profile,
+    // Canonical fields (authoritative on load)
+    profile:           w.profile,
     applicationStatus: v.applicationStatus,
-    targetRole: v.targetRole,
-    resumeDraft: v.resumeDraft,
-    cvDraft: v.cvDraft,
-    resume: v.resume,
-    plan: v.plan,
-    cv: v.cv,
-    analysis: v.analysis,
-    exportSettings: v.exportSettings
+    targetRole:        v.targetRole,
+    resumeDraft:       v.resumeDraft,
+    cvDraft:           v.cvDraft,
+    resume:            v.resume,
+    plan:              v.plan,
+    cv:                v.cv,
+    analysis:          v.analysis,
+    exportSettings:    v.exportSettings,
+    // Legacy top-level fields — written for backward compat only.
+    // On load, canonical fields above take priority; these fill gaps for
+    // older saved plans that pre-date the workspace refactor.
+    generated:         v.resume,
+    analysisData:      v.analysis,
+    resumeData:        v.resumeDraft,
+    roleResearch:      v.targetRole
   };
 }
 
 function hydrateWorkspaceFromSaved(data) {
   const v = getActiveVersion();
 
-  setProfileData(data.profile || {});
+  // Canonical-first priority for all fields. Legacy fields used as fallbacks only.
+  setProfileData(data.profile || data.workspaceProfile || data.resumeData || {});
   v.applicationStatus = data.applicationStatus || (data.appStatus && data.appStatus.status) || 'not_applied';
-  v.targetRole = data.targetRole || {};
-  v.resumeDraft = data.resumeDraft || {};
-  v.cvDraft = data.cvDraft || {};
-  v.resume = data.resume || {};
-  v.plan = data.plan || {};
-  v.cv = data.cv || {};
-  v.analysis = data.analysis || {};
-  v.exportSettings = data.exportSettings || {};
+  v.targetRole = structuredClone(data.targetRole || data.roleResearch || {});
+  v.resumeDraft = structuredClone(data.resumeDraft || data.resumeData || {});
+  v.cvDraft = structuredClone(data.cvDraft || data.cv || {});
+  v.resume = structuredClone(data.resume || data.generated || {});
+  v.plan = structuredClone(data.plan || {});
+  v.cv = structuredClone(data.cv || data.cvDraft || {});
+  v.analysis = structuredClone(data.analysis || data.analysisData || {});
+  // Merge exportSettings: canonical exportSettings object wins; legacy top-level
+  // fields fill gaps for backward compatibility with older saved plans.
+  const _es = data.exportSettings || {};
+  const _pc = _es.previewContent || data.previewContent;
+  v.exportSettings = {
+    ..._es,
+    style:          _es.style          || data.style          || 'executive',
+    color:          _es.color          || data.color          || '#005EB8',
+    exportTemplate: _es.exportTemplate || data.exportTemplate || 'modern-sidebar',
+    previewFormat:  _es.previewFormat  !== undefined ? _es.previewFormat  : (data.previewFormat || null),
+    previewContent: (_pc === 'resume' || _pc === 'cv' || _pc === 'plan' || _pc === 'combined') ? _pc : 'combined'
+  };
 
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
 }
@@ -7573,8 +7640,8 @@ async function loadPlan(planId) {
     currentPlanId = planId;
     _syncActiveVersionFromPlanId(planId);
     try { hydrateWorkspaceFromSaved(d || {}); } catch(_){ }
-    setResumeDraft(d.resumeData || d.resumeDraft || {});
-    setCurrentTargetRole(d.roleResearch || {});
+    setResumeDraft(d.resumeDraft || d.resumeData || {});
+    setCurrentTargetRole(d.targetRole || d.roleResearch || {});
     try { if (d.workspaceProfile) setProfileData(d.workspaceProfile); } catch(_){}
     // ISS-STATUS: rehydrate the role-research freshness hash from the
     // top-level sibling field so _refreshRoleResearchFreshness() sees a
@@ -7586,7 +7653,7 @@ async function loadPlan(planId) {
     } catch(_){}
     STATE.planType = d.planType || '90-day';
     STATE.sections = d.sections || [...DEFAULT_SECTIONS];
-    setGeneratedResume(d.generated || {});
+    setGeneratedResume(d.resume || d.generated || {});
     STATE.rawResumeText = d.rawResumeText || '';
     STATE.style = d.style || 'executive';
     STATE.color = d.color || '#005EB8';
@@ -7601,14 +7668,20 @@ async function loadPlan(planId) {
     STATE._previewMode = d.previewMode || 'web';
     STATE.exportTemplate = d.exportTemplate || 'modern-sidebar';
     STATE.previewFormat = (d.previewFormat === 'pptx' || d.previewFormat === 'docx') ? d.previewFormat : null;
-    // 2026-04-25 workspace refactor: previewContent is version-scoped under
-    // version.exportSettings. Read either the new nested location or the
-    // legacy top-level field, and write to the active version's bucket.
+    // Hydrate full canonical exportSettings into the active version.
+    // Canonical data.exportSettings wins; legacy top-level fields fill gaps.
     try {
-      const _pc = (d.exportSettings && d.exportSettings.previewContent) || d.previewContent;
-      const _v  = getActiveVersion();
-      _v.exportSettings = _v.exportSettings || {};
-      _v.exportSettings.previewContent = (_pc === 'resume' || _pc === 'cv' || _pc === 'plan' || _pc === 'combined') ? _pc : 'combined';
+      const _lv  = getActiveVersion();
+      const _les = d.exportSettings || {};
+      const _lpc = _les.previewContent || d.previewContent;
+      _lv.exportSettings = {
+        ..._les,
+        style:          _les.style          || d.style          || STATE.style          || 'executive',
+        color:          _les.color          || d.color          || STATE.color          || '#005EB8',
+        exportTemplate: _les.exportTemplate || d.exportTemplate || STATE.exportTemplate || 'modern-sidebar',
+        previewFormat:  _les.previewFormat  !== undefined ? _les.previewFormat  : (STATE.previewFormat || null),
+        previewContent: (_lpc === 'resume' || _lpc === 'cv' || _lpc === 'plan' || _lpc === 'combined') ? _lpc : 'combined'
+      };
     } catch(_){}
     STATE.pptxColor = (typeof d.pptxColor === 'string' && /^#[0-9A-Fa-f]{6}$/.test(d.pptxColor)) ? d.pptxColor : null;
     // Derive resume date from plan timestamp if not stored (older plans)
@@ -7625,7 +7698,7 @@ async function loadPlan(planId) {
     // so version-scoped reads (getCurrentAnalysis) match the legacy free-var.
     try {
       const _v = getActiveVersion();
-      _v.analysis = structuredClone(d.analysisData || {});
+      _v.analysis = structuredClone(d.analysis || d.analysisData || {});
       // Stamp version metadata from the plan doc.
       _v.name = d.resumeBuildName || d.contactName || _v.name || 'Loaded Resume';
       const _created = d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : (typeof d.createdAt === 'string' ? d.createdAt : _v.createdAt);
@@ -7633,7 +7706,7 @@ async function loadPlan(planId) {
       _v.createdAt = _created;
       _v.updatedAt = _updated;
       _v.resumeDraft = structuredClone(d.resumeDraft || d.resumeData || {});
-      _v.resume = structuredClone(d.resumeDraft || d.generated || d.resumeData || {});
+      _v.resume = structuredClone(d.resume || d.generated || d.resumeDraft || d.resumeData || {});
       _v.cv = structuredClone(d.cvDraft || d.cv || {});
       _v.cvDraft = structuredClone(d.cvDraft || d.cv || {});
       _v._resumeInitialized = !!Object.keys(_v.resume || {}).length;
@@ -8525,6 +8598,7 @@ function selectStyle(el) {
   document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   STATE.style = el.dataset.value;
+  try { const _v = getActiveVersion(); _v.exportSettings = _v.exportSettings || {}; _v.exportSettings.style = STATE.style; } catch(_){}
   try { renderStylePreview && renderStylePreview(); } catch(_){}
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
   try { updateStepDots && updateStepDots(); } catch(_){}
@@ -8533,6 +8607,7 @@ function selectColor(el) {
   document.querySelectorAll('.color-swatch').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   setColor(el.dataset.color);
+  try { const _v = getActiveVersion(); _v.exportSettings = _v.exportSettings || {}; _v.exportSettings.color = STATE.color; } catch(_){}
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
   try { updateStepDots && updateStepDots(); } catch(_){}
 }
@@ -10308,33 +10383,67 @@ function persistExtractedDataToWorkspace(data) {
   const v = getActiveVersion();
   const w = getWorkspace();
 
+  const normalized = normalizeExtractedResumeData(data);
+  const currentDraft = structuredClone(getResumeDraft() || {});
+
+  // Merge normalized data into the draft — existing user edits win for name/title
+  // but arrays always use extracted values (fresher data).
+  const nextDraft = {
+    ...currentDraft,
+    name:                 normalized.profile.name             || currentDraft.name             || '',
+    email:                normalized.profile.email            || currentDraft.email            || '',
+    phone:                normalized.profile.phone            || currentDraft.phone            || '',
+    address:              normalized.profile.location         || currentDraft.address          || '',
+    linkedin:             normalized.profile.linkedin         || currentDraft.linkedin         || '',
+    current_title:        currentDraft.current_title          || normalized.executive_summary ? '' : (currentDraft.current_title || ''),
+    executive_summary:    normalized.executive_summary        || currentDraft.executive_summary || '',
+    summary:              normalized.executive_summary        || currentDraft.summary          || '',
+    experience:           normalized.experience.length        ? normalized.experience           : (currentDraft.experience      || []),
+    skills:               normalized.skills.length           ? normalized.skills               : (currentDraft.skills          || []),
+    achievements:         normalized.achievements.length      ? normalized.achievements         : (currentDraft.achievements    || []),
+    education:            normalized.education.length         ? normalized.education            : (currentDraft.education       || []),
+    certifications:       normalized.certifications.length    ? normalized.certifications       : (currentDraft.certifications  || []),
+    leadership_engagement:normalized.leadership_engagement.length ? normalized.leadership_engagement : (currentDraft.leadership_engagement || [])
+  };
+  setResumeDraft(nextDraft);
+
   setProfileData({
     ...(w.profile || {}),
-    name: data.name || '',
-    email: data.email || '',
-    phone: data.phone || '',
-    location: data.location || data.address || '',
-    linkedin: data.linkedin || ''
+    ...normalized.profile
   });
-
-  const draft = getResumeDraft();
-  Object.assign(draft, {
-    name: data.name || draft.name || '',
-    executive_summary: data.summary || '',
-    summary: data.summary || '',
-    current_title: data.current_title || draft.current_title || '',
-    skills: data.skills || [],
-    achievements: data.achievements || [],
-    education: data.education || [],
-    certifications: data.certifications || [],
-    experience: data.experience || []
-  });
-  setResumeDraft(draft);
 
   v.extractedRaw = structuredClone(data || {});
+  v.resumeFileName     = normalized.resumeFileName || v.resumeFileName || '';
+  v.resumeExtractedAt  = new Date().toISOString();
+  v._resumeInitialized = true;
 
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
   try { markDirty && markDirty(); } catch(_){ }
+  // Auto-save so extracted data survives a page reload.
+  try { if (currentUser && currentPlanId) { savePlan && savePlan(); } } catch(_){ }
+}
+
+// Normalize raw server extraction response into a stable shape.
+// Handles the various response envelopes the backend may return.
+function normalizeExtractedResumeData(data) {
+  const src = (data && (data.resume_data || data.resumeData || data.parsedResume || data.resume)) || data || {};
+  return {
+    profile: {
+      name:     src.name     || src.fullName   || src.full_name || '',
+      email:    src.email    || '',
+      phone:    src.phone    || '',
+      location: src.location || src.address    || '',
+      linkedin: src.linkedin || src.linkedIn   || ''
+    },
+    executive_summary:     src.executive_summary    || src.summary             || '',
+    experience:            Array.isArray(src.experience)           ? src.experience           : [],
+    skills:                Array.isArray(src.skills)               ? src.skills               : [],
+    achievements:          Array.isArray(src.achievements)         ? src.achievements         : [],
+    education:             Array.isArray(src.education)            ? src.education            : [],
+    certifications:        Array.isArray(src.certifications)       ? src.certifications       : [],
+    leadership_engagement: Array.isArray(src.leadership_engagement)? src.leadership_engagement: [],
+    resumeFileName:        src.resumeFileName || src.fileName       || ''
+  };
 }
 
 async function parseResume() {
@@ -15454,6 +15563,71 @@ window.runResumeBuilderDiagnostics = function () {
     syncExportNoOp: String(syncExportEditsToWorkspace).includes('return false'),
     activeVersionId: getWorkspace?.()?.activeVersionId || '',
     versionCount: Object.keys(getWorkspace?.()?.versions || {}).length
+
+  // debugExportPipeline — inspect the full canonical pipeline in DevTools.
+  // Run after import, optimize, or style changes to verify data is flowing correctly.
+  window.debugExportPipeline = function () {
+    let v = null, model = null;
+    try { v = getActiveVersion(); } catch(_){}
+    try { model = getPreviewModel(); } catch(_){}
+    return {
+      activeVersionId:                 getWorkspace?.()?.activeVersionId || null,
+      resumeDraftExperienceCount:      v?.resumeDraft?.experience?.length   || 0,
+      resumeDraftSkillsCount:          v?.resumeDraft?.skills?.length        || 0,
+      generatedResumeExperienceCount:  v?.resume?.experience?.length         || 0,
+      generatedResumeSkillsCount:      v?.resume?.skills?.length             || 0,
+      planKeys:                        Object.keys(v?.plan          || {}),
+      cvKeys:                          Object.keys(v?.cv            || {}),
+      analysisKeys:                    Object.keys(v?.analysis      || {}),
+      exportSettings:                  structuredClone(v?.exportSettings    || {}),
+      previewModelResumeExperienceCount: model?.resume?.experience?.length   || 0,
+      previewModelResumeSkillsCount:     model?.resume?.skills?.length        || 0,
+      previewModelPlanKeys:              Object.keys(model?.plan    || {}),
+      previewModelCvKeys:                Object.keys(model?.cv      || {})
+    };
+  };
+
+  // testPersistencePipeline — inject sample data, save, then inspect pipeline.
+  // After calling: refresh the page, reopen same resume, run debugExportPipeline()
+  // and verify experience/skills counts match.
+  window.testPersistencePipeline = async function () {
+    const sample = {
+      name: 'Reload Test User',
+      email: 'reload@test.com',
+      summary: 'Persistence test summary',
+      experience: [{ title: 'Persistence Analyst', company: 'Test Co', bullets: ['Built reload-safe pipeline'] }],
+      skills: ['Excel', 'Automation'],
+      education: [{ degree: 'BS Testing', school: 'Test University' }]
+    };
+    try { persistExtractedDataToWorkspace && persistExtractedDataToWorkspace(sample); } catch(_){}
+    try { if (currentUser && currentPlanId) await savePlan?.(); } catch(_){}
+    return {
+      saved: true,
+      beforeReload: {
+        profile:         typeof getProfileData  === 'function' ? getProfileData()  : null,
+        resumeDraft:     typeof getResumeDraft  === 'function' ? getResumeDraft()  : null,
+        exportPipeline:  window.debugExportPipeline?.()
+      },
+      instructions: 'Refresh page, reopen same resume, then run window.debugExportPipeline() and confirm experience/skills counts match.'
+    };
+  };
+
+  // testStyleExportPipeline — write sample style/export settings and trigger re-render.
+  window.testStyleExportPipeline = function () {
+    try {
+      setExportSettings?.({
+        ...((getActiveVersion?.() || {}).exportSettings || {}),
+        style:          'executive',
+        color:          '#005EB8',
+        exportTemplate: 'modern-sidebar',
+        previewFormat:  'docx',
+        previewContent: 'combined',
+        outputFormat:   'pdf-server'
+      });
+    } catch(_){}
+    try { generateAndRenderPreview?.(); } catch(_){}
+    return window.debugExportPipeline?.();
+  };
   };
 };
 
