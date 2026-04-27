@@ -11161,6 +11161,20 @@ try {
   window.setResumeDraft = setResumeDraft;
   window.getCVDraft = getCVDraft;
   window.setCVDraft = setCVDraft;
+  // PATCH: extraction debug helper. Run window.debugExtractedExperience()
+  // in the console after importing a resume to verify each role's bullets
+  // and confirm no exact bullet text appears in more than one role.
+  window.debugExtractedExperience = function () {
+    const rd = (typeof getResumeDraft === 'function' ? getResumeDraft() : null) || {};
+    return (rd.experience || []).map((role, i) => ({
+      index: i,
+      title: role.title,
+      company: role.company,
+      dates: role.dates,
+      bulletCount: Array.isArray(role.bullets) ? role.bullets.length : 0,
+      bullets: role.bullets || []
+    }));
+  };
 } catch(_){}
 
 function saveManualEntry(opts) {
@@ -11558,6 +11572,59 @@ function persistExtractedDataToWorkspace(data) {
 
 // Normalize raw server extraction response into a stable shape.
 // Handles the various response envelopes the backend may return.
+
+// PATCH: cross-role bullet duplicate cleanup. The backend already runs the
+// same logic, but we keep a frontend safety net for older saved plans, the
+// sample-data path, and any case where the backend response slips through
+// with duplicated bullets (Job #2 bullets repeated under Job #1, etc.).
+function normalizeBulletTextForCompare(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/^[•\-\*\u2022\s]+/, '')
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w%$# ]+/g, '')
+    .trim();
+}
+
+function cleanExperienceBulletDupes(experience = []) {
+  if (!Array.isArray(experience)) return [];
+
+  const cleaned = experience.map(role => ({
+    ...role,
+    bullets: Array.isArray(role.bullets)
+      ? role.bullets.filter(Boolean).map(b => String(b).trim()).filter(Boolean)
+      : []
+  }));
+
+  const seen = new Map();
+
+  cleaned.forEach((role, roleIndex) => {
+    role.bullets.forEach((bullet, bulletIndex) => {
+      const key = normalizeBulletTextForCompare(bullet);
+      if (!key || key.length < 18) return;
+      if (!seen.has(key)) seen.set(key, []);
+      seen.get(key).push({ roleIndex, bulletIndex });
+    });
+  });
+
+  for (const [, hits] of seen.entries()) {
+    if (hits.length <= 1) continue;
+    // If duplicated across roles, keep the later role.
+    const keepRoleIndex = Math.max(...hits.map(h => h.roleIndex));
+    hits.forEach(h => {
+      if (h.roleIndex !== keepRoleIndex) {
+        cleaned[h.roleIndex].bullets[h.bulletIndex] = null;
+      }
+    });
+  }
+
+  cleaned.forEach(role => {
+    role.bullets = role.bullets.filter(Boolean);
+  });
+
+  return cleaned;
+}
+
 function normalizeExtractedResumeData(data) {
   const src = (data && (data.resume_data || data.resumeData || data.parsedResume || data.resume)) || data || {};
   return {
@@ -11569,7 +11636,7 @@ function normalizeExtractedResumeData(data) {
       linkedin: src.linkedin || src.linkedIn   || ''
     },
     executive_summary:     src.executive_summary    || src.summary             || '',
-    experience:            Array.isArray(src.experience)           ? src.experience           : [],
+    experience:            cleanExperienceBulletDupes(Array.isArray(src.experience) ? src.experience : []),
     skills:                Array.isArray(src.skills)               ? src.skills               : [],
     achievements:          Array.isArray(src.achievements)         ? src.achievements         : [],
     education:             Array.isArray(src.education)            ? src.education            : [],
