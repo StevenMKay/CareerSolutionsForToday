@@ -6544,10 +6544,10 @@ async function optimizeForJob() {
       if (_hasPlanData) {
         try {
           const planToWrite = Object.assign({}, _hasPlanData ? _respPlan : {}, {
-            plan_phases: (data.plan_phases || (data.days90 && data.days90.phases) || []),
+            plan_phases: (data.plan_phases || (_respPlan.days90 && _respPlan.days90.phases) || []),
             success_summary: (data.success_summary || (_respPlan.days90 && _respPlan.days90.executiveSummary) || ''),
-            success_criteria: (data.success_criteria || (_respPlan.days90 && _respPlan.days90.successMetrics) || []),
-            kpis: (data.kpis || (_respPlan.months12 && _respPlan.months12.successMetrics) || [])
+            success_criteria: (data.success_criteria || (_respPlan.days90 && _respPlan.days90.successCriteria) || (_respPlan.days90 && _respPlan.days90.successMetrics) || []),
+            kpis: (data.kpis || (_respPlan.days90 && _respPlan.days90.successMetrics) || (_respPlan.months12 && _respPlan.months12.successMetrics) || [])
           });
           if (typeof setCurrentPlan === 'function') setCurrentPlan(planToWrite);
           // Mirror plan-shaped keys into STATE.generated for legacy renderers
@@ -10028,6 +10028,40 @@ function _applyPlanTypeSwitch(el, nextType) {
     var pill = document.getElementById('role-plan-horizon-pill');
     if (pill) pill.textContent = nextType;
   } catch(_){}
+  // Swap STATE.generated to the active horizon's content so the Preview tab
+  // reflects the new plan type immediately (without requiring a tab switch).
+  try {
+    var _plan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
+    var _key = (nextType === '12-month') ? 'months12' : (nextType === '2-year' ? 'years2' : 'days90');
+    var _horizon = _plan[_key] || {};
+    var _stateGen = STATE.generated || (STATE.generated = {});
+    if (Array.isArray(_horizon.phases)) _stateGen.plan_phases = _horizon.phases;
+    if (_horizon.executiveSummary) {
+      _stateGen.success_summary = Array.isArray(_horizon.executiveSummary) ? _horizon.executiveSummary : [_horizon.executiveSummary];
+    }
+    if (Array.isArray(_horizon.successCriteria) && _horizon.successCriteria.length) {
+      _stateGen.success_criteria = _horizon.successCriteria;
+    } else if (Array.isArray(_horizon.successMetrics) && _horizon.successMetrics.length) {
+      _stateGen.success_criteria = _horizon.successMetrics;
+    }
+    if (Array.isArray(_horizon.successMetrics) && _horizon.successMetrics.length) {
+      _stateGen.kpis = _horizon.successMetrics.map(function(m){
+        if (m && typeof m === 'object') return m;
+        return { metric: String(m || ''), target: '', icon: 'target' };
+      });
+    }
+    if (typeof setGeneratedResume === 'function') {
+      try { setGeneratedResume(_stateGen); } catch(_){}
+    }
+    if (typeof renderPreview === 'function') {
+      try { renderPreview(_stateGen); } catch(_){}
+      try {
+        if (document.getElementById('preview-container-export')) {
+          renderPreview(_stateGen, 'preview-container-export');
+        }
+      } catch(_){}
+    }
+  } catch(e) { console.warn('[applyPlanTypeSwitch] preview refresh failed', e); }
   // Refresh editor placeholders + content for the new horizon.
   try { refreshRolePlanForHorizon(nextType); } catch(e) { console.warn('[applyPlanTypeSwitch] refresh failed', e); }
   try { syncSelectedSectionsFromUI(); } catch(_){}
