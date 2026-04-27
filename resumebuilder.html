@@ -6628,9 +6628,16 @@ function showOptimizeResult(s) {
   d = document.createElement('div');
   d.id = 'optimize-result-drawer';
   d.style.cssText = 'position:fixed;inset:0;z-index:10040;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);animation:fadeIn .18s ease-out';
-  const deltaColor = s.delta > 0 ? '#10B981' : (s.delta < 0 ? '#EF4444' : '#F59E0B');
-  const deltaArrow = s.delta > 0 ? '&#9650;' : (s.delta < 0 ? '&#9660;' : '&#9679;');
-  const deltaSign = s.delta > 0 ? '+' : '';
+  // PATCH (2026-04-27): always derive the displayed delta from the actual
+  // displayed scores rather than trusting s.delta. A stale or partially
+  // reverted optimizationSession was producing nonsense like
+  // "Improved from 80 to 76 (+8)".
+  const _displayDelta = (typeof s.improvedScore === 'number' && typeof s.originalScore === 'number')
+    ? (s.improvedScore - s.originalScore)
+    : (typeof s.delta === 'number' ? s.delta : 0);
+  const deltaColor = _displayDelta > 0 ? '#10B981' : (_displayDelta < 0 ? '#EF4444' : '#F59E0B');
+  const deltaArrow = _displayDelta > 0 ? '&#9650;' : (_displayDelta < 0 ? '&#9660;' : '&#9679;');
+  const deltaSign = _displayDelta > 0 ? '+' : '';
   const top = (s.acceptedChanges || []).slice(0, 5);
   const kept = s.summaryStats.changes_kept || (s.acceptedChanges||[]).length;
   const total = s.summaryStats.changes_proposed || ((s.acceptedChanges||[]).length + (s.discardedChanges||[]).length);
@@ -6653,7 +6660,7 @@ function showOptimizeResult(s) {
             <span style="font-size:2.2rem;font-weight:900;color:#0F172A;line-height:1">'+s.originalScore+'</span>\
             <span style="font-size:1.2rem;color:#94A3B8">&rarr;</span>\
             <span style="font-size:2.2rem;font-weight:900;color:'+deltaColor+';line-height:1">'+s.improvedScore+'</span>\
-            <span style="font-size:1rem;font-weight:800;color:'+deltaColor+';padding:3px 10px;background:rgba(16,185,129,0.12);border-radius:999px">'+deltaArrow+' '+deltaSign+s.delta+' pts</span>\
+            <span style="font-size:1rem;font-weight:800;color:'+deltaColor+';padding:3px 10px;background:rgba(16,185,129,0.12);border-radius:999px">'+deltaArrow+' '+deltaSign+_displayDelta+' pts</span>\
           </div>\
           <p style="font-size:0.8rem;color:#475569;margin:10px 0 0;line-height:1.5">We kept <strong>'+kept+'</strong> of <strong>'+total+'</strong> proposed changes because only those raised your score.</p>\
         </div>\
@@ -6685,6 +6692,19 @@ function refreshOptimizeStepUI() {
   const jd = (document.getElementById('job-desc')?.value || '').trim();
   const warn = document.getElementById('opt-cta-warning');
   if (warn) warn.classList.toggle('hidden', !!jd);
+
+  // PATCH (2026-04-27): clear the user-initiated analysis flag whenever the
+  // target role / JD has drifted from the cached analysis. Keeps the score
+  // card from lingering with stale numbers after the user changes inputs.
+  try {
+    if (STATE && STATE._analysisRunByUser) {
+      const curKey = (typeof getAnalysisCacheKey === 'function') ? getAnalysisCacheKey() : null;
+      const cacheStillMatches = !!(analysisCache && analysisCacheKey && curKey && analysisCacheKey === curKey);
+      if (!cacheStillMatches && !STATE._optimizeApplied) {
+        STATE._analysisRunByUser = false;
+      }
+    }
+  } catch(_){}
 
   // Gate "View Insights" behind either a completed optimization OR an existing
   // analysis cache (so users who analyzed without optimizing can still view insights).
@@ -6736,6 +6756,15 @@ function refreshOptimizeStepUI() {
   // When an optimization session is present, render the assessment line as
   // "Improved from X to Y (+Z)." instead of duplicating that information in
   // a second banner card.
+  //
+  // PATCH (2026-04-27): only display this card when the user has actually
+  // run Optimize OR explicitly opened the analysis drawer. Previously the
+  // card appeared as soon as analysisCache had any score, which happened
+  // silently via prefetchAnalysis() when entering the Preview & Export
+  // step -- so brand-new users saw a "match score" they never asked for.
+  // _analysisRunByUser is set ONLY in the explicit user analyze path
+  // (analyzeResume()) and cleared whenever the target role / JD changes
+  // unless the analysis cache key still matches.
   const mc = document.getElementById('opt-match-card');
   const mv = document.getElementById('opt-match-value');
   const mp = document.getElementById('opt-match-pill');
@@ -6743,8 +6772,10 @@ function refreshOptimizeStepUI() {
   const a = (typeof analysisCache !== 'undefined') ? analysisCache : null;
   const sess = STATE.optimizationSession;
   const hasSess = !!(sess && typeof sess.improvedScore === 'number');
+  const userInitiatedAnalysis = !!(STATE && STATE._analysisRunByUser);
+  const showCard = hasSess || !!STATE._optimizeApplied || userInitiatedAnalysis;
   const score = (typeof getResumeMatchScore === 'function') ? getResumeMatchScore() : null;
-  if (mc && score != null) {
+  if (mc && showCard && score != null) {
     mc.classList.remove('hidden');
     if (mv) { mv.textContent = score; mv.style.color = score >= 75 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'; }
     if (mp) {
@@ -6760,9 +6791,21 @@ function refreshOptimizeStepUI() {
       if (hasSess) {
         const before = sess.originalScore ?? 0;
         const after  = sess.improvedScore;
-        const delta  = (sess.delta != null) ? sess.delta : (after - before);
-        const sign   = delta > 0 ? '+' : '';
-        ma.textContent = 'Improved from ' + before + ' to ' + after + ' (' + sign + delta + ').';
+        // PATCH (2026-04-27): always derive delta from the displayed scores
+        // so the math is internally consistent. Previously we trusted
+        // sess.delta first, which produced nonsense like "Improved from
+        // 80 to 76 (+8)" when the cached delta drifted from the scores
+        // (e.g. partial revert, stale optimization session). Also pick
+        // the verb based on the actual sign so a lower score doesn't
+        // read as "Improved".
+        const delta = (typeof after === 'number' && typeof before === 'number') ? (after - before) : 0;
+        const sign  = delta > 0 ? '+' : (delta < 0 ? '' : '');
+        const verb  = delta > 0 ? 'Improved' : (delta < 0 ? 'Decreased' : 'Unchanged');
+        if (delta === 0) {
+          ma.textContent = 'Unchanged at ' + after + '.';
+        } else {
+          ma.textContent = verb + ' from ' + before + ' to ' + after + ' (' + sign + delta + ').';
+        }
       } else {
         ma.textContent = (a && (a.overall_assessment || a.overall_summary || a.interview_likelihood)) || '';
       }
@@ -19180,18 +19223,56 @@ async function importLinkedInJob() {
     if (data.job_title) document.getElementById('job-title').value = data.job_title;
     if (data.company) document.getElementById('job-company').value = data.company;
     if (data.description) document.getElementById('job-desc').value = data.description;
+    // PATCH (2026-04-27): persist immediately. Previously the LinkedIn-
+    // imported JD lived only in the DOM + an in-memory draft, so a brand-
+    // new profile that hadn't yet created a plan would lose the JD on
+    // reload -- which surfaced as the "Add a job description in Target
+    // Role first" warning on the Optimize panel after the user thought
+    // the import had saved.
     try {
-      const targetRole = {
-        job_title: data.job_title || '',
+      const importedJob = {
+        title: data.job_title || '',
+        jobTitle: data.job_title || '',
         company: data.company || '',
         description: data.description || '',
-        plan_context: document.getElementById('plan-context')?.value || ''
+        jobDescription: data.description || '',
+        jobUrl: url,
+        source: 'linkedin',
+        applicationStatus: 'Interested'
       };
-      if (currentPlanId) setCurrentTargetRole(targetRole);
-      else setTargetRoleDraft(targetRole);
-    } catch(_){ }
-    updateTargetRoleSubtitle();
-    try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
+
+      if (typeof upsertTargetJob === 'function') {
+        upsertTargetJob(importedJob);
+      } else {
+        const targetRole = {
+          job_title: data.job_title || '',
+          company: data.company || '',
+          description: data.description || '',
+          job_url: url,
+          source: 'linkedin',
+          plan_context: document.getElementById('plan-context')?.value || ''
+        };
+        if (currentPlanId) setCurrentTargetRole(targetRole);
+        else setTargetRoleDraft(targetRole);
+      }
+
+      try { updateTargetRoleSubtitle && updateTargetRoleSubtitle(); } catch(_){}
+      try { updateOptimizeCTAState && updateOptimizeCTAState(); } catch(_){}
+      try { (typeof refreshOptimizeQuickState === 'function') && refreshOptimizeQuickState(); } catch(_){}
+      try { (typeof renderTargetJobsPanel === 'function') && renderTargetJobsPanel(); } catch(_){}
+      try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){}
+
+      try { markDirty && markDirty({ touchOptimize: false }); } catch(_){}
+
+      if (currentUser && typeof savePlan === 'function') {
+        await savePlan({ silent: true });
+      } else if (typeof scheduleSmartSave === 'function') {
+        scheduleSmartSave('linkedin-import', 500);
+      }
+    } catch (persistErr) {
+      console.warn('[linkedin] import persistence failed:', persistErr);
+    }
+
     statusEl.innerHTML = '<span style="color:#047857">Job details imported! Review and edit the fields below.</span>';
     showToast('Job details imported from LinkedIn!');
     rbDebug('linkedin', 'import success', { title: data.job_title, company: data.company, descLen: (data.description||'').length });
@@ -20419,6 +20500,11 @@ async function analyzeResume() {
   // Allow the very first build for new users so they can test the full flow
   // (extract ? research ? analyze ? optimize ? export) before hitting the paywall.
   if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
+  // PATCH (2026-04-27): mark this as a user-initiated analyze so the
+  // Resume Match Score card is allowed to render. prefetchAnalysis() does
+  // NOT set this flag, so silent prefetches no longer surface a score the
+  // user never asked for.
+  try { STATE._analysisRunByUser = true; } catch(_){}
   const btn = document.querySelector('[data-testid="analyze-btn"]');
   const origHTML = btn ? btn.innerHTML : '';
 
@@ -22562,7 +22648,10 @@ function openPrivacyForReview() {
     // Match Score: X ? Y (+Z)  rendered in the premium header.
     const beforeScore = typeof s.originalScore === 'number' ? s.originalScore : 0;
     const afterScore  = typeof s.improvedScore === 'number' ? s.improvedScore : beforeScore;
-    const delta       = typeof s.delta === 'number' ? s.delta : (afterScore - beforeScore);
+    // PATCH (2026-04-27): always derive delta from displayed scores so the
+    // sign/text matches the visible numbers. Avoids "Improved from 80 to
+    // 76 (+8)" when s.delta is stale.
+    const delta       = afterScore - beforeScore;
     const deltaSign   = delta > 0 ? '+' : '';
     const deltaColor  = delta > 0 ? '#10B981' : (delta < 0 ? '#EF4444' : '#F59E0B');
 
