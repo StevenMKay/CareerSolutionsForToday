@@ -297,6 +297,46 @@
   .export-plan .plan-block{margin:10px 0 14px;page-break-inside:avoid}
   .export-plan ul{margin:6px 0 8px 18px;padding:0}
   .export-plan li{margin-bottom:4px}
+
+  /* PATCH (Plan v8 polish): Web-preview-only styling for CV/Plan inside
+     .resume-web shell. Document mode (.pv-pages-stack) is unaffected. */
+  .resume-web .export-cv,
+  .resume-web .export-plan{
+    max-width:900px;margin:0 auto;padding:28px 32px;
+    background:#fff;color:#0f172a;
+    border:1px solid rgba(15,23,42,0.08);
+    border-radius:18px;
+    box-shadow:0 12px 32px rgba(15,23,42,0.08);
+    font-family:'Inter','Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.6;
+  }
+  .resume-web .export-cv h1,
+  .resume-web .export-plan h1{
+    font-family:'Inter','Segoe UI',Arial,sans-serif;
+    font-size:24px;margin:0 0 6px;color:#0b1f3a;letter-spacing:-0.01em;
+  }
+  .resume-web .export-plan h2{
+    margin:22px 0 12px;padding-bottom:6px;
+    border-bottom:1px solid rgba(15,23,42,0.08);
+    font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#0b487a;
+  }
+  .resume-web .export-plan h3{margin:14px 0 6px;font-size:15px;color:#1e293b;font-weight:600}
+  .resume-web .export-plan .plan-block{
+    background:#f8fafc;border:1px solid rgba(15,23,42,0.08);
+    border-radius:12px;padding:14px 16px;margin:10px 0 14px;
+  }
+  .resume-web .export-cv .cv-meta{color:#475569;font-size:13px}
+  .resume-web .export-cv .cv-body{margin-top:24px}
+  .resume-web .export-cv p{margin:0 0 14px}
+
+  .plan-metric-row{
+    background:#f8fafc;border:1px solid rgba(15,23,42,0.08);
+    border-radius:12px;padding:12px 14px;margin:8px 0 10px;
+  }
+  .plan-metric-title{font-weight:600;color:#0b1f3a;font-size:14px}
+  .plan-metric-text{color:#334155;margin-top:4px;font-size:13.5px}
+  .plan-metric-meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-size:12.5px;color:#475569}
+  .plan-metric-meta strong{color:#0b487a;font-weight:600}
+  .pv-page .plan-metric-row{background:#fafafa;border-color:#e5e7eb;border-radius:8px}
   .page-break{page-break-before:always;break-before:page}
   .export-package{background:#fff;color:#111827}
   .export-package .export-doc{box-shadow:none}
@@ -20326,11 +20366,111 @@ function renderCustomerDownloads() {
 try { window.renderCustomerDownloads = renderCustomerDownloads; } catch(_){}
 
 // ---- Simple Cover Letter + Career Plan HTML templates --------------------
+
+// PATCH (preview polish): normalize a single plan/metric/milestone item so
+// objects render structurally instead of leaking [object Object] or raw JSON.
+function normalizePlanItem(item) {
+  if (item == null) return null;
+  if (typeof item === 'string') {
+    const t = item.trim();
+    return t ? { text: t } : null;
+  }
+  if (typeof item === 'object') {
+    const o = {
+      title: item.title || item.name || item.metric || item.label || '',
+      text:  item.text  || item.description || item.summary || item.detail || '',
+      target:      item.target      || item.goal || '',
+      baseline:    item.baseline    || item.current || '',
+      measurement: item.measurement || item.measure || item.method || '',
+      icon: item.icon || ''
+    };
+    if (!o.title && !o.text && !o.target && !o.baseline && !o.measurement) {
+      // Last-resort fallback: pick first scalar value, never JSON.stringify.
+      for (const k of Object.keys(item)) {
+        const v = item[k];
+        if (typeof v === 'string' && v.trim()) { o.text = v.trim(); break; }
+        if (typeof v === 'number') { o.text = String(v); break; }
+      }
+    }
+    return (o.title || o.text || o.target || o.baseline || o.measurement) ? o : null;
+  }
+  return { text: String(item) };
+}
+function normalizePlanArray(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map(normalizePlanItem).filter(Boolean);
+}
+function renderPlanMetricRow(item) {
+  const x = normalizePlanItem(item);
+  if (!x) return '';
+  const esc = escapeHtml;
+  const meta = [
+    x.target      ? '<span><strong>Target:</strong> '      + esc(x.target)      + '</span>' : '',
+    x.baseline    ? '<span><strong>Baseline:</strong> '    + esc(x.baseline)    + '</span>' : '',
+    x.measurement ? '<span><strong>Measurement:</strong> ' + esc(x.measurement) + '</span>' : ''
+  ].filter(Boolean).join('');
+  if (!x.title && !meta && x.text) {
+    return '<div class="plan-metric-row"><div class="plan-metric-text">' + esc(x.text) + '</div></div>';
+  }
+  return '<div class="plan-metric-row">' +
+    (x.title ? '<div class="plan-metric-title">' + esc(x.title) + '</div>' : '') +
+    (x.text  ? '<div class="plan-metric-text">'  + esc(x.text)  + '</div>' : '') +
+    (meta    ? '<div class="plan-metric-meta">'  + meta         + '</div>' : '') +
+  '</div>';
+}
+function renderPlanMetrics(items) {
+  const arr = normalizePlanArray(items);
+  if (!arr.length) return '';
+  return arr.map(renderPlanMetricRow).join('');
+}
+try {
+  window.normalizePlanItem  = normalizePlanItem;
+  window.normalizePlanArray = normalizePlanArray;
+  window.renderPlanMetricRow = renderPlanMetricRow;
+} catch(_){}
+
+// PATCH (preview polish): strip duplicate greeting/closing from AI cover
+// letter body so the template's own greeting/closing isn't doubled.
+function stripDuplicateCoverLetterEdges(text) {
+  let t = String(text || '').trim();
+  if (!t) return '';
+  t = t.replace(/^\s*dear\s+(?:hiring\s+team|hiring\s+manager|recruiter|sir(?:\s*\/\s*madam)?|madam|team)[^\n]*[,:.\s]*\n+/i, '');
+  t = t.replace(/^\s*to\s+whom\s+it\s+may\s+concern[^\n]*[,:.\s]*\n+/i, '');
+  t = t.replace(/\n+\s*(thank\s+you\s+for\s+your\s+time(?:\s+and\s+consideration)?\.?)\s*$/i, '');
+  t = t.replace(/\n+\s*(sincerely|best\s+regards|kind\s+regards|warm\s+regards|regards|respectfully)[,.\s]*$/i, '');
+  t = t.replace(/\n*\s*(sincerely|best\s+regards|kind\s+regards|warm\s+regards|regards|respectfully)[,.]?\s*$/i, '');
+  return t.trim();
+}
+function _normalizeCVBodyParagraphs(body) {
+  if (Array.isArray(body)) {
+    return body.map(p => stripDuplicateCoverLetterEdges(String(p || ''))).filter(Boolean);
+  }
+  const cleaned = stripDuplicateCoverLetterEdges(String(body || ''));
+  return cleaned.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+}
+try { window.stripDuplicateCoverLetterEdges = stripDuplicateCoverLetterEdges; } catch(_){}
+
 function renderTextList(items) {
-  const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+  const arr = Array.isArray(items) ? items.filter(v => v != null && v !== '') : [];
   if (!arr.length) return '';
   const esc = escapeHtml;
-  return '<ul>' + arr.map(x => '<li>' + esc(typeof x === 'string' ? x : (x && (x.text || x.title) ? (x.text || x.title) : JSON.stringify(x))) + '</li>').join('') + '</ul>';
+  return '<ul>' + arr.map(x => {
+    if (typeof x === 'string') return '<li>' + esc(x) + '</li>';
+    if (x && typeof x === 'object') {
+      const n = normalizePlanItem(x);
+      if (!n) return '';
+      const head = n.title ? '<strong>' + esc(n.title) + '</strong>' : '';
+      const body = n.text ? (head ? ' \u2014 ' : '') + esc(n.text) : '';
+      const meta = [
+        n.target      ? ' <em>(Target: '      + esc(n.target)      + ')</em>' : '',
+        n.baseline    ? ' <em>(Baseline: '    + esc(n.baseline)    + ')</em>' : '',
+        n.measurement ? ' <em>(Measurement: ' + esc(n.measurement) + ')</em>' : ''
+      ].join('');
+      const inner = head + body + meta;
+      return inner ? '<li>' + inner + '</li>' : '';
+    }
+    return '<li>' + esc(String(x)) + '</li>';
+  }).filter(Boolean).join('') + '</ul>';
 }
 function renderCVDocument(cv, context) {
   cv = cv || {}; context = context || {};
@@ -20340,7 +20480,11 @@ function renderCVDocument(cv, context) {
   const name = profile.name || profile.fullName || context.name || '';
   const roleTitle = targetRole.job_title || targetRole.title || '';
   const company = targetRole.company || '';
-  const body = Array.isArray(cv.body) ? cv.body : String(cv.body || '').split(/\n\s*\n/).filter(Boolean);
+  // PATCH (preview polish): dedupe AI-supplied greeting/closing so the
+  // template's own greeting/closing isn't doubled.
+  const opening = stripDuplicateCoverLetterEdges(String(cv.opening || '')) || 'Dear Hiring Team,';
+  const closing = stripDuplicateCoverLetterEdges(String(cv.closing || '')) || 'Thank you for your time and consideration.';
+  const body = _normalizeCVBodyParagraphs(cv.body);
   return '' +
     '<article class="export-doc export-cv">' +
       '<header class="cv-header">' +
@@ -20349,9 +20493,9 @@ function renderCVDocument(cv, context) {
         ((roleTitle || company) ? '<p class="cv-meta">' + esc([roleTitle, company].filter(Boolean).join(' \u00b7 ')) + '</p>' : '') +
       '</header>' +
       '<section class="cv-body">' +
-        '<p>' + esc(cv.opening || 'Dear Hiring Team,') + '</p>' +
+        '<p>' + esc(opening) + '</p>' +
         body.map(p => '<p>' + esc(p) + '</p>').join('') +
-        '<p>' + esc(cv.closing || 'Thank you for your time and consideration.') + '</p>' +
+        '<p>' + esc(closing) + '</p>' +
       '</section>' +
     '</article>';
 }
@@ -20416,13 +20560,13 @@ function renderPlanDocument(plan, context) {
         '<h2>First 90 Days</h2>' +
         (p.days90.executiveSummary ? '<p>' + esc(p.days90.executiveSummary) + '</p>' : '') +
         phases.map(phaseBlock).join('') +
-        renderTextList(p.days90.successMetrics) +
+        renderPlanMetrics(p.days90.successMetrics) +
       '</section>' +
       '<section>' +
         '<h2>12-Month Growth Plan</h2>' +
         (p.months12.leadershipNarrative ? '<p>' + esc(p.months12.leadershipNarrative) + '</p>' : '') +
         quarters.map(qBlock).join('') +
-        renderTextList(p.months12.successMetrics) +
+        renderPlanMetrics(p.months12.successMetrics) +
       '</section>' +
       '<section>' +
         '<h2>2-Year Strategic Plan</h2>' +
@@ -20435,7 +20579,7 @@ function renderPlanDocument(plan, context) {
         renderTextList(y2.capabilitiesToBuild || y2.capabilities_to_build) +
         renderTextList(y2.milestones) +
         (p.years2.longTermPositioning ? '<p><strong>Long-Term Positioning:</strong> ' + esc(p.years2.longTermPositioning) + '</p>' : '') +
-        renderTextList(p.years2.risksAndMitigations) +
+        renderPlanMetrics(p.years2.risksAndMitigations) +
       '</section>' +
     '</article>';
 }
