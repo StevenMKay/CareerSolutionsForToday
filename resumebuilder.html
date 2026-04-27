@@ -3269,11 +3269,20 @@
     let filled = 0;
     SUBS.forEach(k => { if (isFilled(k)) filled++; });
     const total = SUBS.length;
-    meta.textContent = filled + '/' + total + ' filled';
-    // Color cue: muted when empty, primary navy mid-progress, green when complete.
-    if (filled === 0)        meta.style.color = '#9CA3AF';
-    else if (filled === total) meta.style.color = '#15803D';
-    else                     meta.style.color = '#0A2F6B';
+    // PATCH (2026-04-27): user asked that the badge show the X/N number
+    // when fully completed and a plain text label otherwise (instead of
+    // flashing between "Complete" and "6/8"). When fully filled we show
+    // the count (e.g. "8/8 filled"); otherwise we show "Incomplete".
+    if (filled === total) {
+      meta.textContent = filled + '/' + total + ' filled';
+      meta.style.color = '#15803D';
+    } else if (filled === 0) {
+      meta.textContent = 'Incomplete';
+      meta.style.color = '#9CA3AF';
+    } else {
+      meta.textContent = 'Incomplete';
+      meta.style.color = '#0A2F6B';
+    }
     meta.style.fontWeight = '600';
   }
 
@@ -5579,6 +5588,16 @@ function clearAnalysisUI() {
   _lastGenBtnState = null;
   try { _baselineMatchScore = null; } catch(e) {}
   try { _aiEnhanceAppliedForCurrentGen = false; } catch(e) {}
+  // PATCH (2026-04-27): also wipe the optimization session + related flags
+  // here. These feed the Optimize-step "Resume Match Score" card. Without
+  // this, signing in as a new user (or starting a new profile) inherited
+  // the previous session's score (e.g. "Decreased from 80 to 76") because
+  // _doStartNewPlan() and onAuthStateChanged() both call clearAnalysisUI()
+  // but neither was clearing optimizationSession on its own.
+  try { STATE.optimizationSession = null; } catch(e) {}
+  try { STATE._optimizeApplied = false; } catch(e) {}
+  try { STATE._optimizeAppliedAt = null; } catch(e) {}
+  try { STATE._analysisRunByUser = false; } catch(e) {}
 
   // Match score card
   const matchBox = document.getElementById('rp-match-score');
@@ -10879,10 +10898,11 @@ function updateSubAccMetas() {
   setCount('certifications', certificationsN);
   const skillsN = (STATE.resumeData && Array.isArray(STATE.resumeData.skills)) ? STATE.resumeData.skills.length : 0;
   set('skills', skillsN ? (skillsN + ' Selected') : 'Empty', skillsN ? 'complete' : 'empty');
-  try {
-    const hasData = (getResumeDraft().experience || []).length > 0;
-    set('work-exp-main', hasData ? 'Complete' : 'Empty', hasData ? 'complete' : 'empty');
-  } catch(_){ }
+  // PATCH (2026-04-27): the work-exp-main meta was being written by BOTH
+  // this function ("Complete"/"Empty") AND the IIFE near line 3245 ("N/8
+  // filled"), which produced a visible flash as the two writers raced.
+  // The IIFE owns this badge now (it tracks all 8 Work Experience
+  // sub-accordions), so we no longer touch sub-meta-work-exp-main here.
   try {
     const cvBody = (document.getElementById('workspace-cv-body')||{}).value || '';
     const hasCv = !!String(cvBody).trim();
@@ -11462,7 +11482,29 @@ try {
 function populateManualEntryFromState() {
   const rd = (typeof getResumeDraft === 'function' ? getResumeDraft() : null) || STATE.resumeData;
   if (!rd) return;
-  document.getElementById('manual-current-title').value = rd.current_title || '';
+  // PATCH (2026-04-27): if the parsed resume didn't include a top-level
+  // current_title, derive it from the most recent experience role flagged
+  // as current (current_role===true) or whose dates include Present/Current/
+  // Now. Users were seeing the "Current Title" box stay empty even though
+  // the site clearly knows the role from the experience block.
+  let _currentTitle = rd.current_title || '';
+  if (!_currentTitle && Array.isArray(rd.experience) && rd.experience.length) {
+    const currentExp = rd.experience.find(e => e && (
+      e.current_role === true ||
+      (typeof _looksLikeCurrentRoleDates === 'function' && _looksLikeCurrentRoleDates(e.dates || ''))
+    ));
+    if (currentExp && currentExp.title) _currentTitle = currentExp.title;
+    // Fall back to the first listed role if nothing flagged as current.
+    if (!_currentTitle) {
+      const first = rd.experience[0];
+      if (first && first.title) _currentTitle = first.title;
+    }
+    // Persist so subsequent renders/exports reuse the inferred title.
+    if (_currentTitle) {
+      try { rd.current_title = _currentTitle; } catch(_){}
+    }
+  }
+  document.getElementById('manual-current-title').value = _currentTitle;
   document.getElementById('manual-summary').value = rd.summary || '';
   document.getElementById('manual-skills').value = (rd.skills || []).join(', ');
   try { renderSkillsChips && renderSkillsChips(); } catch(_){}
@@ -21931,7 +21973,7 @@ function openPrivacyForReview() {
       // (and edit the live preview on the right) before exporting.
       key: 'review',
       title: 'Step 4 - Review & edit',
-      body: "After Optimize runs, fine-tune your resume, career plan, and cover letter right here. Edit copy directly in the live preview on the right - changes save automatically.",
+      body: "After Optimize runs, head back to Step 2 - Application Details to fine-tune your resume, career plan, and cover letter. Edits in those sub-sections save automatically and flow into the live preview on the right.",
       anchor: ['[data-sub="opt-results"]', '#step-4', '.ts-step[data-step="2"]'],
       cardCenter: true,
       action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(2); } catch(_){} }
