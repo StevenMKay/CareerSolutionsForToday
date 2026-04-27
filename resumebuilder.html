@@ -298,7 +298,7 @@
       min-height:auto !important;
       transform:none !important;
       margin-bottom:0 !important;
-      padding:18px 16px !important;
+      padding:0.2in !important;
       font-size:11.5px !important;
       line-height:1.45 !important;
       border-radius:8px !important;
@@ -317,7 +317,7 @@
     /* Document-mode paper shell — softer card look, less wasted padding */
     .resume-paper-shell{padding:10px 6px;background:linear-gradient(180deg,#F1F5F9 0%,#E2E8F0 100%);border-radius:12px}
     .resume-paper{
-      width:100%;min-height:auto;padding:18px 16px;border-radius:10px;
+      width:100%;min-height:auto;padding:0.2in;border-radius:10px;
       box-shadow:0 8px 24px rgba(15,23,42,0.12),0 2px 4px rgba(15,23,42,0.06);
       font-size:13px;line-height:1.5;
     }
@@ -339,8 +339,41 @@
       background:#fff !important;border:1px solid #E5E7EB !important;
       border-radius:12px !important;padding:8px !important;
       box-shadow:0 1px 2px rgba(15,23,42,0.04) !important;
-      overflow:hidden;
+      /* overflow:auto inherited from the base mobile rule below to keep
+         scroll + pinch-zoom working even with the card chrome on. */
     }
+
+    /* Mobile preview: enable scrolling + native pinch-zoom on the
+       preview container so users can pan when content overflows or
+       use two-finger zoom. The JS pinch handler below also wires up
+       proper element-level zoom that grows the layout (vs page-zoom). */
+    #preview-container, #preview-container-export, #preview-container-b{
+      max-height:78vh;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+      touch-action:pan-x pan-y pinch-zoom;
+      position:relative;
+    }
+    /* Wrapper that JS injects under each preview container; carries the
+       active zoom factor as a CSS variable (uses `zoom` rather than
+       `transform:scale` so overflow scrollbars adapt naturally). */
+    .pv-zoom-content{zoom:var(--pv-zoom,1);transition:zoom .12s ease;transform-origin:top left}
+    /* Floating zoom toolbar — only visible on small screens; injected by JS. */
+    .pv-zoom-toolbar{
+      position:sticky;top:6px;z-index:5;
+      display:flex;align-items:center;gap:4px;
+      width:max-content;margin:0 0 6px auto;
+      padding:3px;border-radius:999px;
+      background:rgba(15,23,42,0.85);backdrop-filter:blur(6px);
+      box-shadow:0 4px 12px rgba(15,23,42,0.18);
+    }
+    .pv-zoom-toolbar button{
+      width:28px;height:28px;border:none;border-radius:999px;background:transparent;
+      color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+      font-size:14px;font-weight:600;line-height:1;
+    }
+    .pv-zoom-toolbar button:hover{background:rgba(255,255,255,0.12)}
+    .pv-zoom-toolbar .pv-zoom-pct{color:#fff;font-size:10px;font-weight:600;min-width:34px;text-align:center;padding:0 4px;letter-spacing:0.02em}
     /* Tighten line-height on rendered resume content blocks */
     #preview-container .text-xs,#preview-container .text-sm,
     #preview-container p,#preview-container li,
@@ -14538,6 +14571,160 @@ document.addEventListener('DOMContentLoaded', function(){
   try { updateRoleSectionsVisibility(); } catch(_){}
   try { setInterval(updateRoleSectionsVisibility, 2000); } catch(_){}
 });
+
+// ============================================================
+// Live Preview pinch-zoom + toolbar (mobile / app view only)
+// ------------------------------------------------------------
+// Wraps the rendered preview in a `.pv-zoom-content` div whose CSS
+// `zoom` property is driven by --pv-zoom on the host container.
+// Using `zoom` instead of `transform:scale()` lets the host's
+// overflow:auto produce real scrollbars when the user zooms in,
+// which is what makes panning feel natural on a phone.
+//
+// The wrapper is restored automatically on every renderPreview()
+// pass via a MutationObserver so we don't have to patch every
+// render path.
+// ============================================================
+(function installPreviewPinchZoom(){
+  const HOST_IDS = ['preview-container', 'preview-container-export', 'preview-container-b', 'preview-container-export-b'];
+  const MIN_Z = 1, MAX_Z = 3;
+  const isMobile = () => window.matchMedia('(max-width:640px)').matches;
+
+  function ensureWrapper(host){
+    if (!host) return null;
+    let w = host.querySelector(':scope > .pv-zoom-content');
+    if (!w){
+      w = document.createElement('div');
+      w.className = 'pv-zoom-content';
+      const toolbar = host.querySelector(':scope > .pv-zoom-toolbar');
+      const kids = Array.from(host.childNodes).filter(n => n !== toolbar);
+      kids.forEach(n => w.appendChild(n));
+      // Toolbar must come first so it sticks to the top of the scroll area.
+      if (toolbar) host.appendChild(toolbar);
+      host.appendChild(w);
+    }
+    return w;
+  }
+
+  function applyZoom(host, z){
+    z = Math.max(MIN_Z, Math.min(MAX_Z, z));
+    host.style.setProperty('--pv-zoom', String(z));
+    host.dataset.pvZoom = String(z);
+    const pct = host.querySelector(':scope > .pv-zoom-toolbar .pv-zoom-pct');
+    if (pct) pct.textContent = Math.round(z * 100) + '%';
+  }
+
+  function buildToolbar(host){
+    if (host.querySelector(':scope > .pv-zoom-toolbar')) return;
+    const tb = document.createElement('div');
+    tb.className = 'pv-zoom-toolbar';
+    tb.setAttribute('aria-label', 'Preview zoom');
+    tb.innerHTML = '<button type="button" data-pz="out" aria-label="Zoom out" title="Zoom out">\u2212</button>'
+                 + '<span class="pv-zoom-pct">100%</span>'
+                 + '<button type="button" data-pz="reset" aria-label="Reset zoom" title="Reset zoom" style="font-size:10px">100%</button>'
+                 + '<button type="button" data-pz="in" aria-label="Zoom in" title="Zoom in">+</button>';
+    tb.addEventListener('click', function(e){
+      const b = e.target.closest('button[data-pz]');
+      if (!b) return;
+      e.preventDefault();
+      const cur = parseFloat(host.dataset.pvZoom || '1') || 1;
+      if (b.dataset.pz === 'in')   applyZoom(host, cur + 0.25);
+      else if (b.dataset.pz === 'out')   applyZoom(host, cur - 0.25);
+      else if (b.dataset.pz === 'reset') applyZoom(host, 1);
+    });
+    // Prevent the toolbar's touch from being interpreted as a pan/pinch.
+    tb.addEventListener('touchstart', function(e){ e.stopPropagation(); }, { passive: true });
+    host.insertBefore(tb, host.firstChild);
+  }
+
+  // Two-finger pinch handler. When two fingers go down we capture the
+  // initial distance + zoom; subsequent moves scale proportionally. We
+  // suppress page panning during the gesture so the preview itself zooms.
+  function attachPinch(host){
+    if (host.dataset.pzPinch) return;
+    host.dataset.pzPinch = '1';
+    let startDist = 0, startZoom = 1, pinching = false;
+    function dist(t1, t2){
+      const dx = t1.clientX - t2.clientX, dy = t1.clientY - t2.clientY;
+      return Math.hypot(dx, dy);
+    }
+    host.addEventListener('touchstart', function(e){
+      if (e.touches.length === 2){
+        pinching = true;
+        startDist = dist(e.touches[0], e.touches[1]);
+        startZoom = parseFloat(host.dataset.pvZoom || '1') || 1;
+      }
+    }, { passive: true });
+    host.addEventListener('touchmove', function(e){
+      if (pinching && e.touches.length === 2){
+        const d = dist(e.touches[0], e.touches[1]);
+        if (startDist > 0){
+          const next = startZoom * (d / startDist);
+          applyZoom(host, next);
+          // Stop the browser from also page-zooming during our gesture.
+          if (e.cancelable) e.preventDefault();
+        }
+      }
+    }, { passive: false });
+    host.addEventListener('touchend', function(e){
+      if (e.touches.length < 2) pinching = false;
+    });
+    host.addEventListener('touchcancel', function(){ pinching = false; });
+    // Trackpad / mouse wheel + ctrl as desktop fallback.
+    host.addEventListener('wheel', function(e){
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const cur = parseFloat(host.dataset.pvZoom || '1') || 1;
+      applyZoom(host, cur + (e.deltaY < 0 ? 0.1 : -0.1));
+    }, { passive: false });
+  }
+
+  function init(host){
+    if (!host) return;
+    ensureWrapper(host);
+    if (isMobile()) buildToolbar(host);
+    attachPinch(host);
+    if (!host.dataset.pvZoom) applyZoom(host, 1);
+
+    // Re-wrap on every render. The renderer rebuilds children via
+    // innerHTML, which removes our wrapper; the observer puts it back.
+    if (!host.dataset.pzObs){
+      host.dataset.pzObs = '1';
+      const mo = new MutationObserver(function(){
+        // Skip if our wrapper is already present and intact.
+        if (host.querySelector(':scope > .pv-zoom-content')) return;
+        ensureWrapper(host);
+        // Re-apply current zoom (the variable lives on host, so already set).
+      });
+      mo.observe(host, { childList: true });
+    }
+  }
+
+  function bootstrap(){
+    HOST_IDS.forEach(function(id){
+      const el = document.getElementById(id);
+      if (el) init(el);
+    });
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    bootstrap();
+  }
+  // Re-bootstrap on viewport changes so the toolbar appears/disappears
+  // as the user rotates between phone and tablet widths.
+  try {
+    window.matchMedia('(max-width:640px)').addEventListener('change', function(){
+      HOST_IDS.forEach(function(id){
+        const el = document.getElementById(id);
+        if (!el) return;
+        const tb = el.querySelector(':scope > .pv-zoom-toolbar');
+        if (isMobile() && !tb) buildToolbar(el);
+        else if (!isMobile() && tb) tb.remove();
+      });
+    });
+  } catch(_){}
+})();
 
 function setPreviewMode(mode, btn){
   window.__previewViewSwitching = true;
