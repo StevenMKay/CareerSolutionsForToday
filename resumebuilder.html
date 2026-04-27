@@ -10058,6 +10058,39 @@ function syncIncludeCardsFromPreviewContent() {
   setIncludeCardState('cv', !!sel.cv);
   updateIncludeDependentUI();
 }
+// PATCH (Plan v7): canonical entry point used by the legacy
+// setPreviewContent() wrapper. Accepts a partial { resume, plan, cv }
+// object, normalizes (guarantees at least one selection), updates the
+// include-checks DOM, persists to the active version, and re-renders
+// the live preview. Does NOT independently write previewContent ?
+// previewContent is derived from include flags by getPreviewContent().
+function setIncludeSelection(partial) {
+  const current = {
+    resume: isIncludeSelected('resume'),
+    plan: isIncludeSelected('plan'),
+    cv: isIncludeSelected('cv')
+  };
+  const next = _normalizeIncludeSelections({
+    resume: (partial && 'resume' in partial) ? !!partial.resume : current.resume,
+    plan:   (partial && 'plan'   in partial) ? !!partial.plan   : current.plan,
+    cv:     (partial && 'cv'     in partial) ? !!partial.cv     : current.cv
+  });
+  setIncludeCardState('resume', next.resume);
+  setIncludeCardState('plan',   next.plan);
+  setIncludeCardState('cv',     next.cv);
+  persistIncludeSelections(next);
+  updateIncludeDependentUI();
+  try {
+    if (STATE.generated && Object.keys(STATE.generated).length) {
+      renderPreview(STATE.generated);
+      if (document.getElementById('preview-container-export')) {
+        try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){ }
+      }
+    }
+  } catch(_){ }
+  return next;
+}
+try { window.setIncludeSelection = setIncludeSelection; } catch(_){}
 function toggleIncludeCard(el) {
   setTimeout(() => {
     const cb = el.querySelector('input');
@@ -15362,50 +15395,21 @@ function _applyPreviewPresets(){
 // is a back-compat read alias ? do not write through it directly here.
 // Resume reads from getActiveVersion().resume, plan reads from
 // getActiveVersion().plan. Combined renders both without merging state.
+// PATCH (Plan v7): setPreviewContent is now a COMPATIBILITY WRAPPER ONLY.
+// "What to Include" is the single source of truth for which content shows
+// in the preview. This wrapper exists only so legacy callers (and any
+// stragglers) keep working ? it routes the requested content through
+// setIncludeSelection() instead of writing previewContent independently.
 function setPreviewContent(content, btn){
-  window.__previewViewSwitching = true;
-  try {
-    const ALLOWED = ['resume','cv','plan','combined'];
-    if (!ALLOWED.includes(content)) content = 'combined';
-
-    // Ensure in-progress inline edits are committed before content-mode rerender.
-    try { flushActivePreviewEditsToState && flushActivePreviewEditsToState(); } catch(_){ }
-
-    // Write to the active version's exportSettings bucket. Active version is
-    // lazily created (the 'draft' record) if no version exists yet, so this
-    // is safe pre-save.
-    try {
-      const v = getActiveVersion();
-      v.exportSettings = v.exportSettings || {};
-      const prev = v.exportSettings.previewContent || 'combined';
-      if (prev === content) {
-        try { schedulePreviewRender && schedulePreviewRender('preview-content-same', 120); } catch(_){ }
-        return;
-      }
-      v.exportSettings.previewContent = content;
-      v.updatedAt = new Date().toISOString();
-    } catch(e) { console.warn('[setPreviewContent] failed to persist', e); }
-
-    // Toggle visual active state across both preview surfaces.
-    try {
-      document.querySelectorAll('[data-pv-content]').forEach(b => {
-        if (b.getAttribute('data-pv-content') === content) b.classList.add('active');
-        else b.classList.remove('active');
-      });
-    } catch(_){ }
-    try { syncIncludeCardsFromPreviewContent && syncIncludeCardsFromPreviewContent(); } catch(_){ }
-    // Re-render both preview containers so the gating takes effect.
-    try {
-      if (STATE.generated && Object.keys(STATE.generated).length){
-        renderPreview(STATE.generated);
-        if (document.getElementById('preview-container-export')) {
-          try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){ }
-        }
-      }
-    } catch(_){ }
-  } finally {
-    setTimeout(() => { try { window.__previewViewSwitching = false; } catch(_){ } }, 260);
-  }
+  const c = String(content || '').toLowerCase();
+  let mapping;
+  if (c === 'resume')        mapping = { resume: true,  cv: false, plan: false };
+  else if (c === 'cv')       mapping = { resume: false, cv: true,  plan: false };
+  else if (c === 'plan')     mapping = { resume: false, cv: false, plan: true  };
+  else if (c === 'combined') mapping = { resume: true,  cv: true,  plan: true  };
+  else                       mapping = { resume: true,  cv: false, plan: false };
+  try { setIncludeSelection(mapping); } catch(_){}
+  try { schedulePreviewRender && schedulePreviewRender('legacy-setPreviewContent-wrapper', 120); } catch(_){}
 }
 try { window.setPreviewContent = setPreviewContent; } catch(_){}
 
@@ -21749,7 +21753,9 @@ function openAnalysis(source, opts) {
     }
     return false;
   }
-  try { console.log('[analysis-drawer] open', { source: source }); } catch(_){}
+  if (window.RB_DEBUG === true) {
+    try { console.log('[analysis-drawer] open', { source: source }); } catch(_){}
+  }
   const overlay = document.getElementById('analysis-overlay');
   const drawer = document.getElementById('analysis-drawer');
   if (overlay) overlay.classList.add('open');
