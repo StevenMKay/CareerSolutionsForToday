@@ -763,15 +763,30 @@
   .workspace-bar .wb-btn.primary:hover{background:#0047A3;filter:brightness(1.05)}
   .workspace-bar .wb-btn.success{background:#059669;color:#fff;border-color:#059669}
   .workspace-bar .wb-btn.success:hover{background:#047857}
-  /* Phase VI: AI Optimize quick icon button. Icon-only to keep the bar compact.
-    .wb-optimize.not-ready  — greyed, signals "add data first"
-    .wb-optimize.ready      — purple gradient, signals "ready to optimize now"
-     The walkthrough step 4 body tells users to look for the purple state. */
-  .workspace-bar .wb-optimize{padding:7px 10px;min-width:36px;justify-content:center}
-  .workspace-bar .wb-optimize.not-ready{color:#94A3B8;border-color:rgba(148,163,184,0.32);background:rgba(15,23,42,0.28)}
-  .workspace-bar .wb-optimize.not-ready:hover{color:#CBD5E1;background:rgba(30,41,59,0.62);border-color:rgba(148,163,184,0.44)}
+  /* Phase VI: AI Optimize quick action button.
+     Desktop shows the word "Optimize" alongside the sparkles icon (light purple
+     by default). Mobile hides the label via the existing
+     `.workspace-bar .wb-btn span{display:none}` rule.
+    .wb-optimize.not-ready  — light purple, signals "add data first"
+    .wb-optimize.ready      — vivid purple gradient, signals "ready to optimize now"
+     The walkthrough step 3 body tells users to look for the purple states. */
+  .workspace-bar .wb-optimize{padding:7px 12px;min-width:36px;justify-content:center}
+  .workspace-bar .wb-optimize.not-ready{color:#DDD6FE;border-color:rgba(167,139,250,0.45);background:rgba(124,58,237,0.18)}
+  .workspace-bar .wb-optimize.not-ready:hover{color:#EDE9FE;background:rgba(124,58,237,0.28);border-color:rgba(167,139,250,0.65)}
   .workspace-bar .wb-optimize.ready{color:#fff;background:linear-gradient(135deg,#7C3AED,#6D28D9);border-color:#6D28D9;box-shadow:0 4px 12px -3px rgba(124,58,237,0.45)}
   .workspace-bar .wb-optimize.ready:hover{filter:brightness(1.06);transform:translateY(-1px)}
+
+  /* Hide the import-step "Name This Resume" sub-accordion. The naming flow
+     now lives in the workspace bar pencil (#wb-rename) so users can rename
+     from anywhere. The hidden #resume-build-name input stays in the DOM so
+     existing JS bindings (applyResumeBuildName, save handlers, etc.) keep
+     working unchanged. */
+  .sub-acc[data-sub="import-name"]{display:none !important}
+
+  /* Workspace bar: rename pencil. Desktop shows "Edit Name"; mobile keeps
+     icon-only via the existing wb-btn span hide rule. */
+  .workspace-bar .wb-rename{color:#E2E8F0}
+  .workspace-bar .wb-rename:hover{color:#FDE68A;border-color:#FBBF24;background:rgba(245,158,11,0.18)}
   /* Removed previous `order:-1` rule that pushed AI Optimize left of the
      resume name on narrow widths — source order now keeps it just left of
      Save on every viewport. */
@@ -1387,6 +1402,9 @@
         <select id="workspace-version-select" class="wb-select" onchange="switchVersion(this.value)" data-testid="wb-version-select" title="Switch resume version">
           <option value="current" selected>My Main Resume</option>
         </select>
+        <!-- PATCH: rename pencil. Desktop shows "Edit Name", mobile is icon-only.
+             Replaces the old import-step "Name This Resume" sub-accordion. -->
+        <button type="button" class="wb-btn wb-rename" onclick="openRenameResume()" data-testid="wb-rename" title="Edit resume name" aria-label="Edit resume name"><i data-lucide="pencil" style="width:13px;height:13px"></i><span>Edit Name</span></button>
         <button type="button" class="wb-btn" onclick="promptNewVersion()" data-testid="wb-new-version" title="Create a new resume version"><i data-lucide="plus" style="width:13px;height:13px"></i><span>New</span></button>
         <button type="button" class="wb-btn" onclick="openVersionManager()" data-testid="wb-manage-versions" title="Manage versions"><i data-lucide="layers" style="width:13px;height:13px"></i><span>Versions</span></button>
         <span id="wb-save-state" class="wb-pill saved" role="status" aria-live="polite" title="Save status"><i data-lucide="check" style="width:12px;height:12px"></i><span id="wb-save-state-text">Saved</span></span>
@@ -1394,7 +1412,7 @@
         <!-- Phase VI: AI Optimize quick action. Icon-only, grey until resume
              data is present then flips to purple (see refreshOptimizeQuickState).
              Placed before Save so the readiness signal sits next to the save pill. -->
-        <button type="button" id="wb-optimize-quick" class="wb-btn wb-optimize not-ready" onclick="onWbOptimizeQuick()" data-testid="wb-optimize-quick" aria-label="AI Optimize ? add resume details first" title="AI Optimize ? add resume details first"><i data-lucide="sparkles" style="width:14px;height:14px"></i></button>
+        <button type="button" id="wb-optimize-quick" class="wb-btn wb-optimize not-ready" onclick="onWbOptimizeQuick()" data-testid="wb-optimize-quick" aria-label="AI Optimize - add resume details first" title="AI Optimize - add resume details first"><i data-lucide="sparkles" style="width:14px;height:14px"></i><span>Optimize</span></button>
         <button type="button" class="wb-btn primary" onclick="savePlan()" data-testid="wb-save" title="Save changes"><i data-lucide="save" style="width:13px;height:13px"></i><span>Save</span></button>
         <button type="button" class="wb-btn success" onclick="publishAndShare()" data-testid="wb-publish" title="Publish public link"><i data-lucide="globe" style="width:13px;height:13px"></i><span>Publish</span></button>
       </div>
@@ -3109,7 +3127,177 @@
       white-space: nowrap !important;
     }
   }
+
+  /* =====================================================================
+     PATCH: Toast notifications. The .toast element existed in markup but had
+     NO CSS, so messages rendered as plain unformatted text wherever the
+     <div id="toast"> sat in the DOM (bottom-left of the page). This restores
+     a fixed bottom-right pill with a fade/slide animation, matching the rest
+     of the app's styling.
+     ===================================================================== */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    left: auto;
+    z-index: 10000;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 12px 18px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1F2937, #111827);
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    opacity: 0;
+    transform: translateY(12px);
+    pointer-events: none;
+    transition: opacity 0.22s ease-out, transform 0.22s ease-out;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  @media (max-width: 640px) {
+    .toast {
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      max-width: none;
+      text-align: center;
+    }
+  }
 </style>
+
+<!-- PATCH: Rename Resume modal. Triggered by the workspace-bar pencil button
+     (#wb-rename). Replaces the import-step "Name This Resume" sub-accordion
+     so the rename action is reachable from anywhere in the builder. The
+     hidden #resume-build-name input is still the source of truth — this
+     modal just writes through to it via applyResumeBuildName(). -->
+<div id="rename-resume-modal" class="hidden fixed inset-0 z-[55] flex items-center justify-center" style="background:rgba(15,23,42,0.55);backdrop-filter:blur(4px)" role="dialog" aria-modal="true" aria-labelledby="rename-resume-title">
+  <div class="bg-white rounded-2xl shadow-2xl w-full mx-4 overflow-hidden" style="max-width:min(440px, calc(100vw - 24px))">
+    <div class="p-5">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
+          <i data-lucide="pencil" style="width:18px;height:18px;color:#B45309"></i>
+        </div>
+        <div>
+          <h3 id="rename-resume-title" class="text-base font-semibold" style="color:#0A2F6B">Edit Resume Name</h3>
+          <p class="text-xs" style="color:#6B7280">Give this resume a name so you can find it later.</p>
+        </div>
+      </div>
+      <label class="text-xs font-semibold uppercase tracking-wider block mb-2" style="color:#4B5563">Resume Name</label>
+      <input type="text" id="rename-resume-input" class="input-field" placeholder="e.g. Tech Resume, Marketing Resume, Chase Bank VP..." style="font-weight:600;font-size:0.95rem" data-testid="rename-resume-input" onkeydown="if(event.key==='Enter'){event.preventDefault();saveRenameResume();} else if(event.key==='Escape'){closeRenameResume();}">
+      <div class="flex items-center justify-end gap-2 mt-5">
+        <button type="button" class="btn-secondary text-xs py-1.5" onclick="closeRenameResume()">Cancel</button>
+        <button type="button" class="btn-primary text-xs py-1.5" onclick="saveRenameResume()" data-testid="rename-resume-save">Save Name</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function openRenameResume(){
+    try {
+      const modal = document.getElementById('rename-resume-modal');
+      const input = document.getElementById('rename-resume-input');
+      const cur = (document.getElementById('resume-build-name')?.value || '').trim();
+      if (input) input.value = cur;
+      if (modal) modal.classList.remove('hidden');
+      setTimeout(() => { try { input?.focus(); input?.select(); } catch(_){} }, 60);
+      try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch(_){}
+    } catch(_){}
+  }
+  function closeRenameResume(){
+    try { document.getElementById('rename-resume-modal')?.classList.add('hidden'); } catch(_){}
+  }
+  function saveRenameResume(){
+    const input = document.getElementById('rename-resume-input');
+    const v = (input?.value || '').trim();
+    if (!v) { try { if (typeof showToast === 'function') showToast('Enter a resume name'); } catch(_){} return; }
+    try {
+      if (typeof applyResumeBuildName === 'function') applyResumeBuildName(v, false);
+      else {
+        const el = document.getElementById('resume-build-name');
+        if (el) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
+    } catch(_){}
+    closeRenameResume();
+    try { if (typeof showToast === 'function') showToast('Resume name updated'); } catch(_){}
+  }
+  // Close on backdrop click
+  document.addEventListener('click', function(e){
+    const m = document.getElementById('rename-resume-modal');
+    if (!m || m.classList.contains('hidden')) return;
+    if (e.target === m) closeRenameResume();
+  });
+</script>
+
+<!-- PATCH: "Work Experience" group header — populated/total field counter.
+     The Work Experience wrapper (#work-exp-main) holds 8 sub-accordions.
+     We display "N/8 filled" in its meta chip so users get an at-a-glance
+     completeness signal when the section is collapsed. -->
+<script>
+(function(){
+  'use strict';
+  const META_ID = 'sub-meta-work-exp-main';
+  const SUBS = ['experience','summary','achievements','education','volunteering','certifications','skills','additional-details'];
+
+  function trimVal(id){ try { return (document.getElementById(id)?.value || '').trim(); } catch(_){ return ''; } }
+  function hasChild(id){ try { const el = document.getElementById(id); return !!(el && el.children && el.children.length > 0); } catch(_){ return false; } }
+
+  function isFilled(key){
+    switch(key){
+      case 'experience':         return hasChild('manual-experience-list');
+      case 'summary':            return !!trimVal('manual-current-title') || !!trimVal('manual-summary');
+      case 'achievements':       return hasChild('manual-achievement-list');
+      case 'education':          return hasChild('manual-education-list');
+      case 'volunteering':       return hasChild('manual-volunteering-list');
+      case 'certifications':     return hasChild('manual-certification-list');
+      case 'skills':             return hasChild('skills-chips') || !!trimVal('manual-skills');
+      case 'additional-details': return !!trimVal('additional-resume-details');
+    }
+    return false;
+  }
+
+  function refresh(){
+    const meta = document.getElementById(META_ID);
+    if (!meta) return;
+    let filled = 0;
+    SUBS.forEach(k => { if (isFilled(k)) filled++; });
+    const total = SUBS.length;
+    meta.textContent = filled + '/' + total + ' filled';
+    // Color cue: muted when empty, primary navy mid-progress, green when complete.
+    if (filled === 0)        meta.style.color = '#9CA3AF';
+    else if (filled === total) meta.style.color = '#15803D';
+    else                     meta.style.color = '#0A2F6B';
+    meta.style.fontWeight = '600';
+  }
+
+  function bind(){
+    const root = document.getElementById('work-exp-main');
+    if (!root) { setTimeout(bind, 400); return; }
+    refresh();
+    // Catch typed input across the whole section.
+    root.addEventListener('input', refresh, true);
+    // Catch list add/remove operations (manual list children appear/disappear).
+    const lists = ['manual-experience-list','manual-achievement-list','manual-education-list','manual-volunteering-list','manual-certification-list','skills-chips'];
+    lists.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      try { new MutationObserver(refresh).observe(el, { childList: true }); } catch(_){}
+    });
+    // Safety net for any path we didn't hook (e.g. programmatic value sets without events).
+    setInterval(refresh, 1500);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();
+</script>
 
 <!-- Phase VI: Optimize-gate modal ? shown when the user clicks the workspace
      AI Optimize icon before their resume has enough data to optimize. -->
@@ -8801,7 +8989,9 @@ async function savePlan(options = {}) {
     updateSaveButtonState();
     if (!isSilentSave) {
       populateVersionSelect();
-      showToast('Plan saved!');
+      // PATCH: removed noisy "Plan saved!" toast per user request. The
+      // workspace bar already reflects saved state via the save button and
+      // updateVersionBar(); a transient toast on every save was redundant.
     }
     try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('savePlan'); } catch(_){ }
     // Auto-sync photo & resume to profile
@@ -21448,6 +21638,20 @@ function openPrivacyForReview() {
   .rb-one-hint button:hover{background:rgba(15,23,42,0.06);color:#0F172A}
   /* Generic glow for any input/textarea/button that needs attention (JD field, etc.) */
   textarea.onboard-glow,input.onboard-glow,button.onboard-glow{animation:acc-glow-pulse 1.8s ease-in-out infinite;box-shadow:0 0 0 3px rgba(124,58,237,0.35);border-color:#7C3AED!important}
+
+  /* Post-tour Import Resume nudge: floating callout pinned just above the
+     #sub-acc-import sub-accordion when the walkthrough finishes. */
+  .rb-import-nudge{position:relative;display:flex;align-items:flex-start;gap:12px;margin:0 0 12px;padding:14px 38px 14px 14px;background:linear-gradient(135deg,#7C3AED 0%,#005EB8 100%);border-radius:14px;box-shadow:0 14px 32px -10px rgba(124,58,237,0.45),0 0 0 1px rgba(255,255,255,0.08);color:#fff;opacity:0;transform:translateY(-6px);transition:opacity .22s ease,transform .22s ease;overflow:hidden}
+  .rb-import-nudge.rb-import-nudge-in{opacity:1;transform:translateY(0)}
+  .rb-import-nudge::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 0% 0%,rgba(255,255,255,0.18),transparent 55%);pointer-events:none}
+  .rb-import-nudge-icon{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;animation:rb-nudge-pulse 2.2s ease-in-out infinite}
+  .rb-import-nudge-body{flex:1;min-width:0;position:relative;z-index:1}
+  .rb-import-nudge-title{font-family:'Outfit','Segoe UI',system-ui,sans-serif;font-size:0.95rem;font-weight:800;letter-spacing:-.01em;line-height:1.2;margin:0 0 3px}
+  .rb-import-nudge-text{font-size:0.78rem;line-height:1.45;margin:0;color:rgba(255,255,255,0.92)}
+  .rb-import-nudge-close{position:absolute;top:8px;right:8px;background:transparent;border:none;color:rgba(255,255,255,0.85);font-size:18px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s,color .15s}
+  .rb-import-nudge-close:hover{background:rgba(255,255,255,0.18);color:#fff}
+  .rb-import-nudge-arrow{position:absolute;left:36px;bottom:-6px;width:12px;height:12px;background:#005EB8;transform:rotate(45deg);border-radius:2px}
+  @keyframes rb-nudge-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,0.45)}50%{box-shadow:0 0 0 8px rgba(255,255,255,0)}}
 </style>
 <div id="rb-tour-root" role="dialog" aria-modal="true" aria-labelledby="rb-tour-title">
   <div id="rb-tour-backdrop"></div>
@@ -21461,7 +21665,7 @@ function openPrivacyForReview() {
         <div class="rb-tour-title" id="rb-tour-title">Import or enter your info</div>
       </div>
     </div>
-    <div class="rb-tour-body" id="rb-tour-body">We'll pick up your existing experience from a resume file or LinkedIn ? or you can type it in.</div>
+    <div class="rb-tour-body" id="rb-tour-body">We'll pick up your existing experience from a resume file or LinkedIn &mdash; or you can type it in.</div>
     <div class="rb-tour-foot">
       <div class="rb-tour-dots" id="rb-tour-dots"></div>
       <button type="button" class="rb-tour-btn rb-tour-skip" onclick="RB_TOUR.end(true)">Skip</button>
@@ -21491,7 +21695,10 @@ function openPrivacyForReview() {
       key: 'aboutme',
       title: 'Step 1 - Start with Application Details',
       body: 'Import a resume, paste one in, connect LinkedIn, or fill in details manually. Everything is editable later.',
-      anchor: ['#sub-acc-import', '#step-1', '.ts-step[data-step="1"]'],
+      // PATCH: dropped the broad #step-1 fallback so the spotlight stays on
+      // the Import sub-accordion and not the entire Application Details
+      // panel.
+      anchor: ['#sub-acc-import', '[data-sub="import"]', '.ts-step[data-step="1"]'],
       // PATCH: center the tour card on-screen for steps 1-3 so the narration
       // sits in a predictable place instead of jumping to wherever the
       // anchor happens to be. The spotlight still lands on the anchor.
@@ -21502,7 +21709,11 @@ function openPrivacyForReview() {
       key: 'target',
       title: 'Step 2 - Add your target role',
       body: 'Paste the job description here. AI uses it to tailor your resume and build a career plan aligned to that role.',
-      anchor: ['#step-1', '.ts-step[data-step="1"]', '#job-desc'],
+      // PATCH: previously anchored to #step-1 which highlighted the entire
+      // Application Details panel. Now scoped to the Target Role group so
+      // the spotlight wraps just that accordion (with the JD textarea as a
+      // tighter fallback).
+      anchor: ['[data-sub="target-role-group"]', '#target-role-subs', '#job-desc', '.ts-step[data-step="1"]'],
       cardCenter: true,
       action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(1); } catch(_){} }
     },
@@ -21528,24 +21739,28 @@ function openPrivacyForReview() {
       action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(2); } catch(_){} }
     },
     {
-      key: 'style',
-      title: 'Step 4 - Pick a style',
-      body: "Choose a template and design. You'll see a live preview of how your resume looks as you pick.",
-      // PATCH: highlight the THREE specific sub-accordions the user called
-      // out (Page Style, Color Theme, Plan Type) as separate purple frames.
-      // Excludes the "Preview Options" sub-acc that lives above these.
-      anchorMulti: ['[data-sub="bs-style"]', '[data-sub="bs-color"]', '[data-sub="bs-plan"]'],
-      anchor: ['#bs-left-subs', '#step-3', '.ts-step[data-step="3"]'],
+      // PATCH: replaced the old "Pick a style" card. The Style top-stepper
+      // entry is hidden in the new 3-step UX (Application Details / Optimize
+      // / Preview & Export) so a card pointing at #step-3 dead-ends. The
+      // slot is now "Review & edit" -- it stays on the Optimize panel and
+      // tells users they can fine-tune their resume, plan, and cover letter
+      // (and edit the live preview on the right) before exporting.
+      key: 'review',
+      title: 'Step 4 - Review & edit',
+      body: "After Optimize runs, fine-tune your resume, career plan, and cover letter right here. Edit copy directly in the live preview on the right - changes save automatically.",
+      anchor: ['[data-sub="opt-results"]', '#step-4', '.ts-step[data-step="2"]'],
       cardCenter: true,
-      action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(3); } catch(_){} }
+      action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(2); } catch(_){} }
     },
     {
       key: 'export',
-      title: 'Step 5 - Export & share',
-      body: 'Download as Word, HTML, or PPTX - or publish a shareable link. All formats match what you see in the preview.',
-      // PATCH: #export-ready-strip removed from DOM, so the anchor list
-      // now falls to #step-export (the whole Export & Share container).
-      anchor: ['#step-export', '.ts-step[data-step="4"]'],
+      title: 'Step 5 - Preview & export',
+      body: 'Pick your style, preview the package, then download Word, HTML, PowerPoint, or PDF - or publish a shareable link. Every format matches what you see in the preview.',
+      // PATCH: highlight just the Download/Share/Save sub-accordion (the
+      // actual export box) instead of the whole #step-export container,
+      // which previously caused the spotlight to wrap nearly the full screen.
+      anchor: ['[data-sub="export-actions"]', '#export-subs', '#step-export', '.ts-step[data-step="4"]'],
+      cardCenter: true,
       action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(4); } catch(_){} }
     }
   ];
@@ -21807,9 +22022,80 @@ function openPrivacyForReview() {
   }
 
   function next(){
-    if (idx >= STEPS.length - 1){ return end(true); }
+    if (idx >= STEPS.length - 1){
+      end(true);
+      // PATCH: after the tour completes, drop the user back on Application
+      // Details with the Import Resume sub-acc expanded and a friendly nudge
+      // pinned to it so they have an obvious first action.
+      try { setTimeout(showImportNudge, 240); } catch(_){}
+      return;
+    }
     idx += 1;
     render();
+  }
+
+  // Post-tour: navigate to Application Details (accordion 1), make sure the
+  // Import Resume sub-accordion is open, scroll it into view, and float a
+  // small dismissible callout next to it.
+  function showImportNudge(){
+    try { if (typeof toggleAccordion === 'function') toggleAccordion(1); } catch(_){}
+    setTimeout(() => {
+      try {
+        const acc  = document.getElementById('sub-acc-import');
+        const body = document.getElementById('sub-acc-import-body');
+        if (acc)  acc.classList.add('open');
+        if (body) body.classList.add('open');
+      } catch(_){}
+      try {
+        const target = document.getElementById('sub-acc-import');
+        if (target && target.scrollIntoView) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } catch(_){}
+      setTimeout(mountImportNudge, 380);
+    }, 120);
+  }
+
+  function mountImportNudge(){
+    try {
+      // Don't double-mount.
+      const existing = document.getElementById('rb-import-nudge');
+      if (existing) existing.remove();
+      const target = document.getElementById('sub-acc-import');
+      if (!target) return;
+      const nudge = document.createElement('div');
+      nudge.id = 'rb-import-nudge';
+      nudge.className = 'rb-import-nudge';
+      nudge.setAttribute('role', 'status');
+      nudge.innerHTML = ''
+        + '<button type="button" class="rb-import-nudge-close" aria-label="Dismiss">&times;</button>'
+        + '<div class="rb-import-nudge-icon" aria-hidden="true">'
+        +   '<i data-lucide="sparkles" style="width:18px;height:18px;color:#fff"></i>'
+        + '</div>'
+        + '<div class="rb-import-nudge-body">'
+        +   '<div class="rb-import-nudge-title">Start here &mdash; import your resume</div>'
+        +   '<p class="rb-import-nudge-text">Upload, paste, or connect LinkedIn and we\u2019ll fill in the rest. Everything stays editable.</p>'
+        + '</div>'
+        + '<div class="rb-import-nudge-arrow" aria-hidden="true"></div>';
+      // Insert just before the import sub-accordion so it sits visually above it.
+      target.parentNode.insertBefore(nudge, target);
+      // Animate in on next frame.
+      requestAnimationFrame(() => nudge.classList.add('rb-import-nudge-in'));
+      // Wire up close button.
+      const closeBtn = nudge.querySelector('.rb-import-nudge-close');
+      if (closeBtn) closeBtn.addEventListener('click', () => {
+        nudge.classList.remove('rb-import-nudge-in');
+        setTimeout(() => { try { nudge.remove(); } catch(_){} }, 220);
+      });
+      // Auto-dismiss after 14s in case the user ignores it.
+      setTimeout(() => {
+        if (!document.getElementById('rb-import-nudge')) return;
+        nudge.classList.remove('rb-import-nudge-in');
+        setTimeout(() => { try { nudge.remove(); } catch(_){} }, 220);
+      }, 14000);
+      // Re-render Lucide icons inside the nudge.
+      try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch(_){}
+    } catch(_){}
   }
 
   // PATCH: If the user is on the My Resumes dashboard (not inside a resume),
