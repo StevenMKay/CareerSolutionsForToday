@@ -749,7 +749,7 @@
   .step-content.hidden{display:none!important}
   .step-content:not(.hidden){display:block}
   /* / Sticky Workspace Bar (version + save clarity) / */
-  .workspace-bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;padding:8px 12px;background:#2b3a5675;backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);border:1px solid rgba(148,163,184,0.36);border-radius:12px;margin:0 0 12px;box-shadow:0 8px 28px rgba(8,15,30,0.34),0 1px 0 rgba(226,232,240,0.16) inset;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .workspace-bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#2b3a5675;backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);border:1px solid rgba(148,163,184,0.36);border-radius:12px;margin:0 0 12px;box-shadow:0 8px 28px rgba(8,15,30,0.34),0 1px 0 rgba(226,232,240,0.16) inset;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .workspace-bar::-webkit-scrollbar{display:none}
   .workspace-bar .wb-label{font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#CBD5E1}
   .workspace-bar .wb-select{background:rgba(15,23,42,0.4);border:1px solid rgba(148,163,184,0.38);color:#E2E8F0;font-size:0.82rem;font-weight:600;padding:7px 30px 7px 12px;border-radius:8px;cursor:pointer;font-family:'Outfit',sans-serif;min-width:170px;max-width:260px;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23CBD5E1' stroke-width='2.5'><polyline points='6 9 12 15 18 9'/></svg>");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s,box-shadow .15s,background .15s}
@@ -784,7 +784,11 @@
   .workspace-bar .wb-pill.dirty:hover{background:rgba(245,158,11,0.3);color:#FEF3C7}
   .workspace-bar .wb-pill .wb-pulse{width:7px;height:7px;border-radius:50%;background:currentColor;animation:wb-pulse 1.6s ease-in-out infinite}
   @keyframes wb-pulse{0%,100%{opacity:.4;transform:scale(.85)}50%{opacity:1;transform:scale(1.05)}}
-  .workspace-bar .wb-spacer{flex:1}
+  /* Spacer + dividers were used for the old left/right grouping. With
+     justify-content:space-between handling distribution at all widths,
+     they're hidden globally so every item gets equal breathing room. */
+  .workspace-bar .wb-spacer{display:none}
+  .workspace-bar .wb-divider{display:none}
   @media(max-width:720px){
     .workspace-bar{gap:5px;padding:6px 8px}
     .workspace-bar .wb-label{display:none}
@@ -792,7 +796,7 @@
     /* save-state pill is hidden globally below — no per-breakpoint rule needed */
     /* Hide ALL button text on mobile — icons only, including Save + Publish. */
     .workspace-bar .wb-btn span{display:none}
-    .workspace-bar .wb-btn{padding:6px 8px;min-height:34px;min-width:34px;justify-content:center}
+    .workspace-bar .wb-btn{padding:6px 8px;min-height:34px;min-width:34px;justify-content:center;flex:1 1 0}
     .workspace-bar .wb-pill{padding:3px 7px;font-size:0.58rem;min-height:0}
     .workspace-bar .wb-pill i{width:10px!important;height:10px!important}
     #target-role-subs [data-sub="role-research"] .sub-acc-body>.flex{justify-content:center!important;text-align:center}
@@ -960,7 +964,10 @@
   .plan-type-card:focus-visible{outline:2px solid var(--c-primary,#005EB8);outline-offset:2px}
 
   /* Step 2 (Optimize) footer — keep both nav buttons on the same row down to
-     mobile widths; tighten padding + label below 480px. */
+     mobile widths; tighten padding + label below 480px. Min-height applies
+     at all widths so Back ↔ Continue buttons match heights on desktop too. */
+  .step-nav-footer .btn-secondary,
+  .step-nav-footer .btn-primary{min-height:44px;align-items:center;justify-content:center}
   @media (max-width:480px){
     .step-nav-footer .btn-secondary,
     .step-nav-footer .btn-primary{padding-left:8px;padding-right:8px;font-size:0.78rem}
@@ -6958,10 +6965,49 @@ function loaderHTML(size, dark) {
 }
 function setColor(c) {
   STATE.color = c;
-  document.documentElement.style.setProperty('--c-primary', c);
+  // Note: we intentionally do NOT update the global `--c-primary` CSS
+  // variable here. That variable themes site-wide UI (90-day plan button,
+  // primary CTAs, sidebar accents, etc.) and the user's color choice in
+  // the Page Style picker is meant to affect the *resume preview* + export
+  // accent only, not the surrounding app chrome.
   lucide.createIcons();
   try { renderStylePreview && renderStylePreview(); } catch(_){}
+  try { applyTemplatePreviewColor && applyTemplatePreviewColor(c); } catch(_){}
 }
+
+// Re-tints the six Page Style template preview cards (the mini "Steven Kay"
+// thumbnails for Modern Sidebar / Classic Serif / Creative Bold / Two-Column
+// / Executive Focus / Modern ATS) so their accent strip + name color follow
+// the user's chosen color swatch. Each card keeps its distinctive layout
+// pattern (sidebar split, full bar, half/half, thin rule, etc.) — only the
+// accent hex is swapped.
+function applyTemplatePreviewColor(color) {
+  const c = String(color || (window.STATE && STATE.color) || '#005EB8');
+  const cards = document.querySelectorAll('#style-cards .style-card');
+  cards.forEach(card => {
+    const id = card.dataset && card.dataset.value;
+    const strip = card.querySelector('.sc-strip');
+    const name = card.querySelector('.sc-name');
+    if (name) name.style.color = c;
+    if (!strip) return;
+    switch (id) {
+      case 'modern-sidebar':
+        strip.style.background = 'linear-gradient(90deg,' + c + ' 35%,#E5E7EB 35%)';
+        break;
+      case 'two-column':
+        strip.style.background = 'linear-gradient(90deg,' + c + ' 50%,#CBD5E1 50%)';
+        break;
+      case 'classic-serif':
+      case 'creative-bold':
+      case 'executive-focus':
+      case 'modern-ats':
+      default:
+        strip.style.background = c;
+        break;
+    }
+  });
+}
+window.applyTemplatePreviewColor = applyTemplatePreviewColor;
 
 async function getAuthHeaders(extra) {
   const headers = Object.assign({}, extra || {});
