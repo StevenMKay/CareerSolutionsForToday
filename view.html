@@ -47,6 +47,29 @@
     .sidebar-inner{position:static;transform:none!important;box-shadow:none;padding:0;background:transparent}
   }
   @media print{body{background:#fff!important;padding:0}.no-print{display:none!important}.section-card{break-inside:avoid}#print-modal{display:none!important}}
+
+  /* PATCH (Plan polish v2): premium divider between Plan and Resume on the
+     published page. Self-contained CSS so view.html doesn't depend on
+     resumebuilder.html. Only rendered when both Plan and Resume sections
+     are present (see splice in renderPlan). */
+  .package-section-divider{
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;
+    max-width:980px;margin:42px auto;padding:0 16px;
+  }
+  .package-divider-line{height:1px;background:linear-gradient(90deg,transparent,rgba(11,72,122,0.35),transparent)}
+  .package-divider-card{
+    min-width:220px;text-align:center;padding:14px 18px;border-radius:999px;
+    background:#ffffff;border:1px solid rgba(15,23,42,0.10);
+    box-shadow:0 10px 26px rgba(15,23,42,0.08);color:#0f172a;
+  }
+  .package-divider-card strong{display:block;color:#0b487a;font-size:14px;letter-spacing:.02em}
+  .package-divider-card small,
+  .package-divider-eyebrow{display:block;color:#64748b;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+  @media (max-width:640px){
+    .package-section-divider{grid-template-columns:1fr;gap:10px;margin:28px auto}
+    .package-divider-line{width:100%}
+    .package-divider-card{width:100%;min-width:0;border-radius:16px}
+  }
   
   /* Photo shape support */
   .photo-shape-circle{border-radius:50%}
@@ -116,7 +139,7 @@
         </div>
       </div>
       <!-- Main sections -->
-      <div class="flex-1 min-w-0 space-y-6" id="sections-container" data-testid="sections-container"></div>
+      <div class="flex-1 min-w-0 space-y-6 published-page" id="sections-container" data-testid="sections-container"></div>
     </div>
   </div>
 </div>
@@ -530,14 +553,37 @@ function renderPlan(g, plan, S, C, style) {
     });
   }
 
+  // ===== PATCH (Plan polish v2): insert Plan->Resume divider when both =====
+  (function maybeInsertPackageDivider(){
+    const PLAN_IDS = new Set(['exec-summary','strategic-plan','success-criteria','success-summary','kpis']);
+    const RESUME_IDS = new Set(['experience','leadership-engagement','skills','leadership-roles','education','certifications','projects','publications','awards']);
+    let lastPlanIdx = -1, firstResumeIdx = -1;
+    for (let i = 0; i < sections.length; i++) {
+      if (PLAN_IDS.has(sections[i].id)) lastPlanIdx = i;
+    }
+    for (let i = 0; i < sections.length; i++) {
+      if (RESUME_IDS.has(sections[i].id)) { firstResumeIdx = i; break; }
+    }
+    if (lastPlanIdx >= 0 && firstResumeIdx >= 0 && lastPlanIdx < firstResumeIdx) {
+      sections.splice(firstResumeIdx, 0, {
+        id: 'plan-resume-divider',
+        skipNav: true,
+        rawHtml: true,
+        html: renderPackageSectionDivider('Career Plan', 'Resume')
+      });
+    }
+  })();
+
   // ===== RENDER SIDEBAR NAV =====
-  document.getElementById('sidebar-nav').innerHTML = sections.map(s =>
+  document.getElementById('sidebar-nav').innerHTML = sections.filter(s => !s.skipNav).map(s =>
     `<a href="#${s.id}" data-section="${s.id}" onclick="closeSidebarMobile()"><i data-lucide="${s.icon}" style="width:14px;height:14px"></i>${s.label}</a>`
   ).join('');
 
   // ===== RENDER CONTENT SECTIONS =====
   let contentHtml = sections.map(s =>
-    `<div class="section-card" id="${s.id}" data-testid="section-${s.id}">${s.html}</div>`
+    s.rawHtml
+      ? s.html
+      : `<div class="section-card" id="${s.id}" data-testid="section-${s.id}">${s.html}</div>`
   ).join('');
 
   // Footer bar
@@ -551,6 +597,27 @@ function renderPlan(g, plan, S, C, style) {
 
 function closeSidebarMobile() {
   document.getElementById('sidebar-col').classList.remove('open');
+}
+
+// PATCH (Plan polish v2): self-contained Plan->Resume divider helper for
+// the published page. Mirrors window.renderPackageSectionDivider in
+// resumebuilder.html so view.html stays standalone.
+function renderPackageSectionDivider(fromLabel, toLabel) {
+  fromLabel = fromLabel || 'Career Plan';
+  toLabel   = toLabel   || 'Resume';
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return ''
+    + '<div class="package-section-divider" role="separator" aria-label="' + esc(fromLabel) + ' to ' + esc(toLabel) + '">'
+    +   '<div class="package-divider-line"></div>'
+    +   '<div class="package-divider-card">'
+    +     '<span class="package-divider-eyebrow">Next Section</span>'
+    +     '<strong>' + esc(toLabel) + '</strong>'
+    +     '<small>' + esc(fromLabel) + ' complete</small>'
+    +   '</div>'
+    +   '<div class="package-divider-line"></div>'
+    + '</div>';
 }
 
 function setupScrollSpy() {
