@@ -3269,18 +3269,18 @@
     let filled = 0;
     SUBS.forEach(k => { if (isFilled(k)) filled++; });
     const total = SUBS.length;
-    // PATCH (2026-04-27): user asked that the badge show the X/N number
-    // when fully completed and a plain text label otherwise (instead of
-    // flashing between "Complete" and "6/8"). When fully filled we show
-    // the count (e.g. "8/8 filled"); otherwise we show "Incomplete".
-    if (filled === total) {
+    // PATCH (2026-04-27): show the X/N count whenever ANY sub-section has
+    // content (e.g. after a resume import populates 6/8). Only show the
+    // "Not Started" text when truly empty. Previously partial states
+    // showed "Incomplete", which hid the user's progress.
+    if (filled === 0) {
+      meta.textContent = 'Not Started';
+      meta.style.color = '#9CA3AF';
+    } else if (filled === total) {
       meta.textContent = filled + '/' + total + ' filled';
       meta.style.color = '#15803D';
-    } else if (filled === 0) {
-      meta.textContent = 'Incomplete';
-      meta.style.color = '#9CA3AF';
     } else {
-      meta.textContent = 'Incomplete';
+      meta.textContent = filled + '/' + total + ' filled';
       meta.style.color = '#0A2F6B';
     }
     meta.style.fontWeight = '600';
@@ -6642,6 +6642,12 @@ function showOptimizeResult(s) {
   if (!s) return;
   try { STATE._optimizeApplied = true; } catch(_){}
   try { STATE._optimizeAppliedAt = Date.now(); } catch(_){}
+  // PATCH (2026-04-27): flag that the next time the user dismisses this
+  // result modal we should auto-open the Resume Analysis side drawer so
+  // they see the full insights without an extra click. Only happens on a
+  // fresh optimize run -- subsequent visits to the page do NOT auto-open
+  // (they can still open it manually via the Insights button).
+  try { STATE._autoOpenAnalysisAfterOptimize = true; } catch(_){}
   let d = document.getElementById('optimize-result-drawer');
   if (d) d.remove();
   d = document.createElement('div');
@@ -6703,6 +6709,19 @@ function showOptimizeResult(s) {
 }
 function closeOptimizeResult() {
   const d = document.getElementById('optimize-result-drawer'); if (d) d.remove();
+  // PATCH (2026-04-27): auto-open the Resume Analysis side drawer after a
+  // fresh optimization so users see the full insights immediately. Flag is
+  // set only by showOptimizeResult, so this fires once per new run; revert
+  // / before-after callers (which also invoke closeOptimizeResult) won't
+  // retrigger because the flag is consumed here.
+  try {
+    if (STATE && STATE._autoOpenAnalysisAfterOptimize) {
+      STATE._autoOpenAnalysisAfterOptimize = false;
+      // Small delay lets the result-modal fade-out finish so the drawer
+      // slide-in isn't competing with a backdrop tear-down.
+      setTimeout(() => { try { openAnalysis(); } catch(_){} }, 220);
+    }
+  } catch(_){}
 }
 
 // Refresh the Optimize step body UI from cached analysis + optimization session
@@ -10715,6 +10734,46 @@ function addManualVolunteering() {
     <textarea class="input-field manual-vol-description" placeholder="Description / impact (optional)" style="min-height:50px"></textarea>`;
   list.appendChild(div);
 }
+
+// PATCH (2026-04-27): jump from Preview & Export (or anywhere else) to a
+// specific sub-accordion inside Application Details (Step 1 internally,
+// "Application Details" tab in the top stepper). Used by the "Edit in
+// Application Details" pencil-pill buttons rendered above the Plan and
+// CV sections in the live preview, so Application Details remains the
+// single source of truth for plan / CV edits.
+//
+// Args:
+//   subKey  - the data-sub value of the target sub-accordion (e.g.
+//             'role-plan' or 'role-cv').
+function jumpToAppDetailsSub(subKey) {
+  if (!subKey) return;
+  try { if (typeof toggleAccordion === 'function') toggleAccordion(1); } catch(_){}
+  // Wait one frame so step-1 is visible/measurable before scrolling.
+  setTimeout(() => {
+    try {
+      const acc = document.querySelector('.sub-acc[data-sub="' + subKey + '"]');
+      if (!acc) return;
+      // Some role-only sub-accs are [hidden] until optimize populates them.
+      try { acc.removeAttribute('hidden'); } catch(_){}
+      const body = acc.querySelector('.sub-acc-body');
+      acc.classList.add('open');
+      if (body) body.classList.add('open');
+      // Scroll the header into view (not the body) so the user sees what
+      // section they just landed on.
+      const head = acc.querySelector('.sub-acc-head') || acc;
+      try { head.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(_){
+        try { head.scrollIntoView(); } catch(__){}
+      }
+      // Focus the first editable surface inside the body so users can type
+      // immediately (textarea preferred, then input).
+      const firstField = body && (body.querySelector('textarea') || body.querySelector('input,select'));
+      if (firstField) {
+        setTimeout(() => { try { firstField.focus({ preventScroll: true }); } catch(_){} }, 320);
+      }
+    } catch(_){}
+  }, 60);
+}
+try { window.jumpToAppDetailsSub = jumpToAppDetailsSub; } catch(_){}
 
 // Toggle a sub-accordion open/closed
 function toggleSubAcc(btn, exclusive) {
@@ -16578,6 +16637,10 @@ function renderPreview(g, targetId) {
     if (!String(cvBody || '').trim()) {
       cvBody = 'CV draft is empty. Add CV text in Step 1 under Workspace CV.';
     }
+    // PATCH (2026-04-27): "Edit in Application Details" pill above the CV
+    // body. CV is the AI-generated cover letter narrative -- canonical
+    // edits live in Application Details > Role CV.
+    h += `<div class="export-hide" data-section="cv_edit_jump" style="margin-bottom:10px;display:flex;justify-content:flex-end"><button type="button" onclick="jumpToAppDetailsSub('role-cv')" title="Edit CV in Application Details" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid #E0E7FF;background:#EEF2FF;color:#4338CA;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s" onmouseover="this.style.background='#E0E7FF'" onmouseout="this.style.background='#EEF2FF'"><i data-lucide="pencil" style="width:12px;height:12px"></i> Edit in Application Details</button></div>`;
     h += card(`${sectionLabel('file-user', 'Curriculum Vitae')}<div class="text-sm leading-relaxed" style="color:${S.textColor};white-space:pre-wrap">${String(cvBody).replace(/</g,'&lt;')}</div>`, '', 'cv');
   }
 
@@ -16601,6 +16664,13 @@ function renderPreview(g, targetId) {
     if (!_hasRoleCtx) {
       h += `<div class="export-hide" data-section="plan_phases_suggested_note" style="margin-bottom:12px;padding:10px 12px;background:#FFFBEB;border:1px dashed #F59E0B;border-radius:${S.cardRadius||8}px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap"><span style="font-size:0.62rem;font-weight:700;background:#F59E0B;color:#78350F;padding:3px 9px;border-radius:999px;flex-shrink:0;white-space:nowrap;letter-spacing:0.02em">Suggested</span><div style="font-size:0.78rem;color:#78350F;line-height:1.45;min-width:0;flex:1">This plan is a generic template based on assumptions. Add a target job title, company, or job description in Step 2 and regenerate for a role-specific plan.</div></div>`;
     }
+    // PATCH (2026-04-27): "Edit in Application Details" affordance. Plan
+    // edits should happen in the Application Details > Role Plan sub-
+    // accordion (single source of truth). Inline contenteditable in the
+    // preview is kept for live tweaks, but the pencil pill is the
+    // canonical entry point for structural edits and is hidden in
+    // exports via export-hide.
+    h += `<div class="export-hide" data-section="plan_edit_jump" style="margin-bottom:10px;display:flex;justify-content:flex-end"><button type="button" onclick="jumpToAppDetailsSub('role-plan')" title="Edit plan in Application Details" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid #E0E7FF;background:#EEF2FF;color:#4338CA;font-size:0.72rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s" onmouseover="this.style.background='#E0E7FF'" onmouseout="this.style.background='#EEF2FF'"><i data-lucide="pencil" style="width:12px;height:12px"></i> Edit in Application Details</button></div>`;
     h += g.plan_phases.map((p, idx) => {
       const icon = p.icon || 'target';
       const phaseLabel = p.phase || p.label || ('Phase ' + (idx + 1));
@@ -17354,14 +17424,33 @@ function _normalizePlanMilestones(phases, horizon) {
   if (!Array.isArray(phases)) return [];
   return phases.map((p, i) => {
     if (!p || typeof p !== 'object') return null;
-    const actions = (p.actions || p.key_actions || []).map(a =>
+    // PATCH (2026-04-27): /builder/optimize now returns plan phases shaped
+    // as {focus, goals[], deliverables[], label, quickWins[]} (see the
+    // post-optimize console log). The previous mapping only knew about
+    // {title, objective/description, key_actions, tools}, so the new
+    // payload produced milestones with empty title/description/actions --
+    // which made hasPlan in renderPreview() false and the 90-day /
+    // 12-month / 2-year cards never rendered after Optimize. We now also
+    // accept the new shape and concatenate goals + quickWins +
+    // deliverables into actions when the legacy fields aren't present.
+    const _legacyActions = (p.actions || p.key_actions || []).map(a =>
       typeof a === 'string' ? a : (a && (a.text || a.action) ? (a.text || a.action) : '')
     ).filter(Boolean);
+    const _flatten = (arr) => (Array.isArray(arr) ? arr : []).map(x =>
+      typeof x === 'string' ? x : (x && (x.text || x.label || x.name) ? (x.text || x.label || x.name) : '')
+    ).filter(Boolean);
+    const actions = _legacyActions.length
+      ? _legacyActions
+      : Array.from(new Set([
+          ..._flatten(p.goals),
+          ..._flatten(p.quickWins),
+          ..._flatten(p.deliverables)
+        ]));
     const tools = (p.tools || p.tools_and_technology || []).map(t =>
       typeof t === 'string' ? t : (t && t.name ? t.name : '')
     ).filter(Boolean);
     return {
-      title:       (p.title || '').toString(),
+      title:       (p.title || p.focus || '').toString(),
       description: (p.objective || p.description || '').toString(),
       phase:       (p.phase || p.label || ('Phase ' + (i + 1))).toString(),
       timeframe:   (p.timeframe || p.timeline || '').toString(),
@@ -21973,7 +22062,7 @@ function openPrivacyForReview() {
       // (and edit the live preview on the right) before exporting.
       key: 'review',
       title: 'Step 4 - Review & edit',
-      body: "After Optimize runs, head back to Step 2 - Application Details to fine-tune your resume, career plan, and cover letter. Edits in those sub-sections save automatically and flow into the live preview on the right.",
+      body: "After Optimize runs, head back to the Application Details step (Step 1 in the top stepper) to fine-tune your resume, career plan, and cover letter. Edits in those sub-sections save automatically and flow into the live preview on the right.",
       anchor: ['[data-sub="opt-results"]', '#step-4', '.ts-step[data-step="2"]'],
       cardCenter: true,
       action: () => { try { if (typeof toggleAccordion === 'function') toggleAccordion(2); } catch(_){} }
