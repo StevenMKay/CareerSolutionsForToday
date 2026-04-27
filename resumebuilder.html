@@ -10856,8 +10856,35 @@ function updateSubAccMetas() {
     else set('job-info', 'Empty', 'empty');
   } catch(_){}
   try {
-    const hasResearch = STATE.roleResearch && Object.keys(STATE.roleResearch).length > 0;
-    set('role-research', hasResearch ? 'Ready' : 'Not Run', hasResearch ? 'complete' : 'empty');
+    // PATCH: previously this used Object.keys(STATE.roleResearch).length > 0
+    // which falsely reported "Ready" because typing into the workspace job
+    // fields calls setCurrentTargetRole({job_title, company, description,
+    // plan_context}) -- so the object had keys without any AI research
+    // having actually run. Now we look for either the freshness hash (set
+    // only inside researchRole() after a successful AI call) OR research-
+    // specific output keys that the input form never populates.
+    const rr = STATE.roleResearch || {};
+    const RESEARCH_OUTPUT_KEYS = [
+      'summary', 'keywords', 'responsibilities', 'qualifications',
+      'top_skills', 'soft_skills', 'culture', 'industry_insights',
+      'salary_range', 'career_path', 'role_overview', 'day_to_day',
+      'skills_required', 'role_research', 'highlights'
+    ];
+    const hasAiRun = !!(rr._hash || rr._savedAt);
+    const hasOutputKey = RESEARCH_OUTPUT_KEYS.some(k => {
+      const v = rr[k];
+      if (v == null) return false;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'object') return Object.keys(v).length > 0;
+      if (typeof v === 'string') return v.trim().length > 0;
+      return true;
+    });
+    const hasResearch = hasAiRun || hasOutputKey;
+    set(
+      'role-research',
+      hasResearch ? 'Ready' : 'Run from Optimize (or AI Research below)',
+      hasResearch ? 'complete' : ''
+    );
   } catch(_){}
   try {
     const st = (document.getElementById('app-status-select')||{}).value || '';
@@ -11908,7 +11935,11 @@ function _refreshRoleResearchFreshness() {
     const meta = document.getElementById('sub-meta-role-research');
     if (!meta) return;
     const rr = STATE && STATE.roleResearch;
-    if (!rr || !Object.keys(rr).length) return; // no research yet; leave meta alone
+    // PATCH: only treat the research as "present" when the freshness hash
+    // exists (set inside researchRole() on success). Plain form-field keys
+    // like job_title/company are not research output and should not gate
+    // this freshness paint.
+    if (!rr || !rr._hash) return; // no research yet; leave meta alone
     const storedHash = rr._hash || null;
     const currentHash = _currentRoleResearchHash();
     if (storedHash && storedHash !== currentHash) {
