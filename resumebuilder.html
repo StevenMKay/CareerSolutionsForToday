@@ -1917,6 +1917,19 @@
               <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addRolePlanMilestone()" data-testid="role-plan-add-milestone">+ Add Milestone</button>
             </div>
             <div id="role-plan-milestones-list" class="space-y-3"></div>
+            <!-- PATCH (2026-04-27): structured KPI editor. Each KPI keeps four
+                 fields (Name / Baseline / Target / Measurement) so the AI-
+                 generated KPIs are editable in a smart way. Formatting is
+                 enforced at collection time (whitespace trim, empty rows
+                 dropped) so the saved shape stays consistent. -->
+            <div class="mt-4 pt-4" style="border-top:1px dashed #E5E7EB">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-semibold uppercase tracking-wider" style="color:#4B5563">Key Performance Indicators</label>
+                <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addRolePlanKpi()" data-testid="role-plan-add-kpi">+ Add KPI</button>
+              </div>
+              <p class="text-[11px] mb-2" style="color:#6B7280">KPIs map to the &ldquo;Key Performance Indicators&rdquo; cards in the preview. Keep <strong>Target</strong> measurable (numbers, percentages, or dates).</p>
+              <div id="role-plan-kpis-list" class="space-y-2"></div>
+            </div>
             <details class="mt-3">
               <summary class="text-xs font-medium cursor-pointer" style="color:#6B7280">Or paste / view raw plan text</summary>
               <textarea class="input-field mt-2" id="role-plan-body" placeholder="Plan body text (free-form fallback)..." style="min-height:120px" oninput="try{updateRoleSectionsVisibility&&updateRoleSectionsVisibility()}catch(_){}"></textarea>
@@ -9913,6 +9926,11 @@ function persistIncludeSelections(sel) {
 }
 function resolvePreviewContentFromIncludes(sel) {
   const s = _normalizeIncludeSelections(sel);
+  // PATCH (2026-04-27): when CV is selected alongside resume or plan,
+  // upgrade to 'combined' so the CV body actually renders. Previously CV
+  // was silently dropped from the preview whenever any other content was
+  // also checked.
+  if (s.cv && (s.resume || s.plan)) return 'combined';
   if (s.cv && !s.resume && !s.plan) return 'cv';
   if (s.resume && s.plan) return 'combined';
   if (s.plan) return 'plan';
@@ -10061,9 +10079,23 @@ function _applyPlanTypeSwitch(el, nextType) {
       _stateGen.success_summary = Array.isArray(_horizon.executiveSummary) ? _horizon.executiveSummary : [_horizon.executiveSummary];
     }
     if (Array.isArray(_horizon.successCriteria) && _horizon.successCriteria.length) {
-      _stateGen.success_criteria = _horizon.successCriteria;
+      _stateGen.success_criteria = _horizon.successCriteria.map(function(s){
+        if (typeof s === 'string') return s;
+        if (s && typeof s === 'object') return s.text || s.criterion || s.name || '';
+        return String(s || '');
+      }).filter(Boolean);
     } else if (Array.isArray(_horizon.successMetrics) && _horizon.successMetrics.length) {
-      _stateGen.success_criteria = _horizon.successMetrics;
+      // PATCH (2026-04-27): backend now returns successMetrics as objects
+      // {name,baseline,target,measurement}. Render success_criteria as
+      // readable strings so the preview doesn't print "[object Object]".
+      // Raw KPI objects still flow into _stateGen.kpis below for the grid.
+      _stateGen.success_criteria = _horizon.successMetrics.map(function(m){
+        if (typeof m === 'string') return m;
+        if (!m || typeof m !== 'object') return '';
+        var nm = m.name || m.metric || '';
+        var tg = m.target || '';
+        return nm && tg ? (nm + ' \u2014 ' + tg) : (nm || tg);
+      }).filter(Boolean);
     }
     if (Array.isArray(_horizon.successMetrics) && _horizon.successMetrics.length) {
       _stateGen.kpis = _horizon.successMetrics.map(function(m){
@@ -15463,6 +15495,64 @@ function _collectRolePlanMilestones() {
 }
 try { window._collectRolePlanMilestones = _collectRolePlanMilestones; } catch(_){}
 
+// PATCH (2026-04-27): structured KPI editor in Application Details > Role Plan.
+// Each row exposes Name / Baseline / Target / Measurement so the AI-generated
+// KPIs are editable in a smart way without breaking the renderer's expected
+// shape ({metric, name, baseline, target, measurement, icon}).
+function addRolePlanKpi(data){
+  try {
+    var list = document.getElementById('role-plan-kpis-list');
+    if (!list) return;
+    var d = data || {};
+    var esc = (typeof escapeHtml === 'function') ? escapeHtml : function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];}); };
+    var item = document.createElement('div');
+    item.className = 'role-plan-kpi';
+    item.style.cssText = 'background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:10px 12px';
+    item.innerHTML =
+        '<div class="grid sm:grid-cols-2 gap-2 mb-2">'
+      +   '<div><label class="text-[10px] font-semibold uppercase tracking-wide block mb-1" style="color:#475569">KPI Name</label>'
+      +     '<input class="input-field role-plan-k-name" placeholder="e.g. Pipeline coverage" value="' + esc(d.name || d.metric || '') + '" oninput="try{updateRoleSectionsVisibility&amp;&amp;updateRoleSectionsVisibility()}catch(_){}"></div>'
+      +   '<div><label class="text-[10px] font-semibold uppercase tracking-wide block mb-1" style="color:#475569">Target</label>'
+      +     '<input class="input-field role-plan-k-target" placeholder="e.g. 3x by Q3" value="' + esc(d.target || '') + '" oninput="try{updateRoleSectionsVisibility&amp;&amp;updateRoleSectionsVisibility()}catch(_){}"></div>'
+      + '</div>'
+      + '<div class="grid sm:grid-cols-2 gap-2">'
+      +   '<div><label class="text-[10px] font-semibold uppercase tracking-wide block mb-1" style="color:#475569">Baseline</label>'
+      +     '<input class="input-field role-plan-k-baseline" placeholder="e.g. 1.4x today" value="' + esc(d.baseline || '') + '" oninput="try{updateRoleSectionsVisibility&amp;&amp;updateRoleSectionsVisibility()}catch(_){}"></div>'
+      +   '<div><label class="text-[10px] font-semibold uppercase tracking-wide block mb-1" style="color:#475569">Measurement</label>'
+      +     '<input class="input-field role-plan-k-measurement" placeholder="e.g. Salesforce dashboard, weekly" value="' + esc(d.measurement || '') + '" oninput="try{updateRoleSectionsVisibility&amp;&amp;updateRoleSectionsVisibility()}catch(_){}"></div>'
+      + '</div>'
+      + '<div class="flex justify-end mt-2"><button type="button" class="text-xs font-medium" style="color:#DC2626" onclick="this.closest(\'.role-plan-kpi\').remove();try{updateRoleSectionsVisibility&amp;&amp;updateRoleSectionsVisibility()}catch(_){}">Remove KPI</button></div>';
+    list.appendChild(item);
+  } catch(e) { console.warn('[addRolePlanKpi] failed', e); }
+}
+try { window.addRolePlanKpi = addRolePlanKpi; } catch(_){}
+
+function _collectRolePlanKpis(){
+  var out = [];
+  try {
+    document.querySelectorAll('#role-plan-kpis-list > .role-plan-kpi').forEach(function(item){
+      var read = function(sel){ var e = item.querySelector(sel); return e ? (e.value || '').trim() : ''; };
+      var name = read('.role-plan-k-name');
+      var target = read('.role-plan-k-target');
+      var baseline = read('.role-plan-k-baseline');
+      var measurement = read('.role-plan-k-measurement');
+      // Drop entirely empty rows.
+      if (!name && !target && !baseline && !measurement) return;
+      out.push({
+        metric: name,           // legacy renderer key
+        name: name,
+        target: target,
+        baseline: baseline,
+        measurement: measurement,
+        icon: 'target'
+      });
+    });
+  } catch(e) { console.warn('[_collectRolePlanKpis] failed', e); }
+  return out;
+}
+try { window._collectRolePlanKpis = _collectRolePlanKpis; } catch(_){}
+
+
 // Persist DOM milestone edits back to the active version's plan state
 // so that savePlan() / autosave flush the user's structured edits.
 function _persistRolePlanFromDOM() {
@@ -15480,6 +15570,17 @@ function _persistRolePlanFromDOM() {
     if (titleEl && titleEl.value) plan[key].title     = titleEl.value;
     if (tfEl    && tfEl.value)    plan[key].timeframe = tfEl.value;
     if (bodyEl  && bodyEl.value)  plan[key].executiveSummary = bodyEl.value;
+    // PATCH (2026-04-27): persist edited KPIs so they survive across
+    // tab switches, autosaves, and exports. Collected as canonical
+    // {metric,name,baseline,target,measurement,icon} objects.
+    try {
+      var kpis = (typeof _collectRolePlanKpis === 'function') ? _collectRolePlanKpis() : [];
+      if (kpis.length) {
+        plan.kpis = kpis;
+        plan[key].successMetrics = kpis;
+        try { if (STATE && STATE.generated) STATE.generated.kpis = kpis.slice(); } catch(_){}
+      }
+    } catch(_){}
   } catch(e) { console.warn('[_persistRolePlanFromDOM] failed', e); }
 }
 try { window._persistRolePlanFromDOM = _persistRolePlanFromDOM; } catch(_){}
@@ -15496,6 +15597,10 @@ function refreshRolePlanForHorizon(planType) {
     // from saved horizon or seed an empty milestone with new placeholders.
     var list = document.getElementById('role-plan-milestones-list');
     if (list) list.innerHTML = '';
+    // PATCH (2026-04-27): also clear the KPI list so a horizon switch
+    // doesn't leave stale KPIs from the previous horizon.
+    var kpiListEl = document.getElementById('role-plan-kpis-list');
+    if (kpiListEl) kpiListEl.innerHTML = '';
     var plan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
     var horizon = _pickHorizonForPlanType(plan, planType);
     var hasSavedPhases = !!(horizon && Array.isArray(horizon.phases) && horizon.phases.length);
@@ -15542,7 +15647,8 @@ function _hasRolePlanData(){
     var tf = (document.getElementById('role-plan-timeframe')||{}).value || '';
     var b  = (document.getElementById('role-plan-body')||{}).value || '';
     var ms = document.querySelectorAll('#role-plan-milestones-list > .role-plan-milestone').length;
-    return !!(t.trim() || tf.trim() || b.trim() || ms > 0);
+    var kp = document.querySelectorAll('#role-plan-kpis-list > .role-plan-kpi').length;
+    return !!(t.trim() || tf.trim() || b.trim() || ms > 0 || kp > 0);
   } catch(_){ return false; }
 }
 function updateRoleSectionsVisibility(){
@@ -15657,6 +15763,31 @@ function populateRoleEditorsFromState() {
         }
       }
     } catch(e) { console.warn('[populateRoleEditors] plan populate failed', e); }
+
+    // PATCH (2026-04-27): populate the KPI editor from horizon.successMetrics
+    // (preferred) or plan.kpis (fallback). Each row exposes Name / Baseline /
+    // Target / Measurement so the AI-generated KPIs are smart-editable.
+    try {
+      var kpiList = document.getElementById('role-plan-kpis-list');
+      if (kpiList) {
+        var planType2 = (typeof STATE !== 'undefined' && STATE.planType) || '90-day';
+        var horizon2  = _pickHorizonForPlanType(plan, planType2);
+        var kpiSrc = (horizon2 && Array.isArray(horizon2.successMetrics) && horizon2.successMetrics.length)
+                   ? horizon2.successMetrics
+                   : (Array.isArray(plan.kpis) ? plan.kpis : []);
+        kpiList.innerHTML = '';
+        kpiSrc.forEach(function(k){
+          if (!k) return;
+          if (typeof k === 'string') { addRolePlanKpi({ name: k }); return; }
+          addRolePlanKpi({
+            name: k.name || k.metric || '',
+            target: k.target || '',
+            baseline: k.baseline || '',
+            measurement: k.measurement || ''
+          });
+        });
+      }
+    } catch(e) { console.warn('[populateRoleEditors] kpi populate failed', e); }
 
     // Un-hide the sub-accordions now that fields contain data.
     try { updateRoleSectionsVisibility(); } catch(_){}
@@ -16941,10 +17072,19 @@ function _renderDocPreviewCvPlan(g, containerId, kind){
     const heroName = (g && g.hero && g.hero.name) || (g && g.contact && g.contact.name) || '';
     const heroTitle = (g && g.hero && g.hero.target_title) || '';
     const heroCompany = (g && g.hero && g.hero.company) || '';
+    // PATCH (2026-04-27): typographic refresh ? Calibri 11.5px on 1.6 line
+    // height with paragraph spacing (split on blank lines) instead of
+    // pre-wrap newlines. Letter margins via .pv-page padding so the CV
+    // breathes like a real Word document.
+    const _today = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
     const headerBlock = heroName
-      ? `<div style="border-bottom:2px solid ${accent};padding-bottom:8px;margin-bottom:14px"><div style="font-size:18px;font-weight:700;color:#0F172A">${_esc(heroName)}</div>${heroTitle ? `<div style="font-size:11px;color:#475569;margin-top:2px">${_esc(heroTitle)}${heroCompany ? ' &middot; ' + _esc(heroCompany) : ''}</div>` : ''}</div>`
-      : '';
-    pagesHtml = `<div class="pv-page" style="white-space:normal">${headerBlock}<div style="white-space:pre-wrap;font-family:'Calibri','Segoe UI',Arial,sans-serif;font-size:11.5px;line-height:1.55;color:#111827">${_esc(cvBody)}</div><span class="pv-pageno">1</span></div>`;
+      ? `<div style="margin-bottom:18px"><div style="font-size:20px;font-weight:700;color:#0F172A;letter-spacing:-0.01em">${_esc(heroName)}</div>${heroTitle ? `<div style="font-size:11px;color:#475569;margin-top:2px">${_esc(heroTitle)}${heroCompany ? ' &middot; ' + _esc(heroCompany) : ''}</div>` : ''}<div style="height:2px;background:${accent};margin-top:8px;width:48px"></div></div><div style="font-size:10.5px;color:#64748B;margin-bottom:14px">${_today}</div>`
+      : `<div style="font-size:10.5px;color:#64748B;margin-bottom:14px">${_today}</div>`;
+    const _cvParas = String(cvBody).split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
+    const cvBodyHtml = _cvParas.length
+      ? _cvParas.map(p => `<p style="margin:0 0 11px;text-indent:0">${_esc(p).replace(/\n/g, '<br>')}</p>`).join('')
+      : `<p style="margin:0 0 11px">${_esc(cvBody)}</p>`;
+    pagesHtml = `<div class="pv-page" style="padding:0.95in 0.95in 0.85in;white-space:normal;font-family:'Calibri','Segoe UI',Arial,sans-serif;font-size:11.5px;line-height:1.6;color:#111827">${headerBlock}<div data-cv-body="1">${cvBodyHtml}</div><span class="pv-pageno">1</span></div>`;
   }
   // ---- PLAN doc-mode ----
   else if (kind === 'plan') {
@@ -17374,7 +17514,16 @@ function renderPreview(g, targetId) {
     return true;
   };
 
-  if (_content === 'cv') {
+  // PATCH (2026-04-27): also render CV when content is 'combined' AND the
+  // CV include checkbox is on, so the user actually sees the CV body
+  // alongside resume/plan sections instead of it being silently dropped.
+  let _cvIncluded = false;
+  try {
+    if (_content === 'combined' && typeof isIncludeSelected === 'function') {
+      _cvIncluded = !!isIncludeSelected('cv');
+    }
+  } catch(_){}
+  if (_content === 'cv' || _cvIncluded) {
     let cvBody = '';
     // PATCH (2026-04-27): assemble [opening, ...body, closing] so the
     // preview shows the full letter. body may arrive as an array of
@@ -17511,13 +17660,24 @@ function renderPreview(g, targetId) {
   }
 
   // ---- SUCCESS CRITERIA ----
+  // PATCH (2026-04-27): defensive coercion so legacy/object-shaped entries
+  // (e.g. {name,baseline,target,measurement}) don't render as [object Object].
+  const _coerceCrit = (s) => {
+    if (typeof s === 'string') return s;
+    if (!s || typeof s !== 'object') return String(s || '');
+    if (s.text) return s.text;
+    if (s.criterion) return s.criterion;
+    const nm = s.name || s.metric || '';
+    const tg = s.target || '';
+    return nm && tg ? (nm + ' &mdash; ' + tg) : (nm || tg || '');
+  };
   if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_criteria?.length) {
-    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="success_criterion">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
+    h += card(`${sectionLabel('check-square', 'What Success Looks Like')}<div class="space-y-2" data-list="criteria">${g.success_criteria.map(s => { const _t = _coerceCrit(s); if (!_t) return ''; return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check" style="width:16px;height:16px;color:#047857;flex-shrink:0;margin-top:2px"></i><span data-field="success_criterion">${_t}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`; }).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'criterion','#047857','${S.textColor}')">+ Add Criterion</button>`, '', 'success_criteria');
   }
 
   // ---- SUCCESS SUMMARY (Day 90 summary) ----
   if (_inContent('success_criteria') && STATE.sections.includes('success_criteria') && g.success_summary?.length) {
-    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary" data-field="success_summary">${g.success_summary.map(s => `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="success_outcome">${s}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
+    h += card(`${sectionLabel('award', 'What Success Looks Like By ' + (STATE.planType === '90-day' ? 'Day 90' : STATE.planType === '12-month' ? 'Month 12' : 'Month 24'))}<div class="space-y-2" data-list="summary" data-field="success_summary">${g.success_summary.map(s => { const _t = _coerceCrit(s); if (!_t) return ''; return `<div class="item-row flex gap-3 text-sm editable" contenteditable="true" style="color:${S.textColor}"><i data-lucide="check-circle" style="width:16px;height:16px;color:${C};flex-shrink:0;margin-top:2px"></i><span data-field="success_outcome">${_t}</span><button class="item-del export-hide" contenteditable="false" onclick="removeItem(this)">&times;</button></div>`; }).join('')}</div><button class="item-add export-hide" onclick="addListItem(this,'outcome','${C}','${S.textColor}')">+ Add Outcome</button>`, '', 'success_summary');
   }
 
   // ---- KPIS ----
@@ -18243,7 +18403,23 @@ function _normalizePlanMilestones(phases, horizon) {
       actions,
       tools,
       execValue:   (p.exec_value || p.executive_value || p.value || '').toString(),
-      icon:        p.icon || 'target'
+      icon:        p.icon || 'target',
+      // PATCH (2026-04-27): preserve rich plan-phase fields so the
+      // preview renderer (Stakeholders / Risks / Communication / structured
+      // Goals / Quick Wins / Deliverables / Milestones / objective) can
+      // surface them after the model round-trip. Without these passthroughs
+      // _modelToGShape() lost the data and the doc-mode plan preview
+      // showed only headers.
+      goals:           Array.isArray(p.goals) ? p.goals.slice() : [],
+      quickWins:       Array.isArray(p.quickWins || p.quick_wins) ? (p.quickWins || p.quick_wins).slice() : [],
+      deliverables:    Array.isArray(p.deliverables) ? p.deliverables.slice() : [],
+      phaseMilestones: Array.isArray(p.milestones) ? p.milestones.slice() : [],
+      stakeholders:    Array.isArray(p.stakeholders) ? p.stakeholders.slice() : [],
+      risks:           Array.isArray(p.risks) ? p.risks.slice() : [],
+      communicationPlan: (p.communicationPlan || p.communication_plan || '').toString(),
+      objective:       (p.objective || '').toString(),
+      focus:           (p.focus || '').toString(),
+      label:           (p.label || '').toString()
     };
   }).filter(Boolean);
 }
@@ -18946,12 +19122,26 @@ function _modelToGShape(model) {
     phase:     m.phase || '',
     timeframe: m.timeframe || '',
     title:     m.title || '',
-    objective: m.description || '',
+    objective: m.objective || m.description || '',
     actions:   Array.isArray(m.actions) ? m.actions.slice() : [],
     tools:     Array.isArray(m.tools) ? m.tools.slice() : [],
     icon:      m.icon || 'target',
     exec_value: m.execValue || '',
-    hidden:    !!m.hidden
+    hidden:    !!m.hidden,
+    // PATCH (2026-04-27): pass through rich plan-phase fields so the
+    // renderer can show Stakeholders / Risks / Communication / structured
+    // Goals / Quick Wins / Deliverables / Milestones for each phase. Without
+    // these the doc-mode plan preview rendered only the headers because the
+    // arrays were dropped during the model -> g-shape projection.
+    goals:           Array.isArray(m.goals) ? m.goals.slice() : [],
+    quickWins:       Array.isArray(m.quickWins) ? m.quickWins.slice() : [],
+    deliverables:    Array.isArray(m.deliverables) ? m.deliverables.slice() : [],
+    milestones:      Array.isArray(m.phaseMilestones) ? m.phaseMilestones.slice() : [],
+    stakeholders:    Array.isArray(m.stakeholders) ? m.stakeholders.slice() : [],
+    risks:           Array.isArray(m.risks) ? m.risks.slice() : [],
+    communicationPlan: m.communicationPlan || '',
+    focus:           m.focus || '',
+    label:           m.label || ''
   })) : [];
 
   // Preserve fields that live on STATE.generated but aren't part of the
