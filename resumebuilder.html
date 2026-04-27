@@ -10226,7 +10226,19 @@ function setActivePreviewDoc(id) {
   } catch(_){}
   try { STATE.activePreviewDoc = next; } catch(_){}
   try { renderLivePreviewPager(); } catch(_){}
-  try { schedulePreviewRender && schedulePreviewRender('active-preview-doc-change', 80); } catch(_){}
+  // PATCH (Plan v8 fix): route the export preview render through the
+  // active-doc helper so CV/Plan actually appear when their pager pill is
+  // clicked. Falls back to the legacy schedulePreviewRender hook if the
+  // new helper isn't available or returns falsy.
+  let _renderedActive = false;
+  try {
+    if (typeof renderActiveLivePreviewDoc === 'function') {
+      _renderedActive = !!renderActiveLivePreviewDoc('active-preview-doc-change');
+    }
+  } catch(_){ _renderedActive = false; }
+  if (!_renderedActive) {
+    try { schedulePreviewRender && schedulePreviewRender('active-preview-doc-change', 80); } catch(_){}
+  }
   return next;
 }
 try { window.setActivePreviewDoc = setActivePreviewDoc; } catch(_){}
@@ -10296,6 +10308,91 @@ function renderLivePreviewPager() {
   });
 }
 try { window.renderLivePreviewPager = renderLivePreviewPager; } catch(_){}
+
+// PATCH (Plan v8 fix): direct render router for the export Live Preview.
+// The pager updates `activePreviewDoc` on click, but `#preview-container-export`
+// previously kept showing the resume because nothing actually re-rendered
+// the export container against the new doc kind. This helper renders the
+// correct doc into `#preview-container-export`:
+//   - resume -> existing renderPreview(STATE.generated, 'preview-container-export')
+//     (no behavior change; preserves the working resume render path)
+//   - cv     -> renderCVDocument(...)
+//   - plan   -> renderPlanDocument(...)
+// CV/Plan output is wrapped to match the current preview mode (doc vs web)
+// so the existing CSS shell rules apply. Read-only enforcement, preset
+// styles, and export-ready strip are re-applied via best-effort guarded
+// calls. This function is preview-only: it never marks dirty, never saves,
+// and never mutates include flags.
+function renderActiveLivePreviewDoc(reason) {
+  reason = reason || 'active-preview-doc';
+  const containerId = 'preview-container-export';
+  const el = document.getElementById(containerId);
+  if (!el) return false;
+
+  const kind = (typeof getActivePreviewDocId === 'function')
+    ? getActivePreviewDocId()
+    : 'resume';
+
+  let v = {};
+  try { v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {}; } catch(_){ v = {}; }
+  let profile = {};
+  try { profile = (typeof getProfileData === 'function') ? (getProfileData() || {}) : {}; } catch(_){ profile = {}; }
+  let targetRole = {};
+  try {
+    targetRole = (typeof getCurrentTargetRole === 'function')
+      ? (getCurrentTargetRole() || {})
+      : (v.targetRole || {});
+  } catch(_){ targetRole = (v && v.targetRole) || {}; }
+
+  try { renderLivePreviewPager && renderLivePreviewPager(); } catch(_){}
+
+  // Resume keeps the existing working resume render path verbatim.
+  if (kind === 'resume') {
+    try {
+      renderPreview(STATE.generated, containerId);
+      return true;
+    } catch (err) {
+      try { console.warn('[live-preview] resume render failed', err); } catch(_){}
+      return false;
+    }
+  }
+
+  // CV / Plan use the dedicated templates.
+  let html = '';
+  if (kind === 'cv') {
+    const cv = (v && (v.cv || v.cvDraft)) || {};
+    html = (typeof renderCVDocument === 'function')
+      ? renderCVDocument(cv, { profile: profile, targetRole: targetRole })
+      : '<article class="export-doc export-cv"><h1>Cover Letter</h1><p>No cover letter content available yet.</p></article>';
+  } else if (kind === 'plan') {
+    const plan = (v && v.plan) || {};
+    html = (typeof renderPlanDocument === 'function')
+      ? renderPlanDocument(plan, { profile: profile, targetRole: targetRole })
+      : '<article class="export-doc export-plan"><h1>Career Plan</h1><p>No plan content available yet.</p></article>';
+  } else {
+    // Unknown kind ? fall back to resume path.
+    try { renderPreview(STATE.generated, containerId); return true; } catch(_){ return false; }
+  }
+
+  const mode = (STATE && STATE._previewMode) || 'web';
+  if (mode === 'doc') {
+    el.innerHTML =
+      '<div class="pv-pages-stack pv-format-docx">' +
+        '<div class="pv-page">' + html + '</div>' +
+      '</div>';
+  } else {
+    el.innerHTML =
+      '<div class="resume-web-shell">' +
+        '<div class="resume-web">' + html + '</div>' +
+      '</div>';
+  }
+
+  try { _applyPreviewPresets && _applyPreviewPresets(); } catch(_){}
+  try { (typeof PREVIEW_READ_ONLY === 'undefined' || PREVIEW_READ_ONLY) && disablePreviewEditing && disablePreviewEditing(el); } catch(_){}
+  try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
+  return true;
+}
+try { window.renderActiveLivePreviewDoc = renderActiveLivePreviewDoc; } catch(_){}
 
 function getLivePreviewContentKind() { return getActivePreviewDocId(); }
 try { window.getLivePreviewContentKind = getLivePreviewContentKind; } catch(_){}
@@ -16306,6 +16403,16 @@ function setPreviewMode(mode, btn){
         try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){ }
       }
     }
+    // PATCH (Plan v8 fix, Option A): if Cover Letter or Career Plan is the
+    // active live-preview doc, the resume re-render above would clobber it.
+    // Re-route through the active-doc helper so the CV/Plan stays visible
+    // in the correct (doc vs web) wrapper.
+    try {
+      const _activeKind = (typeof getActivePreviewDocId === 'function') ? getActivePreviewDocId() : 'resume';
+      if (_activeKind === 'cv' || _activeKind === 'plan') {
+        renderActiveLivePreviewDoc && renderActiveLivePreviewDoc('preview-mode-change');
+      }
+    } catch(_){}
     // If compare mode is active, both panes were just re-rendered above which
     // wiped any diff highlights. Re-render Version B from its cached model and
     // re-apply the diff painter so highlights don't vanish on mode switch.
@@ -20365,6 +20472,23 @@ window.debugPackageExport = function () {
     hasCV: !!(v && (v.cv || v.cvDraft)),
     hasPlan: !!(v && v.plan),
     exportSettings: (typeof getExportSettings === 'function') ? getExportSettings() : null,
+    previewReadOnly: (window.runResumeBuilderDiagnostics && window.runResumeBuilderDiagnostics().previewReadOnly) || null
+  };
+};
+
+// PATCH (Plan v8 fix): inspects what was actually rendered into the export
+// Live Preview container so we can verify the active-doc routing fix.
+window.debugLivePreviewRenderedDoc = function () {
+  const el = document.getElementById('preview-container-export');
+  const txt = (el && (el.innerText || el.textContent)) || '';
+  const fallbackSentinel = /no cover letter content|no plan content/i;
+  return {
+    activePreviewDoc: (typeof getActivePreviewDocId === 'function') ? getActivePreviewDocId() : null,
+    includeSelection: (typeof getIncludeSelection === 'function') ? getIncludeSelection() : null,
+    hasCoverLetterText: /cover letter|dear hiring|dear/i.test(txt),
+    hasCareerPlanText:  /career plan|first 90 days|12-month|2-year/i.test(txt),
+    hasResumeText:      !!txt && !fallbackSentinel.test(txt),
+    textSample: String(txt).slice(0, 300),
     previewReadOnly: (window.runResumeBuilderDiagnostics && window.runResumeBuilderDiagnostics().previewReadOnly) || null
   };
 };
