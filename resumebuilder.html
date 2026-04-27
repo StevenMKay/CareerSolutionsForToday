@@ -298,6 +298,12 @@
   .ra-refresh-btn{display:inline-flex;align-items:center;gap:4px;font-size:0.72rem;font-weight:600;color:#005EB8;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:3px 10px;cursor:pointer;transition:all .15s}
   .ra-refresh-btn:hover{background:#DBEAFE;color:#1D4ED8}
   .ra-prep-group{margin-bottom:16px}
+  /* Career intel grid (ATS, Skills, Market, etc.) */
+  .ra-intel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:12px}
+  .ra-intel-card{margin-bottom:0}
+  .ra-mini-label{font-size:0.7rem;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.05em;margin:10px 0 4px}
+  .ra-list-empty{font-size:0.78rem;color:#94A3B8;font-style:italic;margin:4px 0}
+  @media(max-width:640px){.ra-intel-grid{grid-template-columns:1fr}}
   .ra-prep-group:last-child{margin-bottom:0}
   .ra-prep-group-head{display:flex;align-items:center;gap:7px;font-size:0.82rem;font-weight:700;color:#1E293B;margin-bottom:8px}
   .ra-prep-dot{width:8px;height:8px;border-radius:999px;flex-shrink:0}
@@ -5749,26 +5755,36 @@ async function optimizeForJob() {
   setTimeout(()=>optimizeAdvanceStep(4), 5000);
 
   try {
-    // STEP A: Run the full resume analyzer first so analysisCache + right-panel analysis populate.
-    // This is the same backend call the "Analyze" button uses; it also ensures the match-score card
-    // and insights panels reflect the current resume + JD even before optimize applies any changes.
-    // Force a fresh fetch so interview_prep, risks, fixes, and benchmark are populated even if
-    // there is a stale/partial cache from a prior session (e.g. plan loaded from Firestore
-    // without interview_prep). Without this, analyzeResume()'s cache gate short-circuits
-    // and the sidebar keeps showing "No prep data yet".
-    try {
-      if (!_interviewPrepCache || !analysisCache || !analysisCache.score_breakdown) {
-        analysisCacheKey = null;
-      }
-    } catch(_){}
-    try { await analyzeResume(); } catch(e) { console.warn('[optimize] pre-analyze failed (continuing):', e); }
+    // STEP A: Run the full resume analyzer only when there's no analysis cache OR
+    // the cache is stale/partial. After this update, /builder/optimize returns the full
+    // enriched analysis so a fresh pre-analyze call is only needed for the very first
+    // time (no prior analysis at all). Skip it if analysisCache already has content
+    // so we don't make an unnecessary extra AI call before optimize runs.
+    const _hasCachedAnalysis = analysisCache && typeof analysisCache === 'object' && (analysisCache.resume_match_score || analysisCache.overall_score);
+    if (!_hasCachedAnalysis) {
+      try { await analyzeResume(); } catch(e) { console.warn('[optimize] pre-analyze failed (continuing):', e); }
+    }
 
     const baseline = __deepCloneResume(optimizeResume);
+    const _cvContext = {};
+    try {
+      const hmName = document.getElementById('cv-hiring-manager')?.value?.trim() || '';
+      const whyRole = document.getElementById('cv-why-role')?.value?.trim() || '';
+      const tone    = document.getElementById('cv-tone')?.value?.trim() || '';
+      const coNotes = document.getElementById('cv-company-notes')?.value?.trim() || '';
+      if (hmName) _cvContext.hiringManagerName = hmName;
+      if (whyRole) _cvContext.whyThisRole = whyRole;
+      if (tone)    _cvContext.tonePreference = tone;
+      if (coNotes) _cvContext.companyNotes = coNotes;
+    } catch(_){}
     const _optPayload = {
       resume_data: optimizeResume,
       job_description: jd,
       job_title: jobTitle,
-      company: company
+      company: company,
+      plan_context: (document.getElementById('plan-context')?.value || '').trim(),
+      additional_details: (document.getElementById('additional-resume-details')?.value || '').trim(),
+      cvContext: Object.keys(_cvContext).length ? _cvContext : undefined
     };
     aiTraceSend('POST /builder/optimize', _optPayload);
     const _optT0 = performance.now();
@@ -5828,45 +5844,115 @@ async function optimizeForJob() {
       appliedCount: applied
     };
 
-    // Update analysisCache so the Optimize step match-score card + analysis panels render.
-    // /builder/optimize returns a lean `data.analysis`; the pre-analyze step already populated
-    // analysisCache with the full /builder/analyze-resume shape. Prefer the richer analyzer
-    // values and only fill gaps from optimize so we never clobber keyword_matches, gaps,
-    // score_breakdown, interview_prep, benchmark, etc.
+    // ── FULL PACKAGE WRITE (suspend smart-save until all writes are done) ──
+    // The optimize response now returns the complete career package: enriched analysis,
+    // all three plan horizons, and CV. Write everything to canonical state in one pass,
+    // then save once at the end.
+    window.__suspendSmartSave = true;
     try {
-      const base = (analysisCache && typeof analysisCache === 'object') ? analysisCache : {};
-      const extra = data.analysis || {};
-      const merged = Object.assign({}, base);
-      const _nonEmpty = v => {
-        if (v == null || v === '') return false;
-        if (Array.isArray(v)) return v.length > 0;
-        if (typeof v === 'object') return Object.keys(v).length > 0;
-        return true;
-      };
-      // Fill gaps from optimize response without overwriting richer analyzer data
-      Object.keys(extra).forEach(k => { if (!_nonEmpty(merged[k]) && _nonEmpty(extra[k])) merged[k] = extra[k]; });
-      // Always overlay the post-optimize score + assessment fields
-      if (typeof data.improved_score === 'number') {
-        merged.resume_match_score = data.improved_score;
-        merged.overall_score = data.improved_score;
+      // 1. Update analysisCache with the full enriched analysis from the response.
+      // /builder/optimize now returns analysis.ats, skillsIntel, marketIntel,
+      // candidateBenchmark, interviewPrep, riskProfile, recommendations, etc.
+      // Always prefer the fresh optimize response since it was generated after changes.
+      try {
+        const extra = data.analysis || {};
+        const base = (analysisCache && typeof analysisCache === 'object') ? analysisCache : {};
+        const merged = Object.assign({}, base, extra);
+        // Always overlay post-optimize scores
+        if (typeof data.improved_score === 'number') {
+          merged.resume_match_score = data.improved_score;
+          merged.overall_score = data.improved_score;
+        }
+        if (typeof data.original_score === 'number') merged.original_score = data.original_score;
+        // Sync interview prep cache from the enriched interviewPrep block if present
+        if (extra.interviewPrep && (extra.interviewPrep.likelyQuestions || extra.interviewPrep.highRiskQuestions)) {
+          const ipBlock = extra.interviewPrep;
+          // Map to the format displayAnalysisResults() expects
+          const mappedPrep = {
+            likely_questions: ipBlock.likelyQuestions || [],
+            high_risk_questions: ipBlock.highRiskQuestions || [],
+            high_impact_questions: ipBlock.storiesToPrepare || []
+          };
+          // Only override if richer than current cache
+          if (!_interviewPrepCache || !_interviewPrepCache.likely_questions || !_interviewPrepCache.likely_questions.length) {
+            _interviewPrepCache = mappedPrep;
+          }
+        }
+        analysisCache = merged;
+        _needsReanalysis = false;
+        try { analysisCacheKey = getAnalysisCacheKey(); } catch(_){}
+        if (typeof setCurrentAnalysis === 'function') setCurrentAnalysis(merged);
+      } catch(e) { console.warn('[optimize] analysisCache write failed:', e); }
+
+      // 2. Write plan from response — skip extra generatePlanIntoActiveVersion() call
+      // if the response already includes the plan data.
+      const _respPlan = data.plan || {};
+      const _hasPlanData = (_respPlan.days90 && Object.keys(_respPlan.days90).length) ||
+                           (_respPlan.months12 && Object.keys(_respPlan.months12).length) ||
+                           (_respPlan.years2 && Object.keys(_respPlan.years2).length);
+      if (_hasPlanData) {
+        try {
+          const planToWrite = Object.assign({}, _hasPlanData ? _respPlan : {}, {
+            plan_phases: (data.plan_phases || (data.days90 && data.days90.phases) || []),
+            success_summary: (data.success_summary || (_respPlan.days90 && _respPlan.days90.executiveSummary) || ''),
+            success_criteria: (data.success_criteria || (_respPlan.days90 && _respPlan.days90.successMetrics) || []),
+            kpis: (data.kpis || (_respPlan.months12 && _respPlan.months12.successMetrics) || [])
+          });
+          if (typeof setCurrentPlan === 'function') setCurrentPlan(planToWrite);
+          // Mirror plan-shaped keys into STATE.generated for legacy renderers
+          try {
+            const stateGen = structuredClone(getGeneratedResume?.() || STATE.generated || {});
+            ['plan_phases','success_summary','success_criteria','kpis','days90','months12','years2','horizon'].forEach(k => {
+              if (planToWrite[k] !== undefined) stateGen[k] = planToWrite[k];
+            });
+            setGeneratedResume(stateGen);
+          } catch(_){}
+          console.log('[optimize] plan written from response (skipping generatePlanIntoActiveVersion)');
+        } catch(e) { console.warn('[optimize] plan write failed:', e); }
+      } else {
+        // Fallback: no plan in response — run the separate generate call
+        try {
+          console.log('[optimize] no plan in response → calling generatePlanIntoActiveVersion()');
+          const planRes = await generatePlanIntoActiveVersion();
+          if (planRes && planRes.ok) {
+            console.log('[optimize→plan] fallback OK');
+          } else {
+            console.warn('[optimize→plan] fallback failed:', planRes && planRes.error);
+          }
+        } catch(e) { console.warn('[optimize→plan] fallback threw:', e); }
       }
-      if (typeof data.original_score === 'number' && merged.original_score == null) merged.original_score = data.original_score;
-      if (data.recruiter_first_impression && !_nonEmpty(merged.overall_assessment) && !_nonEmpty(merged.overall_summary)) {
-        merged.overall_assessment = data.recruiter_first_impression;
-      }
-      if (data.strategist_note && !_nonEmpty(merged.interview_likelihood)) {
-        merged.interview_likelihood = data.strategist_note;
-      }
-      analysisCache = merged;
-      _needsReanalysis = false;
-      // Key the cache to the current resume+JD so analyzeResume() won't mistakenly overwrite
-      // this merged analysisCache with a stale pre-optimize version next time it runs.
-      try { analysisCacheKey = getAnalysisCacheKey(); } catch(_){}
-    } catch(e) { console.warn('analysisCache sync after optimize failed:', e); }
+
+      // 3. Write CV from response — skip /generate-cv if cv is in the response.
+      const _respCV = data.cv || {};
+      const _hasCVData = _respCV && (_respCV.body || _respCV.opening || _respCV.heading);
+      try {
+        const v = getActiveVersion();
+        v.resume = structuredClone((typeof getCurrentResume === 'function') ? (getCurrentResume() || optimizeResume || {}) : (optimizeResume || {}));
+        v.plan = structuredClone((typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : (v.plan || {}));
+        v.analysis = structuredClone(analysisCache || {});
+        if (_hasCVData) {
+          v.cv = structuredClone(_respCV);
+          v.cvDraft = structuredClone(_respCV);
+        } else {
+          // Fallback: build a basic CV from the optimized resume
+          v.cv = buildInitialCV(v.resume || {});
+          v.cvDraft = structuredClone(v.cv || {});
+        }
+        v.updatedAt = new Date().toISOString();
+        if (_hasCVData) {
+          try { showToast('Full career package ready — resume, analysis, plan & CV updated!'); } catch(_){}
+        } else {
+          // Show toast that CV was auto-generated
+      try { showToast('CV draft generated from your optimized resume!'); } catch(_){}
+        }
+      } catch(_){ }
+    } finally {
+      window.__suspendSmartSave = false;
+    }
+
+    // ── Render all UI ──
     try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
     try { displayAnalysisResults && displayAnalysisResults(analysisCache, _interviewPrepCache); } catch(_){}
-    // Auto-open the full analysis drawer so interview prep / ATS / risks / fixes are visible.
-    try { openAnalysis && openAnalysis(); } catch(_){}
 
     // Update Match Score card
     const msCard = document.getElementById('rp-match-score');
@@ -5879,32 +5965,17 @@ async function optimizeForJob() {
     if (msOrig && msOrigVal) { msOrig.style.display = 'block'; msOrigVal.textContent = data.original_score + (data.delta ? ' (' + (data.delta>0?'+':'') + data.delta + ')' : ''); }
     if (revertWrap) revertWrap.style.display = 'block';
 
-    // Re-render preview if renderer exists
-    // ISS-011: Synthesize a minimal STATE.generated from resumeData so the
-    // Web + Document live-preview containers pass existing `STATE.generated &&
-    // Object.keys(STATE.generated).length` guards in setPreviewMode/setShowPhoto
-    // and so the export-step preview container renders too. Without this the
-    // preview stayed empty after Optimize and showed the "click Optimize for
-    // This Role" placeholder.
+    // ISS-011: Synthesize STATE.generated from resume if empty so preview guards pass
     try {
       let rd = {};
       try { rd = (typeof getCurrentResume === 'function') ? (getCurrentResume() || {}) : (STATE.generated || {}); } catch(_){ rd = (STATE.generated || {}); }
       const hasGen = STATE.generated && Object.keys(STATE.generated).length > 0;
-      // 2026-04-25 workspace refactor: also gate behind the active version's
-      // _resumeInitialized flag so a user who has already deleted bullets
-      // can't have them resurrected from the global profile by this
-      // synthesize path. Profile is read-only here.
       let alreadyInitialized = false;
       try { alreadyInitialized = !!getActiveVersion()._resumeInitialized; } catch(_){}
       if (!hasGen && !alreadyInitialized) {
         const targetTitle = (document.getElementById('job-title')?.value || rd.current_title || '').trim();
         setGeneratedResume({
-          hero: {
-            name: rd.name || '',
-            target_title: targetTitle,
-            tagline: rd.summary || '',
-            subtitle: ''
-          },
+          hero: { name: rd.name || '', target_title: targetTitle, tagline: rd.summary || '', subtitle: '' },
           experience: rd.experience || [],
           skills: rd.skills || [],
           education: rd.education || [],
@@ -5913,59 +5984,25 @@ async function optimizeForJob() {
         });
       }
     } catch(e) { console.warn('[optimize] synthesize generated failed', e); }
-    // 2026-04-25 BUG-FIX: chain plan generation after optimize so the
-    // selected plan actually populates getActiveVersion().plan. Optimize
-    // only mutates the resume ? without this, the user has to click
-    // Generate again to get plan_phases/success_*/kpis.
-    try {
-      console.log('[optimize?plan] calling generatePlanIntoActiveVersion()?');
-      const planRes = await generatePlanIntoActiveVersion();
-      if (planRes && planRes.ok) {
-        console.log('[optimize?plan] OK ? plan keys written to active version');
-      } else {
-        console.warn('[optimize?plan] failed:', planRes && planRes.error);
-      }
-    } catch(e) { console.warn('[optimize?plan] threw:', e); }
-
-    // Ensure the active version has all required optimize artifacts.
-    try {
-      const v = getActiveVersion();
-      v.resume = structuredClone((typeof getCurrentResume === 'function') ? (getCurrentResume() || optimizeResume || {}) : (optimizeResume || {}));
-      v.plan = structuredClone((typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : (v.plan || {}));
-      v.analysis = structuredClone(analysisCache || {});
-      // Always regenerate CV from the optimized resume so it includes latest content
-      v.cv = buildInitialCV(v.resume || {});
-      v.cvDraft = structuredClone(v.cv || {});
-      v.updatedAt = new Date().toISOString();
-      // Show toast that CV was auto-generated
-      try { showToast('CV draft generated from your optimized resume!'); } catch(_){}
-    } catch(_){ }
 
     try {
       if (typeof generateAndRenderPreview === 'function') { generateAndRenderPreview(); }
       else if (typeof renderPreview === 'function') {
         renderPreview(STATE.generated);
-        // Also render the Export-step live preview container so it isn't empty
-        // when the user navigates there after optimizing.
         if (document.getElementById('preview-container-export')) {
           try { renderPreview(STATE.generated, 'preview-container-export'); } catch(_){}
         }
       }
       else if (typeof updatePreview === 'function') { updatePreview(); }
     } catch(_){}
+
     // Pass needsReanalysis:false so markDirty doesn't wipe the analysisCache we just populated
     try { markDirty({ needsReanalysis: false }); } catch(_){}
 
     // Auto-persist optimization session so analysis/changes survive reload.
-    // Use JSON round-trip to strip any `undefined` values Firestore would reject.
-    try {
-      STATE.optimizationSession = JSON.parse(JSON.stringify(STATE.optimizationSession));
-    } catch(_){}
-    // ISS-STATUS: Stamp the analyzed-role fingerprint + optimize score BEFORE
-    // savePlan() so the dashboard/versions pills flip from "Analysis Needed"
-    // to "Optimized" immediately (and so the score badge appears without a
-    // separate Analyze click). Non-fatal if the direct update fails ? the
-    // following savePlan() will still carry these fields via planData.
+    try { STATE.optimizationSession = JSON.parse(JSON.stringify(STATE.optimizationSession)); } catch(_){}
+
+    // Stamp role fingerprint + optimize score
     try {
       if (currentUser && currentPlanId) {
         const _optStamp = {
@@ -5977,6 +6014,8 @@ async function optimizeForJob() {
         await db.collection('plans').doc(currentPlanId).update(_optStamp);
       }
     } catch(e) { console.debug('Optimize stamp failed (will retry via savePlan):', e); }
+
+    // Single save — everything written, suspend lifted
     try { await flushAutosaveNow('optimize-complete'); } catch(e) { console.warn('Auto-save after optimize failed:', e); }
 
     hideOptimizeProgress();
@@ -16007,6 +16046,32 @@ function syncExportEditsToWorkspace() {
 try { window.syncExportEditsToWorkspace = syncExportEditsToWorkspace; } catch(_){}
 try { window.syncPreviewEditsToState = syncPreviewEditsToState; } catch(_){ }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// debugOptimizePackage — run after one Optimize click to verify full package
+// ─────────────────────────────────────────────────────────────────────────────
+window.debugOptimizePackage = function () {
+  try {
+    const v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {};
+    const plan = v.plan || {};
+    const analysis = v.analysis || (typeof analysisCache !== 'undefined' ? analysisCache : {});
+    return {
+      hasResume:  !!(v.resume && Object.keys(v.resume).length),
+      hasAnalysis: !!(analysis && Object.keys(analysis).length),
+      hasATS:     !!(analysis.ats && (Array.isArray(analysis.ats.missingKeywords) || Array.isArray(analysis.ats.matchedKeywords))),
+      hasSkillsIntel: !!(analysis.skillsIntel && Object.keys(analysis.skillsIntel).length),
+      hasMarketIntel: !!(analysis.marketIntel && Object.keys(analysis.marketIntel).length),
+      hasCandidateBenchmark: !!(analysis.candidateBenchmark && Object.keys(analysis.candidateBenchmark).length),
+      hasInterviewPrep: !!(analysis.interviewPrep && Object.keys(analysis.interviewPrep).length),
+      hasPlan:    !!(plan && Object.keys(plan).length),
+      hasDays90:  !!(plan.days90 && Object.keys(plan.days90).length),
+      hasMonths12: !!(plan.months12 && Object.keys(plan.months12).length),
+      hasYears2:  !!(plan.years2 && Object.keys(plan.years2).length),
+      hasCV:      !!(v.cv && Object.keys(v.cv).length),
+      smartSave:  (typeof window.debugSmartSave === 'function') ? window.debugSmartSave() : 'n/a'
+    };
+  } catch(e) { return { error: e.message }; }
+};
+
 window.runResumeBuilderDiagnostics = function () {
   const previewEditableCount = document.querySelectorAll(
     '#preview-container [contenteditable], #preview-container-b [contenteditable], #preview-container-export [contenteditable], #preview-container-export-b [contenteditable]'
@@ -19552,6 +19617,9 @@ function displayAnalysisResults(a, interviewPrep) {
   // ===== INTERVIEW PREP =====
   h += renderInterviewPrepSectionHTML(interviewPrep);
 
+  // ===== EXTENDED CAREER INTEL CARDS (ATS, Skills, Market, Benchmark 2.0) =====
+  try { h += renderCareerIntelCards(a); } catch(_){}
+
   document.getElementById('analysis-content').innerHTML = h;
   const rightContent = document.getElementById('right-analysis-content');
   if (rightContent) rightContent.innerHTML = h;
@@ -19570,6 +19638,140 @@ function displayAnalysisResults(a, interviewPrep) {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAREER INTEL CARDS — renders ATS, Skills, Market, Benchmark 2.0, and
+// Recommendations sections populated by the full-package optimize response.
+// Only renders sections that have data; gracefully skips empty arrays.
+// ─────────────────────────────────────────────────────────────────────────────
+function escapeHtml(s) { return s == null ? '' : String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderAnalysisList(items, empty = 'No items found') {
+  const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!arr.length) return `<p class="ra-list-empty">${escapeHtml(empty)}</p>`;
+  return `<ul class="ra-col-list">${arr.map(x => {
+    const text = typeof x === 'string' ? x
+      : (x.fix || x.keyword || x.question || x.reason || x.improved || x.title || x.risk || x.concern || JSON.stringify(x));
+    return `<li>${escapeHtml(text)}</li>`;
+  }).join('')}</ul>`;
+}
+
+function renderCareerIntelCards(a = {}) {
+  if (!a || typeof a !== 'object') return '';
+  const ats = a.ats || {};
+  const si = a.skillsIntel || {};
+  const mi = a.marketIntel || {};
+  const cb = a.candidateBenchmark || {};
+  const rp = a.riskProfile || {};
+  const rec = a.recommendations || {};
+
+  const hasATS = ats && (Array.isArray(ats.missingKeywords) || Array.isArray(ats.matchedKeywords));
+  const hasSI  = si && (Array.isArray(si.requiredSkills) || Array.isArray(si.preferredSkills));
+  const hasMI  = mi && (Array.isArray(mi.trendingSkills) || Array.isArray(mi.relatedTitles));
+  const hasCB  = cb && (Array.isArray(cb.topCandidatePatterns) || Array.isArray(cb.whereUserMatches));
+  const hasRP  = rp && (Array.isArray(rp.interviewConcerns) || Array.isArray(rp.credibilityGaps));
+  const hasRec = rec && (Array.isArray(rec.nextActions) || Array.isArray(rec.highestImpactFixes));
+
+  if (!hasATS && !hasSI && !hasMI && !hasCB && !hasRP && !hasRec) return '';
+
+  let out = '<div class="ra-intel-grid">';
+
+  if (hasATS) {
+    out += `<div class="ra-card ra-intel-card">
+      <div class="ra-card-title">ATS &amp; Keyword Match <span class="ra-card-sub">${Number(ats.score||0)}/100</span></div>`;
+    if (Array.isArray(ats.matchedKeywords) && ats.matchedKeywords.length) {
+      out += `<div class="ra-mini-label">Matched</div>${renderAnalysisList(ats.matchedKeywords)}`;
+    }
+    if (Array.isArray(ats.missingKeywords) && ats.missingKeywords.length) {
+      out += `<div class="ra-mini-label">Missing</div>${renderAnalysisList(ats.missingKeywords)}`;
+    }
+    if (Array.isArray(ats.keywordPlacementSuggestions) && ats.keywordPlacementSuggestions.length) {
+      out += `<div class="ra-mini-label">Placement tips</div><ul class="ra-col-list">${ats.keywordPlacementSuggestions.map(s => {
+        const t = typeof s === 'string' ? s : `${escapeHtml(s.keyword||'')} → ${escapeHtml(s.suggestedSection||'')}`;
+        return `<li>${t}</li>`;
+      }).join('')}</ul>`;
+    }
+    out += `</div>`;
+  }
+
+  if (hasSI) {
+    out += `<div class="ra-card ra-intel-card">
+      <div class="ra-card-title">Skills for This Role</div>`;
+    if (Array.isArray(si.requiredSkills) && si.requiredSkills.length) {
+      out += `<div class="ra-mini-label">Required</div>${renderAnalysisList(si.requiredSkills)}`;
+    }
+    if (Array.isArray(si.preferredSkills) && si.preferredSkills.length) {
+      out += `<div class="ra-mini-label">Preferred</div>${renderAnalysisList(si.preferredSkills)}`;
+    }
+    if (Array.isArray(si.transferableSkills) && si.transferableSkills.length) {
+      out += `<div class="ra-mini-label">Transferable</div>${renderAnalysisList(si.transferableSkills)}`;
+    }
+    if (Array.isArray(si.skillsToAvoidClaimingUnlessTrue) && si.skillsToAvoidClaimingUnlessTrue.length) {
+      out += `<div class="ra-mini-label" style="color:#D97706">Only claim if true</div>${renderAnalysisList(si.skillsToAvoidClaimingUnlessTrue)}`;
+    }
+    out += `</div>`;
+  }
+
+  if (hasMI) {
+    const sal = mi.salaryRange || {};
+    out += `<div class="ra-card ra-intel-card">
+      <div class="ra-card-title">Market Intelligence</div>
+      <p class="ra-list-empty" style="font-style:italic">${escapeHtml(sal.note || 'Estimated only. Live salary data is not connected.')}</p>`;
+    if (Array.isArray(mi.trendingSkills) && mi.trendingSkills.length) {
+      out += `<div class="ra-mini-label">Trending Skills</div>${renderAnalysisList(mi.trendingSkills)}`;
+    }
+    if (Array.isArray(mi.relatedTitles) && mi.relatedTitles.length) {
+      out += `<div class="ra-mini-label">Related Titles</div>${renderAnalysisList(mi.relatedTitles)}`;
+    }
+    if (Array.isArray(mi.marketNotes) && mi.marketNotes.length) {
+      out += `<div class="ra-mini-label">Market Notes</div>${renderAnalysisList(mi.marketNotes)}`;
+    }
+    out += `</div>`;
+  }
+
+  if (hasCB) {
+    out += `<div class="ra-card ra-intel-card">
+      <div class="ra-card-title">Candidate Benchmark <span class="ra-card-sub">${escapeHtml(cb.competitiveness||'')}</span></div>`;
+    if (Array.isArray(cb.topCandidatePatterns) && cb.topCandidatePatterns.length) {
+      out += `<div class="ra-mini-label">Top Candidate Patterns</div>${renderAnalysisList(cb.topCandidatePatterns)}`;
+    }
+    if (Array.isArray(cb.whereUserMatches) && cb.whereUserMatches.length) {
+      out += `<div class="ra-mini-label" style="color:#065F46">Where You Match</div>${renderAnalysisList(cb.whereUserMatches)}`;
+    }
+    if (Array.isArray(cb.whereUserFallsShort) && cb.whereUserFallsShort.length) {
+      out += `<div class="ra-mini-label" style="color:#991B1B">Gaps</div>${renderAnalysisList(cb.whereUserFallsShort)}`;
+    }
+    out += `</div>`;
+  }
+
+  if (hasRP) {
+    out += `<div class="ra-card ra-intel-card">
+      <div class="ra-card-title">Interview Risk Profile</div>`;
+    if (Array.isArray(rp.interviewConcerns) && rp.interviewConcerns.length) {
+      out += `<div class="ra-mini-label">Likely Concerns</div>${renderAnalysisList(rp.interviewConcerns)}`;
+    }
+    if (Array.isArray(rp.credibilityGaps) && rp.credibilityGaps.length) {
+      out += `<div class="ra-mini-label">Credibility Gaps</div>${renderAnalysisList(rp.credibilityGaps)}`;
+    }
+    out += `</div>`;
+  }
+
+  if (hasRec) {
+    out += `<div class="ra-card ra-intel-card">
+      <div class="ra-card-title">Recommended Next Actions</div>`;
+    if (Array.isArray(rec.nextActions) && rec.nextActions.length) {
+      out += renderAnalysisList(rec.nextActions);
+    }
+    if (Array.isArray(rec.highestImpactFixes) && rec.highestImpactFixes.length) {
+      out += `<div class="ra-mini-label">Highest-Impact Fixes</div>${renderAnalysisList(rec.highestImpactFixes)}`;
+    }
+    out += `</div>`;
+  }
+
+  out += '</div>';
+  return out;
+}
+try { window.renderCareerIntelCards = renderCareerIntelCards; } catch(_){}
 
 // Render the Interview Prep block. Returns HTML string.
 function renderInterviewPrepSectionHTML(ip) {
