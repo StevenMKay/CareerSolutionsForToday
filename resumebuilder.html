@@ -250,6 +250,29 @@
   .bs-preset-btn:last-child{border-right:none}
   .bs-preset-btn:hover{background:#F1F5F9;color:#0F172A}
   .bs-preset-btn.active{background:var(--c-primary,#005EB8);color:#fff}
+  /* PATCH (Plan v7): pv-content tabs are removed in favor of "What to Include"
+     cards. Hide any stragglers, but ONLY inside the Live Preview area in
+     #step-export so we never accidentally hide the include cards or the
+     export selection cards elsewhere on the page. */
+  #step-export [data-pv-content]{display:none !important}
+  #step-export .bs-preset-group[aria-label="Preview content"]{display:none !important}
+  /* PATCH (Plan v7): mobile/app layout fix for Modern Sidebar template ?
+     left column was visually too wide. Lock to 34% / 66% and tighten
+     padding/font on small screens so the live preview reads correctly. */
+  @media (max-width:640px){
+    #preview-container-export [data-template="modern-sidebar"],
+    #preview-container-export .modern-sidebar{
+      grid-template-columns:34% 66% !important;
+    }
+    #preview-container-export [data-template="modern-sidebar"] .ms-left,
+    #preview-container-export .modern-sidebar .ms-left{
+      padding:14px 10px !important;font-size:11px !important;
+    }
+    #preview-container-export [data-template="modern-sidebar"] .ms-right,
+    #preview-container-export .modern-sidebar .ms-right{
+      padding:14px 12px !important;font-size:12px !important;
+    }
+  }
   /* Spacing presets applied to preview */
   #preview-container.bs-spacing-compact, #preview-container-b.bs-spacing-compact{--bs-gap:0.5rem;--bs-pad:0.75rem}
   #preview-container.bs-spacing-comfortable, #preview-container-b.bs-spacing-comfortable{--bs-gap:1rem;--bs-pad:1.25rem}
@@ -2747,12 +2770,8 @@
               <button type="button" data-pv-mode="doc" class="bs-preset-btn" onclick="setPreviewMode('doc',this)" title="Document view (paginated)"><i data-lucide="file" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Document</button>
               <button type="button" data-pv-mode="web" class="bs-preset-btn active" onclick="setPreviewMode('web',this)" title="Web view (flow)"><i data-lucide="monitor" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Web</button>
             </div>
-            <div class="bs-preset-group inline-flex rounded-lg overflow-hidden" style="border:1px solid #E2E8F0" role="group" aria-label="Preview content">
-              <button type="button" data-pv-content="resume" class="bs-preset-btn active" onclick="setPreviewContent('resume',this)" title="Resume only"><i data-lucide="file-text" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Resume</button>
-              <button type="button" data-pv-content="cv" class="bs-preset-btn" onclick="setPreviewContent('cv',this)" title="CV only"><i data-lucide="file-user" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>CV</button>
-              <button type="button" data-pv-content="plan" class="bs-preset-btn" onclick="setPreviewContent('plan',this)" title="Plan only"><i data-lucide="target" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Plan</button>
-              <button type="button" data-pv-content="combined" class="bs-preset-btn" onclick="setPreviewContent('combined',this)" title="Resume + Plan"><i data-lucide="layers" style="width:11px;height:11px;display:inline-block;vertical-align:-1px;margin-right:2px"></i>Combined</button>
-            </div>
+            <!-- PATCH (Plan v7): pv-content tabs removed. Live Preview content is now driven entirely by the "What to Include" check-cards above. -->
+
             <!-- Edit-in-Step-1 helper links: visible only when Role CV / Role Plan
                  have data and the active preview content shows them. Click jumps
                  back to Application Details and opens the matching sub-accordion.
@@ -4377,6 +4396,17 @@ function _newVersionRecord(seed) {
   seed = seed || {};
   const id = seed.id || ('ver_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
   const now = new Date().toISOString();
+  // PATCH (Plan v7): every new version starts with include = Resume only.
+  // If the seed already carries exportSettings, normalize them so legacy
+  // data still gets a sane include selection.
+  const seededES = (seed.exportSettings && typeof seed.exportSettings === 'object') ? seed.exportSettings : {};
+  const _esClone = structuredClone(seededES);
+  const _flags = _rb_normalizeIncludeFlags(_esClone);
+  _esClone.includeResume = _flags.resume;
+  _esClone.includePlan = _flags.plan;
+  _esClone.includeCV = _flags.cv;
+  _esClone.previewContent = _rb_derivePreviewContentFromFlags(_flags);
+  _esClone.includeSelections = ['resume','plan','cv'].filter(k => _flags[k]);
   return {
     id,
     name: seed.name || 'Untitled Resume',
@@ -4386,7 +4416,7 @@ function _newVersionRecord(seed) {
     resume:            structuredClone(seed.resume            || {}),
     plan:              structuredClone(seed.plan              || {}),
     analysis:          structuredClone(seed.analysis          || {}),
-    exportSettings:    structuredClone(seed.exportSettings    || {}),
+    exportSettings:    _esClone,
     _enhancedAlias:    seed._enhancedAlias ? structuredClone(seed._enhancedAlias) : null,
     _resumeInitialized: !!seed.resume && !!Object.keys(seed.resume).length
   };
@@ -4812,11 +4842,40 @@ Object.defineProperty(STATE, 'roleResearch', {
 // under getActiveVersion().exportSettings.previewContent. STATE.previewContent
 // remains as a back-compat read-only alias so legacy reads continue to work.
 // All writes must go through setPreviewContent() (which writes to the version).
+// PATCH (Plan v7): previewContent is now DERIVED from the include flags
+// (includeResume / includePlan / includeCV). The stored previewContent on
+// exportSettings is treated as a fallback for legacy versions that don't
+// yet have include flags. Include flags ARE the source of truth.
+function _rb_normalizeIncludeFlags(es) {
+  es = es || {};
+  let r = !!es.includeResume;
+  let p = !!es.includePlan;
+  let c = !!es.includeCV;
+  // If no flags set yet, derive from legacy previewContent or default to resume only.
+  if (!r && !p && !c) {
+    const pc = String(es.previewContent || 'resume').toLowerCase();
+    if (pc === 'plan') p = true;
+    else if (pc === 'cv') c = true;
+    else if (pc === 'combined') { r = true; p = true; }
+    else r = true;
+  }
+  // Guarantee at least one selection.
+  if (!r && !p && !c) r = true;
+  return { resume: r, plan: p, cv: c };
+}
+function _rb_derivePreviewContentFromFlags(f) {
+  if (f.cv && (f.resume || f.plan)) return 'combined';
+  if (f.cv && !f.resume && !f.plan) return 'cv';
+  if (f.resume && f.plan) return 'combined';
+  if (f.plan) return 'plan';
+  return 'resume';
+}
 function getPreviewContent() {
   try {
     const ver = getActiveVersion?.() || {};
-    const pc = ver.exportSettings?.previewContent || 'resume';
-    return (pc === 'resume' || pc === 'cv' || pc === 'plan' || pc === 'combined') ? pc : 'resume';
+    const es = ver.exportSettings || {};
+    const flags = _rb_normalizeIncludeFlags(es);
+    return _rb_derivePreviewContentFromFlags(flags);
   } catch(_) {
     return 'resume';
   }
@@ -5030,6 +5089,18 @@ function mountStyleControlsInExport() {
   // Move the real style controls DOM node into the host
   const host = document.getElementById('export-style-host');
   if (host) host.appendChild(styleGroup);
+
+  // PATCH (Plan v7): lift the "What to Include" sub-accordion out of the
+  // moved styleGroup and prepend it directly into #export-subs so it sits
+  // ABOVE Style & Layout. Order becomes:
+  //   1) What to Include  2) Style & Layout  3) Section Controls
+  //   4) Download/Share/Publish  5) Live Preview
+  try {
+    const includeAcc = host && host.querySelector('.sub-acc[data-sub="bs-include"]');
+    if (includeAcc) {
+      exportSubs.insertBefore(includeAcc, styleAcc);
+    }
+  } catch(_){}
 
   // Hide the old Step 3 container so it can never be shown again
   const step3 = document.getElementById('step-3');
@@ -6864,24 +6935,10 @@ function showOptimizeResult(s) {
   // Repaint the main 5-step stepper so the Optimize chevron flips to ? immediately
   // after the result drawer opens (refreshOptimizeStepUI only repaints the step-4 body).
   try { updateStepDots && updateStepDots(); } catch(_){}
-  // PATCH (2026-04-27): auto-open the Resume Analysis side drawer ONCE
-  // alongside the result modal. We use a session-scoped one-shot flag
-  // (_drawerAutoOpenedThisSession) that's reset to false at the top of
-  // every fresh optimize run (see optimize handler) and set true here
-  // after firing. This prevents the drawer from re-popping when the user
-  // navigates back to the Optimize tab later (refreshOptimizeStepUI is
-  // re-invoked on accordion enter and used to retrigger the open path).
-  try {
-    if (STATE && !STATE._drawerAutoOpenedThisSession) {
-      STATE._drawerAutoOpenedThisSession = true;
-      setTimeout(() => {
-        try {
-          const drawer = document.getElementById('analysis-drawer');
-          if (drawer && !drawer.classList.contains('open')) openAnalysis('optimize-auto');
-        } catch(_){}
-      }, 400);
-    }
-  } catch(_){}
+  // PATCH (2026-04-27 - Plan v7): drawer auto-open removed per user
+  // request. The Resume Analysis drawer must only open from explicit
+  // user clicks (View Insights, Open Full Analysis Panel, popout tab).
+  // Optimize completion no longer pops the drawer.
 }
 function closeOptimizeResult() {
   const d = document.getElementById('optimize-result-drawer'); if (d) d.remove();
@@ -8796,13 +8853,24 @@ function hydrateWorkspaceFromSaved(data) {
   // fields fill gaps for backward compatibility with older saved plans.
   const _es = data.exportSettings || {};
   const _pc = _es.previewContent || data.previewContent;
+  // PATCH (Plan v7): normalize include flags ? Resume only if nothing was saved.
+  const _flagsLoad = _rb_normalizeIncludeFlags({
+    includeResume: _es.includeResume,
+    includePlan:   _es.includePlan,
+    includeCV:     _es.includeCV,
+    previewContent: _pc
+  });
   v.exportSettings = {
     ..._es,
     style:          _es.style          || data.style          || 'executive',
     color:          _es.color          || data.color          || '#005EB8',
     exportTemplate: _es.exportTemplate || data.exportTemplate || 'modern-sidebar',
     previewFormat:  _es.previewFormat  !== undefined ? _es.previewFormat  : (data.previewFormat || null),
-    previewContent: (_pc === 'resume' || _pc === 'cv' || _pc === 'plan' || _pc === 'combined') ? _pc : 'resume'
+    includeResume:  _flagsLoad.resume,
+    includePlan:    _flagsLoad.plan,
+    includeCV:      _flagsLoad.cv,
+    includeSelections: ['resume','plan','cv'].filter(k => _flagsLoad[k]),
+    previewContent: _rb_derivePreviewContentFromFlags(_flagsLoad)
   };
 
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
@@ -9920,6 +9988,10 @@ function persistIncludeSelections(sel) {
     if (v) {
       v.exportSettings = v.exportSettings || {};
       v.exportSettings.includeSelections = picks.slice();
+      // PATCH (Plan v7): include flags are the source of truth for preview content.
+      v.exportSettings.includeResume = !!s.resume;
+      v.exportSettings.includePlan = !!s.plan;
+      v.exportSettings.includeCV = !!s.cv;
     }
   } catch(_){ }
   STATE.includeSelections = picks.slice();
@@ -17131,6 +17203,70 @@ function _renderDocPreviewCvPlan(g, containerId, kind){
     const headerBlock = `<div style="border-bottom:2px solid ${accent};padding-bottom:8px;margin-bottom:14px"><div style="font-size:18px;font-weight:700;color:#0F172A">${_esc(horizonLabel)}</div><div style="font-size:11px;color:#475569;margin-top:2px">Strategic execution plan</div></div>`;
     const kpiBlock = kpis.length ? `<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Key Performance Indicators</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">${kpis.map(k => `<div style="border:1px solid #E2E8F0;border-radius:6px;padding:6px 8px"><div style="font-size:9px;color:#64748B;text-transform:uppercase">${_esc(k.metric || k.name || '')}</div><div style="font-size:13px;font-weight:700;color:#0F172A;margin-top:2px">${_esc(k.target || '')}</div>${k.baseline ? `<div style="font-size:9px;color:#94A3B8;margin-top:2px">Baseline: ${_esc(k.baseline)}</div>` : ''}${k.measurement ? `<div style="font-size:9px;color:#94A3B8">${_esc(k.measurement)}</div>` : ''}</div>`).join('')}</div></div>` : '';
     const successBlock = success.length ? `<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Success Criteria</div>${_list(success)}</div>` : '';
+
+    // PATCH (Plan v7): render full multi-horizon plan detail when present.
+    // Pulls from getActiveVersion().plan ? days90 / months12 / years2.
+    let _multiPlan = null;
+    try { _multiPlan = (typeof getActiveVersion === 'function') ? (getActiveVersion().plan || null) : null; } catch(_){ _multiPlan = null; }
+    const _has = (o) => o && typeof o === 'object' && Object.keys(o).length;
+    const _renderHorizonHeader = (label, sub) => `<div style="margin-top:18px;border-bottom:2px solid ${accent};padding-bottom:6px;margin-bottom:10px"><div style="font-size:15px;font-weight:700;color:#0F172A">${_esc(label)}</div>${sub ? `<div style="font-size:10.5px;color:#475569;margin-top:2px">${_esc(sub)}</div>` : ''}</div>`;
+    const _renderQuarter = (q, idx) => {
+      if (!q) return '';
+      const label = _esc(q.label || ('Q' + (idx + 1)));
+      const focus = _esc(q.focus || '');
+      const goals = q.goals || [];
+      const milestones = q.milestones || [];
+      const metrics = q.metrics || q.kpis || [];
+      return `<div style="border-left:3px solid ${accent};padding:0 0 0 10px;margin-bottom:12px">
+        <div style="font-size:12.5px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.05em">${label}</div>
+        ${focus ? `<div style="font-size:11px;color:#475569;margin-top:2px">${focus}</div>` : ''}
+        ${goals.length ? `<div style="font-size:10.5px;font-weight:700;color:#1E293B;margin-top:4px">Goals</div>${_list(goals)}` : ''}
+        ${milestones.length ? `<div style="font-size:10.5px;font-weight:700;color:#1E293B">Milestones</div>${_list(milestones)}` : ''}
+        ${metrics.length ? `<div style="font-size:10.5px;font-weight:700;color:#1E293B">Metrics</div>${_list(metrics)}` : ''}
+      </div>`;
+    };
+    const _renderYear = (y, label) => {
+      if (!y) return '';
+      const focus = _esc(y.focus || y.theme || '');
+      const goals = y.goals || [];
+      const milestones = y.milestones || [];
+      const metrics = y.metrics || y.kpis || [];
+      return `<div style="border-left:3px solid ${accent};padding:0 0 0 10px;margin-bottom:12px">
+        <div style="font-size:12.5px;font-weight:700;color:${accent};text-transform:uppercase;letter-spacing:0.05em">${_esc(label)}</div>
+        ${focus ? `<div style="font-size:11px;color:#475569;margin-top:2px">${focus}</div>` : ''}
+        ${goals.length ? `<div style="font-size:10.5px;font-weight:700;color:#1E293B;margin-top:4px">Goals</div>${_list(goals)}` : ''}
+        ${milestones.length ? `<div style="font-size:10.5px;font-weight:700;color:#1E293B">Milestones</div>${_list(milestones)}` : ''}
+        ${metrics.length ? `<div style="font-size:10.5px;font-weight:700;color:#1E293B">Metrics</div>${_list(metrics)}` : ''}
+      </div>`;
+    };
+    let extra12 = '';
+    let extra2y = '';
+    try {
+      if (_multiPlan) {
+        const m12 = _multiPlan.months12 || null;
+        if (_has(m12)) {
+          const quarters = Array.isArray(m12.quarters) ? m12.quarters : [];
+          if (quarters.length || m12.executiveSummary) {
+            extra12 = _renderHorizonHeader('12-Month Plan', m12.executiveSummary || '') +
+              quarters.map((q, i) => _renderQuarter(q, i)).join('');
+          }
+        }
+        const y2 = _multiPlan.years2 || null;
+        if (_has(y2)) {
+          const yrs = [];
+          if (y2.year1) yrs.push(_renderYear(y2.year1, 'Year 1'));
+          if (y2.year2) yrs.push(_renderYear(y2.year2, 'Year 2'));
+          const ltp = _esc(y2.longTermPositioning || y2.long_term_positioning || '');
+          const risksMit = Array.isArray(y2.risksAndMitigations || y2.risks_and_mitigations)
+            ? (y2.risksAndMitigations || y2.risks_and_mitigations) : [];
+          const ltpBlock = ltp ? `<div style="margin-top:8px;background:${accent}1a;border-left:3px solid ${accent};padding:8px 10px"><div style="font-size:10px;font-weight:700;color:${accent};text-transform:uppercase">Long-term Positioning</div><p style="font-size:11px;margin:3px 0 0;line-height:1.5">${ltp}</p></div>` : '';
+          const risksBlock = risksMit.length ? `<div style="margin-top:8px"><div style="font-size:10.5px;font-weight:700;color:#1E293B">Risks &amp; Mitigations</div>${_kvList(risksMit, 'risk', 'mitigation')}</div>` : '';
+          if (yrs.length || ltp || risksMit.length) {
+            extra2y = _renderHorizonHeader('2-Year Plan', y2.executiveSummary || '') + yrs.join('') + ltpBlock + risksBlock;
+          }
+        }
+      }
+    } catch(_){ extra12 = ''; extra2y = ''; }
     if (fmt === 'pptx') {
       // One portrait slide per phase + a summary slide for KPIs/success
       pagesHtml = phases.map((p, i) => `<div class="pv-page" style="padding:0.6in 0.55in"><div style="font-size:9px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">${_esc(horizonLabel)} &middot; Phase ${i + 1} of ${phases.length}</div>${renderPhase(p, i)}<span class="pv-pageno">${i + 1}</span></div>`).join('');
@@ -17138,13 +17274,20 @@ function _renderDocPreviewCvPlan(g, containerId, kind){
         const summaryPage = `<div class="pv-page" style="padding:0.6in 0.55in"><div style="font-size:9px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">${_esc(horizonLabel)} &middot; Summary</div>${headerBlock}${kpiBlock}${successBlock}<span class="pv-pageno">${phases.length + 1}</span></div>`;
         pagesHtml += summaryPage;
       }
+      // PATCH (Plan v7): extra horizon slides if 12-month / 2-year plan data exist.
+      if (extra12) {
+        pagesHtml += `<div class="pv-page" style="padding:0.6in 0.55in"><div style="font-size:9px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">12-Month Horizon</div>${extra12}</div>`;
+      }
+      if (extra2y) {
+        pagesHtml += `<div class="pv-page" style="padding:0.6in 0.55in"><div style="font-size:9px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">2-Year Horizon</div>${extra2y}</div>`;
+      }
       if (!pagesHtml) pagesHtml = `<div class="pv-page" style="padding:0.6in 0.55in"><div style="color:#94A3B8;font-style:italic;text-align:center;padding-top:1in">No plan content yet. Run Optimize to generate phases.</div></div>`;
     } else {
       // DOCX: single flowing Letter page with all phases stacked
       const body = phases.length
         ? phases.map((p, i) => renderPhase(p, i)).join('')
         : `<div style="color:#94A3B8;font-style:italic;text-align:center;padding:0.5in 0">No plan content yet. Run Optimize to generate phases.</div>`;
-      pagesHtml = `<div class="pv-page">${headerBlock}${body}${kpiBlock}${successBlock}<span class="pv-pageno">1</span></div>`;
+      pagesHtml = `<div class="pv-page">${headerBlock}${body}${kpiBlock}${successBlock}${extra12}${extra2y}<span class="pv-pageno">1</span></div>`;
     }
   }
   container.style.background = 'transparent';
@@ -21584,10 +21727,34 @@ function stopPopoutGlow() {
   if (p) { p.classList.remove('glow'); p.dataset.clicked = '1'; }
 }
 
-function openAnalysis(source) {
-  try { console.log('[analysis-drawer] open', { source: source || 'unknown' }); } catch(_){}
-  document.getElementById('analysis-overlay').classList.add('open');
-  document.getElementById('analysis-drawer').classList.add('open');
+// PATCH (2026-04-27 - Plan v7): drawer auto-open lockdown. Only explicit
+// user-triggered sources are allowed to open the analysis drawer. Tab
+// switches, preview rendering, optimize completion, cached analysis
+// hydration, and prefetchAnalysis MUST NOT auto-open.
+const ANALYSIS_DRAWER_ALLOWED_SOURCES = new Set([
+  'view-insights',
+  'view-insights-cache',
+  'view-insights-finally',
+  'analysis-popout',
+  'analyze-button',
+  'opt-open-button'
+]);
+function openAnalysis(source, opts) {
+  source = source || 'unknown';
+  opts = opts || {};
+  const allowed = opts.userInitiated === true || ANALYSIS_DRAWER_ALLOWED_SOURCES.has(source);
+  if (!allowed) {
+    if (window.RB_DEBUG === true) {
+      try { console.log('[analysis-drawer] blocked auto-open', { source: source }); } catch(_){}
+    }
+    return false;
+  }
+  try { console.log('[analysis-drawer] open', { source: source }); } catch(_){}
+  const overlay = document.getElementById('analysis-overlay');
+  const drawer = document.getElementById('analysis-drawer');
+  if (overlay) overlay.classList.add('open');
+  if (drawer) drawer.classList.add('open');
+  return true;
 }
 function closeAnalysis() {
   document.getElementById('analysis-overlay').classList.remove('open');
@@ -21598,17 +21765,61 @@ function closeAnalysis() {
 // guarantees the analysis drawer opens (fixes prior dead-click behavior).
 async function analyzeAndOpenDrawer() {
   try {
+    try { STATE._analysisRunByUser = true; } catch(_){}
     // If we already have cached analysis, open immediately so the user sees it.
     if (typeof analysisCache !== 'undefined' && analysisCache) {
-      try { openAnalysis('view-insights-cache'); } catch(_){}
+      try { openAnalysis('view-insights-cache', { userInitiated: true }); } catch(_){}
     }
     await analyzeResume();
   } finally {
     // Open after analysis finishes (or even if it short-circuited from cache).
-    try { openAnalysis('view-insights-finally'); } catch(_){}
+    try { openAnalysis('view-insights-finally', { userInitiated: true }); } catch(_){}
     try { refreshOptimizeStepUI && refreshOptimizeStepUI(); } catch(_){}
   }
 }
+
+// Diagnostic for QA: report current drawer state + last user-initiated flag.
+window.debugAnalysisDrawerState = function () {
+  const drawer = document.getElementById('analysis-drawer');
+  const overlay = document.getElementById('analysis-overlay');
+  return {
+    drawerOpen: !!(drawer && drawer.classList.contains('open')),
+    overlayOpen: !!(overlay && overlay.classList.contains('open')),
+    analysisRunByUser: !!(typeof STATE !== 'undefined' && STATE._analysisRunByUser)
+  };
+};
+
+// PATCH (Plan v7) ? Diagnostic for the Preview/Export flow. Reports include
+// flag state, derived previewContent, surviving pv-content tabs, sub-acc
+// order in #export-subs, and whether mobile sidebar fix CSS is loaded.
+window.debugPreviewExportFlow = function () {
+  let flags = { resume: false, plan: false, cv: false };
+  let derived = 'resume';
+  try {
+    const v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {};
+    flags = (typeof _rb_normalizeIncludeFlags === 'function') ? _rb_normalizeIncludeFlags(v.exportSettings || {}) : flags;
+    derived = (typeof _rb_derivePreviewContentFromFlags === 'function') ? _rb_derivePreviewContentFromFlags(flags) : derived;
+  } catch(_){ }
+  const stepExport = document.getElementById('step-export');
+  const pvContentTabs = stepExport ? stepExport.querySelectorAll('[data-pv-content]').length : -1;
+  const exportSubs = document.getElementById('export-subs');
+  const order = exportSubs
+    ? Array.from(exportSubs.querySelectorAll(':scope > .sub-acc')).map(n => n.getAttribute('data-sub'))
+    : [];
+  const cards = {
+    resume: !!document.querySelector('#include-checks input[value="resume"]:checked'),
+    plan:   !!document.querySelector('#include-checks input[value="plan"]:checked'),
+    cv:     !!document.querySelector('#include-checks input[value="cv"]:checked')
+  };
+  return {
+    includeFlags: flags,
+    derivedPreviewContent: derived,
+    includeCardsChecked: cards,
+    livePreviewContentTabsRemaining: pvContentTabs,
+    exportSubsOrder: order,
+    drawerState: window.debugAnalysisDrawerState ? window.debugAnalysisDrawerState() : null
+  };
+};
 
 async function analyzeResume() {
   // Allow the very first build for new users so they can test the full flow
