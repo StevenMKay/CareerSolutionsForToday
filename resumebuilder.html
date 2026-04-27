@@ -337,6 +337,54 @@
   .plan-metric-meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:8px;font-size:12.5px;color:#475569}
   .plan-metric-meta strong{color:#0b487a;font-weight:600}
   .pv-page .plan-metric-row{background:#fafafa;border-color:#e5e7eb;border-radius:8px}
+
+  /* PATCH (Plan selection): attention pulse for Plan Type & Sections when
+     the user picks Career Plan in "What do you want to create?". */
+  .plan-choice-attention{
+    outline:3px solid rgba(0,94,184,0.45);
+    outline-offset:4px;
+    box-shadow:0 0 0 6px rgba(0,94,184,0.12), 0 12px 30px rgba(15,23,42,0.18) !important;
+    transition:box-shadow .25s ease, outline .25s ease;
+  }
+
+  /* PATCH (Plan detail): rich phase-block rendering for the Plan preview. */
+  .plan-phase-block{
+    background:#fff;border:1px solid rgba(15,23,42,0.08);
+    border-radius:14px;padding:16px 18px;margin:12px 0 14px;
+    page-break-inside:avoid;
+  }
+  .resume-web .plan-phase-block{box-shadow:0 4px 14px rgba(15,23,42,0.04)}
+  .plan-phase-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .plan-phase-head h3{margin:0;color:#0b1f3a;font-size:15px;font-weight:700}
+  .plan-timeframe{margin:2px 0 0;color:#0b487a;font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .plan-focus{margin:6px 0 10px;color:#1e293b}
+  .plan-detail-list{margin:8px 0 4px}
+  .plan-detail-list h4{
+    margin:8px 0 4px;font-size:11.5px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;color:#0b487a;
+  }
+  .plan-detail-list ul{margin:0 0 4px 18px;padding:0}
+  .plan-detail-list li{margin:0 0 3px;color:#1e293b}
+  .plan-detail-list li strong{color:#0b1f3a}
+  .plan-communication{margin:10px 0 4px;color:#1e293b}
+  .plan-executive-value{
+    margin-top:10px;padding:10px 12px;
+    background:#f0f7ff;border-left:3px solid #0b487a;border-radius:8px;
+  }
+  .plan-executive-value strong{color:#0b487a;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase}
+  .plan-executive-value p{margin:4px 0 0;color:#0f172a}
+  .plan-kicker{margin:0 0 4px;color:#0b487a;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .plan-summary-card{
+    background:#f0f7ff;border:1px solid rgba(11,72,122,0.18);
+    border-radius:14px;padding:16px 18px;margin:14px 0 18px;
+  }
+  .plan-summary-card h2{margin:0 0 6px !important;border:none !important;padding:0 !important;color:#0b487a;font-size:13px}
+  .plan-summary-card p{margin:0;color:#0f172a}
+  .plan-empty-notice{
+    background:#fff7ed;border:1px solid #fed7aa;border-left:3px solid #f59e0b;
+    border-radius:10px;padding:12px 14px;margin:10px 0;color:#7c2d12;
+  }
+  .plan-empty-notice strong{color:#9a3412}
   .page-break{page-break-before:always;break-before:page}
   .export-package{background:#fff;color:#111827}
   .export-package .export-doc{box-shadow:none}
@@ -10441,6 +10489,10 @@ function toggleIncludeCard(el) {
   setTimeout(() => {
     const cb = el.querySelector('input');
     if (!cb) return;
+    // PATCH (Plan selection): capture pre-toggle plan inclusion so we can
+    // detect off->on and route the user into Plan Type & Sections.
+    let _wasPlanIncluded = false;
+    try { _wasPlanIncluded = !!isPlanIncluded(); } catch(_){ _wasPlanIncluded = false; }
     cb.checked = !cb.checked;
 
     const sel = _normalizeIncludeSelections({
@@ -10457,6 +10509,22 @@ function toggleIncludeCard(el) {
     const mode = resolvePreviewContentFromIncludes(sel);
     try { setPreviewContent(mode); } catch(_){ }
     updateIncludeDependentUI();
+
+    // PATCH (Plan selection): on Plan off->on, switch active preview to plan
+    // and reveal Plan Type & Sections. On on->off, fall back to first selected doc.
+    const _nowPlanIncluded = !!sel.plan;
+    if (!_wasPlanIncluded && _nowPlanIncluded) {
+      try { setActivePreviewDoc && setActivePreviewDoc('plan'); } catch(_){}
+      try { openPlanTypeAndSections('plan-card-selected'); } catch(_){}
+    } else if (_wasPlanIncluded && !_nowPlanIncluded) {
+      try {
+        if (typeof getActivePreviewDocId === 'function' && getActivePreviewDocId() === 'plan') {
+          const docs = (typeof getSelectedPreviewDocs === 'function') ? getSelectedPreviewDocs() : [];
+          const fallback = (docs[0] && docs[0].id) || 'resume';
+          setActivePreviewDoc && setActivePreviewDoc(fallback);
+        }
+      } catch(_){}
+    }
   }, 0);
 }
 // PATCH (2026-04-27): selectPlanType now guards against silent loss of
@@ -10572,6 +10640,24 @@ function _applyPlanTypeSwitch(el, nextType) {
   try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
   try { renderStylePreview && renderStylePreview(); } catch(_){}
   try { isDirty = true; updateSaveButtonState && updateSaveButtonState(); } catch(_){}
+
+  // PATCH (Plan selection): persist plan type per-version so it survives
+  // reloads, drives plan preview/export, and uses the live-preview helper if
+  // Plan is the active doc. Debounced save only ? no immediate savePlan().
+  try {
+    const v = (typeof getActiveVersion === 'function') ? getActiveVersion() : null;
+    if (v) {
+      v.exportSettings = v.exportSettings || {};
+      v.exportSettings.planType = nextType;
+    }
+  } catch(_){}
+  try {
+    if (typeof isPlanIncluded === 'function' && isPlanIncluded()) {
+      if (typeof setActivePreviewDoc === 'function') setActivePreviewDoc('plan');
+      if (typeof renderActiveLivePreviewDoc === 'function') renderActiveLivePreviewDoc('plan-type-change');
+    }
+  } catch(_){}
+  try { if (typeof scheduleSmartSave === 'function') scheduleSmartSave('plan-type-change', 1200); } catch(_){}
 }
 
 function closePlanTypeSwitchModal() {
@@ -20222,9 +20308,69 @@ function getExportOptionsForKind(kind, format) {
     opts.includeCV     = items.indexOf('cv')     !== -1;
     opts.includePlan   = items.indexOf('plan')   !== -1;
   }
+  // PATCH (Plan selection): every kind that may render the plan needs the
+  // selected plan type so the preview/export emits the right horizon.
+  try { opts.planType = (typeof getActivePlanType === 'function') ? getActivePlanType() : (STATE.planType || '90-day'); }
+  catch(_){ opts.planType = (typeof STATE !== 'undefined' && STATE.planType) || '90-day'; }
   return opts;
 }
 try { window.getExportOptionsForKind = getExportOptionsForKind; } catch(_){}
+
+// PATCH (Plan selection helpers) ---------------------------------------
+function isPlanIncluded() {
+  try {
+    const inc = (typeof getIncludeSelection === 'function') ? getIncludeSelection() : null;
+    if (inc && typeof inc.plan === 'boolean') return inc.plan;
+  } catch(_){}
+  try {
+    const cb = document.querySelector('#include-checks input[value="plan"]');
+    return !!(cb && cb.checked);
+  } catch(_){ return false; }
+}
+function openPlanTypeAndSections(reason) {
+  reason = reason || 'plan-selected';
+  let planAcc = document.querySelector('.sub-acc[data-sub="bs-plan"]');
+  if (!planAcc) {
+    planAcc = Array.from(document.querySelectorAll('.sub-acc')).find(acc => /plan type/i.test((acc.innerText || '')));
+  }
+  if (!planAcc) return false;
+  try {
+    if (!planAcc.classList.contains('open')) {
+      const head = planAcc.querySelector('.sub-acc-head');
+      if (head) head.click(); else planAcc.classList.add('open');
+    }
+    const body = planAcc.querySelector('.sub-acc-body');
+    if (body) body.classList.add('open');
+  } catch(_){}
+  try { planAcc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  catch(_){ try { planAcc.scrollIntoView(); } catch(_){} }
+  try {
+    planAcc.classList.add('plan-choice-attention');
+    setTimeout(() => { try { planAcc.classList.remove('plan-choice-attention'); } catch(_){} }, 1800);
+  } catch(_){}
+  try { showToast && showToast('Choose your career plan type and sections.'); } catch(_){}
+  return true;
+}
+function getActivePlanType() {
+  try {
+    const v = (typeof getActiveVersion === 'function') ? getActiveVersion() : null;
+    const fromExport = v && v.exportSettings && v.exportSettings.planType;
+    if (fromExport) return fromExport;
+  } catch(_){}
+  return (typeof STATE !== 'undefined' && STATE.planType) || '90-day';
+}
+function getSelectedPlanSections() {
+  try {
+    const checked = Array.from(document.querySelectorAll('#section-checks input:checked, #section-checks-resume input:checked')).map(x => x.value);
+    return new Set(checked);
+  } catch(_){ return new Set(); }
+}
+try {
+  window.isPlanIncluded = isPlanIncluded;
+  window.openPlanTypeAndSections = openPlanTypeAndSections;
+  window.getActivePlanType = getActivePlanType;
+  window.getSelectedPlanSections = getSelectedPlanSections;
+} catch(_){}
 
 // Snapshot include flags, apply override, invalidate export-model cache,
 // run fn, then restore everything. Restoration runs even if fn throws.
@@ -20524,65 +20670,181 @@ function normalizePlanForExport(plan) {
   };
 }
 function renderPlanDocument(plan, context) {
-  const p = normalizePlanForExport(plan || {});
+  plan = plan || {}; context = context || {};
   const esc = escapeHtml;
-  const targetRole = (context && context.targetRole) || {};
+  const planType = (typeof getActivePlanType === 'function')
+    ? getActivePlanType()
+    : ((typeof STATE !== 'undefined' && STATE.planType) || '90-day');
+  const selected = getSelectedPlanHorizon(plan, planType);
+  const targetRole = context.targetRole || {};
   const titleLine = [targetRole.job_title || targetRole.title || '', targetRole.company || ''].filter(Boolean).join(' \u00b7 ');
-  const phases = Array.isArray(p.days90.phases) ? p.days90.phases : [];
-  const quarters = Array.isArray(p.months12.quarters) ? p.months12.quarters : [];
-  const y1 = p.years2.year1 || {};
-  const y2 = p.years2.year2 || {};
-  const phaseBlock = (ph) =>
-    '<div class="plan-block">' +
-      '<h3>' + esc(ph.label || ph.title || 'Phase') + '</h3>' +
-      (ph.focus ? '<p><strong>Focus:</strong> ' + esc(ph.focus) + '</p>' : '') +
-      renderTextList(ph.goals) +
-      renderTextList(ph.quickWins || ph.quick_wins) +
-      renderTextList(ph.stakeholders) +
-      renderTextList(ph.risksToManage || ph.risks) +
-      renderTextList(ph.deliverables) +
+
+  const data = selected.data || {};
+  const phases = selected.phases || [];
+
+  const summaryRaw =
+    data.executiveSummary ||
+    data.leadershipNarrative ||
+    data.summary ||
+    plan.success_summary || '';
+  const summary = Array.isArray(summaryRaw) ? summaryRaw.join(' ') : String(summaryRaw || '');
+
+  const successMetrics =
+    data.successMetrics ||
+    data.metrics ||
+    plan.success_criteria ||
+    plan.kpis ||
+    [];
+
+  // PATCH (Plan section toggles): respect Plan Sections checkboxes lightly.
+  // If section is off, hide that block. But never let the plan render fully
+  // empty when Career Plan is the chosen output ? always keep the roadmap.
+  let sections = null;
+  try { sections = getSelectedPlanSections(); } catch(_){ sections = null; }
+  const _has = (k) => !sections || sections.size === 0 || sections.has(k);
+  const showRoadmap = true;
+  const showMetrics = _has('success_criteria') || _has('kpis');
+
+  // PATCH (Plan empty-state): if no detailed phases for the selected horizon,
+  // show a clear notice rather than silently falling back to a thin plan.
+  const horizonLabel = selected.label || 'Career Plan';
+  const emptyNotice =
+    '<div class="plan-empty-notice">' +
+      '<strong>Detailed ' + esc(horizonLabel) + ' content is not available yet.</strong> ' +
+      'Re-run optimization or regenerate this plan type to see detailed phases, actions, milestones, and metrics.' +
     '</div>';
-  const qBlock = (q) =>
-    '<div class="plan-block">' +
-      '<h3>' + esc(q.label || 'Quarter') + '</h3>' +
-      (q.focus ? '<p><strong>Focus:</strong> ' + esc(q.focus) + '</p>' : '') +
-      renderTextList(q.goals) +
-      renderTextList(q.milestones) +
-      renderTextList(q.metrics || q.kpis) +
-    '</div>';
+  const phasesHtml = phases.length
+    ? phases.map((ph, i) => renderPlanPhaseDetailed(ph, i)).join('')
+    : emptyNotice;
+
   return '' +
-    '<article class="export-doc export-plan">' +
+    '<article class="export-doc export-plan" data-plan-type="' + esc(planType) + '">' +
       '<header class="plan-header">' +
-        '<h1>Career Plan</h1>' +
+        '<p class="plan-kicker">Career Plan</p>' +
+        '<h1>' + esc(selected.label) + '</h1>' +
         (titleLine ? '<p>' + esc(titleLine) + '</p>' : '') +
       '</header>' +
-      '<section>' +
-        '<h2>First 90 Days</h2>' +
-        (p.days90.executiveSummary ? '<p>' + esc(p.days90.executiveSummary) + '</p>' : '') +
-        phases.map(phaseBlock).join('') +
-        renderPlanMetrics(p.days90.successMetrics) +
-      '</section>' +
-      '<section>' +
-        '<h2>12-Month Growth Plan</h2>' +
-        (p.months12.leadershipNarrative ? '<p>' + esc(p.months12.leadershipNarrative) + '</p>' : '') +
-        quarters.map(qBlock).join('') +
-        renderPlanMetrics(p.months12.successMetrics) +
-      '</section>' +
-      '<section>' +
-        '<h2>2-Year Strategic Plan</h2>' +
-        (y1.focus ? '<p><strong>Year 1 Focus:</strong> ' + esc(y1.focus) + '</p>' : '') +
-        renderTextList(y1.goals) +
-        renderTextList(y1.capabilitiesToBuild || y1.capabilities_to_build) +
-        renderTextList(y1.milestones) +
-        (y2.focus ? '<p><strong>Year 2 Focus:</strong> ' + esc(y2.focus) + '</p>' : '') +
-        renderTextList(y2.goals) +
-        renderTextList(y2.capabilitiesToBuild || y2.capabilities_to_build) +
-        renderTextList(y2.milestones) +
-        (p.years2.longTermPositioning ? '<p><strong>Long-Term Positioning:</strong> ' + esc(p.years2.longTermPositioning) + '</p>' : '') +
-        renderPlanMetrics(p.years2.risksAndMitigations) +
-      '</section>' +
+      (summary ? '<section class="plan-summary-card"><h2>Strategic Summary</h2><p>' + esc(summary) + '</p></section>' : '') +
+      (showRoadmap ? (
+        '<section>' +
+          '<h2>' + esc(selected.label) + ' Roadmap</h2>' +
+          phasesHtml +
+        '</section>'
+      ) : '') +
+      (showMetrics && Array.isArray(successMetrics) && successMetrics.length ? (
+        '<section>' +
+          '<h2>Success Metrics</h2>' +
+          renderPlanMetrics(successMetrics) +
+        '</section>'
+      ) : '') +
     '</article>';
 }
+
+// PATCH (Plan detail): pick the horizon block matching the active plan type.
+function getSelectedPlanHorizon(plan, planType) {
+  const p = plan || {};
+  planType = planType || ((typeof getActivePlanType === 'function') ? getActivePlanType() : '90-day');
+  if (planType === '12-month') {
+    const d = p.months12 || {};
+    return {
+      key: 'months12',
+      label: '12-Month Growth Plan',
+      data: d,
+      phases: (Array.isArray(d.quarters) && d.quarters.length) ? d.quarters
+            : (Array.isArray(d.phases) ? d.phases : [])
+    };
+  }
+  if (planType === '2-year') {
+    const d = p.years2 || {};
+    let phases = Array.isArray(d.phases) ? d.phases.slice() : [];
+    // Fallback: synthesize phases from year1/year2 if no explicit phases array.
+    if (!phases.length && (d.year1 || d.year2)) {
+      if (d.year1) phases.push(Object.assign({ label: 'Year 1', timeframe: 'Months 1\u201312' }, d.year1));
+      if (d.year2) phases.push(Object.assign({ label: 'Year 2', timeframe: 'Months 13\u201324' }, d.year2));
+    }
+    return { key: 'years2', label: '2-Year Strategic Career Plan', data: d, phases };
+  }
+  const d = p.days90 || {};
+  return {
+    key: 'days90',
+    label: '90-Day Plan',
+    data: d,
+    phases: (Array.isArray(d.phases) && d.phases.length) ? d.phases
+          : (Array.isArray(p.plan_phases) ? p.plan_phases : [])
+  };
+}
+
+function renderPlanSectionList(title, items) {
+  const esc = escapeHtml;
+  const arr = Array.isArray(items) ? items.filter(v => v != null && v !== '') : [];
+  if (!arr.length) return '';
+  const liHtml = arr.map(item => {
+    if (typeof item === 'string') return '<li>' + esc(item) + '</li>';
+    if (item && typeof item === 'object') {
+      const main =
+        item.name || item.title || item.metric || item.goal ||
+        item.action || item.description || item.risk ||
+        item.deliverable || item.milestone || '';
+      const extra =
+        item.ask || item.target || item.baseline || item.measurement ||
+        item.mitigation || item.value || item.detail || '';
+      const head = main ? '<strong>' + esc(main) + '</strong>' : '';
+      const tail = extra ? (head ? ' \u2014 ' : '') + esc(extra) : '';
+      const inner = head + tail;
+      return inner ? '<li>' + inner + '</li>' : '';
+    }
+    return '<li>' + esc(String(item)) + '</li>';
+  }).filter(Boolean).join('');
+  if (!liHtml) return '';
+  return '<div class="plan-detail-list">' +
+    '<h4>' + esc(title) + '</h4>' +
+    '<ul>' + liHtml + '</ul>' +
+  '</div>';
+}
+
+function renderPlanPhaseDetailed(phase, index) {
+  phase = phase || {};
+  const esc = escapeHtml;
+  index = index || 0;
+  const label     = phase.label || phase.title || phase.phase || ('Phase ' + (index + 1));
+  const timeframe = phase.timeframe || phase.period || phase.range || '';
+  const focus     = phase.focus || phase.objective || phase.description || '';
+  const executiveValue = phase.executive_value || phase.executiveValue || phase.execValue || '';
+  const actions       = phase.actions || phase.goals || [];
+  const goals         = (phase.actions && phase.goals && phase.goals !== phase.actions) ? phase.goals : [];
+  const quickWins     = phase.quickWins || phase.quick_wins || [];
+  const tools         = phase.tools_and_technology || phase.tools || phase.technology || [];
+  const milestones    = phase.milestones || [];
+  const deliverables  = phase.deliverables || [];
+  const stakeholders  = phase.stakeholders || [];
+  const risks         = phase.risks || phase.risksToManage || phase.risksAndMitigations || [];
+  const communicationPlan = phase.communicationPlan || phase.communication_plan || phase.cadence || '';
+  return '' +
+    '<section class="plan-phase-block">' +
+      '<div class="plan-phase-head">' +
+        '<div>' +
+          '<h3>' + esc(label) + '</h3>' +
+          (timeframe ? '<p class="plan-timeframe">' + esc(timeframe) + '</p>' : '') +
+        '</div>' +
+      '</div>' +
+      (focus ? '<p class="plan-focus"><strong>Focus:</strong> ' + esc(focus) + '</p>' : '') +
+      renderPlanSectionList('Actions', actions) +
+      renderPlanSectionList('Goals', goals) +
+      renderPlanSectionList('Quick Wins', quickWins) +
+      renderPlanSectionList('Tools & Technology', tools) +
+      renderPlanSectionList('Milestones', milestones) +
+      renderPlanSectionList('Deliverables', deliverables) +
+      renderPlanSectionList('Stakeholders', stakeholders) +
+      renderPlanSectionList('Risks & Mitigation', risks) +
+      (communicationPlan ? '<p class="plan-communication"><strong>Communication Cadence:</strong> ' + esc(communicationPlan) + '</p>' : '') +
+      (executiveValue ? '<div class="plan-executive-value"><strong>Executive Value</strong><p>' + esc(executiveValue) + '</p></div>' : '') +
+    '</section>';
+}
+try {
+  window.getSelectedPlanHorizon = getSelectedPlanHorizon;
+  window.renderPlanSectionList = renderPlanSectionList;
+  window.renderPlanPhaseDetailed = renderPlanPhaseDetailed;
+} catch(_){}
 try {
   window.renderCVDocument = renderCVDocument;
   window.normalizePlanForExport = normalizePlanForExport;
@@ -20633,6 +20895,33 @@ window.debugLivePreviewRenderedDoc = function () {
     hasCareerPlanText:  /career plan|first 90 days|12-month|2-year/i.test(txt),
     hasResumeText:      !!txt && !fallbackSentinel.test(txt),
     textSample: String(txt).slice(0, 300),
+    previewReadOnly: (window.runResumeBuilderDiagnostics && window.runResumeBuilderDiagnostics().previewReadOnly) || null
+  };
+};
+
+// PATCH (Plan selection): inspects Plan flow + horizon data state.
+window.debugPlanSelectionFlow = function () {
+  let planAcc = document.querySelector('.sub-acc[data-sub="bs-plan"]');
+  if (!planAcc) {
+    planAcc = Array.from(document.querySelectorAll('.sub-acc')).find(acc => /plan type/i.test((acc.innerText || '')));
+  }
+  let v = null;
+  try { v = (typeof getActiveVersion === 'function') ? getActiveVersion() : null; } catch(_){}
+  const plan = (v && v.plan) || {};
+  return {
+    includeSelection: (typeof getIncludeSelection === 'function') ? getIncludeSelection() : null,
+    activePreviewDoc: (typeof getActivePreviewDocId === 'function') ? getActivePreviewDocId() : null,
+    activePlanType: (typeof getActivePlanType === 'function') ? getActivePlanType() : (typeof STATE !== 'undefined' && STATE.planType),
+    planAccordionFound: !!planAcc,
+    planAccordionOpen: !!(planAcc && planAcc.classList.contains('open')),
+    selectedPlanSections: Array.from((typeof getSelectedPlanSections === 'function') ? getSelectedPlanSections() : new Set()),
+    hasDays90:   !!plan.days90,
+    hasMonths12: !!plan.months12,
+    hasYears2:   !!plan.years2,
+    days90Phases:   (plan.days90   && Array.isArray(plan.days90.phases))   ? plan.days90.phases.length : 0,
+    months12Phases: (plan.months12 && (Array.isArray(plan.months12.quarters) ? plan.months12.quarters.length
+                                     : (Array.isArray(plan.months12.phases) ? plan.months12.phases.length : 0))) || 0,
+    years2Phases:   (plan.years2   && Array.isArray(plan.years2.phases))   ? plan.years2.phases.length : 0,
     previewReadOnly: (window.runResumeBuilderDiagnostics && window.runResumeBuilderDiagnostics().previewReadOnly) || null
   };
 };
