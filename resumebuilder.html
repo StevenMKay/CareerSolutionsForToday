@@ -5098,6 +5098,83 @@ try {
   window.resetPlanStateForNewProfile = resetPlanStateForNewProfile;
 } catch (_) {}
 
+// PATCH (2026-04-28): plan quality scoring. Used by the optimize-response
+// gate to reject shallow plan payloads (e.g. only labels + 2 generic
+// actions) and fall back to the richer /builder/generate endpoint.
+function countPlanItems(value) {
+  if (!value) return 0;
+  if (Array.isArray(value)) return value.filter(Boolean).length;
+  if (typeof value === 'string') return value.trim() ? 1 : 0;
+  if (typeof value === 'object') {
+    return Object.values(value).reduce((sum, v) => sum + countPlanItems(v), 0);
+  }
+  return 0;
+}
+function scorePlanPhaseDetail(phase) {
+  phase = phase || {};
+  if (!phase || typeof phase !== 'object') return 0;
+  return (
+    countPlanItems(phase.summary || phase.overview || phase.context) +
+    countPlanItems(phase.actions || phase.key_actions) +
+    countPlanItems(phase.goals) +
+    countPlanItems(phase.quickWins || phase.quick_wins) +
+    countPlanItems(phase.tools_and_technology || phase.tools || phase.technology) +
+    countPlanItems(phase.milestones) +
+    countPlanItems(phase.deliverables) +
+    countPlanItems(phase.stakeholders) +
+    countPlanItems(phase.risks || phase.risksToManage || phase.risksAndMitigations) +
+    countPlanItems(phase.communicationPlan || phase.communication_plan || phase.cadence) +
+    countPlanItems(phase.executive_value || phase.execValue || phase.executiveValue)
+  );
+}
+function getPlanPhasesForType(plan, planType) {
+  plan = plan || {};
+  planType = planType || '90-day';
+  if (!plan || typeof plan !== 'object') return [];
+  if (planType === '12-month') {
+    return (plan.months12 && (plan.months12.quarters || plan.months12.phases)) || [];
+  }
+  if (planType === '2-year') {
+    return (plan.years2 && plan.years2.phases) || [];
+  }
+  return (plan.days90 && plan.days90.phases) || plan.plan_phases || [];
+}
+function scorePlanDetail(plan, planType) {
+  plan = plan || {};
+  planType = planType || '90-day';
+  const phases = getPlanPhasesForType(plan, planType);
+  const phaseScores = phases.map(scorePlanPhaseDetail);
+  const total = phaseScores.reduce((a, b) => a + b, 0);
+  return {
+    planType: planType,
+    phaseCount: phases.length,
+    phaseScores: phaseScores,
+    totalScore: total,
+    averagePhaseScore: phaseScores.length ? total / phaseScores.length : 0,
+    weakPhaseCount: phaseScores.filter(s => s < 10).length
+  };
+}
+function isPlanDetailedEnough(plan, planType) {
+  planType = planType || '90-day';
+  const q = scorePlanDetail(plan, planType);
+  const expectedPhases =
+    planType === '12-month' ? 4 :
+    planType === '2-year'   ? 4 :
+    3;
+  return (
+    q.phaseCount >= expectedPhases &&
+    q.averagePhaseScore >= 12 &&
+    q.weakPhaseCount === 0
+  );
+}
+try {
+  window.countPlanItems       = countPlanItems;
+  window.scorePlanPhaseDetail = scorePlanPhaseDetail;
+  window.scorePlanDetail      = scorePlanDetail;
+  window.getPlanPhasesForType = getPlanPhasesForType;
+  window.isPlanDetailedEnough = isPlanDetailedEnough;
+} catch (_) {}
+
 // Analysis helpers ? version-scoped (also writes legacy analysisCache for
 // compatibility with code that reads the free var directly).
 function getCurrentAnalysis() { return getActiveVersion().analysis; }
@@ -7317,15 +7394,25 @@ async function optimizeForJob() {
         if (typeof setCurrentAnalysis === 'function') setCurrentAnalysis(merged);
       } catch(e) { console.warn('[optimize] analysisCache write failed:', e); }
 
-      // 2. Write plan from response — skip extra generatePlanIntoActiveVersion() call
-      // if the response already includes the plan data.
+      // 2. Write plan from response — only if it passes the quality gate.
+      // PATCH (2026-04-28): a shallow plan from /optimize (e.g. "Discovery
+      // and Alignment" with 2 generic actions) is rejected here and we
+      // fall back to /builder/generate via generatePlanIntoActiveVersion.
       const _respPlan = data.plan || {};
       const _hasPlanData = (_respPlan.days90 && Object.keys(_respPlan.days90).length) ||
                            (_respPlan.months12 && Object.keys(_respPlan.months12).length) ||
                            (_respPlan.years2 && Object.keys(_respPlan.years2).length);
-      if (_hasPlanData) {
+      const _activePlanType = (typeof getActivePlanType === 'function')
+        ? getActivePlanType()
+        : (STATE.planType || '90-day');
+      const _planIsDetailed = !!(
+        _hasPlanData &&
+        typeof isPlanDetailedEnough === 'function' &&
+        isPlanDetailedEnough(_respPlan, _activePlanType)
+      );
+      if (_hasPlanData && _planIsDetailed) {
         try {
-          const planToWrite = Object.assign({}, _hasPlanData ? _respPlan : {}, {
+          const planToWrite = Object.assign({}, _respPlan, {
             plan_phases: (data.plan_phases || (_respPlan.days90 && _respPlan.days90.phases) || []),
             success_summary: (data.success_summary || (_respPlan.days90 && _respPlan.days90.executiveSummary) || ''),
             success_criteria: (data.success_criteria || (_respPlan.days90 && _respPlan.days90.successCriteria) || (_respPlan.days90 && _respPlan.days90.successMetrics) || []),
@@ -7341,7 +7428,7 @@ async function optimizeForJob() {
             });
             setGeneratedResume(stateGen);
           } catch(_){}
-          console.log('[optimize] plan written from response (skipping generatePlanIntoActiveVersion)');
+          console.log('[optimize] detailed plan written from /optimize response');
           // Detailed plan trace (what the AI actually returned for the plan section)
           try {
             if (_aitEnabled && _aitEnabled()) {
@@ -7363,13 +7450,22 @@ async function optimizeForJob() {
           } catch(_){}
         } catch(e) { console.warn('[optimize] plan write failed:', e); }
       } else {
-        // Fallback: no plan in response — run the separate generate call
+        // Fallback: plan missing or too shallow — call /builder/generate.
         try {
-          console.log('[optimize] no plan in response → calling generatePlanIntoActiveVersion()');
-          const planRes = await generatePlanIntoActiveVersion({ source: 'optimize' });
+          console.warn('[optimize] plan missing or too shallow — calling generatePlanIntoActiveVersion()', {
+            hasPlanData: !!_hasPlanData,
+            planType: _activePlanType,
+            quality: (typeof scorePlanDetail === 'function')
+              ? scorePlanDetail(_respPlan, _activePlanType)
+              : null
+          });
+          const planRes = await generatePlanIntoActiveVersion({
+            source: 'optimize',
+            reason: _hasPlanData ? 'shallow-optimize-plan' : 'missing-optimize-plan',
+            force: true
+          });
           if (planRes && planRes.ok) {
-            try { markPlanGenerated && markPlanGenerated('optimize'); } catch(_){}
-            console.log('[optimize→plan] fallback OK');
+            console.log('[optimize→plan] rich fallback plan generated');
           } else {
             console.warn('[optimize→plan] fallback failed:', planRes && planRes.error);
           }
@@ -9474,7 +9570,7 @@ function _doStartNewPlan() {
   document.querySelectorAll('.style-card').forEach(c => c.classList.toggle('selected', c.dataset.value === 'modern-sidebar'));
   document.querySelectorAll('.color-swatch').forEach(c => c.classList.toggle('selected', c.dataset.color === '#005EB8'));
   setIncludeCardState('resume', true);
-  setIncludeCardState('plan', true);
+  setIncludeCardState('plan', false);
   setIncludeCardState('cv', false);
   updateIncludeDependentUI();
   document.getElementById('dashboard').classList.add('hidden');
@@ -15714,8 +15810,10 @@ async function generatePlan() {
 async function generatePlanIntoActiveVersion(options) {
   options = options || {};
   const _planSource = options.source || 'manual';
+  const _planReason = options.reason || '';
+  const _force = !!options.force;
   try {
-    if (!STATE.sections || !STATE.sections.includes('plan')) {
+    if (!_force && (!STATE.sections || !STATE.sections.includes('plan'))) {
       return { ok: false, error: 'plan section not selected' };
     }
     const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
@@ -21963,6 +22061,51 @@ window.debugPlanGenerationGate = function () {
     optimizeApplied:      !!(typeof STATE !== 'undefined' && STATE._optimizeApplied),
     includeSelection:     (typeof getIncludeSelection === 'function') ? getIncludeSelection() : null,
     activePreviewDoc:     (typeof getActivePreviewDocId === 'function') ? getActivePreviewDocId() : null
+  };
+};
+
+// PATCH (2026-04-28): plan-data quality diagnostic. Mirrors the gate used
+// by optimizeForJob — useful in the browser console to confirm whether the
+// active plan is detailed enough or about to trigger the fallback.
+window.debugPlanDataQuality = function () {
+  let v = {};
+  try { v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {}; } catch (_) {}
+  const plan = v.plan || {};
+  const type = (typeof getActivePlanType === 'function')
+    ? getActivePlanType()
+    : (typeof STATE !== 'undefined' ? (STATE.planType || '90-day') : '90-day');
+  const quality = (typeof scorePlanDetail === 'function') ? scorePlanDetail(plan, type) : null;
+  const phases = (typeof getPlanPhasesForType === 'function') ? (getPlanPhasesForType(plan, type) || []) : [];
+  return {
+    activePlanType: type,
+    planSource: v.planSource || (v.exportSettings && v.exportSettings.planSource) || null,
+    planGeneratedAt: v.planGeneratedAt || (v.exportSettings && v.exportSettings.planGeneratedAt) || null,
+    phaseCount: phases.length,
+    quality: quality,
+    detailedEnough: (typeof isPlanDetailedEnough === 'function') ? isPlanDetailedEnough(plan, type) : null,
+    phaseStats: phases.map(function (p, i) {
+      p = p || {};
+      return {
+        index: i + 1,
+        label: p.label || p.title || p.phase || '',
+        timeframe: p.timeframe || p.period || '',
+        detailScore: (typeof scorePlanPhaseDetail === 'function') ? scorePlanPhaseDetail(p) : null,
+        hasSummary: !!(p.summary || p.overview || p.context),
+        actions: countPlanItems(p.actions || p.key_actions),
+        goals: countPlanItems(p.goals),
+        quickWins: countPlanItems(p.quickWins || p.quick_wins),
+        tools: countPlanItems(p.tools_and_technology || p.tools || p.technology),
+        milestones: countPlanItems(p.milestones),
+        deliverables: countPlanItems(p.deliverables),
+        stakeholders: countPlanItems(p.stakeholders),
+        risks: countPlanItems(p.risks || p.risksToManage || p.risksAndMitigations),
+        hasCommunicationCadence: !!(p.communicationPlan || p.communication_plan || p.cadence),
+        hasExecutiveValue: !!(p.executive_value || p.execValue || p.executiveValue)
+      };
+    }),
+    rawSelectedPlan: (typeof getSelectedPlanHorizon === 'function')
+      ? getSelectedPlanHorizon(plan, type)
+      : null
   };
 };
 
