@@ -9705,7 +9705,58 @@ async function savePlan(options = {}) {
     // caused by undefined values or non-serializable fields nested deep in
     // analysisData / interviewPrep / optimizationSession / generated. We preserve
     // Firestore FieldValue sentinels (non-plain objects) and strip undefined.
-    const safePlanData = sanitizeForFirestore(planData);
+    let safePlanData = sanitizeForFirestore(planData);
+
+    // 2026-04-27 (ISS-FIRESTORE-400): Firestore caps a single document at
+    // 1 MiB. After Optimize we now persist analysisData + interviewPrep +
+    // optimizationSession + generated + previewContent in one write, which
+    // can blow past that limit and surface as a 400 Bad Request from the
+    // Write channel. Estimate the payload size and progressively prune the
+    // largest optional caches until we fit under a safe ceiling.
+    const FS_BYTE_LIMIT = 900 * 1024; // 900 KiB safety margin under 1 MiB
+    const _estimateBytes = (obj) => {
+      try {
+        // Replacer skips Firestore sentinels (non-plain objects) so they
+        // don't break JSON.stringify with circular refs.
+        return new Blob([JSON.stringify(obj, (k, v) => {
+          if (v && typeof v === 'object') {
+            const p = Object.getPrototypeOf(v);
+            if (p !== Object.prototype && p !== null && !Array.isArray(v)) return '[sentinel]';
+          }
+          return v;
+        })]).size;
+      } catch(_){ return 0; }
+    };
+    let _bytes = _estimateBytes(safePlanData);
+    if (_bytes > FS_BYTE_LIMIT) {
+      console.warn('[savePlan] payload', _bytes, 'bytes exceeds', FS_BYTE_LIMIT, '— pruning oversize fields');
+      // Order: cheapest losses first. previewContent is regenerable from
+      // STATE.generated; optimizationSession is a transient AI trace;
+      // interviewPrep is regenerable from analysisData; analysisData is
+      // regenerable from a re-analyze. Prune in that order.
+      const _pruneKeys = ['previewContent', 'optimizationSession', 'interviewPrep', 'analysisData'];
+      for (const k of _pruneKeys) {
+        if (safePlanData[k] !== undefined && safePlanData[k] !== null) {
+          delete safePlanData[k];
+          _bytes = _estimateBytes(safePlanData);
+          console.warn('[savePlan] pruned', k, '→', _bytes, 'bytes');
+          if (_bytes <= FS_BYTE_LIMIT) break;
+        }
+      }
+      // Last resort: trim rawResumeText to first 50 KB if still over.
+      if (_bytes > FS_BYTE_LIMIT && typeof safePlanData.rawResumeText === 'string' && safePlanData.rawResumeText.length > 50000) {
+        safePlanData.rawResumeText = safePlanData.rawResumeText.slice(0, 50000);
+        _bytes = _estimateBytes(safePlanData);
+        console.warn('[savePlan] truncated rawResumeText →', _bytes, 'bytes');
+      }
+      if (_bytes > FS_BYTE_LIMIT) {
+        console.error('[savePlan] still oversize after pruning:', _bytes, 'bytes');
+      }
+    } else {
+      // Lightweight visibility for healthy saves.
+      try { console.debug('[savePlan] doc bytes:', _bytes); } catch(_){}
+    }
+
     if (currentPlanId) {
       await db.collection('plans').doc(currentPlanId).update(safePlanData);
     } else {
