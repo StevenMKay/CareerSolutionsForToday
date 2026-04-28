@@ -1,3 +1,130 @@
+// ================= PLAN RESPONSE NORMALIZATION HELPERS (2026-04-28) =================
+function normalizePlanTypeValue(type) {
+  const raw = String(type || '').trim().toLowerCase();
+  if (["90", "90day", "90-day", "days90", "first 90 days"].includes(raw)) return "90-day";
+  if (["12", "12month", "12-month", "months12", "annual", "1-year"].includes(raw)) return "12-month";
+  if (["2", "2year", "2-year", "years2", "24-month", "two-year"].includes(raw)) return "2-year";
+  return "90-day";
+}
+function normalizeGeneratedPlanResponse(data, requestedPlanType) {
+  const root = data?.generated || data?.plan || data || {};
+  const planType = normalizePlanTypeValue(
+    requestedPlanType ||
+    root.plan_type ||
+    root.planType ||
+    root.hero?.plan_type ||
+    data?.plan_type ||
+    data?.planType
+  );
+  const flatPhases = Array.isArray(root.plan_phases) ? root.plan_phases : [];
+  const plan = {
+    horizon: root.horizon || 'combined',
+    days90: root.days90 || {},
+    months12: root.months12 || {},
+    years2: root.years2 || {},
+    plan_phases: flatPhases,
+    success_summary: root.success_summary || [],
+    success_criteria: root.success_criteria || [],
+    kpis: root.kpis || []
+  };
+  const summaryText = Array.isArray(root.success_summary)
+    ? root.success_summary.join(' ')
+    : String(root.success_summary || '');
+  const successMetrics = root.kpis || root.success_criteria || [];
+  if (flatPhases.length) {
+    if (
+      planType === '12-month' &&
+      !Array.isArray(plan.months12?.phases) &&
+      !Array.isArray(plan.months12?.quarters)
+    ) {
+      plan.months12 = {
+        ...(plan.months12 || {}),
+        title: plan.months12?.title || '12-Month Growth Plan',
+        timeframe: plan.months12?.timeframe || '12 months',
+        executiveSummary: plan.months12?.executiveSummary || summaryText,
+        successMetrics: plan.months12?.successMetrics || successMetrics,
+        phases: flatPhases,
+        quarters: flatPhases
+      };
+    }
+    if (
+      planType === '90-day' &&
+      !Array.isArray(plan.days90?.phases)
+    ) {
+      plan.days90 = {
+        ...(plan.days90 || {}),
+        title: plan.days90?.title || '90-Day Plan',
+        timeframe: plan.days90?.timeframe || '90 days',
+        executiveSummary: plan.days90?.executiveSummary || summaryText,
+        successMetrics: plan.days90?.successMetrics || successMetrics,
+        phases: flatPhases
+      };
+    }
+    if (
+      planType === '2-year' &&
+      !Array.isArray(plan.years2?.phases)
+    ) {
+      plan.years2 = {
+        ...(plan.years2 || {}),
+        title: plan.years2?.title || '2-Year Growth Plan',
+        timeframe: plan.years2?.timeframe || '24 months',
+        executiveSummary: plan.years2?.executiveSummary || summaryText,
+        successMetrics: plan.years2?.successMetrics || successMetrics,
+        phases: flatPhases
+      };
+    }
+  }
+  return plan;
+}
+function validateRequestedPlanShape(plan, requestedPlanType) {
+  const type = normalizePlanTypeValue(requestedPlanType);
+  const phases =
+    type === '12-month'
+      ? (plan?.months12?.phases || plan?.months12?.quarters || [])
+      : type === '2-year'
+        ? (plan?.years2?.phases || [])
+        : (plan?.days90?.phases || []);
+  if (!Array.isArray(phases) || !phases.length) {
+    return {
+      ok: false,
+      reason: 'No phases found for requested plan type',
+      type,
+      phaseCount: 0
+    };
+  }
+  if (type === '12-month') {
+    const combined = phases.map(p =>
+      String(p.timeframe || p.label || p.title || p.phase || '')
+    ).join(' | ');
+    if (/13\s*-\s*18|19\s*-\s*24|13-18|19-24/i.test(combined)) {
+      return {
+        ok: false,
+        reason: '12-month plan contains 2-year timeframes',
+        type,
+        phaseCount: phases.length,
+        timeframes: phases.map(p => p.timeframe || p.label || p.title || '')
+      };
+    }
+    if (phases.length !== 4) {
+      return {
+        ok: false,
+        reason: '12-month plan must have exactly 4 quarters',
+        type,
+        phaseCount: phases.length
+      };
+    }
+  }
+  return {
+    ok: true,
+    type,
+    phaseCount: phases.length
+  };
+}
+try {
+  window.normalizePlanTypeValue = normalizePlanTypeValue;
+  window.normalizeGeneratedPlanResponse = normalizeGeneratedPlanResponse;
+  window.validateRequestedPlanShape = validateRequestedPlanShape;
+} catch (_) {}
 <!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15894,11 +16021,20 @@ async function generatePlanIntoActiveVersion(options) {
     if (!_force && (!STATE.sections || !STATE.sections.includes('plan'))) {
       return { ok: false, error: 'plan section not selected' };
     }
+    const requestedPlanType = normalizePlanTypeValue(
+      options.planType ||
+      options.plan_type ||
+      (typeof getActivePlanType === 'function' ? getActivePlanType() : undefined) ||
+      STATE.planType ||
+      '90-day'
+    );
     const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
     const payload = {
       resume_data: STATE.resumeData,
       role_context: STATE.roleResearch,
-      plan_type: STATE.planType,
+      plan_type: requestedPlanType,
+      planType: requestedPlanType,
+      requireDetailedPlan: true,
       sections: STATE.sections,
       job_description: (document.getElementById('job-desc')?.value || '').trim(),
       plan_context: (document.getElementById('plan-context')?.value || '').trim(),
@@ -15917,94 +16053,83 @@ async function generatePlanIntoActiveVersion(options) {
       return { ok: false, error: 'HTTP ' + res.status + ' ' + txt.slice(0, 200) };
     }
     const data = await res.json();
-    const gen = (data && data.generated) || {};
-    const PLAN_KEYS = ['plan_phases','success_summary','success_criteria','kpis','days90','months12','years2','horizon'];
-    const planSlice = {};
-    PLAN_KEYS.forEach(k => { if (gen[k] !== undefined) planSlice[k] = gen[k]; });
-    // Detailed plan trace (what the AI returned from /builder/generate)
-    try {
-      if (_aitEnabled && _aitEnabled()) {
-        console.groupCollapsed('%cAI %c← PLAN (from /builder/generate)',
-          _AIT_STYLES.hdr, _AIT_STYLES.recv);
-        console.log('%cphases:', _AIT_STYLES.meta, (planSlice.plan_phases || []).length, planSlice.plan_phases || []);
-        console.log('%csuccess_summary:', _AIT_STYLES.meta, planSlice.success_summary || '(empty)');
-        console.log('%csuccess_criteria:', _AIT_STYLES.meta, (planSlice.success_criteria || []).length, planSlice.success_criteria || []);
-        console.log('%ckpis:', _AIT_STYLES.meta, (planSlice.kpis || []).length, planSlice.kpis || []);
-        if (planSlice.days90)   console.log('%cdays90:',   _AIT_STYLES.meta, planSlice.days90);
-        if (planSlice.months12) console.log('%cmonths12:', _AIT_STYLES.meta, planSlice.months12);
-        if (planSlice.years2)   console.log('%cyears2:',   _AIT_STYLES.meta, planSlice.years2);
-        if (planSlice.horizon)  console.log('%chorizon:',  _AIT_STYLES.meta, planSlice.horizon);
-        console.log('%cPlan slice:', _AIT_STYLES.meta, planSlice);
-        console.log('%cFull response:', _AIT_STYLES.meta, data);
-        console.groupEnd();
-      } else {
-        console.log('[generatePlanIntoActiveVersion] plan slice:', planSlice, 'full response:', data);
-      }
-    } catch(_){}
-    if (typeof setCurrentPlan === 'function') {
-      const cur = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
-      setCurrentPlan(Object.assign({}, cur, planSlice));
-    }
-    // Mirror plan-shaped keys into STATE.generated (= v.resume via accessor)
-    // so `g.plan_phases` etc. are visible to the legacy `card()` renderer
-    // which reads from `g` directly. Resume keys from /builder/generate
-    // response are intentionally DISCARDED ? optimize already produced them.
-    try {
-      const stateGen = structuredClone(getGeneratedResume?.() || STATE.generated || {});
-      PLAN_KEYS.forEach(k => { if (gen[k] !== undefined) stateGen[k] = gen[k]; });
-      setGeneratedResume(stateGen);
-    } catch(_){}
-    try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
-    try { markPlanGenerated && markPlanGenerated(_planSource); } catch(_){}
-    // PATCH (Plan Package Validation, 2026-04-28): validate the plan we just
-    // wrote. Use package-aware validation when Optimize forced the call or all
-    // three horizons are present; fall back to active-horizon-only validation
-    // for manual single-horizon flows so they don't break.
-    try {
-      const _savedPlan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
-      const _savedType = (typeof getActivePlanType === 'function')
-        ? getActivePlanType()
-        : (STATE.planType || '90-day');
-      const _savedQuality = (typeof scorePlanDetail === 'function')
-        ? scorePlanDetail(_savedPlan, _savedType) : null;
-      const _savedPackageQuality = (typeof scorePlanPackageDetail === 'function')
-        ? scorePlanPackageDetail(_savedPlan) : null;
-      const _shouldValidatePackage =
-        options.force === true ||
-        options.source === 'optimize' ||
-        !!(_savedPlan && _savedPlan.days90 && _savedPlan.months12 && _savedPlan.years2);
-      const _savedDetailed = _shouldValidatePackage && (typeof isPlanPackageDetailedEnough === 'function')
-        ? isPlanPackageDetailedEnough(_savedPlan)
-        : ((typeof isPlanDetailedEnough === 'function')
-            ? isPlanDetailedEnough(_savedPlan, _savedType)
-            : true);
-      if (!_savedDetailed) {
-        console.warn('[generatePlanIntoActiveVersion] generated plan is still shallow', {
-          activePlanType: _savedType,
-          quality: _savedQuality,
-          packageQuality: _savedPackageQuality,
-          packageDetailedEnough: _savedDetailed,
-          shouldValidatePackage: _shouldValidatePackage
-        });
-        return {
-          ok: false,
-          error: 'Generated plan is still too shallow',
-          source: _planSource,
-          reason: _planReason,
-          quality: _savedQuality,
-          packageQuality: _savedPackageQuality,
-          packageDetailedEnough: _savedDetailed
-        };
-      }
+    const normalizedPlan = normalizeGeneratedPlanResponse(data, requestedPlanType);
+    const shapeCheck = validateRequestedPlanShape(normalizedPlan, requestedPlanType);
+    if (!shapeCheck.ok) {
+      console.warn('[generatePlanIntoActiveVersion] invalid generated plan shape', {
+        requestedPlanType,
+        shapeCheck,
+        data,
+        normalizedPlan
+      });
       return {
-        ok: true,
-        source: _planSource,
-        reason: _planReason,
-        quality: _savedQuality,
-        packageQuality: _savedPackageQuality,
-        packageDetailedEnough: _savedDetailed
+        ok: false,
+        error: shapeCheck.reason,
+        requestedPlanType,
+        shapeCheck,
+        plan: normalizedPlan
       };
-    } catch(_){}
+    }
+    const requestedQuality =
+      typeof scorePlanDetail === 'function'
+        ? scorePlanDetail(normalizedPlan, requestedPlanType)
+        : null;
+    if (requestedQuality && requestedQuality.detailedEnough === false) {
+      console.warn('[generatePlanIntoActiveVersion] generated requested horizon is still shallow', {
+        requestedPlanType,
+        requestedQuality,
+        normalizedPlan
+      });
+      return {
+        ok: false,
+        error: 'Generated requested plan horizon is still too shallow',
+        requestedPlanType,
+        quality: requestedQuality,
+        plan: normalizedPlan
+      };
+    }
+    // Write normalized plan into active version, preserving other horizons
+    const v = typeof getActiveVersion === 'function' ? getActiveVersion() : null;
+    if (v) {
+      const currentPlan = v.plan || {};
+      v.plan = {
+        ...currentPlan,
+        ...normalizedPlan,
+        days90: normalizedPlan.days90 && Object.keys(normalizedPlan.days90).length
+          ? normalizedPlan.days90
+          : currentPlan.days90,
+        months12: normalizedPlan.months12 && Object.keys(normalizedPlan.months12).length
+          ? normalizedPlan.months12
+          : currentPlan.months12,
+        years2: normalizedPlan.years2 && Object.keys(normalizedPlan.years2).length
+          ? normalizedPlan.years2
+          : currentPlan.years2,
+        horizon: normalizedPlan.horizon || currentPlan.horizon || 'combined'
+      };
+      v.planSource = options.source || 'manual';
+      v.planGeneratedAt = new Date().toISOString();
+      v.exportSettings = v.exportSettings || {};
+      v.exportSettings.planSource = v.planSource;
+      v.exportSettings.planGeneratedAt = v.planGeneratedAt;
+      v.exportSettings.planType = requestedPlanType;
+    }
+    // Mirror to generated resume state
+    try {
+      const gen = structuredClone(getGeneratedResume?.() || STATE.generated || {});
+      gen.horizon = normalizedPlan.horizon || gen.horizon || 'combined';
+      if (normalizedPlan.days90 && Object.keys(normalizedPlan.days90).length) gen.days90 = normalizedPlan.days90;
+      if (normalizedPlan.months12 && Object.keys(normalizedPlan.months12).length) gen.months12 = normalizedPlan.months12;
+      if (normalizedPlan.years2 && Object.keys(normalizedPlan.years2).length) gen.years2 = normalizedPlan.years2;
+      if (Array.isArray(normalizedPlan.plan_phases)) gen.plan_phases = normalizedPlan.plan_phases;
+      if (normalizedPlan.success_summary) gen.success_summary = normalizedPlan.success_summary;
+      if (normalizedPlan.success_criteria) gen.success_criteria = normalizedPlan.success_criteria;
+      if (normalizedPlan.kpis) gen.kpis = normalizedPlan.kpis;
+      if (typeof setGeneratedResume === 'function') setGeneratedResume(gen);
+      else STATE.generated = gen;
+    } catch (e) {
+      console.warn('[generatePlanIntoActiveVersion] generated mirror failed', e);
+    }
+    try { markPlanGenerated?.(options.source || 'manual'); } catch (_) {}
     return { ok: true, source: _planSource, reason: _planReason };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
