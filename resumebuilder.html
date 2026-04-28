@@ -5175,6 +5175,41 @@ try {
   window.isPlanDetailedEnough = isPlanDetailedEnough;
 } catch (_) {}
 
+// PATCH (Plan Quality v2, 2026-04-28): package-level quality.
+// scorePlanDetail/isPlanDetailedEnough only check ONE horizon (active planType).
+// A response can pass that check while other populated horizons (e.g. months12,
+// years2) are shallow ? which is exactly what we saw in the field. The package
+// scorer evaluates EVERY populated horizon and only passes when all of them are
+// detailed. Empty horizons are ignored (not all profiles use all three).
+function scorePlanPackageDetail(plan) {
+  plan = plan || {};
+  const horizons = [
+    { type: '90-day',   present: !!(plan.days90   && Object.keys(plan.days90).length) },
+    { type: '12-month', present: !!(plan.months12 && Object.keys(plan.months12).length) },
+    { type: '2-year',   present: !!(plan.years2   && Object.keys(plan.years2).length) }
+  ];
+  const populated = horizons.filter(h => h.present);
+  const perHorizon = populated.map(h => ({
+    planType: h.type,
+    quality: scorePlanDetail(plan, h.type),
+    detailedEnough: isPlanDetailedEnough(plan, h.type)
+  }));
+  return {
+    populatedHorizons: populated.map(h => h.type),
+    perHorizon: perHorizon,
+    allDetailed: perHorizon.length > 0 && perHorizon.every(p => p.detailedEnough),
+    weakHorizons: perHorizon.filter(p => !p.detailedEnough).map(p => p.planType)
+  };
+}
+function isPlanPackageDetailedEnough(plan) {
+  const pkg = scorePlanPackageDetail(plan);
+  return pkg.populatedHorizons.length > 0 && pkg.allDetailed;
+}
+try {
+  window.scorePlanPackageDetail     = scorePlanPackageDetail;
+  window.isPlanPackageDetailedEnough = isPlanPackageDetailedEnough;
+} catch (_) {}
+
 // Analysis helpers ? version-scoped (also writes legacy analysisCache for
 // compatibility with code that reads the free var directly).
 function getCurrentAnalysis() { return getActiveVersion().analysis; }
@@ -7405,19 +7440,27 @@ async function optimizeForJob() {
       const _activePlanType = (typeof getActivePlanType === 'function')
         ? getActivePlanType()
         : (STATE.planType || '90-day');
+
+      // PATCH (Plan Quality v2, 2026-04-28): build planToWrite FIRST, then
+      // score that merged object (not raw _respPlan) at PACKAGE level so a
+      // single shallow horizon is enough to trigger the fallback.
+      const planToWrite = _hasPlanData ? Object.assign({}, _respPlan, {
+        plan_phases: (data.plan_phases || (_respPlan.days90 && _respPlan.days90.phases) || []),
+        success_summary: (data.success_summary || (_respPlan.days90 && _respPlan.days90.executiveSummary) || ''),
+        success_criteria: (data.success_criteria || (_respPlan.days90 && _respPlan.days90.successCriteria) || (_respPlan.days90 && _respPlan.days90.successMetrics) || []),
+        kpis: (data.kpis || (_respPlan.days90 && _respPlan.days90.successMetrics) || (_respPlan.months12 && _respPlan.months12.successMetrics) || [])
+      }) : null;
+      const _qualityBeforeWrite = (planToWrite && typeof scorePlanDetail === 'function')
+        ? scorePlanDetail(planToWrite, _activePlanType) : null;
+      const _packageQualityBeforeWrite = (planToWrite && typeof scorePlanPackageDetail === 'function')
+        ? scorePlanPackageDetail(planToWrite) : null;
       const _planIsDetailed = !!(
-        _hasPlanData &&
-        typeof isPlanDetailedEnough === 'function' &&
-        isPlanDetailedEnough(_respPlan, _activePlanType)
+        planToWrite &&
+        typeof isPlanPackageDetailedEnough === 'function' &&
+        isPlanPackageDetailedEnough(planToWrite)
       );
       if (_hasPlanData && _planIsDetailed) {
         try {
-          const planToWrite = Object.assign({}, _respPlan, {
-            plan_phases: (data.plan_phases || (_respPlan.days90 && _respPlan.days90.phases) || []),
-            success_summary: (data.success_summary || (_respPlan.days90 && _respPlan.days90.executiveSummary) || ''),
-            success_criteria: (data.success_criteria || (_respPlan.days90 && _respPlan.days90.successCriteria) || (_respPlan.days90 && _respPlan.days90.successMetrics) || []),
-            kpis: (data.kpis || (_respPlan.days90 && _respPlan.days90.successMetrics) || (_respPlan.months12 && _respPlan.months12.successMetrics) || [])
-          });
           if (typeof setCurrentPlan === 'function') setCurrentPlan(planToWrite);
           try { markPlanGenerated && markPlanGenerated('optimize'); } catch(_){}
           // Mirror plan-shaped keys into STATE.generated for legacy renderers
@@ -7450,14 +7493,13 @@ async function optimizeForJob() {
           } catch(_){}
         } catch(e) { console.warn('[optimize] plan write failed:', e); }
       } else {
-        // Fallback: plan missing or too shallow — call /builder/generate.
+        // Fallback: plan missing or too shallow ? call /builder/generate.
         try {
-          console.warn('[optimize] plan missing or too shallow — calling generatePlanIntoActiveVersion()', {
+          console.warn('[optimize] plan missing or too shallow ? calling generatePlanIntoActiveVersion()', {
             hasPlanData: !!_hasPlanData,
             planType: _activePlanType,
-            quality: (typeof scorePlanDetail === 'function')
-              ? scorePlanDetail(_respPlan, _activePlanType)
-              : null
+            quality: _qualityBeforeWrite,
+            packageQuality: _packageQualityBeforeWrite
           });
           const planRes = await generatePlanIntoActiveVersion({
             source: 'optimize',
@@ -7465,11 +7507,25 @@ async function optimizeForJob() {
             force: true
           });
           if (planRes && planRes.ok) {
-            console.log('[optimize→plan] rich fallback plan generated');
+            // Re-validate the plan that the fallback actually wrote.
+            let _fallbackPlan = {};
+            try { _fallbackPlan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {}; } catch(_){}
+            const _fallbackDetailed = (typeof isPlanDetailedEnough === 'function')
+              ? isPlanDetailedEnough(_fallbackPlan, _activePlanType) : true;
+            if (_fallbackDetailed) {
+              console.log('[optimize?plan] rich fallback plan generated and validated');
+            } else {
+              console.warn('[optimize?plan] fallback plan still shallow:', {
+                quality: (typeof scorePlanDetail === 'function') ? scorePlanDetail(_fallbackPlan, _activePlanType) : null,
+                packageQuality: (typeof scorePlanPackageDetail === 'function') ? scorePlanPackageDetail(_fallbackPlan) : null
+              });
+              try { showToast && showToast('Career plan needs more detail. Please try Generate Plan again.'); } catch(_){}
+            }
           } else {
-            console.warn('[optimize→plan] fallback failed:', planRes && planRes.error);
+            console.warn('[optimize?plan] fallback failed:', planRes && planRes.error);
+            try { showToast && showToast('Career plan needs more detail. Please try Generate Plan again.'); } catch(_){}
           }
-        } catch(e) { console.warn('[optimize→plan] fallback threw:', e); }
+        } catch(e) { console.warn('[optimize?plan] fallback threw:', e); }
       }
 
       // 3. Write CV from response — skip /generate-cv if cv is in the response.
@@ -15878,6 +15934,27 @@ async function generatePlanIntoActiveVersion(options) {
     } catch(_){}
     try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
     try { markPlanGenerated && markPlanGenerated(_planSource); } catch(_){}
+    // PATCH (Plan Quality v2, 2026-04-28): validate the plan we just wrote.
+    // If /builder/generate also returned a shallow plan, surface that to the
+    // caller so the optimize fallback path can show a toast instead of silently
+    // pretending the fallback succeeded.
+    try {
+      const _savedPlan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
+      const _savedType = (typeof getActivePlanType === 'function')
+        ? getActivePlanType()
+        : (STATE.planType || '90-day');
+      const _savedDetailed = (typeof isPlanDetailedEnough === 'function')
+        ? isPlanDetailedEnough(_savedPlan, _savedType) : true;
+      if (!_savedDetailed) {
+        const _savedQuality = (typeof scorePlanDetail === 'function')
+          ? scorePlanDetail(_savedPlan, _savedType) : null;
+        return {
+          ok: false,
+          error: 'Generated plan is still too shallow',
+          quality: _savedQuality
+        };
+      }
+    } catch(_){}
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
@@ -22105,7 +22182,9 @@ window.debugPlanDataQuality = function () {
     }),
     rawSelectedPlan: (typeof getSelectedPlanHorizon === 'function')
       ? getSelectedPlanHorizon(plan, type)
-      : null
+      : null,
+    packageQuality: (typeof scorePlanPackageDetail === 'function') ? scorePlanPackageDetail(plan) : null,
+    packageDetailedEnough: (typeof isPlanPackageDetailedEnough === 'function') ? isPlanPackageDetailedEnough(plan) : null
   };
 };
 
