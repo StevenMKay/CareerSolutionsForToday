@@ -7471,7 +7471,12 @@ async function optimizeForJob() {
             });
             setGeneratedResume(stateGen);
           } catch(_){}
-          console.log('[optimize] detailed plan written from /optimize response');
+          console.log('[optimize] detailed plan package written from /optimize response', {
+            planType: _activePlanType,
+            quality: _qualityBeforeWrite,
+            packageQuality: _packageQualityBeforeWrite,
+            packageDetailedEnough: true
+          });
           // Detailed plan trace (what the AI actually returned for the plan section)
           try {
             if (_aitEnabled && _aitEnabled()) {
@@ -7510,19 +7515,36 @@ async function optimizeForJob() {
             // Re-validate the plan that the fallback actually wrote.
             let _fallbackPlan = {};
             try { _fallbackPlan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {}; } catch(_){}
-            const _fallbackDetailed = (typeof isPlanDetailedEnough === 'function')
-              ? isPlanDetailedEnough(_fallbackPlan, _activePlanType) : true;
+            const _fallbackQuality = (typeof scorePlanDetail === 'function')
+              ? scorePlanDetail(_fallbackPlan, _activePlanType) : null;
+            const _fallbackPackageQuality = (typeof scorePlanPackageDetail === 'function')
+              ? scorePlanPackageDetail(_fallbackPlan) : null;
+            // PATCH (Plan Package Validation, 2026-04-28): use package-aware
+            // validation since Optimize generates the FULL package.
+            const _fallbackDetailed = (typeof isPlanPackageDetailedEnough === 'function')
+              ? isPlanPackageDetailedEnough(_fallbackPlan)
+              : ((typeof isPlanDetailedEnough === 'function')
+                  ? isPlanDetailedEnough(_fallbackPlan, _activePlanType)
+                  : true);
             if (_fallbackDetailed) {
-              console.log('[optimize?plan] rich fallback plan generated and validated');
+              console.log('[optimize-plan] rich fallback plan generated', {
+                planType: _activePlanType,
+                quality: _fallbackQuality,
+                packageQuality: _fallbackPackageQuality,
+                packageDetailedEnough: _fallbackDetailed
+              });
             } else {
-              console.warn('[optimize?plan] fallback plan still shallow:', {
-                quality: (typeof scorePlanDetail === 'function') ? scorePlanDetail(_fallbackPlan, _activePlanType) : null,
-                packageQuality: (typeof scorePlanPackageDetail === 'function') ? scorePlanPackageDetail(_fallbackPlan) : null
+              console.warn('[optimize-plan] fallback plan is still shallow', {
+                result: planRes,
+                planType: _activePlanType,
+                quality: _fallbackQuality,
+                packageQuality: _fallbackPackageQuality,
+                packageDetailedEnough: _fallbackDetailed
               });
               try { showToast && showToast('Career plan needs more detail. Please try Generate Plan again.'); } catch(_){}
             }
           } else {
-            console.warn('[optimize?plan] fallback failed:', planRes && planRes.error);
+            console.warn('[optimize-plan] fallback failed:', planRes && planRes.error, planRes);
             try { showToast && showToast('Career plan needs more detail. Please try Generate Plan again.'); } catch(_){}
           }
         } catch(e) { console.warn('[optimize?plan] fallback threw:', e); }
@@ -15934,28 +15956,56 @@ async function generatePlanIntoActiveVersion(options) {
     } catch(_){}
     try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
     try { markPlanGenerated && markPlanGenerated(_planSource); } catch(_){}
-    // PATCH (Plan Quality v2, 2026-04-28): validate the plan we just wrote.
-    // If /builder/generate also returned a shallow plan, surface that to the
-    // caller so the optimize fallback path can show a toast instead of silently
-    // pretending the fallback succeeded.
+    // PATCH (Plan Package Validation, 2026-04-28): validate the plan we just
+    // wrote. Use package-aware validation when Optimize forced the call or all
+    // three horizons are present; fall back to active-horizon-only validation
+    // for manual single-horizon flows so they don't break.
     try {
       const _savedPlan = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
       const _savedType = (typeof getActivePlanType === 'function')
         ? getActivePlanType()
         : (STATE.planType || '90-day');
-      const _savedDetailed = (typeof isPlanDetailedEnough === 'function')
-        ? isPlanDetailedEnough(_savedPlan, _savedType) : true;
+      const _savedQuality = (typeof scorePlanDetail === 'function')
+        ? scorePlanDetail(_savedPlan, _savedType) : null;
+      const _savedPackageQuality = (typeof scorePlanPackageDetail === 'function')
+        ? scorePlanPackageDetail(_savedPlan) : null;
+      const _shouldValidatePackage =
+        options.force === true ||
+        options.source === 'optimize' ||
+        !!(_savedPlan && _savedPlan.days90 && _savedPlan.months12 && _savedPlan.years2);
+      const _savedDetailed = _shouldValidatePackage && (typeof isPlanPackageDetailedEnough === 'function')
+        ? isPlanPackageDetailedEnough(_savedPlan)
+        : ((typeof isPlanDetailedEnough === 'function')
+            ? isPlanDetailedEnough(_savedPlan, _savedType)
+            : true);
       if (!_savedDetailed) {
-        const _savedQuality = (typeof scorePlanDetail === 'function')
-          ? scorePlanDetail(_savedPlan, _savedType) : null;
+        console.warn('[generatePlanIntoActiveVersion] generated plan is still shallow', {
+          activePlanType: _savedType,
+          quality: _savedQuality,
+          packageQuality: _savedPackageQuality,
+          packageDetailedEnough: _savedDetailed,
+          shouldValidatePackage: _shouldValidatePackage
+        });
         return {
           ok: false,
           error: 'Generated plan is still too shallow',
-          quality: _savedQuality
+          source: _planSource,
+          reason: _planReason,
+          quality: _savedQuality,
+          packageQuality: _savedPackageQuality,
+          packageDetailedEnough: _savedDetailed
         };
       }
+      return {
+        ok: true,
+        source: _planSource,
+        reason: _planReason,
+        quality: _savedQuality,
+        packageQuality: _savedPackageQuality,
+        packageDetailedEnough: _savedDetailed
+      };
     } catch(_){}
-    return { ok: true };
+    return { ok: true, source: _planSource, reason: _planReason };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
   }
@@ -22183,6 +22233,7 @@ window.debugPlanDataQuality = function () {
     rawSelectedPlan: (typeof getSelectedPlanHorizon === 'function')
       ? getSelectedPlanHorizon(plan, type)
       : null,
+    activeHorizonDetailedEnough: (typeof isPlanDetailedEnough === 'function') ? isPlanDetailedEnough(plan, type) : null,
     packageQuality: (typeof scorePlanPackageDetail === 'function') ? scorePlanPackageDetail(plan) : null,
     packageDetailedEnough: (typeof isPlanPackageDetailedEnough === 'function') ? isPlanPackageDetailedEnough(plan) : null
   };
