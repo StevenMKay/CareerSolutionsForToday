@@ -7965,7 +7965,52 @@ async function optimizeForJob() {
         return;
       }
     } catch (gateErr) {
-      console.warn('[optimize][gate] gate error (continuing as if accepted):', gateErr);
+      // PATCH (2026-04-28): FAIL CLOSED. If the safety gate itself errors, we
+      // cannot prove finalScore >= baselineScore, so we MUST treat the
+      // optimization as not verified and restore baseline. No save, no DB
+      // update, no success modal.
+      console.error('[optimize][gate] gate threw — failing closed and restoring baseline:', gateErr);
+      try {
+        if (typeof setCurrentResume === 'function') setCurrentResume(baseline);
+        else setGeneratedResume(baseline);
+      } catch(e) { console.warn('[optimize][gate] fail-closed restore failed:', e); }
+      try {
+        if (__optBaselineAnalysisCache) {
+          analysisCache = __optBaselineAnalysisCache;
+        } else if (analysisCache && typeof analysisCache === 'object') {
+          analysisCache.resume_match_score = __optBaselineScore;
+          analysisCache.overall_score = __optBaselineScore;
+          delete analysisCache.original_score;
+        }
+        if (typeof setCurrentAnalysis === 'function') setCurrentAnalysis(analysisCache || {});
+      } catch(_){}
+      STATE.optimizationSession = null;
+      try {
+        const _msVal = document.getElementById('rp-match-value');
+        const _msOrig = document.getElementById('rp-match-original');
+        const _msOrigVal = document.getElementById('rp-match-original-value');
+        const _revertWrap = document.getElementById('rp-revert-wrap');
+        if (_msVal) {
+          _msVal.textContent = Number.isFinite(Number(__optBaselineScore)) ? String(__optBaselineScore) : '';
+          _msVal.style.color = '';
+          _msVal.classList.remove('score-delta-down','score-delta-up','score-decreased','score-increased');
+        }
+        if (_msOrig) _msOrig.style.display = 'none';
+        if (_msOrigVal) _msOrigVal.textContent = '';
+        if (_revertWrap) _revertWrap.style.display = 'none';
+        document.querySelectorAll('.score-delta, [data-score-delta], .score-change, .score-decrease, .score-decreased').forEach(el => {
+          try { el.textContent = ''; el.classList.remove('score-decreased','score-increased','score-delta-up','score-delta-down'); el.style.display = 'none'; } catch(_){}
+        });
+      } catch(_){}
+      try {
+        if (typeof generateAndRenderPreview === 'function') generateAndRenderPreview();
+        else if (typeof renderPreview === 'function') renderPreview(STATE.generated);
+        else if (typeof updatePreview === 'function') updatePreview();
+      } catch(_){}
+      try { STATE._drawerAutoOpenedThisSession = true; } catch(_){}
+      hideOptimizeProgress();
+      try { showToast('Optimization could not be verified, so your original resume was kept.'); } catch(_){}
+      return;
     }
 
     // Pass needsReanalysis:false so markDirty doesn't wipe the analysisCache we just populated
