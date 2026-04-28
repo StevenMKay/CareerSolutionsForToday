@@ -822,9 +822,24 @@
               <label class="field-label" for="plan-context">Plan context</label>
               <textarea id="plan-context" class="textarea" placeholder="Optional context for plan generation (team, scope, priorities)…"></textarea>
             </div>
-            <div class="row">
-              <button id="import-linkedin-btn" class="btn btn-secondary" type="button" data-action="importLinkedInJob"><i data-lucide="link" style="width:16px;height:16px;"></i> Import from LinkedIn</button>
+            <div>
+              <label class="field-label" for="linkedin-job-url">LinkedIn job URL</label>
+              <input id="linkedin-job-url" class="input" placeholder="https://www.linkedin.com/jobs/view/...">
             </div>
+            <div class="row">
+              <button id="btn-linkedin-job" class="btn btn-secondary" type="button" data-action="importLinkedInJob"><i data-lucide="link" style="width:16px;height:16px;"></i> Import from LinkedIn</button>
+              <button id="import-linkedin-btn" class="btn btn-secondary" type="button" data-action="importLinkedInJob" hidden>Import</button>
+            </div>
+            <div id="linkedin-job-status" class="status-text" aria-live="polite"></div>
+            <div id="ai-readiness-card" class="glass" style="padding:12px;border-radius:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                <strong>AI Readiness</strong>
+                <button id="btn-role-research" class="btn btn-primary" type="button" data-action="runRoleResearch" disabled><i data-lucide="search" style="width:16px;height:16px;"></i> Run AI Role Research</button>
+              </div>
+              <div id="ai-readiness-pills" class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap;"></div>
+              <div id="role-research-status" class="status-text" aria-live="polite"></div>
+            </div>
+            <div id="role-research-summary" class="glass" style="padding:12px;border-radius:10px;display:none;"></div>
           </div>
         </div>
 
@@ -837,7 +852,11 @@
           </button>
           <div class="acc-body stack">
             <div id="role-cv-shell" class="stack">
-              <div class="empty-state">Cover letter content will appear after optimization or manual generation.</div>
+              <div class="row" style="gap:8px;">
+                <button id="btn-generate-cv" class="btn btn-primary" type="button" data-action="generateCoverLetter" disabled><i data-lucide="file-signature" style="width:16px;height:16px;"></i> Generate Cover Letter</button>
+                <span id="cv-status" class="status-text" aria-live="polite"></span>
+              </div>
+              <div class="empty-state">Cover letter content will appear after generation.</div>
               <div>
                 <label class="field-label" for="cv-opening">Opening note</label>
                 <textarea id="cv-opening" class="textarea" placeholder="Opening paragraph…"></textarea>
@@ -881,6 +900,11 @@
                   <label><input type="checkbox" data-plan-section="value"> Executive Value</label>
                 </div>
               </div>
+              <div class="row" style="gap:8px;">
+                <button id="btn-generate-plan" class="btn btn-primary" type="button" data-action="generateRolePlan" disabled><i data-lucide="map" style="width:16px;height:16px;"></i> Generate Role Plan</button>
+                <span id="plan-status" class="status-text" aria-live="polite"></span>
+              </div>
+              <div id="role-plan-output" class="stack"></div>
             </div>
           </div>
         </div>
@@ -1271,7 +1295,17 @@
     extractionStatus: 'idle',
     extractionEndpoint: null,
     extractionLastError: null,
-    extractionLastFile: null
+    extractionLastFile: null,
+    targetRole: { job_title: '', company: '', job_description: '', plan_context: '', linkedin_url: '' },
+    roleResearch: null,
+    coverLetter: null,
+    rolePlan: null,
+    _roleResearchInFlight: false,
+    _roleResearchHash: null,
+    _roleResearchTimer: null,
+    _cvInFlight: false,
+    _planInFlight: false,
+    _aiLastError: null
   };
   var RB_STATE = window.RB_STATE;
   var _extractionInFlight = false;
@@ -1844,6 +1878,7 @@
     setExtractionStatus('success', 'Resume details imported. Review your information below.');
     showToast('Resume imported', 'success');
     openAccordion('acc-personal-work');
+    try { updateAIReadinessUI(); maybeAutoRunRoleResearch('resume-extracted'); } catch (_) {}
   }
 
   function runResumeExtractionFromFile(file) {
@@ -1920,6 +1955,40 @@
     });
   }
 
+  window.debugAIFlowState = function () {
+    getTargetRoleFromDOM();
+    return {
+      apiBase: API_BASE,
+      builderApiBase: BUILDER_API_BASE,
+      resumeReady: hasResumeReady(),
+      targetRoleReady: hasTargetRoleReady(),
+      targetRole: Object.assign({}, RB_STATE.targetRole),
+      fingerprint: roleResearchFingerprint(),
+      lastResearchHash: RB_STATE._roleResearchHash,
+      roleResearchPresent: !!RB_STATE.roleResearch,
+      roleResearchKeys: RB_STATE.roleResearch ? Object.keys(RB_STATE.roleResearch) : [],
+      coverLetterPresent: !!RB_STATE.coverLetter,
+      rolePlanPresent: !!RB_STATE.rolePlan,
+      rolePlanType: RB_STATE.rolePlan ? (RB_STATE.rolePlan.days90 ? '90d' : (RB_STATE.rolePlan.months12 ? '12m' : (RB_STATE.rolePlan.years2 ? '2y' : null))) : null,
+      inFlight: {
+        research: !!RB_STATE._roleResearchInFlight,
+        cv: !!RB_STATE._cvInFlight,
+        plan: !!RB_STATE._planInFlight
+      },
+      lastError: RB_STATE._aiLastError || null,
+      placeholders: {
+        importLinkedInJob:   String(window.importLinkedInJob   || '').indexOf('notImplemented(') !== -1,
+        generateCoverLetter: String(window.generateCoverLetter || '').indexOf('notImplemented(') !== -1,
+        generateRolePlan:    String(window.generateRolePlan    || '').indexOf('notImplemented(') !== -1,
+        optimizeForJob:      String(window.optimizeForJob      || '').indexOf('notImplemented(') !== -1,
+        renderPreview:       String(window.renderPreview       || '').indexOf('notImplemented(') !== -1,
+        downloadSelectedPackage: String(window.downloadSelectedPackage || '').indexOf('notImplemented(') !== -1,
+        publishShareLink:    String(window.publishShareLink    || '').indexOf('notImplemented(') !== -1,
+        saveDraft:           String(window.saveDraft           || '').indexOf('notImplemented(') !== -1
+      }
+    };
+  };
+
   window.debugResumeExtractionState = function () {
     var rd = RB_STATE && RB_STATE.resumeData;
     var skillsTextEl = document.getElementById('skills-text');
@@ -1969,6 +2038,244 @@
   };
 
   // ============================================================
+  // Layer 6 — AI Readiness, Auto Role Research, CV / Plan helpers
+  // ============================================================
+  function getTargetRoleFromDOM() {
+    var get = function (id) { var el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
+    RB_STATE.targetRole.job_title       = get('job-title');
+    RB_STATE.targetRole.company         = get('company');
+    RB_STATE.targetRole.job_description = get('job-desc');
+    RB_STATE.targetRole.plan_context    = get('plan-context');
+    RB_STATE.targetRole.linkedin_url    = get('linkedin-job-url');
+    return RB_STATE.targetRole;
+  }
+  function hasResumeReady() {
+    var rd = RB_STATE.resumeData;
+    return !!(rd && Array.isArray(rd.experience) && rd.experience.length > 0);
+  }
+  function hasTargetRoleReady() {
+    getTargetRoleFromDOM();
+    var t = RB_STATE.targetRole;
+    var titleOk = !!(t.job_title && t.job_title.length >= 2);
+    var ctxOk = (t.company && t.company.length >= 2) || (t.job_description && t.job_description.length >= 30);
+    return titleOk && !!ctxOk;
+  }
+  function roleResearchFingerprint() {
+    var t = RB_STATE.targetRole;
+    var s = ((t.job_title || '') + '|' + (t.company || '') + '|' + (t.job_description || '')).toLowerCase();
+    s = s.replace(/\s+/g, ' ').trim();
+    var h = 0; for (var i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
+    return String(h) + ':' + s.length;
+  }
+  function updateAIReadinessUI() {
+    var pillsEl = document.getElementById('ai-readiness-pills');
+    var rOk = hasResumeReady();
+    var tOk = hasTargetRoleReady();
+    if (pillsEl) {
+      pillsEl.innerHTML =
+        '<span class="pill ' + (rOk ? 'pill-ok' : 'pill-warn') + '">Resume ' + (rOk ? 'ready \u2713' : 'missing \u2717') + '</span>' +
+        '<span class="pill ' + (tOk ? 'pill-ok' : 'pill-warn') + '">Target role ' + (tOk ? 'ready \u2713' : 'incomplete \u2717') + '</span>' +
+        '<span class="pill ' + (RB_STATE.roleResearch ? 'pill-ok' : 'pill-warn') + '">Research ' + (RB_STATE.roleResearch ? 'ready \u2713' : 'pending') + '</span>';
+    }
+    var canResearch = rOk && tOk && !RB_STATE._roleResearchInFlight;
+    var canCv = rOk && tOk && !RB_STATE._cvInFlight;
+    var canPlan = rOk && tOk && !RB_STATE._planInFlight;
+    var rb = document.getElementById('btn-role-research'); if (rb) rb.disabled = !canResearch;
+    var cb = document.getElementById('btn-generate-cv'); if (cb) cb.disabled = !canCv;
+    var pb = document.getElementById('btn-generate-plan'); if (pb) pb.disabled = !canPlan;
+  }
+  function renderRoleResearchSummary() {
+    var el = document.getElementById('role-research-summary');
+    if (!el) return;
+    var rr = RB_STATE.roleResearch;
+    if (!rr) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    function listBlock(label, arr) {
+      if (!Array.isArray(arr) || !arr.length) return '';
+      var items = arr.slice(0, 12).map(function (s) { return '<li>' + escapeHtml(String(s)) + '</li>'; }).join('');
+      return '<div><strong>' + label + '</strong><ul style="margin:4px 0 8px 18px;">' + items + '</ul></div>';
+    }
+    function escapeHtml(s) { return s.replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+    var html = '<strong>Role Research</strong>';
+    html += listBlock('Responsibilities', rr.responsibilities);
+    html += listBlock('Critical skills', rr.critical_skills || rr.skills);
+    html += listBlock('Keywords', rr.keywords);
+    if (rr.company_context) html += '<div><strong>Company context</strong><div>' + escapeHtml(String(rr.company_context)) + '</div></div>';
+    el.innerHTML = html;
+    el.style.display = '';
+  }
+  function runRoleResearch(opts) {
+    opts = opts || {};
+    if (!requireAuth()) return;
+    if (!hasResumeReady() || !hasTargetRoleReady()) {
+      if (!opts.auto) showToast('Need resume + target role first.', 'warning');
+      return;
+    }
+    if (RB_STATE._roleResearchInFlight) return;
+    getTargetRoleFromDOM();
+    var fp = roleResearchFingerprint();
+    if (!opts.force && fp === RB_STATE._roleResearchHash && RB_STATE.roleResearch) return;
+    RB_STATE._roleResearchInFlight = true;
+    var statusEl = document.getElementById('role-research-status');
+    if (statusEl) statusEl.textContent = 'Researching role\u2026';
+    updateAIReadinessUI();
+    getAuthHeaders().then(function (headers) {
+      headers['Content-Type'] = 'application/json';
+      return fetch(BUILDER_API_BASE + '/builder/research-role', {
+        method: 'POST', headers: headers,
+        body: JSON.stringify({
+          job_title: RB_STATE.targetRole.job_title,
+          company: RB_STATE.targetRole.company,
+          job_description: RB_STATE.targetRole.job_description
+        })
+      });
+    }).then(function (resp) {
+      return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
+    }).then(function (r) {
+      if (!r.ok) throw new Error((r.body && (r.body.error || r.body.message)) || ('Research failed (' + r.status + ').'));
+      var rr = (r.body && (r.body.role_research || r.body.research || r.body)) || null;
+      RB_STATE.roleResearch = rr;
+      RB_STATE._roleResearchHash = fp;
+      renderRoleResearchSummary();
+      if (statusEl) statusEl.textContent = 'Role research updated.';
+      if (!opts.auto) showToast('Role research updated.', 'success');
+    }).catch(function (err) {
+      var msg = 'Research error: ' + (err && err.message || err);
+      RB_STATE._aiLastError = msg;
+      if (statusEl) statusEl.textContent = msg;
+      if (!opts.auto) showToast(msg, 'error');
+    }).then(function () {
+      RB_STATE._roleResearchInFlight = false;
+      updateAIReadinessUI();
+    });
+  }
+  function maybeAutoRunRoleResearch(reason) {
+    if (RB_STATE._roleResearchTimer) { clearTimeout(RB_STATE._roleResearchTimer); }
+    RB_STATE._roleResearchTimer = setTimeout(function () {
+      RB_STATE._roleResearchTimer = null;
+      if (!hasResumeReady() || !hasTargetRoleReady()) return;
+      var fp = roleResearchFingerprint();
+      if (fp === RB_STATE._roleResearchHash) return;
+      runRoleResearch({ auto: true, _reason: reason || 'auto' });
+    }, 1500);
+  }
+  function _wireTargetRoleAutoResearch() {
+    if (window._wired_targetRoleAuto) return;
+    ['job-title','company','job-desc'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', function () { getTargetRoleFromDOM(); updateAIReadinessUI(); maybeAutoRunRoleResearch('input:' + id); });
+      el.addEventListener('blur',  function () { getTargetRoleFromDOM(); updateAIReadinessUI(); maybeAutoRunRoleResearch('blur:' + id); });
+    });
+    var planCtx = document.getElementById('plan-context');
+    if (planCtx) planCtx.addEventListener('input', function () { getTargetRoleFromDOM(); });
+    var lkUrl = document.getElementById('linkedin-job-url');
+    if (lkUrl) lkUrl.addEventListener('input', function () { getTargetRoleFromDOM(); });
+    window._wired_targetRoleAuto = true;
+  }
+
+  // ----- Plan helpers -----
+  function getSelectedPlanType() {
+    var nodes = document.querySelectorAll('input[name="plan-type"]');
+    for (var i = 0; i < nodes.length; i++) if (nodes[i].checked) return nodes[i].value;
+    return '90d';
+  }
+  function getSelectedPlanSections() {
+    var out = [];
+    document.querySelectorAll('[data-plan-section]').forEach(function (el) {
+      if (el.checked) out.push(el.getAttribute('data-plan-section'));
+    });
+    return out;
+  }
+  function mapPlanTypeForApi(t) {
+    if (t === '12m') return '12-month';
+    if (t === '2y')  return '2-year';
+    return '90-day';
+  }
+  function stripPlanKeysFromResumeData(rd) {
+    if (!rd || typeof rd !== 'object') return rd;
+    var out = {};
+    var drop = { days90:1, months12:1, years2:1, plan_phases:1, success_summary:1, success_criteria:1, kpis:1, horizon:1, plan:1, planSource:1, planGeneratedAt:1, exportSettings:1 };
+    Object.keys(rd).forEach(function (k) { if (!drop[k]) out[k] = rd[k]; });
+    return out;
+  }
+  function normalizeGeneratedPlanResponse(body, planTypeUI) {
+    // Lift wrapper objects: { generated: {...} } / { plan: {...} } / direct.
+    var src = body || {};
+    var g = src.generated || src.plan || src;
+    // Ensure horizon-keyed object exists.
+    var key = planTypeUI === '12m' ? 'months12' : planTypeUI === '2y' ? 'years2' : 'days90';
+    if (!g[key] && (g.phases || g.plan_phases || g.quarters)) {
+      var phases = g.plan_phases || g.phases || g.quarters || [];
+      g[key] = { phases: phases };
+    }
+    if (g[key] && !g[key].phases) {
+      if (Array.isArray(g[key].plan_phases)) g[key].phases = g[key].plan_phases;
+      else if (Array.isArray(g[key].quarters)) g[key].phases = g[key].quarters;
+    }
+    return g;
+  }
+  function validateRequestedPlanShape(plan, planTypeUI) {
+    var errors = [];
+    if (!plan || typeof plan !== 'object') return { ok: false, errors: ['No plan returned.'] };
+    var key = planTypeUI === '12m' ? 'months12' : planTypeUI === '2y' ? 'years2' : 'days90';
+    var bucket = plan[key];
+    if (!bucket || typeof bucket !== 'object') return { ok: false, errors: ['Missing ' + key + ' bucket.'] };
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : [];
+    if (!phases.length) return { ok: false, errors: ['Plan has no phases.'] };
+    var tfs = phases.map(function (p) { return String((p && (p.timeframe || p.label || p.title)) || '').toLowerCase(); });
+
+    if (planTypeUI === '90d') {
+      if (phases.length !== 3) errors.push('90-day plan must have exactly 3 phases (got ' + phases.length + ').');
+      var need = ['1-30','31-60','61-90'];
+      need.forEach(function (n) {
+        if (!tfs.some(function (s) { return s.indexOf(n) !== -1; })) errors.push('90-day missing timeframe ' + n + '.');
+      });
+    } else if (planTypeUI === '12m') {
+      if (phases.length !== 4) errors.push('12-month plan must have exactly 4 quarters (got ' + phases.length + ').');
+      // No months > 12.
+      tfs.forEach(function (s) {
+        var m = s.match(/(\d+)\s*[-\u2013]\s*(\d+)/);
+        if (m) {
+          var hi = parseInt(m[2], 10);
+          if (hi > 12) errors.push('12-month plan contains out-of-range timeframe: ' + s + '.');
+        }
+        if (/13\s*[-\u2013]\s*18|19\s*[-\u2013]\s*24/.test(s)) errors.push('12-month plan contains 13-18/19-24 timeframe: ' + s + '.');
+      });
+    } else if (planTypeUI === '2y') {
+      if (phases.length < 4) errors.push('2-year plan must have at least 4 phases (got ' + phases.length + ').');
+      // Acceptable shapes: 8 quarters OR 4 half-year phases. 1-phase 2-year is rejected by phases<4 above.
+      // Sanity: must mention something beyond month 12.
+      var maxMonth = 0;
+      tfs.forEach(function (s) {
+        var m = s.match(/(\d+)\s*[-\u2013]\s*(\d+)/);
+        if (m) { var hi = parseInt(m[2], 10); if (hi > maxMonth) maxMonth = hi; }
+      });
+      if (maxMonth && maxMonth < 13) errors.push('2-year plan timeframes do not extend past month 12.');
+    }
+    return { ok: errors.length === 0, errors: errors };
+  }
+  function renderRolePlanOutput(plan, planTypeUI) {
+    var el = document.getElementById('role-plan-output');
+    if (!el) return;
+    if (!plan) { el.innerHTML = ''; return; }
+    var key = planTypeUI === '12m' ? 'months12' : planTypeUI === '2y' ? 'years2' : 'days90';
+    var bucket = plan[key] || {};
+    var phases = bucket.phases || [];
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+    var rows = phases.map(function (p, i) {
+      var tf = (p && (p.timeframe || p.label || p.title)) || ('Phase ' + (i + 1));
+      var goals = Array.isArray(p && p.goals) ? p.goals : (Array.isArray(p && p.objectives) ? p.objectives : []);
+      var bullets = goals.slice(0, 6).map(function (g) {
+        var t = (g && (g.title || g.goal || g.text || g.description || g)) || '';
+        return '<li>' + esc(t) + '</li>';
+      }).join('');
+      return '<div class="glass" style="padding:10px;border-radius:8px;margin-top:8px;"><strong>' + esc(tf) + '</strong>' +
+             (bullets ? '<ul style="margin:6px 0 0 18px;">' + bullets + '</ul>' : '<div class="status-text">(no goals)</div>') + '</div>';
+    }).join('');
+    el.innerHTML = '<div class="status-text">' + phases.length + ' phase(s) generated for ' + esc(planTypeUI) + '.</div>' + rows;
+  }
+
+  // ============================================================
   // Placeholder app surface — no real workflow logic
   // ============================================================
   function notImplemented(name) {
@@ -1990,10 +2297,163 @@
     if (!text) { showToast('Upload a resume file or paste resume text first.', 'warning'); return; }
     runResumeExtractionFromText(text);
   }
-  function importLinkedInJob()      { if (!requireAuth()) return; notImplemented('importLinkedInJob'); }
+  function importLinkedInJob() {
+    if (!requireAuth()) return;
+    var urlInput = document.getElementById('linkedin-job-url');
+    var statusEl = document.getElementById('linkedin-job-status');
+    var url = (urlInput && urlInput.value || '').trim();
+    if (!url) { if (statusEl) statusEl.textContent = 'Paste a LinkedIn job URL first.'; showToast('Paste a LinkedIn job URL first.', 'warning'); return; }
+    if (!/linkedin\.com\/(jobs|job)/i.test(url)) { if (statusEl) statusEl.textContent = 'That does not look like a LinkedIn job URL.'; showToast('Invalid LinkedIn job URL.', 'warning'); return; }
+    if (statusEl) statusEl.textContent = 'Fetching job details…';
+    getAuthHeaders().then(function (headers) {
+      headers['Content-Type'] = 'application/json';
+      return fetch(BUILDER_API_BASE + '/builder/import-linkedin-job', {
+        method: 'POST', headers: headers, body: JSON.stringify({ url: url })
+      });
+    }).then(function (resp) {
+      return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
+    }).then(function (r) {
+      if (!r.ok) {
+        var msg = (r.body && (r.body.error || r.body.message)) || ('Import failed (' + r.status + ').');
+        if (statusEl) statusEl.textContent = msg;
+        showToast(msg, 'error');
+        return;
+      }
+      var d = r.body || {};
+      var title = d.job_title || d.title || '';
+      var company = d.company || d.company_name || '';
+      var desc = d.job_description || d.description || '';
+      var ti = document.getElementById('job-title'); if (ti && title) ti.value = title;
+      var co = document.getElementById('company'); if (co && company) co.value = company;
+      var jd = document.getElementById('job-desc'); if (jd && desc) jd.value = desc;
+      RB_STATE.targetRole.job_title = title || RB_STATE.targetRole.job_title;
+      RB_STATE.targetRole.company = company || RB_STATE.targetRole.company;
+      RB_STATE.targetRole.job_description = desc || RB_STATE.targetRole.job_description;
+      RB_STATE.targetRole.linkedin_url = url;
+      if (statusEl) statusEl.textContent = 'Imported.';
+      showToast('LinkedIn job imported.', 'success');
+      updateAIReadinessUI();
+      maybeAutoRunRoleResearch('linkedin-import');
+    }).catch(function (err) {
+      var msg = 'LinkedIn import error: ' + (err && err.message || err);
+      if (statusEl) statusEl.textContent = msg;
+      RB_STATE._aiLastError = msg;
+      showToast(msg, 'error');
+    });
+  }
   function optimizeForJob()         { if (!requireAuth()) return; notImplemented('optimizeForJob'); }
-  function generateCoverLetter()    { if (!requireAuth()) return; notImplemented('generateCoverLetter'); }
-  function generateRolePlan()       { if (!requireAuth()) return; notImplemented('generateRolePlan'); }
+  function generateCoverLetter() {
+    if (!requireAuth()) return;
+    if (!hasResumeReady()) { showToast('Upload and parse a resume first.', 'warning'); return; }
+    if (!hasTargetRoleReady()) { showToast('Fill in Target Role first.', 'warning'); return; }
+    if (RB_STATE._cvInFlight) return;
+    var btn = document.getElementById('btn-generate-cv');
+    var statusEl = document.getElementById('cv-status');
+    RB_STATE._cvInFlight = true;
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Generating cover letter…';
+    getTargetRoleFromDOM();
+    var u = auth && auth.currentUser;
+    var profile = u ? { name: u.displayName || '', email: u.email || '' } : {};
+    getAuthHeaders().then(function (headers) {
+      headers['Content-Type'] = 'application/json';
+      return fetch(BUILDER_API_BASE + '/builder/generate-cv', {
+        method: 'POST', headers: headers,
+        body: JSON.stringify({
+          profile: profile,
+          resume_data: RB_STATE.resumeData || {},
+          targetRole: RB_STATE.targetRole,
+          role_research: RB_STATE.roleResearch || null
+        })
+      });
+    }).then(function (resp) {
+      return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
+    }).then(function (r) {
+      if (!r.ok) throw new Error((r.body && (r.body.error || r.body.message)) || ('CV failed (' + r.status + ').'));
+      var cv = (r.body && (r.body.cover_letter || r.body.cv || r.body)) || {};
+      var opening = cv.opening || '';
+      var body = cv.body;
+      var closing = cv.closing || '';
+      var alignment = '';
+      if (Array.isArray(body)) alignment = body.join('\n\n');
+      else if (typeof body === 'string') alignment = body;
+      var op = document.getElementById('cv-opening'); if (op) op.value = opening;
+      var al = document.getElementById('cv-alignment'); if (al) al.value = alignment;
+      var cl = document.getElementById('cv-closing'); if (cl) cl.value = closing;
+      RB_STATE.coverLetter = cv;
+      if (statusEl) statusEl.textContent = 'Cover letter generated.';
+      showToast('Cover letter generated.', 'success');
+    }).catch(function (err) {
+      var msg = 'Cover letter error: ' + (err && err.message || err);
+      RB_STATE._aiLastError = msg;
+      if (statusEl) statusEl.textContent = msg;
+      showToast(msg, 'error');
+    }).then(function () {
+      RB_STATE._cvInFlight = false;
+      if (btn) btn.disabled = false;
+      updateAIReadinessUI();
+    });
+  }
+  function generateRolePlan() {
+    if (!requireAuth()) return;
+    if (!hasResumeReady()) { showToast('Upload and parse a resume first.', 'warning'); return; }
+    if (!hasTargetRoleReady()) { showToast('Fill in Target Role first.', 'warning'); return; }
+    if (RB_STATE._planInFlight) return;
+    var btn = document.getElementById('btn-generate-plan');
+    var statusEl = document.getElementById('plan-status');
+    var planTypeUI = getSelectedPlanType();           // '90d' | '12m' | '2y'
+    var planTypeApi = mapPlanTypeForApi(planTypeUI);  // '90-day' | '12-month' | '2-year'
+    var sections = getSelectedPlanSections();
+    RB_STATE._planInFlight = true;
+    if (btn) btn.disabled = true;
+    if (statusEl) statusEl.textContent = 'Generating ' + planTypeApi + ' plan…';
+    getTargetRoleFromDOM();
+    var payload = {
+      resume_data: stripPlanKeysFromResumeData(RB_STATE.resumeData || {}),
+      role_context: RB_STATE.roleResearch || RB_STATE.targetRole,
+      targetRole: RB_STATE.targetRole,
+      job_description: RB_STATE.targetRole.job_description,
+      plan_context: RB_STATE.targetRole.plan_context,
+      plan_type: planTypeApi,
+      sections: sections,
+      requireDetailedPlan: true
+    };
+    getAuthHeaders().then(function (headers) {
+      headers['Content-Type'] = 'application/json';
+      return fetch(BUILDER_API_BASE + '/builder/generate', {
+        method: 'POST', headers: headers, body: JSON.stringify(payload)
+      });
+    }).then(function (resp) {
+      return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
+    }).then(function (r) {
+      if (!r.ok) throw new Error((r.body && (r.body.error || r.body.message)) || ('Plan failed (' + r.status + ').'));
+      var generated = normalizeGeneratedPlanResponse(r.body, planTypeUI);
+      var v = validateRequestedPlanShape(generated, planTypeUI);
+      if (!v.ok) {
+        // Do not store invalid plan.
+        RB_STATE.rolePlan = null;
+        renderRolePlanOutput(null, planTypeUI);
+        var emsg = 'Plan rejected: ' + v.errors.join('; ');
+        RB_STATE._aiLastError = emsg;
+        if (statusEl) statusEl.textContent = emsg;
+        showToast('Plan validation failed. Try again.', 'error');
+        return;
+      }
+      RB_STATE.rolePlan = generated;
+      renderRolePlanOutput(generated, planTypeUI);
+      if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
+      showToast('Role plan generated.', 'success');
+    }).catch(function (err) {
+      var msg = 'Plan error: ' + (err && err.message || err);
+      RB_STATE._aiLastError = msg;
+      if (statusEl) statusEl.textContent = msg;
+      showToast(msg, 'error');
+    }).then(function () {
+      RB_STATE._planInFlight = false;
+      if (btn) btn.disabled = false;
+      updateAIReadinessUI();
+    });
+  }
   function renderPreview()          { notImplemented('renderPreview'); }
   function downloadSelectedPackage(){ if (!requireAuth()) return; notImplemented('downloadSelectedPackage'); }
   function saveDraft()              { if (!requireAuth()) return; notImplemented('saveDraft'); }
@@ -2013,6 +2473,9 @@
     parseResumeText: parseResumeText,
     importLinkedInJob: importLinkedInJob,
     optimizeForJob: optimizeForJob,
+    runRoleResearch: function () { runRoleResearch({ force: true }); },
+    generateCoverLetter: generateCoverLetter,
+    generateRolePlan: generateRolePlan,
     downloadSelectedPackage: downloadSelectedPackage,
     saveDraft: saveDraft,
     publishShareLink: publishShareLink,
@@ -2060,6 +2523,8 @@
     initStyleAndSwatches();
     initSkillsPillEditor();
     _wireResumeEditBack();
+    _wireTargetRoleAutoResearch();
+    updateAIReadinessUI();
 
     // Render Lucide icons
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -2101,8 +2566,9 @@
       'acc-import-resume','resume-upload','resume-file-input','resume-text','parse-resume-btn',
       'acc-personal-work','personal-work-shell',
       'acc-target-role','job-title','company','job-desc','plan-context','import-linkedin-btn',
-      'acc-role-cv','role-cv-shell',
-      'acc-role-plan','role-plan-shell',
+      'linkedin-job-url','btn-linkedin-job','linkedin-job-status','ai-readiness-card','ai-readiness-pills','btn-role-research','role-research-summary','role-research-status',
+      'acc-role-cv','role-cv-shell','btn-generate-cv','cv-status',
+      'acc-role-plan','role-plan-shell','btn-generate-plan','plan-status','role-plan-output',
       'optimize-run-section','optimize-btn','optimize-status',
       'acc-select-documents','include-resume','include-cv','include-plan',
       'acc-page-style','export-style',
@@ -2171,6 +2637,21 @@
     parseResumeText: parseResumeText,
     importLinkedInJob: importLinkedInJob,
     optimizeForJob: optimizeForJob,
+    runRoleResearch: runRoleResearch,
+    maybeAutoRunRoleResearch: maybeAutoRunRoleResearch,
+    getTargetRoleFromDOM: getTargetRoleFromDOM,
+    hasResumeReady: hasResumeReady,
+    hasTargetRoleReady: hasTargetRoleReady,
+    roleResearchFingerprint: roleResearchFingerprint,
+    updateAIReadinessUI: updateAIReadinessUI,
+    renderRoleResearchSummary: renderRoleResearchSummary,
+    getSelectedPlanType: getSelectedPlanType,
+    getSelectedPlanSections: getSelectedPlanSections,
+    mapPlanTypeForApi: mapPlanTypeForApi,
+    stripPlanKeysFromResumeData: stripPlanKeysFromResumeData,
+    normalizeGeneratedPlanResponse: normalizeGeneratedPlanResponse,
+    validateRequestedPlanShape: validateRequestedPlanShape,
+    renderRolePlanOutput: renderRolePlanOutput,
     generateCoverLetter: generateCoverLetter,
     generateRolePlan: generateRolePlan,
     renderPreview: renderPreview,
