@@ -1,8 +1,7 @@
 <!DOCTYPE html>
-<html>
-<head>
-
-  <script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
     // ================= AUTHORITATIVE RESUME MATCH SCORE READER (2026-04-28) =================
     function readVisibleResumeMatchScore() {
       const selectors = [
@@ -82,8 +81,21 @@
         }))
       };
     };
-  </script>
 
+    // ================= RESUME PAYLOAD SANITIZER (FRONTEND, 2026-04-28) =================
+    // Mirror of backend stripPlanKeysFromResumeData. Strips plan-shaped keys from
+    // resume_data before sending to /builder/optimize and /builder/generate.
+    const __RB_PLAN_KEYS = ['days90','months12','years2','plan_phases','success_summary','success_criteria','kpis','horizon','plan','planSource','planGeneratedAt','exportSettings'];
+    function stripPlanKeysFromResumeData(input) {
+      if (!input || typeof input !== 'object') return input || {};
+      let src;
+      try { src = (typeof structuredClone === 'function') ? structuredClone(input) : JSON.parse(JSON.stringify(input)); }
+      catch (_) { src = Object.assign({}, input); }
+      __RB_PLAN_KEYS.forEach(k => { try { delete src[k]; } catch(_){} });
+      return src;
+    }
+    try { window.stripPlanKeysFromResumeData = stripPlanKeysFromResumeData; } catch(_){}
+</script>
 <script>
 // ================= PLAN RESPONSE NORMALIZATION HELPERS (2026-04-28) =================
 function normalizePlanTypeValue(type) {
@@ -213,9 +225,7 @@ try {
   window.validateRequestedPlanShape = validateRequestedPlanShape;
 } catch (_) {}
 </script>
-<!DOCTYPE html>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <script>
 /* Forward uncaught JS errors and unhandled promise rejections to the
    Android wrapper for logcat / Play Console visibility. Safe in a normal
@@ -7526,6 +7536,16 @@ async function optimizeForJob() {
     }
 
     const baseline = __deepCloneResume(optimizeResume);
+    // PATCH (2026-04-28): snapshot the authoritative resume match score BEFORE
+    // the optimize call so we can gate commit on finalScore >= baselineScore.
+    // Per-change delta_score is advisory only; the only commit rule is the
+    // final visible score relative to baseline.
+    const __optBaselineScore = (typeof getAuthoritativeResumeMatchScore === 'function')
+      ? getAuthoritativeResumeMatchScore()
+      : null;
+    const __optBaselineAnalysisCache = (analysisCache && typeof analysisCache === 'object')
+      ? (typeof structuredClone === 'function' ? structuredClone(analysisCache) : JSON.parse(JSON.stringify(analysisCache)))
+      : null;
     const _cvContext = {};
     try {
       const hmName = document.getElementById('cv-hiring-manager')?.value?.trim() || '';
@@ -7538,7 +7558,12 @@ async function optimizeForJob() {
       if (coNotes) _cvContext.companyNotes = coNotes;
     } catch(_){}
     const _optPayload = {
-      resume_data: optimizeResume,
+      // PATCH (2026-04-28): strip plan-shaped keys from resume_data so plan
+      // contamination (days90/months12/years2/plan_phases/etc.) never leaks
+      // into the optimize prompt. Mirrors backend stripPlanKeysFromResumeData.
+      resume_data: (typeof stripPlanKeysFromResumeData === 'function')
+        ? stripPlanKeysFromResumeData(optimizeResume)
+        : optimizeResume,
       job_description: jd,
       job_title: jobTitle,
       company: company,
@@ -7868,6 +7893,81 @@ async function optimizeForJob() {
       else if (typeof updatePreview === 'function') { updatePreview(); }
     } catch(_){}
 
+    // ============================================================
+    // PATCH (2026-04-28): TRANSACTIONAL OPTIMIZE COMMIT GATE
+    // ============================================================
+    // Sole commit rule: finalScore >= baselineScore. Per-change delta_score
+    // is advisory only. If the final settled score is lower than baseline,
+    // restore the original resume, clear the optimization session, roll back
+    // analysisCache scores, clear any score-delta UI, and show the neutral
+    // "Optimization not applied" modal. No save, no db write, no success modal.
+    try {
+      const __finalScore = (typeof waitForResumeScoreToSettle === 'function')
+        ? await waitForResumeScoreToSettle({ timeoutMs: 12000, stableMs: 1500, intervalMs: 250 })
+        : (typeof getAuthoritativeResumeMatchScore === 'function' ? getAuthoritativeResumeMatchScore() : null);
+      const __baseline = Number(__optBaselineScore);
+      const __final = Number(__finalScore);
+      const __regressed = Number.isFinite(__baseline) && Number.isFinite(__final) && __final < __baseline;
+      window.__lastOptimizeGate = { baselineScore: __baseline, finalScore: __final, regressed: __regressed, at: Date.now() };
+      if (__regressed) {
+        console.warn('[optimize][gate] REGRESSION DETECTED — restoring baseline', { baselineScore: __baseline, finalScore: __final });
+        // Restore resume snapshot
+        try {
+          if (typeof setCurrentResume === 'function') setCurrentResume(baseline);
+          else setGeneratedResume(baseline);
+        } catch(e) { console.warn('[optimize][gate] restore setCurrentResume failed:', e); }
+        // Roll back analysisCache scores to baseline so UI doesn't keep showing 73
+        try {
+          if (__optBaselineAnalysisCache) {
+            analysisCache = __optBaselineAnalysisCache;
+          } else if (analysisCache && typeof analysisCache === 'object') {
+            analysisCache.resume_match_score = __baseline;
+            analysisCache.overall_score = __baseline;
+            delete analysisCache.original_score;
+          }
+          if (typeof setCurrentAnalysis === 'function') setCurrentAnalysis(analysisCache || {});
+        } catch(_){}
+        // Clear optimization session entirely (no commit, no kept changes)
+        STATE.optimizationSession = null;
+        // Clear score-delta UI text/classes so user does not keep seeing "Decreased from X to Y"
+        try {
+          const _msVal = document.getElementById('rp-match-value');
+          const _msOrig = document.getElementById('rp-match-original');
+          const _msOrigVal = document.getElementById('rp-match-original-value');
+          const _revertWrap = document.getElementById('rp-revert-wrap');
+          if (_msVal) {
+            _msVal.textContent = Number.isFinite(__baseline) ? String(__baseline) : '';
+            _msVal.style.color = '';
+            _msVal.classList.remove('score-delta-down', 'score-delta-up', 'score-decreased', 'score-increased');
+          }
+          if (_msOrig) _msOrig.style.display = 'none';
+          if (_msOrigVal) _msOrigVal.textContent = '';
+          if (_revertWrap) _revertWrap.style.display = 'none';
+          // Generic delta selectors
+          document.querySelectorAll('.score-delta, [data-score-delta], .score-change, .score-decrease, .score-decreased').forEach(el => {
+            try { el.textContent = ''; el.classList.remove('score-decreased','score-increased','score-delta-up','score-delta-down'); el.style.display = 'none'; } catch(_){}
+          });
+        } catch(_){}
+        // Re-render preview with restored resume
+        try {
+          if (typeof generateAndRenderPreview === 'function') generateAndRenderPreview();
+          else if (typeof renderPreview === 'function') renderPreview(STATE.generated);
+          else if (typeof updatePreview === 'function') updatePreview();
+        } catch(_){}
+        // Decision (Further Considerations): do NOT auto-open Insights drawer on rejection.
+        try { STATE._drawerAutoOpenedThisSession = true; } catch(_){}
+        hideOptimizeProgress();
+        if (typeof showOptimizeRejected === 'function') {
+          showOptimizeRejected({ baselineScore: __baseline, finalScore: __final });
+        } else {
+          try { showToast(`Optimization was not applied because the final score decreased from ${__baseline} to ${__final}. Your original resume was kept.`); } catch(_){}
+        }
+        return;
+      }
+    } catch (gateErr) {
+      console.warn('[optimize][gate] gate error (continuing as if accepted):', gateErr);
+    }
+
     // Pass needsReanalysis:false so markDirty doesn't wipe the analysisCache we just populated
     try { markDirty({ needsReanalysis: false }); } catch(_){}
 
@@ -7960,8 +8060,71 @@ function humanizeFieldPath(fieldPath) {
   return formatAppliedChangePath(fieldPath);
 }
 
+// ============================================================
+// PATCH (2026-04-28): SHOW OPTIMIZE REJECTED (regression modal)
+// ============================================================
+// Renders the neutral "Optimization not applied" modal when the final
+// settled resume match score is lower than the baseline. No "Keep changes"
+// button, no success copy. Optional collapsed "Review suggestions that
+// were not applied" accordion only if rejected suggestions were stashed.
+function showOptimizeRejected({ baselineScore, finalScore } = {}) {
+  try { STATE._optimizeApplied = false; } catch(_){}
+  try { STATE._optimizeAppliedAt = null; } catch(_){}
+  let d = document.getElementById('optimize-result-drawer');
+  if (d) d.remove();
+  d = document.createElement('div');
+  d.id = 'optimize-result-drawer';
+  d.style.cssText = 'position:fixed;inset:0;z-index:10040;background:rgba(15,23,42,0.55);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);animation:fadeIn .18s ease-out';
+  const _b = Number.isFinite(Number(baselineScore)) ? Number(baselineScore) : '—';
+  const _f = Number.isFinite(Number(finalScore)) ? Number(finalScore) : '—';
+  d.innerHTML = '\
+    <div style="width:100%;max-width:520px;background:#fff;border-radius:18px;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 25px 80px -10px rgba(15,23,42,0.45),0 0 0 1px rgba(255,255,255,0.08);animation:modalPopIn .22s cubic-bezier(.2,.9,.3,1.2)">\
+      <div style="padding:18px 22px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #F1F5F9">\
+        <div style="width:34px;height:34px;border-radius:10px;background:#F1F5F9;display:flex;align-items:center;justify-content:center"><i data-lucide="info" style="width:18px;height:18px;color:#64748B"></i></div>\
+        <div style="flex:1">\
+          <div style="font-size:1rem;font-weight:800;color:#0F172A;letter-spacing:-.01em">Optimization not applied</div>\
+          <div style="font-size:0.72rem;color:#64748B;margin-top:2px">Your original resume was kept</div>\
+        </div>\
+        <button onclick="closeOptimizeResult()" style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;width:32px;height:32px;cursor:pointer;color:#64748B;display:flex;align-items:center;justify-content:center" aria-label="Close"><i data-lucide="x" style="width:16px;height:16px"></i></button>\
+      </div>\
+      <div style="padding:18px 22px;overflow-y:auto;flex:1">\
+        <div style="padding:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;margin-bottom:14px">\
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">\
+            <span style="font-size:1.8rem;font-weight:900;color:#0F172A;line-height:1">'+_b+'</span>\
+            <span style="font-size:1rem;color:#94A3B8">&rarr;</span>\
+            <span style="font-size:1.8rem;font-weight:900;color:#64748B;line-height:1">'+_f+'</span>\
+          </div>\
+          <p style="font-size:0.85rem;color:#334155;margin:12px 0 0;line-height:1.55">Optimization was not applied because the final score decreased from <strong>'+_b+'</strong> to <strong>'+_f+'</strong>. Your original resume was kept.</p>\
+        </div>\
+        <p style="font-size:0.78rem;color:#64748B;margin:0 0 16px;line-height:1.5">You can adjust the job description, refine your bullets manually, or try optimizing again later.</p>\
+        <div style="display:flex;gap:8px">\
+          <button onclick="closeOptimizeResult()" style="flex:1;padding:12px;border-radius:10px;border:none;background:#0F172A;color:#fff;font-size:0.86rem;font-weight:700;cursor:pointer;font-family:inherit">Got it</button>\
+        </div>\
+      </div>\
+    </div>';
+  document.body.appendChild(d);
+  try { lucide.createIcons({attrs:{class:'lucide'},nameAttr:'data-lucide'}); } catch(_){}
+}
+try { window.showOptimizeRejected = showOptimizeRejected; } catch(_){}
+
 function showOptimizeResult(s) {
   if (!s) return;
+  // PATCH (2026-04-28): defensive guard — if the session somehow reached
+  // here with a regression (improvedScore < originalScore), do NOT render
+  // the success modal. Render the neutral rejection modal instead. The
+  // primary commit gate inside optimizeForJob should already have handled
+  // this and returned early; this is belt-and-suspenders.
+  try {
+    const _o = Number(s.originalScore);
+    const _i = Number(s.improvedScore);
+    if (Number.isFinite(_o) && Number.isFinite(_i) && _i < _o) {
+      console.warn('[showOptimizeResult] regression detected — routing to showOptimizeRejected', { originalScore: _o, improvedScore: _i });
+      if (typeof showOptimizeRejected === 'function') {
+        showOptimizeRejected({ baselineScore: _o, finalScore: _i });
+        return;
+      }
+    }
+  } catch(_){}
   try { STATE._optimizeApplied = true; } catch(_){}
   try { STATE._optimizeAppliedAt = Date.now(); } catch(_){}
   let d = document.getElementById('optimize-result-drawer');
@@ -16038,7 +16201,7 @@ async function generatePlan() {
     const res = await fetch(API_BASE + '/builder/generate', {
       method: 'POST',
       headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ resume_data: STATE.resumeData, role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections, job_description: document.getElementById('job-desc').value.trim(), plan_context: document.getElementById('plan-context').value.trim(), additional_details: (document.getElementById('additional-resume-details')?.value || '').trim(), editing_plan_id: currentPlanId || '' })
+      body: JSON.stringify({ resume_data: (typeof stripPlanKeysFromResumeData === 'function' ? stripPlanKeysFromResumeData(STATE.resumeData) : STATE.resumeData), role_context: STATE.roleResearch, plan_type: STATE.planType, sections: STATE.sections, job_description: document.getElementById('job-desc').value.trim(), plan_context: document.getElementById('plan-context').value.trim(), additional_details: (document.getElementById('additional-resume-details')?.value || '').trim(), editing_plan_id: currentPlanId || '' })
     });
     await handleBuilderResponse(res);
     const data = await res.json();
@@ -16118,7 +16281,7 @@ async function generatePlanIntoActiveVersion(options) {
     );
     const headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
     const payload = {
-      resume_data: STATE.resumeData,
+      resume_data: (typeof stripPlanKeysFromResumeData === 'function' ? stripPlanKeysFromResumeData(STATE.resumeData) : STATE.resumeData),
       role_context: STATE.roleResearch,
       plan_type: requestedPlanType,
       planType: requestedPlanType,
