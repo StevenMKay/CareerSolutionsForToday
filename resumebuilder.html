@@ -13520,10 +13520,14 @@ async function parseResume() {
     // when the user clicks Optimize, the analyze portion short-circuits.
     // No extra cost on re-clicks (gated by _prefetchInFlight + cache key).
     try {
-      const _hasRole = !!((document.getElementById('job-title')?.value || '').trim() ||
-                          (document.getElementById('job-desc')?.value || '').trim());
-      if (_hasRole && typeof prefetchAnalysis === 'function') {
-        setTimeout(() => { try { prefetchAnalysis(); } catch(_){} }, 200);
+      if (typeof prefetchAnalysis === 'function') {
+        setTimeout(() => {
+          try {
+            if (typeof canPrefetchAnalysis === 'function' && canPrefetchAnalysis()) {
+              prefetchAnalysis({ silent: true, source: 'resume-extracted-prefetch' });
+            }
+          } catch (_) {}
+        }, 500);
       }
     } catch(_){}
   } catch(e) {
@@ -24980,8 +24984,47 @@ async function triggerEnhancedScoreUpdate() {
 
 // ============ Prefetch Analysis (silent background) ============
 let _prefetchInFlight = false;
-async function prefetchAnalysis() {
-  if (_prefetchInFlight) return;
+// PATCH (2026-04-28): readiness gate for the optional analyze prefetch.
+// Returns true only when both resume data and target-job data are
+// substantial enough that /api/analyze-resume will not 400. Single
+// source of truth for every prefetch call site.
+function canPrefetchAnalysis() {
+  try {
+    const rawResumeText = String((typeof STATE !== 'undefined' && STATE.rawResumeText) || '').trim();
+    const resumeDraft =
+      (typeof getResumeDraft === 'function' ? getResumeDraft() : null) ||
+      (typeof STATE !== 'undefined' ? (STATE.resumeData || {}) : {}) ||
+      {};
+
+    const hasResumeData =
+      rawResumeText.length > 300 ||
+      !!resumeDraft.summary ||
+      (Array.isArray(resumeDraft.experience) && resumeDraft.experience.length > 0) ||
+      (Array.isArray(resumeDraft.skills) && resumeDraft.skills.length > 0);
+
+    const jobTitle = String(document.getElementById('job-title')?.value || '').trim();
+    const jobCompany = String(document.getElementById('job-company')?.value || '').trim();
+    const jobDesc = String(document.getElementById('job-desc')?.value || '').trim();
+
+    const hasJobData =
+      jobDesc.length > 120 ||
+      (jobTitle.length > 2 && jobCompany.length > 1);
+
+    return hasResumeData && hasJobData;
+  } catch (_) {
+    return false;
+  }
+}
+try { window.canPrefetchAnalysis = canPrefetchAnalysis; } catch (_) {}
+
+async function prefetchAnalysis(options = {}) {
+  const silent = !options || options.silent !== false;
+  if (_prefetchInFlight) return null;
+  // Hard gate: don't even build a payload if we know the request will 400.
+  if (!canPrefetchAnalysis()) {
+    if (!silent) console.warn('[prefetchAnalysis] skipped: resume/job data not ready');
+    return null;
+  }
   _prefetchInFlight = true;
   try {
     let resumeText = '';
@@ -24991,7 +25034,7 @@ async function prefetchAnalysis() {
       const r = STATE.resumeData;
       resumeText = [r.name, r.current_title, r.summary, ...(r.experience || []).map(e => `${e.title} at ${e.company} (${e.dates})\n${(e.bullets || []).join('\n')}`), 'Skills: ' + (r.skills || []).join(', '), ...(r.education || []).map(e => `${e.degree} - ${e.school} ${e.year || ''}`)].join('\n\n');
     }
-    if (!resumeText) return;
+    if (!resumeText) { _prefetchInFlight = false; return null; }
     const _additionalDetails = (document.getElementById('additional-resume-details')?.value || '').trim();
     if (_additionalDetails) resumeText += '\n\nAdditional Details:\n' + _additionalDetails;
 
@@ -25007,8 +25050,25 @@ async function prefetchAnalysis() {
     }
     if (jobDesc) formData.append('job_description', jobDesc);
 
+    // PATCH (2026-04-28): final payload-shape guard. Avoid sending a
+    // request we already know will 400.
+    if (resumeText.trim().length < 100) {
+      if (!silent) console.warn('[prefetchAnalysis] skipped: missing resume payload');
+      _prefetchInFlight = false;
+      return null;
+    }
+    if (!jobDesc || jobDesc.trim().length < 50) {
+      if (!silent) console.warn('[prefetchAnalysis] skipped: missing job payload');
+      _prefetchInFlight = false;
+      return null;
+    }
+
     const resp = await fetch(`${ANALYSIS_API}/api/analyze-resume`, { method: 'POST', body: formData });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      if (!silent) console.warn('[prefetchAnalysis] failed', resp.status);
+      _prefetchInFlight = false;
+      return null;
+    }
     const data = await resp.json();
     analysisCache = data.analysis;
     analysisCacheKey = getAnalysisCacheKey();
@@ -25025,11 +25085,38 @@ async function prefetchAnalysis() {
         });
       } catch(e) { console.debug('Failed to save prefetched analysis:', e); }
     }
+    _prefetchInFlight = false;
+    return data;
   } catch (e) {
-    console.debug('Prefetch analysis failed:', e);
+    if (!silent) console.warn('[prefetchAnalysis] failed', e);
+    _prefetchInFlight = false;
+    return null;
   }
-  _prefetchInFlight = false;
 }
+try { window.prefetchAnalysis = prefetchAnalysis; } catch (_) {}
+
+// PATCH (2026-04-28): diagnostic for the analyze prefetch readiness gate.
+window.debugAnalysisPrefetch = function () {
+  const resumeDraft =
+    (typeof getResumeDraft === 'function' ? getResumeDraft() : null) ||
+    (typeof STATE !== 'undefined' ? (STATE.resumeData || {}) : {}) ||
+    {};
+  const jobTitle = document.getElementById('job-title')?.value || '';
+  const jobCompany = document.getElementById('job-company')?.value || '';
+  const jobDesc = document.getElementById('job-desc')?.value || '';
+  const rawLen = String((typeof STATE !== 'undefined' && STATE.rawResumeText) || '').trim().length;
+  return {
+    canPrefetchAnalysis: typeof canPrefetchAnalysis === 'function' ? canPrefetchAnalysis() : false,
+    hasRawResumeText: rawLen > 300,
+    rawResumeTextLength: rawLen,
+    resumeDraftKeys: Object.keys(resumeDraft || {}),
+    experienceCount: Array.isArray(resumeDraft.experience) ? resumeDraft.experience.length : 0,
+    skillsCount: Array.isArray(resumeDraft.skills) ? resumeDraft.skills.length : 0,
+    jobTitle,
+    jobCompany,
+    jobDescLength: String(jobDesc || '').length
+  };
+};
 
 // ============ Analysis Cache ============
 function getAnalysisCacheKey() {
@@ -26978,12 +27065,18 @@ function openPrivacyForReview() {
     window.importLinkedInJob = async function(){
       const r = await orig.apply(this, arguments);
       try { maybeAutoResearch('linkedin-import'); } catch(_){}
-      // PATCH (2026-04-27): pre-warm analyze if a resume is already loaded so
-      // the next Optimize click skips the analyze sub-call. Cheap; gated.
+      // PATCH (2026-04-28): pre-warm analyze ONLY when resume + job data
+      // are both ready. Otherwise we'd send an empty payload and trigger a
+      // visible /api/analyze-resume 400. Prefetch is optional; runs silent.
       try {
-        const _hasResume = !!(STATE && (STATE.rawResumeText || (STATE.resumeData && Object.keys(STATE.resumeData).length)));
-        if (_hasResume && typeof prefetchAnalysis === 'function') {
-          setTimeout(() => { try { prefetchAnalysis(); } catch(_){} }, 200);
+        if (typeof prefetchAnalysis === 'function') {
+          setTimeout(() => {
+            try {
+              if (typeof canPrefetchAnalysis === 'function' && canPrefetchAnalysis()) {
+                prefetchAnalysis({ silent: true, source: 'linkedin-import-prefetch' });
+              }
+            } catch (_) {}
+          }, 500);
         }
       } catch(_){}
       return r;
