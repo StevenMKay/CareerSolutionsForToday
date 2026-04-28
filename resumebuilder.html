@@ -1,3 +1,82 @@
+// ================= AUTHORITATIVE RESUME MATCH SCORE READER (2026-04-28) =================
+function readVisibleResumeMatchScore() {
+  const selectors = [
+    '[data-resume-match-score]',
+    '[data-match-score]',
+    '#resume-match-score',
+    '#resume-match-value',
+    '#rp-match-value',
+    '.resume-match-score',
+    '.match-score-value',
+    '.score-value'
+  ];
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    if (!el) continue;
+    const text = String(el.textContent || '').trim();
+    const n = Number(text.replace(/[^\d.]/g, ''));
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function getAuthoritativeResumeMatchScore() {
+  const visible = readVisibleResumeMatchScore();
+  if (visible != null) return visible;
+  const candidates = [
+    window.analysisCache?.resume_match_score,
+    window.analysisCache?.overall_score,
+    STATE?.analysisCache?.resume_match_score,
+    STATE?.analysisCache?.overall_score,
+    STATE?.optimizationSession?.improvedScore,
+    (typeof getActiveVersion === 'function' ? getActiveVersion()?.analysis?.resume_match_score : undefined),
+    (typeof getActiveVersion === 'function' ? getActiveVersion()?.analysis?.overall_score : undefined)
+  ];
+  for (const raw of candidates) {
+    const n = Number(String(raw ?? '').replace(/[^\d.]/g, ''));
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+try {
+  window.readVisibleResumeMatchScore = readVisibleResumeMatchScore;
+  window.getAuthoritativeResumeMatchScore = getAuthoritativeResumeMatchScore;
+} catch (_) {}
+
+// ================= WAIT FOR FINAL SCORE TO SETTLE (2026-04-28) =================
+async function waitForResumeScoreToSettle({ timeoutMs = 8000, stableMs = 1000, intervalMs = 250 } = {}) {
+  const start = Date.now();
+  let lastScore = getAuthoritativeResumeMatchScore();
+  let lastChangeAt = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    const nextScore = getAuthoritativeResumeMatchScore();
+    if (nextScore !== lastScore) {
+      lastScore = nextScore;
+      lastChangeAt = Date.now();
+    }
+    if (Date.now() - lastChangeAt >= stableMs) {
+      return lastScore;
+    }
+  }
+  return lastScore;
+}
+try { window.waitForResumeScoreToSettle = waitForResumeScoreToSettle; } catch(_){}
+
+// ================= DEBUG SCORE SOURCES (2026-04-28) =================
+window.debugScoreSources = function () {
+  return {
+    visible: readVisibleResumeMatchScore?.(),
+    authoritative: getAuthoritativeResumeMatchScore?.(),
+    optimizationSession: structuredClone(STATE?.optimizationSession || null),
+    analysisCache: structuredClone(window.analysisCache || STATE?.analysisCache || null),
+    activeVersionAnalysis: typeof getActiveVersion === 'function' ? structuredClone(getActiveVersion()?.analysis || null) : null,
+    scoreTextCandidates: Array.from(document.querySelectorAll('[data-match-score], [data-resume-match-score], #resume-match-score, #resume-match-value, #rp-match-value, .score-value, .match-score-value')).map(el => ({
+      selector: el.id ? `#${el.id}` : el.className || el.tagName,
+      text: el.textContent
+    }))
+  };
+};
 <script>
 // ================= PLAN RESPONSE NORMALIZATION HELPERS (2026-04-28) =================
 function normalizePlanTypeValue(type) {
