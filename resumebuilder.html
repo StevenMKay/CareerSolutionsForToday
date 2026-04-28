@@ -2303,7 +2303,10 @@
             </div>
             <div class="flex items-center justify-between mb-2">
               <label class="text-xs font-semibold uppercase tracking-wider" style="color:#4B5563">Milestones</label>
-              <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addRolePlanMilestone()" data-testid="role-plan-add-milestone">+ Add Milestone</button>
+              <div class="flex items-center gap-2">
+                <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#fff;background:linear-gradient(135deg,#005EB8,#0284C7)" onclick="manualGenerateRolePlan(this)" data-testid="role-plan-generate-ai" title="Generate plan content with AI from your resume + JD"><i data-lucide="sparkles" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:3px"></i>Generate with AI</button>
+                <button type="button" class="text-xs font-medium px-2 py-1 rounded" style="color:#005EB8;background:#EFF6FF" onclick="addRolePlanMilestone()" data-testid="role-plan-add-milestone">+ Add Milestone</button>
+              </div>
             </div>
             <div id="role-plan-milestones-list" class="space-y-3"></div>
             <!-- PATCH (2026-04-27): structured KPI editor. Each KPI keeps four
@@ -5836,7 +5839,13 @@ async function saveVersionAndGenerate() {
   updateVersionBar(name);
   closeVersionModal();
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){}
-  await generatePlan();
+  // 2026-04-27: Plan generation is now triggered ONLY by the Optimize run
+  // (or the manual button in Application Details → Role Plan). Creating a
+  // new version no longer auto-fires /builder/generate. Save the empty
+  // version and route the user to Optimize so plan/resume populate from
+  // the /optimize response.
+  try { await savePlan?.(); } catch(_){}
+  try { goToStep(2); } catch(_){}
 }
 async function saveNewVersion() {
   const name = document.getElementById('version-name-input')?.value?.trim();
@@ -10117,12 +10126,10 @@ function goToStepDirect(n) {
   const stepToAcc = {1:1, 2:2, 3:4, 4:4};
   const accN = stepToAcc[n] || n;
 
-  // If navigating to Optimize without enough content, show guidance modal.
-  if (n === 2 && (!STATE.generated || Object.keys(STATE.generated).length === 0)) {
-    document.getElementById('generate-first-modal').classList.remove('hidden');
-    lucide.createIcons();
-    return;
-  }
+  // 2026-04-27: Removed the "generate-first" gate. Plan generation is now
+  // performed ONLY by the Optimize run (or the manual button in Application
+  // Details → Role Plan). Letting users land on the Optimize step with an
+  // empty STATE.generated is fine — Optimize bootstraps from STATE.resumeData.
 
   if (n > highestStepReached) highestStepReached = n;
   toggleAccordion(accN);
@@ -15304,6 +15311,67 @@ async function generatePlanIntoActiveVersion() {
   }
 }
 try { window.generatePlanIntoActiveVersion = generatePlanIntoActiveVersion; } catch(_){}
+
+// 2026-04-27: Manual "Generate with AI" button handler for the Role Plan
+// sub-accordion. Calls /builder/generate via generatePlanIntoActiveVersion()
+// and then re-renders the milestone editor + preview so the new plan
+// content is immediately visible. Disables the triggering button while
+// running and restores it after.
+async function manualGenerateRolePlan(btn) {
+  try {
+    // Auth + entitlement gate (same checks as generatePlan)
+    if (typeof waitForSubscriptionStateReady === 'function') {
+      try { await waitForSubscriptionStateReady(); } catch(_){}
+    }
+    if (typeof canUsePremium === 'function' && !canUsePremium() &&
+        typeof isFirstFreeBuild === 'function' && !isFirstFreeBuild()) {
+      try { showPaywall && showPaywall(); } catch(_){}
+      return;
+    }
+    if (typeof throttleCheck === 'function' && !throttleCheck('ai')) return;
+
+    // Make sure 'plan' is in the selected sections so the backend will
+    // actually return plan content.
+    try {
+      if (!Array.isArray(STATE.sections)) STATE.sections = [];
+      if (!STATE.sections.includes('plan')) STATE.sections.push('plan');
+    } catch(_){}
+
+    let originalHTML = '';
+    if (btn) {
+      originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i data-lucide="loader" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:3px"></i>Generating...';
+      try { lucide && lucide.createIcons && lucide.createIcons(); } catch(_){}
+    }
+
+    const res = await generatePlanIntoActiveVersion();
+    if (!res || !res.ok) {
+      try { showToast && showToast('Plan generation failed: ' + ((res && res.error) || 'unknown error')); } catch(_){}
+    } else {
+      try { showToast && showToast('Plan generated!'); } catch(_){}
+      // Refresh editors + preview so the new milestones/KPIs appear.
+      try { renderRolePlanEditor && renderRolePlanEditor(); } catch(_){}
+      try { renderPlanEditor && renderPlanEditor(); } catch(_){}
+      try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){}
+      try {
+        const _gen = (typeof getGeneratedResume === 'function') ? getGeneratedResume() : STATE.generated;
+        if (typeof renderPreview === 'function') renderPreview(_gen);
+      } catch(_){}
+      try { markDirty && markDirty({ needsReanalysis: false }); } catch(_){}
+    }
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
+      try { lucide && lucide.createIcons && lucide.createIcons(); } catch(_){}
+    }
+  } catch (e) {
+    try { showToast && showToast('Plan generation failed: ' + (e.message || e)); } catch(_){}
+    if (btn) { btn.disabled = false; }
+  }
+}
+try { window.manualGenerateRolePlan = manualGenerateRolePlan; } catch(_){}
 
 // ============ Style Config ============
 const STYLE_CONFIG = {
