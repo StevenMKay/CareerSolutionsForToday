@@ -5087,17 +5087,136 @@ function setCurrentAnalysis(nextAnalysis) {
   try { analysisCache = nextAnalysis || null; } catch(_){}
 }
 
+// =====================================================================
+// PATCH (2026-04-28): LinkedIn URL persistence guard.
+// The raw LinkedIn job URL is a TEMPORARY input only. The backend may
+// receive it once to extract job_title / company / description, but the
+// URL itself must NEVER be persisted, copied into new profiles, or
+// reloaded for a returning user. These helpers strip URL-shaped fields
+// from any object on its way to in-memory state OR Firestore, and clear
+// the transient URL inputs on new-profile flows.
+// =====================================================================
+const LINKEDIN_URL_FIELD_KEYS = [
+  'url',
+  'jobUrl',
+  'job_url',
+  'linkedinUrl',
+  'linkedInUrl',
+  'linkedin_url',
+  'linkedIn_url',
+  'sourceUrl',
+  'source_url',
+  'applyUrl',
+  'apply_url',
+  'postingUrl',
+  'posting_url',
+  'originalUrl',
+  'original_url',
+  'currentJobId',
+  'linkedInJobId',
+  'linkedinJobId'
+];
+
+function sanitizeJobForPersistence(job) {
+  if (!job || typeof job !== 'object') return job;
+
+  const clean = Array.isArray(job) ? [] : {};
+
+  Object.keys(job).forEach(key => {
+    if (LINKEDIN_URL_FIELD_KEYS.indexOf(key) !== -1) return;
+
+    const value = job[key];
+
+    // Strip accidental LinkedIn-URL strings from generic fields. Allow
+    // description-shaped fields to pass through ? a JD body could legitimately
+    // mention a posting URL and stripping it would corrupt the JD.
+    if (
+      typeof value === 'string' &&
+      /linkedin\.com\/jobs|linkedin\.com\/job|currentJobId=/i.test(value) &&
+      ['description', 'jobDescription', 'job_description'].indexOf(key) === -1
+    ) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      clean[key] = value.map(item => sanitizeJobForPersistence(item));
+    } else if (value && typeof value === 'object') {
+      // Preserve non-plain objects (e.g. Firestore sentinels) as-is so we
+      // don't break FieldValue.serverTimestamp etc.
+      const proto = Object.getPrototypeOf(value);
+      if (proto !== Object.prototype && proto !== null) {
+        clean[key] = value;
+      } else {
+        clean[key] = sanitizeJobForPersistence(value);
+      }
+    } else {
+      clean[key] = value;
+    }
+  });
+
+  return clean;
+}
+
+function sanitizeWorkspaceJobsForPersistence(workspace) {
+  if (!workspace || typeof workspace !== 'object') return workspace;
+
+  try {
+    ['targetRole', 'targetRoleDraft', 'roleResearch'].forEach(key => {
+      if (workspace[key]) workspace[key] = sanitizeJobForPersistence(workspace[key]);
+    });
+    if (Array.isArray(workspace.targetJobs)) {
+      workspace.targetJobs = workspace.targetJobs.map(j => sanitizeJobForPersistence(j));
+    }
+    if (workspace.versions && typeof workspace.versions === 'object') {
+      Object.values(workspace.versions).forEach(v => {
+        if (!v || typeof v !== 'object') return;
+        ['targetRole', 'roleResearch', 'exportSettings'].forEach(key => {
+          if (v[key]) v[key] = sanitizeJobForPersistence(v[key]);
+        });
+        if (Array.isArray(v.targetJobs)) {
+          v.targetJobs = v.targetJobs.map(j => sanitizeJobForPersistence(j));
+        }
+      });
+    }
+  } catch (_) {}
+
+  return workspace;
+}
+
+function clearTransientLinkedInInputs(reason) {
+  reason = reason || 'reset';
+  try {
+    ['linkedin-job-url', 'vm-linkedin-url', 'job-url', 'target-job-url'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    ['linkedin-job-status', 'vm-linkedin-status'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.innerHTML = ''; el.classList.add('hidden'); }
+    });
+  } catch (_) {}
+}
+
+try {
+  window.sanitizeJobForPersistence        = sanitizeJobForPersistence;
+  window.sanitizeWorkspaceJobsForPersistence = sanitizeWorkspaceJobsForPersistence;
+  window.clearTransientLinkedInInputs     = clearTransientLinkedInInputs;
+  window.LINKEDIN_URL_FIELD_KEYS          = LINKEDIN_URL_FIELD_KEYS;
+} catch (_) {}
+
 // Target role helpers ? version-scoped AFTER version creation.
 // Pre-creation edits go to workspace.targetRoleDraft (separate API).
 function getCurrentTargetRole() { return getActiveVersion().targetRole; }
 function setCurrentTargetRole(nextTargetRole) {
   const v = getActiveVersion();
-  v.targetRole = structuredClone(nextTargetRole || {});
+  // PATCH (2026-04-28): strip raw LinkedIn URL fields before storing.
+  v.targetRole = structuredClone(sanitizeJobForPersistence(nextTargetRole || {}));
   v.updatedAt = new Date().toISOString();
 }
 function getTargetRoleDraft() { return getWorkspace().targetRoleDraft; }
 function setTargetRoleDraft(nextDraft) {
-  getWorkspace().targetRoleDraft = structuredClone(nextDraft || {});
+  // PATCH (2026-04-28): strip raw LinkedIn URL fields before storing.
+  getWorkspace().targetRoleDraft = structuredClone(sanitizeJobForPersistence(nextDraft || {}));
 }
 
 // Step 1 workspace draft helpers ? version-scoped
@@ -5944,6 +6063,12 @@ async function vmImportLinkedIn() {
     if (data.description) document.getElementById('vm-job-desc').value = data.description;
     const nameInput = document.getElementById('version-name-input');
     if (nameInput && !nameInput.value.trim() && data.company) nameInput.value = 'My ' + data.company + ' Resume';
+    // PATCH (2026-04-28): clear the temporary LinkedIn URL input ? the raw
+    // link must not be saved or carried into the new version.
+    try {
+      const _vmLinkInput = document.getElementById('vm-linkedin-url');
+      if (_vmLinkInput) _vmLinkInput.value = '';
+    } catch (_) {}
     statusEl.innerHTML = '<span style="color:#047857">&#10003; Job details imported!</span>';
   } catch(e) {
     statusEl.innerHTML = `<span style="color:#B91C1C">${e.message}</span>`;
@@ -9279,6 +9404,9 @@ function _doStartNewPlan() {
   _resetUserState();
   // PATCH (2026-04-28): brand-new resume must not start with a generated plan.
   try { resetPlanStateForNewProfile && resetPlanStateForNewProfile('new-profile'); } catch(_){}
+  // PATCH (2026-04-28): never carry a previous customer/profile's LinkedIn
+  // URL into the new resume.
+  try { clearTransientLinkedInInputs && clearTransientLinkedInInputs('new-profile'); } catch(_){}
   setColor('#005EB8');
   renderJobTracker();
   document.getElementById('resume-text').value = '';
@@ -9396,6 +9524,22 @@ function buildPersistencePayload() {
 }
 
 function hydrateWorkspaceFromSaved(data) {
+  // PATCH (2026-04-28): clean any raw LinkedIn URL fields out of saved data
+  // BEFORE we copy it into the workspace. Old saves from before the URL
+  // persistence guard may carry jobUrl/job_url etc.
+  try {
+    if (data && typeof data === 'object' && typeof sanitizeJobForPersistence === 'function') {
+      ['targetRole', 'roleResearch', 'targetRoleDraft'].forEach(k => {
+        if (data[k]) data[k] = sanitizeJobForPersistence(data[k]);
+      });
+      if (Array.isArray(data.targetJobs)) {
+        data.targetJobs = data.targetJobs.map(j => sanitizeJobForPersistence(j));
+      }
+      if (Array.isArray(data.appliedJobs)) {
+        data.appliedJobs = data.appliedJobs.map(j => sanitizeJobForPersistence(j));
+      }
+    }
+  } catch (_) {}
   const v = getActiveVersion();
 
   // Canonical-first priority for all fields. Legacy fields used as fallbacks only.
@@ -9470,6 +9614,15 @@ function hydrateWorkspaceFromSaved(data) {
   } catch (_) {}
 
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
+  // PATCH (2026-04-28): scrub the workspace post-hydration in case any
+  // legacy URL fields slipped through nested objects, and clear transient
+  // LinkedIn URL inputs so a returning user never sees a previous link.
+  try {
+    if (typeof getWorkspace === 'function' && typeof sanitizeWorkspaceJobsForPersistence === 'function') {
+      sanitizeWorkspaceJobsForPersistence(getWorkspace());
+    }
+  } catch (_) {}
+  try { clearTransientLinkedInInputs && clearTransientLinkedInInputs('hydrate'); } catch (_) {}
 }
 
 async function loadPlan(planId) {
@@ -9890,6 +10043,24 @@ async function savePlan(options = {}) {
     // analysisData / interviewPrep / optimizationSession / generated. We preserve
     // Firestore FieldValue sentinels (non-plain objects) and strip undefined.
     let safePlanData = sanitizeForFirestore(planData);
+    // PATCH (2026-04-28): final safety net ? strip any raw LinkedIn URL fields
+    // from the persistence payload + workspace-shaped sub-objects before write.
+    try {
+      if (typeof sanitizeJobForPersistence === 'function') {
+        ['targetRole', 'roleResearch', 'targetRoleDraft'].forEach(k => {
+          if (safePlanData[k]) safePlanData[k] = sanitizeJobForPersistence(safePlanData[k]);
+        });
+        if (Array.isArray(safePlanData.targetJobs)) {
+          safePlanData.targetJobs = safePlanData.targetJobs.map(j => sanitizeJobForPersistence(j));
+        }
+        if (Array.isArray(safePlanData.appliedJobs)) {
+          safePlanData.appliedJobs = safePlanData.appliedJobs.map(j => sanitizeJobForPersistence(j));
+        }
+      }
+      if (typeof sanitizeWorkspaceJobsForPersistence === 'function' && safePlanData.workspace) {
+        sanitizeWorkspaceJobsForPersistence(safePlanData.workspace);
+      }
+    } catch (_) {}
 
     // 2026-04-27 (ISS-FIRESTORE-400): Firestore caps a single document at
     // 1 MiB. After Optimize we now persist analysisData + interviewPrep +
@@ -21770,6 +21941,68 @@ window.debugPlanGenerationGate = function () {
   };
 };
 
+// PATCH (2026-04-28): LinkedIn URL persistence diagnostic. Returns any
+// place a raw LinkedIn URL or LinkedIn-URL-shaped string survives in
+// in-memory state or the transient inputs.
+window.debugLinkedInUrlPersistence = function () {
+  let ws = {};
+  let v = {};
+  let gen = {};
+  try { ws = (typeof getWorkspace === 'function') ? (getWorkspace() || {}) : {}; } catch (_) {}
+  try { v  = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {}; } catch (_) {}
+  try {
+    gen = (typeof getGeneratedResume === 'function')
+      ? (getGeneratedResume() || {})
+      : (typeof STATE !== 'undefined' ? (STATE.generated || {}) : {});
+  } catch (_) {}
+
+  const seen = [];
+  const visited = new WeakSet();
+
+  function scan(obj, path) {
+    if (!obj || typeof obj !== 'object') return;
+    if (visited.has(obj)) return;
+    visited.add(obj);
+    Object.keys(obj).forEach(key => {
+      const value = obj[key];
+      const nextPath = path + '.' + key;
+      if (LINKEDIN_URL_FIELD_KEYS.indexOf(key) !== -1) {
+        seen.push({ path: nextPath, key: key, value: value });
+      }
+      if (typeof value === 'string' &&
+          /linkedin\.com\/jobs|linkedin\.com\/job|currentJobId=/i.test(value)) {
+        seen.push({ path: nextPath, key: key, value: value });
+      }
+      if (value && typeof value === 'object') {
+        const proto = Object.getPrototypeOf(value);
+        if (proto === Object.prototype || proto === null || Array.isArray(value)) {
+          scan(value, nextPath);
+        }
+      }
+    });
+  }
+
+  scan(ws, 'workspace');
+  scan(v, 'activeVersion');
+  scan(gen, 'generated');
+
+  const inputs = {};
+  ['linkedin-job-url', 'vm-linkedin-url', 'job-url', 'target-job-url'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) inputs[id] = el.value || '';
+  });
+
+  return {
+    hasPersistedLinkedInUrl: seen.length > 0,
+    findings: seen,
+    transientInputs: inputs,
+    activeTargetRole: (typeof sanitizeJobForPersistence === 'function')
+      ? sanitizeJobForPersistence(v.targetRole || {})
+      : (v.targetRole || {}),
+    targetJobsCount: Array.isArray(v.targetJobs) ? v.targetJobs.length : 0
+  };
+};
+
 async function exportPDF() {
   if (!canUsePremium() && !isFirstFreeBuild()) { showPaywall(); return; }
   try {
@@ -22450,28 +22683,31 @@ async function importLinkedInJob() {
     // Role first" warning on the Optimize panel after the user thought
     // the import had saved.
     try {
-      const importedJob = {
+      // PATCH (2026-04-28): never persist the raw LinkedIn URL. The link
+      // was sent to the backend in the request above; from here on we keep
+      // only the imported job details + a non-URL `source` label.
+      const importedJob = sanitizeJobForPersistence({
         title: data.job_title || '',
         jobTitle: data.job_title || '',
         company: data.company || '',
         description: data.description || '',
         jobDescription: data.description || '',
-        jobUrl: url,
         source: 'linkedin',
+        importedAt: new Date().toISOString(),
         applicationStatus: 'Interested'
-      };
+      });
 
       if (typeof upsertTargetJob === 'function') {
         upsertTargetJob(importedJob);
       } else {
-        const targetRole = {
+        const targetRole = sanitizeJobForPersistence({
           job_title: data.job_title || '',
           company: data.company || '',
           description: data.description || '',
-          job_url: url,
           source: 'linkedin',
+          importedAt: new Date().toISOString(),
           plan_context: document.getElementById('plan-context')?.value || ''
-        };
+        });
         if (currentPlanId) setCurrentTargetRole(targetRole);
         else setTargetRoleDraft(targetRole);
       }
@@ -22495,6 +22731,12 @@ async function importLinkedInJob() {
 
     statusEl.innerHTML = '<span style="color:#047857">Job details imported! Review and edit the fields below.</span>';
     showToast('Job details imported from LinkedIn!');
+    // PATCH (2026-04-28): clear the temporary LinkedIn URL input ? we keep
+    // only the imported title/company/description, never the raw link.
+    try {
+      const linkInput = document.getElementById('linkedin-job-url');
+      if (linkInput) linkInput.value = '';
+    } catch (_) {}
     rbDebug('linkedin', 'import success', { title: data.job_title, company: data.company, descLen: (data.description||'').length });
     // ISS-018: auto-run role research now that we have full job context.
     try { updateSubAccMetas && updateSubAccMetas(); } catch(_){}
