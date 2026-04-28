@@ -298,6 +298,12 @@
   .export-plan ul{margin:6px 0 8px 18px;padding:0}
   .export-plan li{margin-bottom:4px}
 
+  /* PATCH (2026-04-28): Plan empty-state CTA shown when no plan has been
+     generated yet via Optimize or Manual Generate. */
+  .plan-empty-state{text-align:left;border:1px dashed #CBD5E1;background:linear-gradient(180deg,#F8FAFC 0%,#FFFFFF 100%)}
+  .plan-empty-state h1{margin-bottom:8px}
+  .plan-empty-actions{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+
   /* PATCH (Plan v8 polish): Web-preview-only styling for CV/Plan inside
      .resume-web shell. Document mode (.pv-pages-stack) is unaffected. */
   .resume-web .export-cv,
@@ -4939,6 +4945,138 @@ function setCurrentPlan(nextPlan) {
   try { invalidateExportModel && invalidateExportModel(); } catch(_){}
 }
 
+// =====================================================================
+// PATCH (2026-04-28): Plan Generation Gate.
+// A Career Plan is only "real" once the user runs Optimize or clicks
+// Manual Generate Plan. Selecting the Career Plan card in "What do you
+// want to create?" prepares the UI but must NOT generate a plan.
+// These helpers expose plan provenance so render/export/publish paths
+// can gate on a real, user-generated plan.
+// =====================================================================
+function hasMeaningfulPlanData(plan) {
+  if (!plan || typeof plan !== 'object') return false;
+
+  const arrHas = (arr) => Array.isArray(arr) && arr.some(item => {
+    if (!item) return false;
+    if (typeof item === 'string') return item.trim().length > 0;
+    if (typeof item === 'object') {
+      return Object.values(item).some(v => {
+        if (Array.isArray(v)) return v.some(Boolean);
+        if (v && typeof v === 'object') return Object.keys(v).length > 0;
+        return String(v || '').trim().length > 0;
+      });
+    }
+    return true;
+  });
+
+  const objHas = (obj) => obj && typeof obj === 'object' && Object.keys(obj).some(k => {
+    const v = obj[k];
+    if (Array.isArray(v)) return v.some(Boolean);
+    if (v && typeof v === 'object') return Object.keys(v).length > 0;
+    return String(v || '').trim().length > 0;
+  });
+
+  return (
+    arrHas(plan.plan_phases) ||
+    arrHas(plan.success_criteria) ||
+    arrHas(plan.success_summary) ||
+    arrHas(plan.kpis) ||
+    objHas(plan.days90) ||
+    objHas(plan.months12) ||
+    objHas(plan.years2)
+  );
+}
+
+function hasUserGeneratedPlan() {
+  try {
+    const v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {};
+    const source =
+      v.planSource ||
+      (v.exportSettings && v.exportSettings.planSource) ||
+      null;
+
+    const generatedAt =
+      v.planGeneratedAt ||
+      (v.exportSettings && v.exportSettings.planGeneratedAt) ||
+      null;
+
+    return !!(
+      hasMeaningfulPlanData(v.plan) &&
+      (
+        source === 'optimize' ||
+        source === 'manual' ||
+        source === 'legacy' ||
+        generatedAt
+      )
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+function markPlanGenerated(source) {
+  source = source || 'manual';
+  try {
+    const v = (typeof getActiveVersion === 'function') ? getActiveVersion() : null;
+    if (!v) return;
+
+    const ts = new Date().toISOString();
+
+    v.planSource = source;
+    v.planGeneratedAt = ts;
+
+    v.exportSettings = v.exportSettings || {};
+    v.exportSettings.planSource = source;
+    v.exportSettings.planGeneratedAt = ts;
+  } catch (_) {}
+}
+
+function resetPlanStateForNewProfile(reason) {
+  reason = reason || 'new-profile';
+  try {
+    const v = (typeof getActiveVersion === 'function') ? getActiveVersion() : null;
+    if (v) {
+      v.plan = {};
+      delete v.planSource;
+      delete v.planGeneratedAt;
+
+      v.exportSettings = v.exportSettings || {};
+      delete v.exportSettings.planSource;
+      delete v.exportSettings.planGeneratedAt;
+      // Selected plan-type / sections are user UI choices and are kept.
+    }
+  } catch (_) {}
+
+  try {
+    const baseGen = (typeof getGeneratedResume === 'function')
+      ? getGeneratedResume()
+      : (typeof STATE !== 'undefined' ? STATE.generated : null);
+    const gen = structuredClone(baseGen || {});
+    [
+      'plan_phases',
+      'success_summary',
+      'success_criteria',
+      'kpis',
+      'days90',
+      'months12',
+      'years2',
+      'horizon'
+    ].forEach(k => { delete gen[k]; });
+
+    if (typeof setGeneratedResume === 'function') setGeneratedResume(gen);
+    else if (typeof STATE !== 'undefined') STATE.generated = gen;
+  } catch (_) {}
+
+  try { renderActiveLivePreviewDoc && renderActiveLivePreviewDoc('plan-reset-' + reason); } catch (_) {}
+}
+
+try {
+  window.hasMeaningfulPlanData    = hasMeaningfulPlanData;
+  window.hasUserGeneratedPlan     = hasUserGeneratedPlan;
+  window.markPlanGenerated        = markPlanGenerated;
+  window.resetPlanStateForNewProfile = resetPlanStateForNewProfile;
+} catch (_) {}
+
 // Analysis helpers ? version-scoped (also writes legacy analysisCache for
 // compatibility with code that reads the free var directly).
 function getCurrentAnalysis() { return getActiveVersion().analysis; }
@@ -7048,6 +7186,7 @@ async function optimizeForJob() {
             kpis: (data.kpis || (_respPlan.days90 && _respPlan.days90.successMetrics) || (_respPlan.months12 && _respPlan.months12.successMetrics) || [])
           });
           if (typeof setCurrentPlan === 'function') setCurrentPlan(planToWrite);
+          try { markPlanGenerated && markPlanGenerated('optimize'); } catch(_){}
           // Mirror plan-shaped keys into STATE.generated for legacy renderers
           try {
             const stateGen = structuredClone(getGeneratedResume?.() || STATE.generated || {});
@@ -7081,8 +7220,9 @@ async function optimizeForJob() {
         // Fallback: no plan in response — run the separate generate call
         try {
           console.log('[optimize] no plan in response → calling generatePlanIntoActiveVersion()');
-          const planRes = await generatePlanIntoActiveVersion();
+          const planRes = await generatePlanIntoActiveVersion({ source: 'optimize' });
           if (planRes && planRes.ok) {
+            try { markPlanGenerated && markPlanGenerated('optimize'); } catch(_){}
             console.log('[optimize→plan] fallback OK');
           } else {
             console.warn('[optimize→plan] fallback failed:', planRes && planRes.error);
@@ -9137,6 +9277,8 @@ function _doStartNewPlan() {
   // Wipe any stale analysis/right-panel UI from a prior plan or user
   clearAnalysisUI();
   _resetUserState();
+  // PATCH (2026-04-28): brand-new resume must not start with a generated plan.
+  try { resetPlanStateForNewProfile && resetPlanStateForNewProfile('new-profile'); } catch(_){}
   setColor('#005EB8');
   renderJobTracker();
   document.getElementById('resume-text').value = '';
@@ -9238,6 +9380,11 @@ function buildPersistencePayload() {
     cv:                v.cv,
     analysis:          v.analysis,
     exportSettings:    v.exportSettings,
+    // PATCH (2026-04-28): plan-generation provenance flags. Mirrored on
+    // exportSettings as well (markPlanGenerated handles both). Written at
+    // top-level for resilience across older save schemas.
+    planSource:        v.planSource || (v.exportSettings && v.exportSettings.planSource) || null,
+    planGeneratedAt:   v.planGeneratedAt || (v.exportSettings && v.exportSettings.planGeneratedAt) || null,
     // Legacy top-level fields — written for backward compat only.
     // On load, canonical fields above take priority; these fill gaps for
     // older saved plans that pre-date the workspace refactor.
@@ -9284,6 +9431,43 @@ function hydrateWorkspaceFromSaved(data) {
     includeSelections: ['resume','plan','cv'].filter(k => _flagsLoad[k]),
     previewContent: _rb_derivePreviewContentFromFlags(_flagsLoad)
   };
+
+  // PATCH (2026-04-28): rehydrate plan provenance flags from saved data and
+  // backfill 'legacy' for old saved plans that have meaningful plan data
+  // but no source/timestamp recorded yet. Backfill never runs for blank
+  // plans ? hasMeaningfulPlanData() guards that.
+  try {
+    const _savedSource =
+      data.planSource ||
+      (data.exportSettings && data.exportSettings.planSource) ||
+      null;
+    const _savedAt =
+      data.planGeneratedAt ||
+      (data.exportSettings && data.exportSettings.planGeneratedAt) ||
+      null;
+    if (_savedSource) {
+      v.planSource = _savedSource;
+      v.exportSettings.planSource = _savedSource;
+    }
+    if (_savedAt) {
+      v.planGeneratedAt = _savedAt;
+      v.exportSettings.planGeneratedAt = _savedAt;
+    }
+    if (
+      typeof hasMeaningfulPlanData === 'function' &&
+      hasMeaningfulPlanData(v.plan) &&
+      !v.planSource &&
+      !v.planGeneratedAt &&
+      !v.exportSettings.planSource &&
+      !v.exportSettings.planGeneratedAt
+    ) {
+      const _legacyTs = data.updatedAt || (typeof STATE !== 'undefined' && STATE.updatedAt) || new Date().toISOString();
+      v.planSource = 'legacy';
+      v.planGeneratedAt = _legacyTs;
+      v.exportSettings.planSource = 'legacy';
+      v.exportSettings.planGeneratedAt = _legacyTs;
+    }
+  } catch (_) {}
 
   try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){ }
 }
@@ -10032,6 +10216,14 @@ function hideShareBar() {
 async function publishAndShare() {
   if (!currentUser) return showToast('Please sign in first');
   if (!canUsePremium()) { showPaywall(); return; }
+  // PATCH (2026-04-28): if Plan is included in the publish package and no real
+  // plan exists, block publish entirely.
+  try {
+    const _items = (typeof getSelectedPackageItems === 'function') ? getSelectedPackageItems() : [];
+    if (_items.indexOf('plan') !== -1 && !requireGeneratedPlanForAction('publish it')) {
+      return;
+    }
+  } catch (_) {}
   await savePlan();
   if (!currentPlanId) return showToast('Please save the plan first');
   showLoading('Publishing your plan...');
@@ -10763,6 +10955,18 @@ function renderActiveLivePreviewDoc(reason) {
       ? renderCVDocument(cv, { profile: profile, targetRole: targetRole })
       : '<article class="export-doc export-cv"><h1>Cover Letter</h1><p>No cover letter content available yet.</p></article>';
   } else if (kind === 'plan') {
+    // PATCH (2026-04-28): Plan empty-state gate. Show a CTA shell unless the
+    // user has actually generated a plan via Optimize or Manual Generate.
+    if (typeof hasUserGeneratedPlan === 'function' && !hasUserGeneratedPlan()) {
+      const emptyHtml = (typeof renderPlanEmptyState === 'function')
+        ? renderPlanEmptyState()
+        : '<div class="resume-web-shell"><div class="resume-web"><article class="export-doc export-plan plan-empty-state"><p class="plan-kicker">Career Plan</p><h1>Create your Career Plan</h1><p>Add your resume and target role, then run optimization or manually generate a plan.</p></article></div></div>';
+      el.innerHTML = emptyHtml;
+      try { _applyPreviewPresets && _applyPreviewPresets(); } catch(_){}
+      try { (typeof PREVIEW_READ_ONLY === 'undefined' || PREVIEW_READ_ONLY) && disablePreviewEditing && disablePreviewEditing(el); } catch(_){}
+      try { updateExportReadyStrip && updateExportReadyStrip(); } catch(_){}
+      return true;
+    }
     const plan = (v && v.plan) || {};
     html = (typeof renderPlanDocument === 'function')
       ? renderPlanDocument(plan, { profile: profile, targetRole: targetRole })
@@ -10791,6 +10995,26 @@ function renderActiveLivePreviewDoc(reason) {
   return true;
 }
 try { window.renderActiveLivePreviewDoc = renderActiveLivePreviewDoc; } catch(_){}
+
+// PATCH (2026-04-28): Plan empty-state shell rendered when the user has
+// not yet run Optimize or Manual Generate Plan. UI-only ? does not call AI,
+// does not mutate plan state.
+function renderPlanEmptyState() {
+  return '' +
+    '<div class="resume-web-shell">' +
+      '<div class="resume-web">' +
+        '<article class="export-doc export-plan plan-empty-state">' +
+          '<p class="plan-kicker">Career Plan</p>' +
+          '<h1>Create your Career Plan</h1>' +
+          '<p class="plan-summary">Add your resume and target role, then run optimization or manually generate a plan.</p>' +
+          '<div class="plan-empty-actions">' +
+            '<button type="button" class="btn-primary" onclick="try{ toggleAccordion&amp;&amp;toggleAccordion(2); }catch(_){}">Go to Optimize</button>' +
+          '</div>' +
+        '</article>' +
+      '</div>' +
+    '</div>';
+}
+try { window.renderPlanEmptyState = renderPlanEmptyState; } catch(_){}
 
 function getLivePreviewContentKind() { return getActivePreviewDocId(); }
 try { window.getLivePreviewContentKind = getLivePreviewContentKind; } catch(_){}
@@ -15246,6 +15470,7 @@ async function generatePlan() {
       _planKeys.forEach(k => { if (_gen[k] !== undefined) _planSlice[k] = _gen[k]; });
       if (Object.keys(_planSlice).length && typeof setCurrentPlan === 'function') {
         setCurrentPlan(Object.assign({}, (typeof getCurrentPlan === 'function' ? getCurrentPlan() : null) || {}, _planSlice));
+        try { markPlanGenerated && markPlanGenerated('manual'); } catch(_){}
       }
     } catch(_){}
     renderPreview(data.generated);
@@ -15290,7 +15515,9 @@ async function generatePlan() {
 // touching `v.resume` (optimize already produced the resume content).
 //
 // Returns { ok, error? }. Non-fatal ? caller swallows failures.
-async function generatePlanIntoActiveVersion() {
+async function generatePlanIntoActiveVersion(options) {
+  options = options || {};
+  const _planSource = options.source || 'manual';
   try {
     if (!STATE.sections || !STATE.sections.includes('plan')) {
       return { ok: false, error: 'plan section not selected' };
@@ -15356,6 +15583,7 @@ async function generatePlanIntoActiveVersion() {
       setGeneratedResume(stateGen);
     } catch(_){}
     try { STATE._exportModelDirty = true; STATE._exportModelCache = null; } catch(_){}
+    try { markPlanGenerated && markPlanGenerated(_planSource); } catch(_){}
     return { ok: true };
   } catch (e) {
     return { ok: false, error: (e && e.message) || String(e) };
@@ -15396,7 +15624,7 @@ async function manualGenerateRolePlan(btn) {
       try { lucide && lucide.createIcons && lucide.createIcons(); } catch(_){}
     }
 
-    const res = await generatePlanIntoActiveVersion();
+    const res = await generatePlanIntoActiveVersion({ source: 'manual' });
     if (!res || !res.ok) {
       try { showToast && showToast('Plan generation failed: ' + ((res && res.error) || 'unknown error')); } catch(_){}
     } else {
@@ -20802,18 +21030,43 @@ async function _withTemporaryIncludeOverride(flags, fn) {
 }
 try { window._withTemporaryIncludeOverride = _withTemporaryIncludeOverride; } catch(_){}
 
+// PATCH (2026-04-28): block plan export/publish until a real plan exists.
+// Returns true if a generated plan exists, otherwise emits a toast and
+// routes the user to Plan Type & Sections so they can generate one.
+function requireGeneratedPlanForAction(actionLabel) {
+  actionLabel = actionLabel || 'export';
+  try {
+    if (typeof hasUserGeneratedPlan === 'function' && hasUserGeneratedPlan()) return true;
+  } catch (_) {}
+  try { showToast && showToast('Generate your Career Plan before you ' + actionLabel + '.'); } catch (_) {}
+  try { openPlanTypeAndSections && openPlanTypeAndSections('plan-' + actionLabel + '-no-plan'); } catch (_) {}
+  try { setActivePreviewDoc && setActivePreviewDoc('plan'); } catch (_) {}
+  return false;
+}
+try { window.requireGeneratedPlanForAction = requireGeneratedPlanForAction; } catch (_) {}
+
 async function downloadResumePDF()  { return _withTemporaryIncludeOverride({resume:true,plan:false,cv:false}, () => exportPDF()); }
 async function downloadResumeDOCX() { return _withTemporaryIncludeOverride({resume:true,plan:false,cv:false}, () => exportDOCX()); }
 async function downloadResumePPTX() { return _withTemporaryIncludeOverride({resume:true,plan:false,cv:false}, () => exportPPTX()); }
 async function downloadCVPDF()      { return _withTemporaryIncludeOverride({resume:false,plan:false,cv:true},  () => exportPDF()); }
 async function downloadCVDOCX()     { return _withTemporaryIncludeOverride({resume:false,plan:false,cv:true},  () => exportDOCX()); }
-async function downloadPlanPDF()    { return _withTemporaryIncludeOverride({resume:false,plan:true,cv:false},  () => exportPDF()); }
-async function downloadPlanDOCX()   { return _withTemporaryIncludeOverride({resume:false,plan:true,cv:false},  () => exportDOCX()); }
+async function downloadPlanPDF()    {
+  if (!requireGeneratedPlanForAction('download it')) return;
+  return _withTemporaryIncludeOverride({resume:false,plan:true,cv:false},  () => exportPDF());
+}
+async function downloadPlanDOCX()   {
+  if (!requireGeneratedPlanForAction('download it')) return;
+  return _withTemporaryIncludeOverride({resume:false,plan:true,cv:false},  () => exportDOCX());
+}
 async function downloadPlanPPTX()   {
+  if (!requireGeneratedPlanForAction('download it')) return;
   try { return await _withTemporaryIncludeOverride({resume:false,plan:true,cv:false}, () => exportPPTX()); }
   catch (e) { try { showToast && showToast('Career Plan PowerPoint is not available right now.'); } catch(_){} throw e; }
 }
-async function downloadResumePlanPDF() { return _withTemporaryIncludeOverride({resume:true,plan:true,cv:false}, () => exportPDF()); }
+async function downloadResumePlanPDF() {
+  if (!requireGeneratedPlanForAction('download it')) return;
+  return _withTemporaryIncludeOverride({resume:true,plan:true,cv:false}, () => exportPDF());
+}
 
 async function copyCVText() {
   let cv = {};
@@ -20834,6 +21087,11 @@ async function copyCVText() {
 
 async function downloadSelectedPackage() {
   const items = getSelectedPackageItems();
+  // PATCH (2026-04-28): if Plan is in the selected package and no real plan
+  // exists, block the entire package (no silent resume-only fallback).
+  if (items.indexOf('plan') !== -1 && !requireGeneratedPlanForAction('download it')) {
+    return;
+  }
   const _wait = (ms) => new Promise(res => setTimeout(res, ms));
   if (items.indexOf('resume') !== -1) { await downloadResumePDF(); await _wait(180); }
   if (items.indexOf('cv')     !== -1) { await downloadCVPDF();     await _wait(180); }
@@ -21477,6 +21735,38 @@ window.debugPlanSelectionFlow = function () {
                                      : (Array.isArray(plan.months12.phases) ? plan.months12.phases.length : 0))) || 0,
     years2Phases:   (plan.years2   && Array.isArray(plan.years2.phases))   ? plan.years2.phases.length : 0,
     previewReadOnly: (window.runResumeBuilderDiagnostics && window.runResumeBuilderDiagnostics().previewReadOnly) || null
+  };
+};
+
+// PATCH (2026-04-28): Plan generation gate diagnostic. Inspect provenance and
+// generated state for the active version. Useful for QA on the rule
+// "no plan until Optimize or Manual Generate".
+window.debugPlanGenerationGate = function () {
+  let v = {};
+  try { v = (typeof getActiveVersion === 'function') ? (getActiveVersion() || {}) : {}; } catch (_) { v = {}; }
+  const plan = v.plan || {};
+  let gen = {};
+  try {
+    gen = (typeof getGeneratedResume === 'function')
+      ? (getGeneratedResume() || {})
+      : (typeof STATE !== 'undefined' ? (STATE.generated || {}) : {});
+  } catch (_) { gen = {}; }
+  let workspace = null;
+  try { workspace = (typeof getWorkspace === 'function') ? getWorkspace() : null; } catch (_) {}
+  return {
+    activeVersionId:      (workspace && workspace.activeVersionId) || null,
+    hasMeaningfulPlanData: (typeof hasMeaningfulPlanData === 'function') ? hasMeaningfulPlanData(plan) : null,
+    hasUserGeneratedPlan:  (typeof hasUserGeneratedPlan  === 'function') ? hasUserGeneratedPlan()      : null,
+    planSource:           v.planSource || (v.exportSettings && v.exportSettings.planSource) || null,
+    planGeneratedAt:      v.planGeneratedAt || (v.exportSettings && v.exportSettings.planGeneratedAt) || null,
+    planKeys:             Object.keys(plan || {}),
+    generatedPlanKeys:    Object.keys(gen || {}).filter(k => [
+      'plan_phases','success_summary','success_criteria','kpis',
+      'days90','months12','years2','horizon'
+    ].includes(k)),
+    optimizeApplied:      !!(typeof STATE !== 'undefined' && STATE._optimizeApplied),
+    includeSelection:     (typeof getIncludeSelection === 'function') ? getIncludeSelection() : null,
+    activePreviewDoc:     (typeof getActivePreviewDocId === 'function') ? getActivePreviewDocId() : null
   };
 };
 
