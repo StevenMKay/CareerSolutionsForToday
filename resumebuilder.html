@@ -5323,6 +5323,80 @@ try {
   window.resetPlanStateForNewProfile = resetPlanStateForNewProfile;
 } catch (_) {}
 
+// PATCH (2026-04-28 prefill-leakage fix): scrub plan/CV artifacts that
+// leaked into the active version before the user clicked Optimize or
+// manually generated. Safe to call at any lifecycle point — guarded by
+// hasUserGeneratedPlan / cvSource / cvGeneratedAt / optimizationSession
+// so it never wipes real generated content.
+function clearUngeneratedPackageArtifacts(reason = 'clear-ungenerated-package-artifacts') {
+  const v = typeof getActiveVersion === 'function' ? getActiveVersion() : null;
+
+  const planKeys = [
+    'days90',
+    'months12',
+    'years2',
+    'plan_phases',
+    'success_summary',
+    'success_criteria',
+    'kpis',
+    'horizon'
+  ];
+
+  const hasGeneratedPlan =
+    typeof hasUserGeneratedPlan === 'function'
+      ? hasUserGeneratedPlan()
+      : !!(v?.planSource || v?.planGeneratedAt || v?.exportSettings?.planSource);
+
+  if (!hasGeneratedPlan) {
+    if (v?.plan && typeof v.plan === 'object') {
+      planKeys.forEach(k => delete v.plan[k]);
+    }
+
+    if (v?.exportSettings) {
+      delete v.exportSettings.planSource;
+      delete v.exportSettings.planGeneratedAt;
+    }
+
+    delete v?.planSource;
+    delete v?.planGeneratedAt;
+
+    if (window.STATE?.generated) {
+      planKeys.forEach(k => delete STATE.generated[k]);
+    }
+  }
+
+  const hasOptimized =
+    !!(window.STATE?._optimizeApplied || window.STATE?.optimizationSession);
+
+  const hasGeneratedCV =
+    !!(v?.cvSource || v?.cvGeneratedAt || v?.exportSettings?.cvSource);
+
+  if (!hasOptimized && !hasGeneratedCV) {
+    if (v) {
+      v.cvDraft = { body: '' };
+      v.cv = null;
+      delete v.cvSource;
+      delete v.cvGeneratedAt;
+    }
+
+    if (window.STATE?.generated) {
+      delete STATE.generated.cv;
+      delete STATE.generated.cvDraft;
+    }
+  }
+
+  console.log('[package-cleanup] cleared ungenerated package artifacts', {
+    reason,
+    hasGeneratedPlan,
+    hasOptimized,
+    hasGeneratedCV
+  });
+}
+
+try {
+  window.clearUngeneratedPackageArtifacts = clearUngeneratedPackageArtifacts;
+} catch (_) {}
+
 // PATCH (2026-04-28): plan quality scoring. Used by the optimize-response
 // gate to reject shallow plan payloads (e.g. only labels + 2 generic
 // actions) and fall back to the richer /builder/generate endpoint.
@@ -6427,6 +6501,9 @@ async function vmImportLinkedIn() {
       const _vmLinkInput = document.getElementById('vm-linkedin-url');
       if (_vmLinkInput) _vmLinkInput.value = '';
     } catch (_) {}
+    // PATCH (2026-04-28 prefill-leakage fix): a job-import must not carry
+    // along stale plan/CV artifacts.
+    try { clearUngeneratedPackageArtifacts && clearUngeneratedPackageArtifacts('vm-linkedin-import'); } catch(_){}
     statusEl.innerHTML = '<span style="color:#047857">&#10003; Job details imported!</span>';
   } catch(e) {
     statusEl.innerHTML = `<span style="color:#B91C1C">${e.message}</span>`;
@@ -10022,6 +10099,9 @@ function _doStartNewPlan() {
   _resetUserState();
   // PATCH (2026-04-28): brand-new resume must not start with a generated plan.
   try { resetPlanStateForNewProfile && resetPlanStateForNewProfile('new-profile'); } catch(_){}
+  // PATCH (2026-04-28 prefill-leakage fix): wipe any pre-Optimize CV/plan
+  // artifacts that may have leaked into the active version.
+  try { clearUngeneratedPackageArtifacts && clearUngeneratedPackageArtifacts('new-profile'); } catch(_){}
   // PATCH (2026-04-28): never carry a previous customer/profile's LinkedIn
   // URL into the new resume.
   try { clearTransientLinkedInInputs && clearTransientLinkedInInputs('new-profile'); } catch(_){}
@@ -10241,6 +10321,24 @@ function hydrateWorkspaceFromSaved(data) {
     }
   } catch (_) {}
   try { clearTransientLinkedInInputs && clearTransientLinkedInInputs('hydrate'); } catch (_) {}
+
+  // PATCH (2026-04-28 prefill-leakage fix): if the saved profile carries
+  // NO plan/CV provenance markers, it never had a generated plan or CV ?
+  // scrub any leftover plan/CV-shaped fields that may have been hydrated
+  // from legacy/draft data so preview/export show empty-state until the
+  // user runs Optimize or manually generates.
+  try {
+    const _es = (data && data.exportSettings) || {};
+    const _hasSavedPlanProv =
+      !!(data && (data.planSource || data.planGeneratedAt)) ||
+      !!(_es.planSource || _es.planGeneratedAt);
+    const _hasSavedCVProv =
+      !!(data && (data.cvSource || data.cvGeneratedAt)) ||
+      !!(_es.cvSource || _es.cvGeneratedAt);
+    if (!_hasSavedPlanProv && !_hasSavedCVProv) {
+      clearUngeneratedPackageArtifacts && clearUngeneratedPackageArtifacts('hydrate-no-provenance');
+    }
+  } catch (_) {}
 }
 
 async function loadPlan(planId) {
@@ -14127,6 +14225,9 @@ async function parseResume() {
     // Auto-collapse the upload section now that resume is loaded
     collapseResumeUpload(fname, now);
     try { _scheduleControlledRefactorChecks && _scheduleControlledRefactorChecks('parseResume'); } catch(_){ }
+    // PATCH (2026-04-28 prefill-leakage fix): a resume parse must not bring
+    // along leftover plan/CV artifacts from a prior profile or save.
+    try { clearUngeneratedPackageArtifacts && clearUngeneratedPackageArtifacts('resume-parse'); } catch(_){ }
     // Clear the extraction status message (FIX #1)
     const parseStatusEl = document.getElementById('parse-status');
     if (parseStatusEl) parseStatusEl.textContent = '';
@@ -22493,6 +22594,29 @@ window.debugPackageExport = function () {
   };
 };
 
+// PATCH (2026-04-28 prefill-leakage fix): inspect whether plan/CV artifacts
+// have leaked into the active profile before the user ran Optimize or
+// manually generated. Used to validate clearUngeneratedPackageArtifacts().
+window.debugPackagePrefillState = function () {
+  const v = typeof getActiveVersion === 'function' ? getActiveVersion() : {};
+  const cv = typeof getCVDraft === 'function' ? getCVDraft() : v?.cvDraft;
+  const plan = v?.plan || {};
+  const planKeys = ['days90','months12','years2','plan_phases','success_summary','success_criteria','kpis','horizon']
+    .filter(k => plan?.[k] !== undefined || STATE?.generated?.[k] !== undefined);
+
+  return {
+    hasOptimized: !!(STATE?._optimizeApplied || STATE?.optimizationSession),
+    hasUserGeneratedPlan: typeof hasUserGeneratedPlan === 'function' ? hasUserGeneratedPlan() : null,
+    planSource: v?.planSource || v?.exportSettings?.planSource || null,
+    planGeneratedAt: v?.planGeneratedAt || v?.exportSettings?.planGeneratedAt || null,
+    planKeys,
+    cvDraftExists: !!cv,
+    cvHasBody: Array.isArray(cv?.body) ? cv.body.length > 0 : !!String(cv?.body || '').trim(),
+    cvKeys: Object.keys(cv || {}),
+    targetRole: typeof getCurrentTargetRole === 'function' ? getCurrentTargetRole() : null
+  };
+};
+
 // PATCH (Plan quality polish v4): inspect plan data quality so we can tell
 // whether sparseness is a renderer issue or a backend/AI generation issue.
 window.debugPlanDataQuality = function () {
@@ -23436,6 +23560,11 @@ async function importLinkedInJob() {
       try { (typeof refreshOptimizeQuickState === 'function') && refreshOptimizeQuickState(); } catch(_){}
       try { (typeof renderTargetJobsPanel === 'function') && renderTargetJobsPanel(); } catch(_){}
       try { renderWorkspaceStepEditors && renderWorkspaceStepEditors(); } catch(_){}
+
+      // PATCH (2026-04-28 prefill-leakage fix): a job-import must not carry
+      // along stale plan/CV artifacts that may have been populated from a
+      // prior profile or legacy save.
+      try { clearUngeneratedPackageArtifacts && clearUngeneratedPackageArtifacts('linkedin-job-import'); } catch(_){}
 
       try { markDirty && markDirty({ touchOptimize: false }); } catch(_){}
 
