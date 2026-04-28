@@ -7048,6 +7048,25 @@ async function optimizeForJob() {
             setGeneratedResume(stateGen);
           } catch(_){}
           console.log('[optimize] plan written from response (skipping generatePlanIntoActiveVersion)');
+          // Detailed plan trace (what the AI actually returned for the plan section)
+          try {
+            if (_aitEnabled && _aitEnabled()) {
+              console.groupCollapsed('%cAI %c← PLAN (from /optimize response)',
+                _AIT_STYLES.hdr, _AIT_STYLES.recv);
+              console.log('%cphases:', _AIT_STYLES.meta, (planToWrite.plan_phases || []).length, planToWrite.plan_phases || []);
+              console.log('%csuccess_summary:', _AIT_STYLES.meta, planToWrite.success_summary || '(empty)');
+              console.log('%csuccess_criteria:', _AIT_STYLES.meta, (planToWrite.success_criteria || []).length, planToWrite.success_criteria || []);
+              console.log('%ckpis:', _AIT_STYLES.meta, (planToWrite.kpis || []).length, planToWrite.kpis || []);
+              if (planToWrite.days90)   console.log('%cdays90:',   _AIT_STYLES.meta, planToWrite.days90);
+              if (planToWrite.months12) console.log('%cmonths12:', _AIT_STYLES.meta, planToWrite.months12);
+              if (planToWrite.years2)   console.log('%cyears2:',   _AIT_STYLES.meta, planToWrite.years2);
+              if (planToWrite.horizon)  console.log('%chorizon:',  _AIT_STYLES.meta, planToWrite.horizon);
+              console.log('%cFull plan object:', _AIT_STYLES.meta, planToWrite);
+              console.groupEnd();
+            } else {
+              console.log('[optimize→plan] plan payload:', planToWrite);
+            }
+          } catch(_){}
         } catch(e) { console.warn('[optimize] plan write failed:', e); }
       } else {
         // Fallback: no plan in response — run the separate generate call
@@ -15229,6 +15248,7 @@ async function generatePlanIntoActiveVersion() {
       additional_details: (document.getElementById('additional-resume-details')?.value || '').trim(),
       editing_plan_id: currentPlanId || ''
     };
+    try { aiTraceSend('PLAN /builder/generate', payload); } catch(_){}
     const res = await fetch(API_BASE + '/builder/generate', {
       method: 'POST',
       headers: headers,
@@ -15236,6 +15256,7 @@ async function generatePlanIntoActiveVersion() {
     });
     if (!res.ok) {
       const txt = await res.text().catch(()=>'');
+      try { aiTraceError('PLAN /builder/generate', new Error('HTTP '+res.status), { body: txt.slice(0,300) }); } catch(_){}
       return { ok: false, error: 'HTTP ' + res.status + ' ' + txt.slice(0, 200) };
     }
     const data = await res.json();
@@ -15243,6 +15264,26 @@ async function generatePlanIntoActiveVersion() {
     const PLAN_KEYS = ['plan_phases','success_summary','success_criteria','kpis','days90','months12','years2','horizon'];
     const planSlice = {};
     PLAN_KEYS.forEach(k => { if (gen[k] !== undefined) planSlice[k] = gen[k]; });
+    // Detailed plan trace (what the AI returned from /builder/generate)
+    try {
+      if (_aitEnabled && _aitEnabled()) {
+        console.groupCollapsed('%cAI %c← PLAN (from /builder/generate)',
+          _AIT_STYLES.hdr, _AIT_STYLES.recv);
+        console.log('%cphases:', _AIT_STYLES.meta, (planSlice.plan_phases || []).length, planSlice.plan_phases || []);
+        console.log('%csuccess_summary:', _AIT_STYLES.meta, planSlice.success_summary || '(empty)');
+        console.log('%csuccess_criteria:', _AIT_STYLES.meta, (planSlice.success_criteria || []).length, planSlice.success_criteria || []);
+        console.log('%ckpis:', _AIT_STYLES.meta, (planSlice.kpis || []).length, planSlice.kpis || []);
+        if (planSlice.days90)   console.log('%cdays90:',   _AIT_STYLES.meta, planSlice.days90);
+        if (planSlice.months12) console.log('%cmonths12:', _AIT_STYLES.meta, planSlice.months12);
+        if (planSlice.years2)   console.log('%cyears2:',   _AIT_STYLES.meta, planSlice.years2);
+        if (planSlice.horizon)  console.log('%chorizon:',  _AIT_STYLES.meta, planSlice.horizon);
+        console.log('%cPlan slice:', _AIT_STYLES.meta, planSlice);
+        console.log('%cFull response:', _AIT_STYLES.meta, data);
+        console.groupEnd();
+      } else {
+        console.log('[generatePlanIntoActiveVersion] plan slice:', planSlice, 'full response:', data);
+      }
+    } catch(_){}
     if (typeof setCurrentPlan === 'function') {
       const cur = (typeof getCurrentPlan === 'function') ? (getCurrentPlan() || {}) : {};
       setCurrentPlan(Object.assign({}, cur, planSlice));
