@@ -3537,10 +3537,43 @@
   }
 
   // ----- Renderer helpers -----
+  // Decodes HTML entities exactly once. Used so that source data already
+  // containing entities (e.g. "Fraud &amp; Claims" from a parsed DOCX/PDF)
+  // doesn't get re-escaped to "Fraud &amp;amp; Claims" by _esc below.
+  // Safe: a detached <textarea> cannot execute scripts during innerHTML write.
+  function decodeHtmlEntitiesOnce(value) {
+    var text = String(value == null ? '' : value);
+    if (text.indexOf('&') === -1) return text;
+    try {
+      var ta = document.createElement('textarea');
+      ta.innerHTML = text;
+      return ta.value;
+    } catch (_) {
+      return text;
+    }
+  }
   function _esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    var decoded = decodeHtmlEntitiesOnce(s);
+    return String(decoded == null ? '' : decoded).replace(/[&<>"']/g, function (c) {
       return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
     });
+  }
+  // Safe profile photo URL gate. Only data:image/* or https:// are allowed.
+  // TODO(photo-upload): Personal Information step should expose an upload
+  // control that writes a data: URL into RB_STATE.profilePhotoDataUrl. Save/
+  // Publish should later upload to Firebase Storage and rewrite the field to
+  // a stable hosted URL before publishing, so we don't ship giant data URLs.
+  function _safePhotoUrl(url) {
+    var s = String(url == null ? '' : url).trim();
+    if (!s) return '';
+    if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(s)) return s;
+    if (/^https:\/\//i.test(s)) return s;
+    return '';
+  }
+  function getPreviewProfilePhoto(pkg) {
+    var fromState = (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
+    var fromPkg = (pkg && pkg.documents && pkg.documents.profilePhotoDataUrl) || '';
+    return _safePhotoUrl(fromState || fromPkg);
   }
   function _safeStr(v) {
     if (v == null) return '';
@@ -3693,7 +3726,11 @@
           (contactHtml ? '<div class="contact muted">' + contactHtml + '</div>' : '') +
           linksHtml +
         '</header>') +
-      (summary    ? '<section id="sec-summary" class="sub"><h2>Summary</h2><p>' + _esc(summary) + '</p></section>' : '') +
+      // On web, the Public Web Page already renders an Overview card seeded
+      // from the resume summary. Skip the inner Summary subsection there to
+      // avoid duplicate Summary/Overview content. PDF/DOCX keep Summary as
+      // the formal first resume section.
+      (summary && format !== 'web' ? '<section id="sec-summary" class="sub"><h2>Summary</h2><p>' + _esc(summary) + '</p></section>' : '') +
       (skillsHtml ? '<section id="sec-skills" class="sub skills-block"><h2>Key Skills</h2>' + skillsHtml + '</section>' : '') +
       (expHtml    ? '<section id="sec-experience" class="sub"><h2>Professional Experience</h2>' + expHtml + '</section>' : '') +
       (eduHtml    ? '<section id="sec-education" class="sub"><h2>Education</h2>' + eduHtml + '</section>' : '') +
@@ -3845,15 +3882,19 @@
   function _renderDocSectionByKey(key, pkg, cfg, format) {
     var d = pkg.documents || {};
     var role = d.targetRole || {};
-    if (key === 'resume')      return d.resume      ? _renderResumeSection(d.resume, cfg, format)      : _missingCard('Resume', 'Import a resume first.');
-    if (key === 'coverLetter') return d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role)   : _missingCard('Cover Letter', 'Generate a cover letter first.');
-    if (key === 'rolePlan')    return d.rolePlan    ? _renderRolePlanSection(d.rolePlan, d.rolePlanType): _missingCard('Career Plan', 'Generate a role plan first.');
-    return '';
+    var inner;
+    if (key === 'resume')           inner = d.resume      ? _renderResumeSection(d.resume, cfg, format)        : _missingCard('Resume',       'Import a resume first.');
+    else if (key === 'coverLetter') inner = d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role)     : _missingCard('Cover Letter', 'Generate a cover letter first.');
+    else if (key === 'rolePlan')    inner = d.rolePlan    ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan',  'Generate a role plan first.');
+    else return '';
+    var slug = key === 'coverLetter' ? 'cv' : (key === 'rolePlan' ? 'plan' : 'resume');
+    return '<section class="doc-subdoc doc-subdoc-' + slug + '">' + inner + '</section>';
   }
   // Small uppercase label + thin rule + page-break-before. Print-friendly.
+  // Class names also include legacy ".doc-divider" for backward CSS compat.
   function _docDivider(label) {
-    return '<div class="doc-divider" role="separator" aria-label="' + _esc(label) + '">' +
-      '<span class="doc-divider-label">' + _esc(label) + '</span>' +
+    return '<div class="doc-package-divider doc-divider" role="separator" aria-label="' + _esc(label) + '">' +
+      '<span class="doc-package-divider-label doc-divider-label">' + _esc(label) + '</span>' +
     '</div>';
   }
 
@@ -3867,7 +3908,8 @@
     var contact = rd.contact || rd.basics || {};
     var name = _safeStr(rd.full_name || contact.name || rd.name || '');
     var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || (role.job_title || ''));
-    var photo = (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
+    // Safe profile photo: data:image/* or https:// only. Empty string otherwise.
+    var photo = getPreviewProfilePhoto(pkg);
 
     // Hero contact links — only render values that already exist on the
     // resume/contact. No new upload UI here; profile photo is opt-in.
@@ -3879,7 +3921,7 @@
     if (rd.website)  heroLinks.push(_safeStr(rd.website));
 
     var hero = '<header class="hero" id="sec-top">' +
-      (photo ? '<img class="hero-photo" alt="" src="' + _esc(photo) + '">' : '') +
+      (photo ? '<img class="preview-profile-photo hero-photo" alt="' + _esc(name) + '" src="' + _esc(photo) + '">' : '') +
       '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
       (headline ? '<p class="hero-sub">' + _esc(headline) + '</p>' : '') +
       (role.company ? '<p class="hero-meta muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
@@ -3924,7 +3966,9 @@
 
   // Modern Sidebar PDF/DOCX rail wraps the Resume sub-doc only.
   // CV/Plan render full-width above the resume in CV->Plan->Resume order.
-  function _renderResumeWithRail(rd, cfg, format) {
+  // Emits markup on .resume-modern-sidebar/.resume-sidebar/.resume-main so
+  // CSS can grid only the resume subdoc, never the whole package.
+  function _renderResumeWithRail(rd, cfg, format, photoUrl) {
     var contact = rd.contact || rd.basics || {};
     var name = _safeStr(rd.full_name || contact.name || rd.name || '');
     var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || '');
@@ -3936,7 +3980,9 @@
     var achievements = Array.isArray(rd.achievements) ? rd.achievements
       : (Array.isArray(rd.awards) ? rd.awards : []);
     var skillsHtml = renderDocumentSkills(rd, cfg);
-    var rail = '<aside class="sidebar-rail">' +
+    var safePhoto = _safePhotoUrl(photoUrl);
+    var rail = '<aside class="resume-sidebar sidebar-rail">' +
+      (safePhoto ? '<img class="preview-profile-photo rail-photo" alt="' + _esc(name) + '" src="' + _esc(safePhoto) + '">' : '') +
       (name ? '<h1>' + _esc(name) + '</h1>' : '') +
       (headline ? '<p class="rail-headline">' + _esc(headline) + '</p>' : '') +
       '<div class="rail-block"><h4>Contact</h4>' +
@@ -3949,9 +3995,15 @@
       (certs.length ? '<div class="rail-block"><h4>Certifications</h4><ul class="sk-list">' + certs.map(function (c) { return '<li>' + _esc(_safeStr(c && (c.name || c.title || c))) + '</li>'; }).join('') + '</ul></div>' : '') +
       (achievements.length ? '<div class="rail-block"><h4>Achievements</h4><ul class="sk-list">' + achievements.map(function (a) { return '<li>' + _esc(_safeStr(a && (a.title || a.name || a.description || a))) + '</li>'; }).join('') + '</ul></div>' : '') +
     '</aside>';
-    return '<div class="resume-with-rail layout-sidebar-rail">' + rail +
-      '<div class="main-col">' + _renderResumeSection(rd, cfg, format) + '</div>' +
-    '</div>';
+    // Outer .doc-subdoc.doc-subdoc-resume keeps the resume rail visually
+    // separated from CV/Plan and matches the package's subdoc contract.
+    // Inner .resume-modern-sidebar is the only element that uses the grid.
+    return '<section class="doc-subdoc doc-subdoc-resume">' +
+      '<div class="resume-modern-sidebar resume-with-rail layout-sidebar-rail">' +
+        rail +
+        '<main class="resume-main main-col">' + _renderResumeSection(rd, cfg, format) + '</main>' +
+      '</div>' +
+    '</section>';
   }
 
   function _renderDocumentPackage(pkg, format, cfg) {
@@ -3959,31 +4011,39 @@
     cfg = cfg || getPreviewStyleConfig((pkg.style && pkg.style.template) || 'modern-sidebar', (pkg.style && pkg.style.color) || 'blue', format);
     var d = pkg.documents || {};
     var order = getSelectedPackageSectionsInOrder(pkg, format);
+    var photo = getPreviewProfilePhoto(pkg);
 
     // Empty / missing fallbacks: keep current "missing" messaging if the
-    // user selected a doc but it isn't generated yet.
+    // user selected a doc but it isn't generated yet. Each missing card is
+    // wrapped in a .doc-subdoc so layout/widths stay full-width.
     var s = pkg.selected || {};
     if (!order.length) {
-      // Either nothing selected, or selected docs have no data — render
-      // missing cards inline so the surface is informative.
       var fallback = '';
-      if (s.coverLetter) fallback += _missingCard('Cover Letter', 'Generate a cover letter first.');
-      if (s.rolePlan)    fallback += _missingCard('Career Plan',  'Generate a role plan first.');
-      if (s.resume)      fallback += _missingCard('Resume',       'Import a resume first.');
-      return '<main class="document-package layout-' + cfg.layout + '">' + fallback + '</main>';
+      if (s.coverLetter) fallback += '<section class="doc-subdoc doc-subdoc-cv">'     + _missingCard('Cover Letter', 'Generate a cover letter first.') + '</section>';
+      if (s.rolePlan)    fallback += '<section class="doc-subdoc doc-subdoc-plan">'   + _missingCard('Career Plan',  'Generate a role plan first.')    + '</section>';
+      if (s.resume)      fallback += '<section class="doc-subdoc doc-subdoc-resume">' + _missingCard('Resume',       'Import a resume first.')         + '</section>';
+      // Outer wrapper for PDF/DOCX deliberately does NOT carry layout-{cfg.layout}.
+      // No global CSS should be able to turn the package into a sidebar grid.
+      return '<main class="document-package doc-page">' + fallback + '</main>';
     }
 
     var useRail = cfg.docLayout === 'sidebar-rail' && order.indexOf('resume') !== -1;
     var pieces = [];
     order.forEach(function (key, idx) {
+      // Divider goes BETWEEN subdocs (never inside one). Skip before the
+      // first rendered subdoc so the page starts cleanly.
       if (idx > 0) pieces.push(_docDivider(DOC_LABELS[key] || ''));
       if (key === 'resume' && useRail) {
-        pieces.push(_renderResumeWithRail(d.resume, cfg, format));
+        pieces.push(_renderResumeWithRail(d.resume, cfg, format, photo));
       } else {
         pieces.push(_renderDocSectionByKey(key, pkg, cfg, format));
       }
     });
-    return '<main class="document-package layout-' + cfg.layout + '">' + pieces.join('') + '</main>';
+    // CRITICAL: outer document-package no longer carries layout-{cfg.layout}.
+    // That class previously triggered a global grid rule that squished CV
+    // and Plan into a 230px column. Modern Sidebar grid is now scoped to
+    // .resume-modern-sidebar inside the resume sub-doc only.
+    return '<main class="document-package doc-page">' + pieces.join('') + '</main>';
   }
   function _truncate(str, max) {
     var s = String(str == null ? '' : str).trim();
@@ -4248,9 +4308,14 @@
       '.sk-tag:last-child::after{content:"";}',
       '.sk-plain{font-size:.92rem;}',
       // ---------- Style: Modern Sidebar (PDF/DOCX layout) ----------
-      'body.style-modern-sidebar.format-pdf .document-package.layout-sidebar-rail,body.style-modern-sidebar.format-docx .document-package.layout-sidebar-rail{display:grid;grid-template-columns:230px 1fr;gap:0;max-width:8.5in;background:#fff;}',
-      'body.style-modern-sidebar .document-package.layout-sidebar-rail .sidebar-rail{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;padding:28px 20px;}',
-      'body.style-modern-sidebar .document-package.layout-sidebar-rail .main-col{padding:24px 28px;}',
+      // INTENTIONALLY: no rule on .document-package itself for Modern Sidebar.
+      // The previous "body.style-modern-sidebar.format-{pdf,docx} .document-package.layout-sidebar-rail{display:grid;...}"
+      // rule turned the WHOLE package into a 230px+1fr grid, which forced
+      // CV and Plan into the narrow left column (the "squish" bug). The
+      // resume rail now lives inside .resume-modern-sidebar (resume subdoc
+      // only) and is the only thing allowed to use a sidebar grid.
+      'body.style-modern-sidebar .resume-modern-sidebar .resume-sidebar{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;padding:28px 20px;}',
+      'body.style-modern-sidebar .resume-modern-sidebar .resume-main{padding:24px 28px;min-width:0;}',
       // Doc skills helper styles
       '.sk-three-col{list-style:disc;padding:0;margin:.3rem 0 .4rem 1.1rem;display:grid;grid-template-columns:repeat(3,1fr);gap:.15rem 1.4rem;}',
       '.sk-three-col li{margin:.1rem 0;font-size:.88rem;break-inside:avoid;}',
@@ -4347,9 +4412,46 @@
       // Classic 3-column skills (PDF + DOCX): owned by Classic style only.
       'body.style-classic .sk-three-col{column-count:3;column-gap:1.4rem;display:block;list-style:disc;padding-left:1.1rem;}',
       'body.style-classic .sk-three-col li{break-inside:avoid;page-break-inside:avoid;font-size:.92rem;}',
-      // Resume-with-rail wrapper inside the document package.
-      'body.format-pdf .resume-with-rail.layout-sidebar-rail,body.format-docx .resume-with-rail.layout-sidebar-rail{display:grid;grid-template-columns:230px 1fr;gap:0;background:#fff;}',
-      'body.format-pdf .resume-with-rail.layout-sidebar-rail .main-col,body.format-docx .resume-with-rail.layout-sidebar-rail .main-col{padding:0 0 0 22px;}',
+      // Resume-with-rail wrapper inside the document package. The grid is
+      // ONLY applied to .resume-modern-sidebar — never to .document-package.
+      'body.format-pdf .resume-modern-sidebar,body.format-docx .resume-modern-sidebar{display:grid;grid-template-columns:230px minmax(0,1fr);gap:0;background:#fff;align-items:stretch;}',
+      'body.format-pdf .resume-modern-sidebar .resume-main,body.format-docx .resume-modern-sidebar .resume-main{padding:0 0 0 22px;min-width:0;}',
+      // Web: don't grid the resume rail. The published-profile nav lives
+      // outside the resume subdoc, so the resume body can be full width.
+      'body.format-web .resume-modern-sidebar{display:block;}',
+      'body.format-web .resume-modern-sidebar .resume-sidebar{display:none;}',
+      // ---------- Document subdocs (CV / Plan / Resume): always full width ----------
+      // Each rendered sub-document is wrapped in <section class="doc-subdoc doc-subdoc-{cv|plan|resume}">
+      // so we can guarantee CV and Plan never get pulled into a sidebar grid.
+      '.doc-subdoc{display:block;width:100%;margin:0;}',
+      'body.format-pdf .doc-subdoc-cv,body.format-pdf .doc-subdoc-plan,body.format-docx .doc-subdoc-cv,body.format-docx .doc-subdoc-plan{display:block;width:100%;}',
+      'body.format-pdf .doc-subdoc-cv .doc-section,body.format-pdf .doc-subdoc-plan .doc-section,body.format-docx .doc-subdoc-cv .doc-section,body.format-docx .doc-subdoc-plan .doc-section{width:100%;max-width:100%;}',
+      // Profile photo inside the Modern Sidebar resume rail (PDF/DOCX only).
+      'body.format-pdf .resume-modern-sidebar .resume-sidebar .preview-profile-photo,body.format-docx .resume-modern-sidebar .resume-sidebar .preview-profile-photo{display:block;width:84px;height:84px;border-radius:50%;object-fit:cover;margin:0 auto 12px;border:3px solid rgba(255,255,255,.6);}',
+      // ---------- Web polish (published-profile) ----------
+      'body.format-web .web-portfolio.layout-published-profile .hero{padding:32px 28px;border-radius:18px;text-align:center;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;}',
+      'body.format-web .web-portfolio.layout-published-profile .hero h1{color:#fff;font-size:clamp(1.6rem,3vw,2.4rem);margin-bottom:.35rem;line-height:1.15;}',
+      'body.format-web .web-portfolio.layout-published-profile .hero .hero-sub{color:rgba(255,255,255,.95);font-weight:500;font-size:1rem;}',
+      'body.format-web .web-portfolio.layout-published-profile .hero .hero-meta{color:rgba(255,255,255,.85);font-size:.88rem;margin-top:.4rem;}',
+      // Hero links — keep them readable, never break the layout.
+      'body.format-web .web-portfolio.layout-published-profile .hero-link{display:inline-block;max-width:28ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;}',
+      // Sticky desktop nav: cleaner active/hover affordance.
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-nav a{color:var(--text);font-size:.9rem;transition:background .12s ease, color .12s ease;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-nav a:hover{background:var(--surface);color:var(--accent-dark);font-weight:600;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}',
+      // Mobile/tablet/app: pill nav rendering.
+      'body.format-web.device-tablet .web-portfolio.layout-published-profile .site-nav a,body.format-web.device-mobile .web-portfolio.layout-published-profile .site-nav a,body.format-web.device-app .web-portfolio.layout-published-profile .site-nav a{padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:.82rem;}',
+      // Web skills: never let skills run as a long dense line.
+      'body.format-web .skills-block .sk-doc-inline,body.format-web .skills-block .sk-doc-three{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 18px;}',
+      'body.format-web .skills-block .sk-doc-sidebar{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;}',
+      'body.format-web .skills-block .sk-group{margin:.2rem 0;padding-left:8px;border-left:3px solid var(--accent);}',
+      'body.format-web .skills-block .sk-group h4{color:var(--accent-dark);}',
+      // Web plan polish: phase cards in balanced grid, no giant blank gaps.
+      'body.format-web #sec-plan .phase-card{margin:0;padding:14px 16px;border-top:0;background:var(--sidebar);border-radius:10px;box-shadow:0 1px 2px rgba(15,23,42,.04);}',
+      'body.format-web #sec-plan .sub:has(.phase-card){display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}',
+      'body.format-web #sec-plan .sub:has(.phase-card) > h3{grid-column:1/-1;}',
+      // Hide rail photo on web (we already render the hero photo).
+      'body.format-web .preview-profile-photo.rail-photo{display:none;}',
       // ---------- PPTX portrait (8.5/11 ratio) ----------
       'body.format-pptx .deck{padding:24px 14px;}',
       'body.format-pptx .slide{aspect-ratio:8.5/11;max-width:680px;width:100%;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.25);}',
@@ -4644,19 +4746,42 @@
         docChipCount = frame.contentDocument.querySelectorAll('.chip,.sk-tag').length;
       }
     } catch (_) {}
+    // Sub-document widths (only meaningful for PDF/DOCX). Used to detect
+    // a regression where CV or Plan get squished into a sidebar column.
+    var docSubdocCount = 0, cvWidth = 0, planWidth = 0, resumeWidth = 0;
+    try {
+      if (frame && frame.contentDocument) {
+        var doc = frame.contentDocument;
+        docSubdocCount = doc.querySelectorAll('.doc-subdoc').length;
+        var cvEl     = doc.querySelector('.doc-subdoc-cv');
+        var planEl   = doc.querySelector('.doc-subdoc-plan');
+        var resumeEl = doc.querySelector('.doc-subdoc-resume');
+        if (cvEl)     cvWidth     = Math.round(cvEl.getBoundingClientRect().width);
+        if (planEl)   planWidth   = Math.round(planEl.getBoundingClientRect().width);
+        if (resumeEl) resumeWidth = Math.round(resumeEl.getBoundingClientRect().width);
+      }
+    } catch (_) {}
+    var hasSquishedDocLayout = false;
+    if ((format === 'pdf' || format === 'docx') && clientW > 0) {
+      var threshold = clientW * 0.6;
+      if (cvWidth   > 0 && cvWidth   < threshold) hasSquishedDocLayout = true;
+      if (planWidth > 0 && planWidth < threshold) hasSquishedDocLayout = true;
+    }
     var pkg = (window.RB_STATE && RB_STATE.documentPackage) || (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null);
     var packageOrder = pkg ? getSelectedPackageSectionsInOrder(pkg, format) : [];
+    var styleEl = document.getElementById('export-style');
+    var selectedStyle = (styleEl && styleEl.value) || 'modern-sidebar';
     return {
       format: format,
       previewFormat: format,
+      selectedStyle: selectedStyle,
       device: device,
       deviceMode: device,
       mode: mode,
       effectiveMode: mode,
       isDocument: format === 'pdf' || format === 'docx',
       effectiveSkillMode: (function () {
-        var styleEl = document.getElementById('export-style');
-        var t = (styleEl && styleEl.value) || 'modern-sidebar';
+        var t = selectedStyle;
         var c = getSelectedExportColor();
         return getPreviewStyleConfig(t, c, format).skillStyle;
       })(),
@@ -4670,6 +4795,11 @@
       srcdocLength: srcdoc.length,
       srcdocScriptTagCount: scriptCount,
       docChipCount: docChipCount,
+      docSubdocCount: docSubdocCount,
+      cvWidth: cvWidth,
+      planWidth: planWidth,
+      resumeWidth: resumeWidth,
+      hasSquishedDocLayout: hasSquishedDocLayout,
       packageOrder: packageOrder,
       rawScriptTagCount: _lastRenderCounts.rawScriptTagCount,
       cleanScriptTagCount: _lastRenderCounts.cleanScriptTagCount,
@@ -4693,6 +4823,31 @@
       hasCoverLetter: !!d.coverLetter,
       hasRolePlan: !!d.rolePlan,
       hasResume: !!d.resume
+    };
+  };
+
+  // Profile photo support inspector. Reports whether a safe photo URL is
+  // present, whether it survives the safety gate, and how many sanitized
+  // <img class="preview-profile-photo"> elements are rendered in the iframe.
+  window.debugPreviewPhotoSupport = function () {
+    var pkg = (window.RB_STATE && RB_STATE.documentPackage) ||
+      (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : { documents: {} });
+    var url = getPreviewProfilePhoto(pkg);
+    var rawUrl = (window.RB_STATE && RB_STATE.profilePhotoDataUrl) ||
+      (pkg && pkg.documents && pkg.documents.profilePhotoDataUrl) || '';
+    var renderedPhotoCount = 0;
+    try {
+      var frame = document.getElementById('preview-frame');
+      if (frame && frame.contentDocument) {
+        renderedPhotoCount = frame.contentDocument.querySelectorAll('img.preview-profile-photo').length;
+      }
+    } catch (_) {}
+    return {
+      hasPhoto: !!url,
+      hasRawValue: !!rawUrl,
+      photoLooksSafe: !!url && (/^data:image\//i.test(url) || /^https:\/\//i.test(url)),
+      rawWasRejected: !!rawUrl && !url,
+      renderedPhotoCount: renderedPhotoCount
     };
   };
 
