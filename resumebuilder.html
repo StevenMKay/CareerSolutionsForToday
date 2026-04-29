@@ -3296,12 +3296,16 @@
       purple: { a:'#7C3AED', d:'#5B21B6' }
     };
     var p = palette[color] || palette.blue;
+    // ARCHITECTURE: every web style shares the same `published-profile`
+    // body layout. Styles only differ on color, typography, accent and
+    // section treatment for the public web page. Document layouts
+    // (PDF/DOCX) are template-specific.
     var presets = {
       'modern-sidebar': {
         label:'Modern Sidebar',
         description:'Structured sidebar layout',
         className:'style-modern-sidebar',
-        webLayout:'sidebar', docLayout:'sidebar-rail',
+        webLayout:'published-profile', docLayout:'sidebar-rail',
         webSkillMode:'compact-tags', docSkillMode:'sidebar-grouped',
         sectionStyle:'ruled',
         fontHead:'"Outfit",-apple-system,Segoe UI,sans-serif',
@@ -3311,7 +3315,7 @@
         label:'Executive',
         description:'Formal corporate profile',
         className:'style-executive',
-        webLayout:'executive', docLayout:'centered-formal',
+        webLayout:'published-profile', docLayout:'centered-formal',
         webSkillMode:'compact-tags', docSkillMode:'inline-grouped',
         sectionStyle:'formal',
         fontHead:'"Outfit",Georgia,serif',
@@ -3321,8 +3325,8 @@
         label:'Classic',
         description:'Clean ATS-friendly document',
         className:'style-classic',
-        webLayout:'classic', docLayout:'clean-single',
-        webSkillMode:'plain-list', docSkillMode:'three-column',
+        webLayout:'published-profile', docLayout:'clean-single',
+        webSkillMode:'compact-tags', docSkillMode:'three-column',
         sectionStyle:'minimal',
         fontHead:'Georgia,"Times New Roman",serif',
         fontBody:'Georgia,"Times New Roman",serif'
@@ -3331,9 +3335,8 @@
         label:'Portfolio',
         description:'Modern public web profile',
         className:'style-portfolio',
-        // Portfolio is web-first. For PDF/DOCX it falls back to a clean,
-        // executive-like document layout (no cards, no pill chips).
-        webLayout:'portfolio-cards', docLayout:'centered-formal',
+        // Portfolio: web allows pill chips. PDF/DOCX = clean inline-grouped doc.
+        webLayout:'published-profile', docLayout:'centered-formal',
         webSkillMode:'pills-grouped', docSkillMode:'inline-grouped',
         sectionStyle:'cards',
         fontHead:'"Outfit",-apple-system,Segoe UI,sans-serif',
@@ -3684,20 +3687,20 @@
 
     return '<section id="sec-resume" class="doc-section section-' + cfg.sectionStyle + '">' +
       (sidebarLayout ? '' :
-        '<header class="doc-header">' +
+        '<header class="doc-header resume-header">' +
           (name ? '<h1>' + _esc(name) + '</h1>' : '<h1>Resume</h1>') +
           (headline ? '<p class="headline">' + _esc(headline) + '</p>' : '') +
           (contactHtml ? '<div class="contact muted">' + contactHtml + '</div>' : '') +
           linksHtml +
         '</header>') +
-      (summary ? '<section class="sub"><h2>Summary</h2><p>' + _esc(summary) + '</p></section>' : '') +
-      (skillsHtml ? '<section class="sub skills-block"><h2>Skills</h2>' + skillsHtml + '</section>' : '') +
-      (expHtml ? '<section class="sub"><h2>Experience</h2>' + expHtml + '</section>' : '') +
-      (projHtml ? '<section class="sub"><h2>Projects</h2>' + projHtml + '</section>' : '') +
-      (eduHtml ? '<section class="sub"><h2>Education</h2>' + eduHtml + '</section>' : '') +
-      (certsHtml ? '<section class="sub"><h2>Certifications</h2>' + certsHtml + '</section>' : '') +
-      (achHtml ? '<section class="sub"><h2>Achievements</h2>' + achHtml + '</section>' : '') +
-      (volHtml ? '<section class="sub"><h2>Volunteer Experience</h2>' + volHtml + '</section>' : '') +
+      (summary    ? '<section id="sec-summary" class="sub"><h2>Summary</h2><p>' + _esc(summary) + '</p></section>' : '') +
+      (skillsHtml ? '<section id="sec-skills" class="sub skills-block"><h2>Key Skills</h2>' + skillsHtml + '</section>' : '') +
+      (expHtml    ? '<section id="sec-experience" class="sub"><h2>Professional Experience</h2>' + expHtml + '</section>' : '') +
+      (eduHtml    ? '<section id="sec-education" class="sub"><h2>Education</h2>' + eduHtml + '</section>' : '') +
+      (certsHtml  ? '<section id="sec-certifications" class="sub"><h2>Certifications</h2>' + certsHtml + '</section>' : '') +
+      (achHtml    ? '<section id="sec-achievements" class="sub"><h2>Achievements</h2>' + achHtml + '</section>' : '') +
+      (projHtml   ? '<section id="sec-projects" class="sub"><h2>Projects</h2>' + projHtml + '</section>' : '') +
+      (volHtml    ? '<section id="sec-volunteer" class="sub"><h2>Volunteer Experience</h2>' + volHtml + '</section>' : '') +
       addHtml +
     '</section>';
   }
@@ -3818,76 +3821,169 @@
   }
 
   // ----- Format dispatchers -----
+  // ---------- Package order + section dispatch (reusable) ----------
+  // Documents (PDF/DOCX) always render: Cover Letter -> Career Plan -> Resume.
+  // Public Web Page renders Resume-first to keep the profile feel.
+  var DOC_LABELS = { coverLetter: 'Cover Letter', rolePlan: 'Career Plan', resume: 'Resume' };
+  function getSelectedPackageSectionsInOrder(pkg, format) {
+    pkg = pkg || {};
+    var s = pkg.selected || {};
+    var d = pkg.documents || {};
+    var docs = [];
+    if (format === 'pdf' || format === 'docx') {
+      if (s.coverLetter && d.coverLetter) docs.push('coverLetter');
+      if (s.rolePlan    && d.rolePlan)    docs.push('rolePlan');
+      if (s.resume      && d.resume)      docs.push('resume');
+      return docs;
+    }
+    // Web (and any non-document format): resume-first profile.
+    if (s.resume      && d.resume)      docs.push('resume');
+    if (s.coverLetter && d.coverLetter) docs.push('coverLetter');
+    if (s.rolePlan    && d.rolePlan)    docs.push('rolePlan');
+    return docs;
+  }
+  function _renderDocSectionByKey(key, pkg, cfg, format) {
+    var d = pkg.documents || {};
+    var role = d.targetRole || {};
+    if (key === 'resume')      return d.resume      ? _renderResumeSection(d.resume, cfg, format)      : _missingCard('Resume', 'Import a resume first.');
+    if (key === 'coverLetter') return d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role)   : _missingCard('Cover Letter', 'Generate a cover letter first.');
+    if (key === 'rolePlan')    return d.rolePlan    ? _renderRolePlanSection(d.rolePlan, d.rolePlanType): _missingCard('Career Plan', 'Generate a role plan first.');
+    return '';
+  }
+  // Small uppercase label + thin rule + page-break-before. Print-friendly.
+  function _docDivider(label) {
+    return '<div class="doc-divider" role="separator" aria-label="' + _esc(label) + '">' +
+      '<span class="doc-divider-label">' + _esc(label) + '</span>' +
+    '</div>';
+  }
+
   function _renderWebPortfolio(pkg, cfg) {
     cfg = cfg || getPreviewStyleConfig((pkg.style && pkg.style.template) || 'modern-sidebar', (pkg.style && pkg.style.color) || 'blue', 'web');
     var d = pkg.documents || {};
-    var s = pkg.selected || {};
     var role = d.targetRole || {};
-    var name = _safeStr(d.resume && (d.resume.full_name || (d.resume.contact && d.resume.contact.name) || d.resume.name) || '');
-    var headline = _safeStr((d.resume && (d.resume.headline || d.resume.title)) || (role.job_title || ''));
-    var hero = '<header class="hero">' +
+    var order = getSelectedPackageSectionsInOrder(pkg, 'web');
+
+    var rd = d.resume || {};
+    var contact = rd.contact || rd.basics || {};
+    var name = _safeStr(rd.full_name || contact.name || rd.name || '');
+    var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || (role.job_title || ''));
+    var photo = (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
+
+    // Hero contact links — only render values that already exist on the
+    // resume/contact. No new upload UI here; profile photo is opt-in.
+    var heroLinks = [];
+    var heroEmail = _safeStr(rd.email || contact.email || '');
+    if (heroEmail) heroLinks.push(heroEmail);
+    if (rd.linkedin) heroLinks.push(_safeStr(rd.linkedin));
+    if (rd.github)   heroLinks.push(_safeStr(rd.github));
+    if (rd.website)  heroLinks.push(_safeStr(rd.website));
+
+    var hero = '<header class="hero" id="sec-top">' +
+      (photo ? '<img class="hero-photo" alt="" src="' + _esc(photo) + '">' : '') +
       '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
       (headline ? '<p class="hero-sub">' + _esc(headline) + '</p>' : '') +
       (role.company ? '<p class="hero-meta muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
+      (heroLinks.length ? '<div class="hero-links">' + heroLinks.map(function (l) { return '<span class="hero-link">' + _esc(l) + '</span>'; }).join('') + '</div>' : '') +
     '</header>';
-    var nav = '<nav class="site-nav">' +
-      (s.resume && d.resume ? '<a href="#sec-resume">Resume</a>' : '') +
-      (s.coverLetter && d.coverLetter ? '<a href="#sec-cv">Cover Letter</a>' : '') +
-      (s.rolePlan && d.rolePlan ? '<a href="#sec-plan">Role Plan</a>' : '') +
-      (s.rolePlan && d.rolePlan ? '<a href="#sec-portfolio">Portfolio</a>' : '') +
-    '</nav>';
-    var body = '';
-    if (s.resume) body += d.resume ? _renderResumeSection(d.resume, cfg, 'web') : _missingCard('Resume', 'Import a resume first.');
-    if (s.coverLetter) body += d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role) : _missingCard('Cover Letter', 'Generate a cover letter first.');
-    if (s.rolePlan) body += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
-    if (s.rolePlan && d.rolePlan) body += _renderPortfolioSections(d.rolePlan);
+
+    // Build navigation — only emit anchors whose target will render.
+    var navItems = [];
+    navItems.push('<a href="#sec-overview">Overview</a>');
+    if (order.indexOf('rolePlan') !== -1)    navItems.push('<a href="#sec-plan">Career Plan</a>');
+    if (order.indexOf('coverLetter') !== -1) navItems.push('<a href="#sec-cv">Cover Letter</a>');
+    if (order.indexOf('resume') !== -1) {
+      navItems.push('<a href="#sec-resume">Resume</a>');
+      if (Array.isArray(rd.experience) && rd.experience.length) navItems.push('<a href="#sec-experience">Experience</a>');
+      var hasSkills = (Array.isArray(rd.skills) && rd.skills.length) ||
+        (Array.isArray(rd.technical_skills) && rd.technical_skills.length);
+      if (hasSkills) navItems.push('<a href="#sec-skills">Skills</a>');
+      if (Array.isArray(rd.education) && rd.education.length)         navItems.push('<a href="#sec-education">Education</a>');
+      if (Array.isArray(rd.certifications) && rd.certifications.length) navItems.push('<a href="#sec-certifications">Certifications</a>');
+      var hasAch = (Array.isArray(rd.achievements) && rd.achievements.length) ||
+        (Array.isArray(rd.projects) && rd.projects.length);
+      if (hasAch) navItems.push('<a href="#sec-achievements">Achievements</a>');
+    }
+    var nav = '<nav class="site-nav" aria-label="Section navigation">' + navItems.join('') + '</nav>';
+
+    var overviewSummary = _safeStr(rd.summary || rd.objective || '');
+    var overview = '<section id="sec-overview" class="doc-section overview-card">' +
+      '<h2>Overview</h2>' +
+      (overviewSummary
+        ? '<p>' + _esc(overviewSummary) + '</p>'
+        : '<p class="muted">Add a summary to your resume to populate this overview.</p>') +
+    '</section>';
+
+    var body = overview;
+    order.forEach(function (key) { body += _renderDocSectionByKey(key, pkg, cfg, 'web'); });
+    if (order.indexOf('rolePlan') !== -1 && d.rolePlan) body += _renderPortfolioSections(d.rolePlan);
+
     var footer = '<footer class="site-footer muted">Generated ' + _esc(pkg.generatedAt) + '</footer>';
-    return '<main class="web-portfolio layout-' + cfg.layout + '">' + hero + nav + body + footer + '</main>';
+    return '<main class="web-portfolio layout-published-profile">' + hero + nav +
+      '<div class="web-main">' + body + '</div>' + footer + '</main>';
   }
+
+  // Modern Sidebar PDF/DOCX rail wraps the Resume sub-doc only.
+  // CV/Plan render full-width above the resume in CV->Plan->Resume order.
+  function _renderResumeWithRail(rd, cfg, format) {
+    var contact = rd.contact || rd.basics || {};
+    var name = _safeStr(rd.full_name || contact.name || rd.name || '');
+    var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || '');
+    var email = _safeStr(contact.email || rd.email || '');
+    var phone = _safeStr(contact.phone || rd.phone || '');
+    var location = _safeStr(contact.location || rd.location || '');
+    var links = Array.isArray(rd.links) ? rd.links : (Array.isArray(contact.links) ? contact.links : []);
+    var certs = Array.isArray(rd.certifications) ? rd.certifications : [];
+    var achievements = Array.isArray(rd.achievements) ? rd.achievements
+      : (Array.isArray(rd.awards) ? rd.awards : []);
+    var skillsHtml = renderDocumentSkills(rd, cfg);
+    var rail = '<aside class="sidebar-rail">' +
+      (name ? '<h1>' + _esc(name) + '</h1>' : '') +
+      (headline ? '<p class="rail-headline">' + _esc(headline) + '</p>' : '') +
+      '<div class="rail-block"><h4>Contact</h4>' +
+        (email ? '<p>' + _esc(email) + '</p>' : '') +
+        (phone ? '<p>' + _esc(phone) + '</p>' : '') +
+        (location ? '<p>' + _esc(location) + '</p>' : '') +
+        (links.length ? '<ul class="rail-links">' + links.map(function (l) { var lbl = _linkLabel(l); return lbl ? '<li>' + _esc(lbl) + '</li>' : ''; }).join('') + '</ul>' : '') +
+      '</div>' +
+      (skillsHtml ? '<div class="rail-block"><h4>Skills</h4>' + skillsHtml + '</div>' : '') +
+      (certs.length ? '<div class="rail-block"><h4>Certifications</h4><ul class="sk-list">' + certs.map(function (c) { return '<li>' + _esc(_safeStr(c && (c.name || c.title || c))) + '</li>'; }).join('') + '</ul></div>' : '') +
+      (achievements.length ? '<div class="rail-block"><h4>Achievements</h4><ul class="sk-list">' + achievements.map(function (a) { return '<li>' + _esc(_safeStr(a && (a.title || a.name || a.description || a))) + '</li>'; }).join('') + '</ul></div>' : '') +
+    '</aside>';
+    return '<div class="resume-with-rail layout-sidebar-rail">' + rail +
+      '<div class="main-col">' + _renderResumeSection(rd, cfg, format) + '</div>' +
+    '</div>';
+  }
+
   function _renderDocumentPackage(pkg, format, cfg) {
     format = format || 'pdf';
     cfg = cfg || getPreviewStyleConfig((pkg.style && pkg.style.template) || 'modern-sidebar', (pkg.style && pkg.style.color) || 'blue', format);
     var d = pkg.documents || {};
+    var order = getSelectedPackageSectionsInOrder(pkg, format);
+
+    // Empty / missing fallbacks: keep current "missing" messaging if the
+    // user selected a doc but it isn't generated yet.
     var s = pkg.selected || {};
-    var role = d.targetRole || {};
-    // Modern Sidebar gets a left-rail layout for PDF/DOCX.
-    if (cfg.docLayout === 'sidebar-rail' && s.resume && d.resume) {
-      var rd = d.resume;
-      var contact = rd.contact || rd.basics || {};
-      var name = _safeStr(rd.full_name || contact.name || rd.name || '');
-      var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || '');
-      var email = _safeStr(contact.email || rd.email || '');
-      var phone = _safeStr(contact.phone || rd.phone || '');
-      var location = _safeStr(contact.location || rd.location || '');
-      var links = Array.isArray(rd.links) ? rd.links : (Array.isArray(contact.links) ? contact.links : []);
-      var certs = Array.isArray(rd.certifications) ? rd.certifications : [];
-      var achievements = Array.isArray(rd.achievements) ? rd.achievements
-        : (Array.isArray(rd.awards) ? rd.awards : []);
-      var skillsHtml = renderDocumentSkills(rd, cfg);
-      var rail = '<aside class="sidebar-rail">' +
-        (name ? '<h1>' + _esc(name) + '</h1>' : '') +
-        (headline ? '<p class="rail-headline">' + _esc(headline) + '</p>' : '') +
-        '<div class="rail-block"><h4>Contact</h4>' +
-          (email ? '<p>' + _esc(email) + '</p>' : '') +
-          (phone ? '<p>' + _esc(phone) + '</p>' : '') +
-          (location ? '<p>' + _esc(location) + '</p>' : '') +
-          (links.length ? '<ul class="rail-links">' + links.map(function (l) { var lbl = _linkLabel(l); return lbl ? '<li>' + _esc(lbl) + '</li>' : ''; }).join('') + '</ul>' : '') +
-        '</div>' +
-        (skillsHtml ? '<div class="rail-block"><h4>Skills</h4>' + skillsHtml + '</div>' : '') +
-        (certs.length ? '<div class="rail-block"><h4>Certifications</h4><ul class="sk-list">' + certs.map(function (c) { return '<li>' + _esc(_safeStr(c && (c.name || c.title || c))) + '</li>'; }).join('') + '</ul></div>' : '') +
-        (achievements.length ? '<div class="rail-block"><h4>Achievements</h4><ul class="sk-list">' + achievements.map(function (a) { return '<li>' + _esc(_safeStr(a && (a.title || a.name || a.description || a))) + '</li>'; }).join('') + '</ul></div>' : '') +
-      '</aside>';
-      var mainBody = '';
-      mainBody += _renderResumeSection(rd, cfg, format);
-      if (s.coverLetter) mainBody += d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role) : _missingCard('Cover Letter', 'Generate a cover letter first.');
-      if (s.rolePlan) mainBody += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
-      return '<main class="document-package layout-sidebar-rail">' + rail + '<div class="main-col">' + mainBody + '</div></main>';
+    if (!order.length) {
+      // Either nothing selected, or selected docs have no data — render
+      // missing cards inline so the surface is informative.
+      var fallback = '';
+      if (s.coverLetter) fallback += _missingCard('Cover Letter', 'Generate a cover letter first.');
+      if (s.rolePlan)    fallback += _missingCard('Career Plan',  'Generate a role plan first.');
+      if (s.resume)      fallback += _missingCard('Resume',       'Import a resume first.');
+      return '<main class="document-package layout-' + cfg.layout + '">' + fallback + '</main>';
     }
-    var body = '';
-    if (s.resume) body += d.resume ? _renderResumeSection(d.resume, cfg, format) : _missingCard('Resume', 'Import a resume first.');
-    if (s.coverLetter) body += d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role) : _missingCard('Cover Letter', 'Generate a cover letter first.');
-    if (s.rolePlan) body += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
-    return '<main class="document-package layout-' + cfg.layout + '">' + body + '</main>';
+
+    var useRail = cfg.docLayout === 'sidebar-rail' && order.indexOf('resume') !== -1;
+    var pieces = [];
+    order.forEach(function (key, idx) {
+      if (idx > 0) pieces.push(_docDivider(DOC_LABELS[key] || ''));
+      if (key === 'resume' && useRail) {
+        pieces.push(_renderResumeWithRail(d.resume, cfg, format));
+      } else {
+        pieces.push(_renderDocSectionByKey(key, pkg, cfg, format));
+      }
+    });
+    return '<main class="document-package layout-' + cfg.layout + '">' + pieces.join('') + '</main>';
   }
   function _truncate(str, max) {
     var s = String(str == null ? '' : str).trim();
@@ -4115,13 +4211,13 @@
       'body.template-classic{background:#FFFFFF;}',
       'body.template-classic .doc-section{border:none;border-bottom:1px solid var(--border);border-radius:0;padding:14px 0;background:transparent;}',
       'body.template-classic .doc-header{border-bottom:1px solid #94A3B8;}',
-      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio{display:grid;grid-template-columns:260px 1fr;gap:24px;max-width:1140px;align-items:start;}',
-      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio .hero{grid-column:1/-1;}',
-      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio .site-nav{grid-column:1/-1;}',
-      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio .site-footer{grid-column:1/-1;}',
-      'body.template-modern-sidebar.format-web.device-desktop #sec-resume{position:sticky;top:14px;background:var(--sidebar);}',
-      'body.template-modern-sidebar.format-web.device-tablet .web-portfolio{display:grid;grid-template-columns:220px 1fr;gap:18px;}',
-      'body.template-modern-sidebar.format-web.device-tablet .web-portfolio .hero,body.template-modern-sidebar.format-web.device-tablet .web-portfolio .site-nav,body.template-modern-sidebar.format-web.device-tablet .web-portfolio .site-footer{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio:not(.layout-published-profile){display:grid;grid-template-columns:260px 1fr;gap:24px;max-width:1140px;align-items:start;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio:not(.layout-published-profile) .hero{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio:not(.layout-published-profile) .site-nav{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio:not(.layout-published-profile) .site-footer{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio:not(.layout-published-profile) #sec-resume{position:sticky;top:14px;background:var(--sidebar);}',
+      'body.template-modern-sidebar.format-web.device-tablet .web-portfolio:not(.layout-published-profile){display:grid;grid-template-columns:220px 1fr;gap:18px;}',
+      'body.template-modern-sidebar.format-web.device-tablet .web-portfolio:not(.layout-published-profile) .hero,body.template-modern-sidebar.format-web.device-tablet .web-portfolio:not(.layout-published-profile) .site-nav,body.template-modern-sidebar.format-web.device-tablet .web-portfolio:not(.layout-published-profile) .site-footer{grid-column:1/-1;}',
       // ---------- Devices (general) ----------
       'body.device-tablet{font-size:15.5px;}',
       'body.device-mobile,body.device-app{font-size:15px;}',
@@ -4210,6 +4306,50 @@
       // ---------- Coming Soon card (PowerPoint) ----------
       '.coming-soon-card{max-width:680px;margin:32px auto;text-align:center;background:#FFFBEB;border:1px solid #FCD34D;color:#78350F;}',
       '.coming-soon-card h2{color:#92400E;border-bottom:0;}',
+      // ---------- Document divider (between CV / Plan / Resume) ----------
+      // Small uppercase label + thin rule + page-break-before. No card.
+      '.doc-divider{margin:1.6rem 0 1rem;padding-top:1.4rem;border-top:1px solid var(--border);text-align:left;page-break-before:always;break-before:page;}',
+      '.doc-divider .doc-divider-label{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-dark);background:var(--surface);padding:0 .4rem;margin-top:-1.05rem;}',
+      'body.format-pdf .doc-divider .doc-divider-label,body.format-docx .doc-divider .doc-divider-label{background:#fff;}',
+      'body.format-web .doc-divider{page-break-before:auto;break-before:auto;}',
+      // ---------- Defensive: documents NEVER show pill chips or sk-tag.
+      'body.format-pdf .chip,body.format-docx .chip,body.format-pdf .chips,body.format-docx .chips,body.format-pdf .sk-tag,body.format-docx .sk-tag,body.format-pdf .sk-compact,body.format-docx .sk-compact{display:none !important;}',
+      // ---------- Public Web Page: shared "published-profile" layout.
+      // All web styles share the same body. Styles only differ in color,
+      // typography, accent treatment, and section styling — never layout.
+      'body.format-web .web-portfolio.layout-published-profile{display:block;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile{display:grid;grid-template-columns:240px 1fr;gap:24px;max-width:1180px;align-items:start;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .hero{grid-column:1/-1;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-nav{position:sticky;top:14px;align-self:start;display:flex;flex-direction:column;gap:6px;padding:18px 12px;background:var(--sidebar);border:1px solid var(--border);border-radius:12px;align-items:stretch;justify-content:flex-start;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-nav a{text-align:left;background:transparent;border:0;padding:8px 12px;border-radius:8px;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-nav a:hover{background:var(--surface);}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .web-main{min-width:0;}',
+      'body.format-web.device-desktop .web-portfolio.layout-published-profile .site-footer{grid-column:1/-1;}',
+      // Tablet / mobile / app: stack nav above content as horizontal pills.
+      'body.format-web.device-tablet .web-portfolio.layout-published-profile .site-nav,body.format-web.device-mobile .web-portfolio.layout-published-profile .site-nav,body.format-web.device-app .web-portfolio.layout-published-profile .site-nav{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch;}',
+      'body.format-web .web-portfolio.layout-published-profile .site-nav a{white-space:nowrap;}',
+      // Hero photo + hero links
+      '.hero-photo{display:block;width:96px;height:96px;border-radius:50%;object-fit:cover;margin:0 auto .6rem;border:3px solid rgba(255,255,255,.6);}',
+      '.hero-links{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin-top:.6rem;}',
+      '.hero-link{font-size:.82rem;color:rgba(255,255,255,.92);overflow-wrap:anywhere;}',
+      'body.style-classic .hero-link,body.style-portfolio .hero-link{color:var(--accent-dark);}',
+      '.overview-card{margin-top:8px;}',
+      // ---------- Document outputs: full content, no truncation, white page.
+      'body.format-pdf .doc-section *,body.format-docx .doc-section *{text-overflow:clip;-webkit-line-clamp:unset;max-height:none;}',
+      'body.format-pdf .document-package,body.format-docx .document-package{padding:.6in .65in;}',
+      // Hide hero-style web cards if they ever bleed into a doc output.
+      'body.format-pdf .hero,body.format-docx .hero,body.format-pdf .site-nav,body.format-docx .site-nav,body.format-pdf .site-footer,body.format-docx .site-footer,body.format-pdf .overview-card,body.format-docx .overview-card{display:none !important;}',
+      // DOCX Classic: centered header (matches the uploaded Word template).
+      'body.format-docx.style-classic .resume-header{text-align:center;border-bottom:1px solid #475569;padding-bottom:.5rem;}',
+      'body.format-docx.style-classic .resume-header h1{font-family:Georgia,"Times New Roman",serif;letter-spacing:.04em;}',
+      'body.format-docx.style-classic .resume-header .contact{justify-content:center;}',
+      'body.format-docx.style-classic .resume-header .links{justify-content:center;}',
+      // Classic 3-column skills (PDF + DOCX): owned by Classic style only.
+      'body.style-classic .sk-three-col{column-count:3;column-gap:1.4rem;display:block;list-style:disc;padding-left:1.1rem;}',
+      'body.style-classic .sk-three-col li{break-inside:avoid;page-break-inside:avoid;font-size:.92rem;}',
+      // Resume-with-rail wrapper inside the document package.
+      'body.format-pdf .resume-with-rail.layout-sidebar-rail,body.format-docx .resume-with-rail.layout-sidebar-rail{display:grid;grid-template-columns:230px 1fr;gap:0;background:#fff;}',
+      'body.format-pdf .resume-with-rail.layout-sidebar-rail .main-col,body.format-docx .resume-with-rail.layout-sidebar-rail .main-col{padding:0 0 0 22px;}',
       // ---------- PPTX portrait (8.5/11 ratio) ----------
       'body.format-pptx .deck{padding:24px 14px;}',
       'body.format-pptx .slide{aspect-ratio:8.5/11;max-width:680px;width:100%;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.25);}',
@@ -4406,6 +4546,8 @@
     var color = getSelectedExportColor();
     var format = getSelectedPreviewFormat();
     var cfg = getPreviewStyleConfig(template, color, format);
+    var pkg = (window.RB_STATE && RB_STATE.documentPackage) || (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null);
+    var packageOrder = pkg ? getSelectedPackageSectionsInOrder(pkg, format) : [];
     var frame = document.getElementById('preview-frame');
     var bodyClass = null, mainClass = null, chipCount = 0;
     try {
@@ -4420,6 +4562,7 @@
       selectedStyle: template,
       selectedColor: color,
       selectedFormat: format,
+      previewFormat: format,
       styleConfig: cfg,
       docLayout: cfg.docLayout,
       webLayout: cfg.webLayout,
@@ -4427,6 +4570,7 @@
       webSkillMode: cfg.webSkillMode,
       effectiveSkillMode: cfg.skillStyle,
       effectiveLayout: cfg.layout,
+      packageOrder: packageOrder,
       iframeBodyClass: bodyClass,
       iframeMainClass: mainClass,
       iframePillChipCount: chipCount,
@@ -4444,13 +4588,24 @@
     var available = Array.from(document.querySelectorAll('[data-preview-format]'))
       .filter(function (b) { return !(b.disabled || b.getAttribute('aria-disabled') === 'true'); })
       .map(function (b) { return b.getAttribute('data-preview-format'); });
+    var styleEl = document.getElementById('export-style');
+    var selectedStyle = (styleEl && styleEl.value) || 'modern-sidebar';
+    var selectedDocs = {
+      resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
+      coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
+      rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
+    };
     return {
       activeFormat: formatBtn ? formatBtn.getAttribute('data-preview-format') : null,
+      previewFormat: formatBtn ? formatBtn.getAttribute('data-preview-format') : null,
       activeDevice: deviceBtn ? deviceBtn.getAttribute('data-preview-device') : null,
       effectiveMode: getEffectivePreviewMode(getSelectedPreviewFormat()),
       deviceControlsVisible: deviceVisible,
       pptxDisabled: pptxDisabled,
       availableFormats: available,
+      selectedStyle: selectedStyle,
+      selectedColor: getSelectedExportColor(),
+      selectedDocs: selectedDocs,
       formatLabels: Array.from(document.querySelectorAll('[data-preview-format]')).map(function (b) {
         return {
           value: b.getAttribute('data-preview-format'),
@@ -4483,6 +4638,14 @@
     if (wrap) {
       try { wrapperMaxWidth = window.getComputedStyle(wrap).maxWidth; } catch (_) {}
     }
+    var docChipCount = 0;
+    try {
+      if (frame && frame.contentDocument) {
+        docChipCount = frame.contentDocument.querySelectorAll('.chip,.sk-tag').length;
+      }
+    } catch (_) {}
+    var pkg = (window.RB_STATE && RB_STATE.documentPackage) || (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null);
+    var packageOrder = pkg ? getSelectedPackageSectionsInOrder(pkg, format) : [];
     return {
       format: format,
       previewFormat: format,
@@ -4506,6 +4669,8 @@
       previewDeviceClass: (wrap && wrap.className) || null,
       srcdocLength: srcdoc.length,
       srcdocScriptTagCount: scriptCount,
+      docChipCount: docChipCount,
+      packageOrder: packageOrder,
       rawScriptTagCount: _lastRenderCounts.rawScriptTagCount,
       cleanScriptTagCount: _lastRenderCounts.cleanScriptTagCount,
       selected: {
@@ -4513,6 +4678,21 @@
         coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
         rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
       }
+    };
+  };
+
+  window.debugPreviewContentOrder = function () {
+    var pkg = (window.RB_STATE && RB_STATE.documentPackage) ||
+      (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : { selected: {}, documents: {}, style: {} });
+    var format = (pkg && pkg.style && pkg.style.previewFormat) || getSelectedPreviewFormat() || 'web';
+    var d = (pkg && pkg.documents) || {};
+    return {
+      format: format,
+      order: getSelectedPackageSectionsInOrder(pkg, format),
+      selected: (pkg && pkg.selected) || {},
+      hasCoverLetter: !!d.coverLetter,
+      hasRolePlan: !!d.rolePlan,
+      hasResume: !!d.resume
     };
   };
 
