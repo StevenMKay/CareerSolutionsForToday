@@ -693,6 +693,21 @@
   }
   html.in-app .hide-in-app { display: none !important; }
   html:not(.in-app) .show-in-app-only { display: none !important; }
+
+  /* Role Plan editor */
+  .rp-card { padding:14px; border-radius:10px; margin-top:10px; }
+  .rp-card-title { font-weight:600; font-size:1rem; margin-bottom:8px; }
+  .rp-subtitle { font-weight:600; font-size:.92rem; margin:10px 0 4px; opacity:.85; }
+  .rp-field { display:flex; flex-direction:column; margin:6px 0; }
+  .rp-label { font-size:.78rem; opacity:.8; margin-bottom:3px; }
+  .rp-input, .rp-textarea { width:100%; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.04); color:inherit; font:inherit; box-sizing:border-box; }
+  .rp-textarea { resize:vertical; min-height:48px; }
+  .rp-goal { padding:8px; border-left:3px solid rgba(120,180,255,.5); margin:6px 0; background:rgba(255,255,255,.02); border-radius:4px; }
+  .rp-goal-title { font-weight:600; font-size:.85rem; margin-bottom:4px; opacity:.85; }
+  .rp-empty { padding:6px 0; }
+  .rp-quality { padding:8px 12px; border-radius:6px; margin-top:8px; font-size:.9rem; }
+  .rp-quality.ok { background:rgba(0,160,80,.15); border:1px solid rgba(0,160,80,.4); }
+  .rp-quality.warn { background:rgba(220,160,0,.15); border:1px solid rgba(220,160,0,.4); }
 </style>
 </head>
 <body>
@@ -2330,6 +2345,55 @@
     };
   };
 
+  window.debugRolePlanQuality = function () {
+    var plan = (window.RB_STATE && RB_STATE.rolePlan) || null;
+    var type = (window.RB_STATE && RB_STATE.rolePlanType) || null;
+    function getBucket(p, t) {
+      if (!p) return null;
+      if (t === '12-month') return p.months12 || null;
+      if (t === '2-year') return p.years2 || null;
+      return p.days90 || null;
+    }
+    var bucket = getBucket(plan, type);
+    var phases = (bucket && (bucket.phases || bucket.quarters)) || [];
+    var ps = (plan && plan.portfolio_sections) || {};
+    return {
+      hasPlan: !!plan,
+      type: type,
+      hasExecutiveSummary: !!(bucket && bucket.executiveSummary),
+      hasStrategicTheme: !!(bucket && bucket.strategic_theme),
+      successLooksCount: Array.isArray(bucket && bucket.what_success_looks_like) ? bucket.what_success_looks_like.length : 0,
+      suggestedKpiCount: Array.isArray(bucket && bucket.suggested_kpis) ? bucket.suggested_kpis.length : 0,
+      phaseCount: phases.length,
+      portfolioSections: {
+        importantLinks: (Array.isArray(ps.important_links) && ps.important_links.length) || 0,
+        certifications: (Array.isArray(ps.certifications) && ps.certifications.length) || 0,
+        interactiveTools: (Array.isArray(ps.interactive_tools) && ps.interactive_tools.length) || 0,
+        supportingDocuments: (Array.isArray(ps.supporting_documents) && ps.supporting_documents.length) || 0,
+        projectHighlights: (Array.isArray(ps.project_highlights) && ps.project_highlights.length) || 0
+      },
+      phases: phases.map(function (p, i) {
+        return {
+          i: i,
+          timeframe: p.timeframe || '',
+          title: p.title || '',
+          hasSummary: !!(p.phase_summary || p.summary),
+          hasPrimaryObjective: !!p.primary_objective,
+          goalCount: Array.isArray(p.goals) ? p.goals.length : 0,
+          actionCount: Array.isArray(p.actions) ? p.actions.length : 0,
+          quickWinCount: Array.isArray(p.quick_wins) ? p.quick_wins.length : 0,
+          deliverableCount: Array.isArray(p.deliverables) ? p.deliverables.length : 0,
+          milestoneCount: Array.isArray(p.milestones) ? p.milestones.length : 0,
+          metricCount: Array.isArray(p.success_metrics) ? p.success_metrics.length : 0,
+          stakeholderCount: Array.isArray(p.stakeholders) ? p.stakeholders.length : 0,
+          riskCount: Array.isArray(p.risks) ? p.risks.length : 0,
+          hasExecutiveValue: !!p.executive_value,
+          hasPortfolioDisplayNote: !!p.portfolio_display_note
+        };
+      })
+    };
+  };
+
   // ============================================================
   // Layer 6 — AI Readiness, Auto Role Research, CV / Plan helpers
   // ============================================================
@@ -2596,19 +2660,171 @@
     if (!plan) { el.innerHTML = ''; return; }
     var key = planTypeUI === '12m' ? 'months12' : planTypeUI === '2y' ? 'years2' : 'days90';
     var bucket = plan[key] || {};
-    var phases = bucket.phases || [];
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : (Array.isArray(bucket.quarters) ? bucket.quarters : []);
+    if (!Array.isArray(plan.portfolio_sections)) {
+      if (!plan.portfolio_sections || typeof plan.portfolio_sections !== 'object') plan.portfolio_sections = {};
+    }
+    ['important_links','certifications','interactive_tools','supporting_documents','project_highlights'].forEach(function (k) {
+      if (!Array.isArray(plan.portfolio_sections[k])) plan.portfolio_sections[k] = [];
+    });
+
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
-    var rows = phases.map(function (p, i) {
-      var tf = (p && (p.timeframe || p.label || p.title)) || ('Phase ' + (i + 1));
-      var goals = Array.isArray(p && p.goals) ? p.goals : (Array.isArray(p && p.objectives) ? p.objectives : []);
-      var bullets = goals.slice(0, 6).map(function (g) {
-        var t = (g && (g.title || g.goal || g.text || g.description || g)) || '';
-        return '<li>' + esc(t) + '</li>';
+    function arrToText(arr) { return (Array.isArray(arr) ? arr : []).map(function (v) { return typeof v === 'string' ? v : (v && v.text ? v.text : String(v == null ? '' : v)); }).join('\n'); }
+    function risksToText(arr) {
+      return (Array.isArray(arr) ? arr : []).map(function (r) {
+        if (r && typeof r === 'object') return 'Risk: ' + (r.risk || '') + ' — Mitigation: ' + (r.mitigation || '');
+        return 'Risk: ' + String(r == null ? '' : r) + ' — Mitigation: ';
+      }).join('\n');
+    }
+    function field(label, dataAttrs, value, opts) {
+      opts = opts || {};
+      var attrs = Object.keys(dataAttrs).map(function (k) { return 'data-' + k + '="' + esc(dataAttrs[k]) + '"'; }).join(' ');
+      var lab = '<label class="rp-label">' + esc(label) + '</label>';
+      if (opts.tag === 'input') {
+        return '<div class="rp-field">' + lab + '<input type="text" class="rp-input" ' + attrs + ' value="' + esc(value) + '"></div>';
+      }
+      var rows = opts.rows || 3;
+      return '<div class="rp-field">' + lab + '<textarea class="rp-textarea" rows="' + rows + '" ' + attrs + '>' + esc(value) + '</textarea></div>';
+    }
+
+    // Header
+    var header = '<div class="glass rp-card">' +
+      '<div class="rp-card-title">Plan Header</div>' +
+      field('Title', { kind:'bucket-string', bucket:key, fld:'title' }, bucket.title || '', { tag:'input' }) +
+      field('Subtitle', { kind:'bucket-string', bucket:key, fld:'subtitle' }, bucket.subtitle || '', { tag:'input' }) +
+      field('Timeframe', { kind:'bucket-string', bucket:key, fld:'timeframe' }, bucket.timeframe || '', { tag:'input' }) +
+      field('Target Role', { kind:'bucket-string', bucket:key, fld:'target_role' }, bucket.target_role || '', { tag:'input' }) +
+      field('Target Company', { kind:'bucket-string', bucket:key, fld:'target_company' }, bucket.target_company || '', { tag:'input' }) +
+      field('Portfolio Headline', { kind:'bucket-string', bucket:key, fld:'portfolio_headline' }, bucket.portfolio_headline || '', { tag:'input' }) +
+      '</div>';
+
+    // Executive Summary / Strategic Theme
+    var summary = '<div class="glass rp-card">' +
+      '<div class="rp-card-title">Executive Summary</div>' +
+      field('Executive Summary', { kind:'bucket-string', bucket:key, fld:'executiveSummary' }, bucket.executiveSummary || '', { rows:5 }) +
+      field('Strategic Theme', { kind:'bucket-string', bucket:key, fld:'strategic_theme' }, bucket.strategic_theme || '', { rows:2 }) +
+      field('What Success Looks Like (one per line)', { kind:'bucket-array', bucket:key, fld:'what_success_looks_like' }, arrToText(bucket.what_success_looks_like), { rows:5 }) +
+      field('Suggested KPIs (one per line)', { kind:'bucket-array', bucket:key, fld:'suggested_kpis' }, arrToText(bucket.suggested_kpis), { rows:5 }) +
+      '</div>';
+
+    // Phase cards
+    function renderPhase(p, i) {
+      var goals = Array.isArray(p.goals) ? p.goals : [];
+      var goalBlocks = goals.map(function (g, gi) {
+        return '<div class="rp-goal">' +
+          '<div class="rp-goal-title">Goal ' + (gi + 1) + '</div>' +
+          field('Title', { kind:'goal-string', bucket:key, phase:i, goal:gi, fld:'title' }, (g && g.title) || '', { tag:'input' }) +
+          field('Description', { kind:'goal-string', bucket:key, phase:i, goal:gi, fld:'description' }, (g && g.description) || '', { rows:2 }) +
+          field('Why It Matters', { kind:'goal-string', bucket:key, phase:i, goal:gi, fld:'why_it_matters' }, (g && g.why_it_matters) || '', { rows:2 }) +
+          field('Success Measure', { kind:'goal-string', bucket:key, phase:i, goal:gi, fld:'success_measure' }, (g && g.success_measure) || '', { rows:2 }) +
+          '</div>';
       }).join('');
-      return '<div class="glass" style="padding:10px;border-radius:8px;margin-top:8px;"><strong>' + esc(tf) + '</strong>' +
-             (bullets ? '<ul style="margin:6px 0 0 18px;">' + bullets + '</ul>' : '<div class="status-text">(no goals)</div>') + '</div>';
-    }).join('');
-    el.innerHTML = '<div class="status-text">' + phases.length + ' phase(s) generated for ' + esc(planTypeUI) + '.</div>' + rows;
+
+      return '<div class="glass rp-card rp-phase">' +
+        '<div class="rp-card-title">Phase ' + (i + 1) + (p.timeframe ? ' — ' + esc(p.timeframe) : '') + '</div>' +
+        field('Timeframe', { kind:'phase-string', bucket:key, phase:i, fld:'timeframe' }, p.timeframe || '', { tag:'input' }) +
+        field('Title', { kind:'phase-string', bucket:key, phase:i, fld:'title' }, p.title || '', { tag:'input' }) +
+        field('Phase Summary', { kind:'phase-string', bucket:key, phase:i, fld:'phase_summary' }, p.phase_summary || '', { rows:3 }) +
+        field('Primary Objective', { kind:'phase-string', bucket:key, phase:i, fld:'primary_objective' }, p.primary_objective || '', { rows:2 }) +
+        '<div class="rp-subtitle">Goals</div>' +
+        (goalBlocks || '<div class="status-text rp-empty">(no goals — add via JSON or regenerate)</div>') +
+        field('Actions (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'actions' }, arrToText(p.actions), { rows:6 }) +
+        field('Quick Wins (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'quick_wins' }, arrToText(p.quick_wins), { rows:3 }) +
+        field('Deliverables (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'deliverables' }, arrToText(p.deliverables), { rows:4 }) +
+        field('Milestones (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'milestones' }, arrToText(p.milestones), { rows:4 }) +
+        field('Success Metrics (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'success_metrics' }, arrToText(p.success_metrics), { rows:4 }) +
+        field('Stakeholders (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'stakeholders' }, arrToText(p.stakeholders), { rows:3 }) +
+        field('Tools & Resources (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'tools_and_resources' }, arrToText(p.tools_and_resources), { rows:3 }) +
+        field('Communication Plan (one per line)', { kind:'phase-array', bucket:key, phase:i, fld:'communication_plan' }, arrToText(p.communication_plan), { rows:3 }) +
+        field('Risks (one per line — format: "Risk: … — Mitigation: …")', { kind:'phase-risks', bucket:key, phase:i, fld:'risks' }, risksToText(p.risks), { rows:4 }) +
+        field('Executive Value', { kind:'phase-string', bucket:key, phase:i, fld:'executive_value' }, p.executive_value || '', { rows:2 }) +
+        field('Portfolio Display Note', { kind:'phase-string', bucket:key, phase:i, fld:'portfolio_display_note' }, p.portfolio_display_note || '', { rows:2 }) +
+        '</div>';
+    }
+    var phaseCards = phases.map(renderPhase).join('') || '<div class="status-text">(no phases)</div>';
+
+    // Portfolio sections
+    var ps = plan.portfolio_sections;
+    var portfolio = '<div class="glass rp-card">' +
+      '<div class="rp-card-title">Portfolio Sections (preview)</div>' +
+      field('Important Links (one per line)', { kind:'portfolio-array', fld:'important_links' }, arrToText(ps.important_links), { rows:3 }) +
+      field('Certifications (one per line)', { kind:'portfolio-array', fld:'certifications' }, arrToText(ps.certifications), { rows:3 }) +
+      field('Interactive Tools (one per line)', { kind:'portfolio-array', fld:'interactive_tools' }, arrToText(ps.interactive_tools), { rows:3 }) +
+      field('Supporting Documents (one per line)', { kind:'portfolio-array', fld:'supporting_documents' }, arrToText(ps.supporting_documents), { rows:3 }) +
+      field('Project Highlights (one per line)', { kind:'portfolio-array', fld:'project_highlights' }, arrToText(ps.project_highlights), { rows:3 }) +
+      '</div>';
+
+    // Quality indicator
+    var qi = computeRolePlanQualityFlag(plan, key);
+    var indicator = '<div class="rp-quality ' + (qi.ok ? 'ok' : 'warn') + '">' + esc(qi.message) + '</div>';
+
+    el.innerHTML = indicator + header + summary + phaseCards + portfolio;
+
+    // Attach delegated edit listener once.
+    if (!el._rpListenerAttached) {
+      el.addEventListener('input', onRolePlanEdit);
+      el._rpListenerAttached = true;
+    }
+  }
+
+  function computeRolePlanQualityFlag(plan, key) {
+    var bucket = (plan && plan[key]) || {};
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : [];
+    var weak = 0;
+    phases.forEach(function (p) {
+      var ok = Array.isArray(p.goals) && p.goals.length >= 3
+        && Array.isArray(p.actions) && p.actions.length >= 5
+        && Array.isArray(p.deliverables) && p.deliverables.length >= 3
+        && Array.isArray(p.milestones) && p.milestones.length >= 3
+        && Array.isArray(p.success_metrics) && p.success_metrics.length >= 3
+        && Array.isArray(p.risks) && p.risks.length >= 2
+        && !!p.executive_value;
+      if (!ok) weak++;
+    });
+    if (!phases.length) return { ok: false, message: 'Plan generated, but no phases were returned.' };
+    if (weak === 0) return { ok: true, message: 'Detailed plan generated.' };
+    return { ok: false, message: 'Plan generated, but ' + weak + ' phase(s) may need review (missing actions/deliverables/metrics/risks).' };
+  }
+
+  function onRolePlanEdit(ev) {
+    var t = ev.target;
+    if (!t || !t.dataset || !t.dataset.kind) return;
+    var plan = RB_STATE.rolePlan;
+    if (!plan) return;
+    var bucketKey = t.dataset.bucket;
+    var phaseIdx = t.dataset.phase != null ? parseInt(t.dataset.phase, 10) : -1;
+    var fld = t.dataset.fld;
+    var goalIdx = t.dataset.goal != null ? parseInt(t.dataset.goal, 10) : -1;
+    var raw = t.value;
+    function splitLines(s) { return String(s || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
+    function parseRiskLine(line) {
+      var m = line.match(/^\s*Risk\s*:\s*(.*?)(?:\s*[—\-]\s*Mitigation\s*:\s*(.*))?$/i);
+      if (m) return { risk: (m[1] || '').trim(), mitigation: (m[2] || '').trim() };
+      return { risk: line.trim(), mitigation: '' };
+    }
+
+    if (t.dataset.kind === 'bucket-string' && bucketKey) {
+      if (!plan[bucketKey]) plan[bucketKey] = {};
+      plan[bucketKey][fld] = raw;
+    } else if (t.dataset.kind === 'bucket-array' && bucketKey) {
+      if (!plan[bucketKey]) plan[bucketKey] = {};
+      plan[bucketKey][fld] = splitLines(raw);
+    } else if (t.dataset.kind === 'phase-string' && bucketKey && phaseIdx >= 0) {
+      var ph = plan[bucketKey] && plan[bucketKey].phases && plan[bucketKey].phases[phaseIdx];
+      if (ph) ph[fld] = raw;
+    } else if (t.dataset.kind === 'phase-array' && bucketKey && phaseIdx >= 0) {
+      var ph2 = plan[bucketKey] && plan[bucketKey].phases && plan[bucketKey].phases[phaseIdx];
+      if (ph2) ph2[fld] = splitLines(raw);
+    } else if (t.dataset.kind === 'phase-risks' && bucketKey && phaseIdx >= 0) {
+      var ph3 = plan[bucketKey] && plan[bucketKey].phases && plan[bucketKey].phases[phaseIdx];
+      if (ph3) ph3.risks = splitLines(raw).map(parseRiskLine);
+    } else if (t.dataset.kind === 'goal-string' && bucketKey && phaseIdx >= 0 && goalIdx >= 0) {
+      var ph4 = plan[bucketKey] && plan[bucketKey].phases && plan[bucketKey].phases[phaseIdx];
+      if (ph4 && Array.isArray(ph4.goals) && ph4.goals[goalIdx]) ph4.goals[goalIdx][fld] = raw;
+    } else if (t.dataset.kind === 'portfolio-array') {
+      if (!plan.portfolio_sections || typeof plan.portfolio_sections !== 'object') plan.portfolio_sections = {};
+      plan.portfolio_sections[fld] = splitLines(raw);
+    }
   }
 
   // ============================================================
@@ -2780,6 +2996,7 @@
         return;
       }
       RB_STATE.rolePlan = generated;
+      RB_STATE.rolePlanType = planTypeApi;
       renderRolePlanOutput(generated, planTypeUI);
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
       showToast('Role plan generated.', 'success');
