@@ -460,6 +460,18 @@
     font-size: .82rem; color: #334155;
   }
   .preview-toggle button.active { background: var(--c-primary); color: #fff; }
+  .preview-toggle button:disabled,
+  .preview-toggle button[aria-disabled="true"] {
+    opacity: .55; cursor: not-allowed; background:#F1F5F9; color:#64748B;
+  }
+  .preview-toggle button:disabled:hover,
+  .preview-toggle button[aria-disabled="true"]:hover { background:#F1F5F9; }
+  .badge-soon {
+    display: inline-block; margin-left: 6px; padding: 1px 6px;
+    font-size: .6rem; font-weight: 700; line-height: 1.3;
+    border-radius: 999px; background: #FCD34D; color: #78350F;
+    text-transform: uppercase; letter-spacing: .04em; vertical-align: middle;
+  }
   #preview-container-export {
     margin-top: .8rem;
     min-height: 240px;
@@ -1156,7 +1168,7 @@
                 <button type="button" class="active" data-preview-format="web">Public Web Page</button>
                 <button type="button"                data-preview-format="pdf">PDF Document</button>
                 <button type="button"                data-preview-format="docx">Word / DOCX</button>
-                <button type="button"                data-preview-format="pptx">PowerPoint</button>
+                <button type="button" disabled aria-disabled="true" data-preview-format="pptx" title="PowerPoint preview is being polished">PowerPoint <span class="badge-soon">Coming Soon</span></button>
               </div>
             </div>
             <div id="preview-device-row">
@@ -1416,7 +1428,13 @@
       });
     });
     document.querySelectorAll('.preview-toggle button').forEach(function (b) {
-      b.addEventListener('click', function () {
+      b.addEventListener('click', function (ev) {
+        // Guard: disabled buttons (e.g. PowerPoint Coming Soon) must not toggle.
+        if (b.disabled || b.getAttribute('aria-disabled') === 'true') {
+          if (ev && typeof ev.preventDefault === 'function') ev.preventDefault();
+          if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+          return;
+        }
         var group = b.parentElement;
         if (group) group.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
         b.classList.add('active');
@@ -3263,6 +3281,10 @@
   }
 
   // ---------- Style configuration contract ----------
+  // Each style declares how it should render for *both* output families:
+  //   - docLayout / docSkillMode govern PDF & DOCX (portrait document outputs)
+  //   - webLayout / webSkillMode govern Public Web Page
+  // Document outputs MUST never use pill-chip skills.
   function getPreviewStyleConfig(style, color, format) {
     style = style || 'modern-sidebar';
     color = color || 'blue';
@@ -3276,37 +3298,61 @@
     var p = palette[color] || palette.blue;
     var presets = {
       'modern-sidebar': {
-        label:'Modern Sidebar', className:'style-modern-sidebar',
-        layout:'sidebar', skillStyle:'sidebar-list', sectionStyle:'ruled',
+        label:'Modern Sidebar',
+        description:'Structured sidebar layout',
+        className:'style-modern-sidebar',
+        webLayout:'sidebar', docLayout:'sidebar-rail',
+        webSkillMode:'compact-tags', docSkillMode:'sidebar-grouped',
+        sectionStyle:'ruled',
         fontHead:'"Outfit",-apple-system,Segoe UI,sans-serif',
         fontBody:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif'
       },
       'executive': {
-        label:'Executive', className:'style-executive',
-        layout:'executive', skillStyle:'compact-tags', sectionStyle:'formal',
+        label:'Executive',
+        description:'Formal corporate profile',
+        className:'style-executive',
+        webLayout:'executive', docLayout:'centered-formal',
+        webSkillMode:'compact-tags', docSkillMode:'inline-grouped',
+        sectionStyle:'formal',
         fontHead:'"Outfit",Georgia,serif',
         fontBody:'Georgia,"Times New Roman",serif'
       },
       'classic': {
-        label:'Classic', className:'style-classic',
-        layout:'classic', skillStyle:'plain-list', sectionStyle:'minimal',
+        label:'Classic',
+        description:'Clean ATS-friendly document',
+        className:'style-classic',
+        webLayout:'classic', docLayout:'clean-single',
+        webSkillMode:'plain-list', docSkillMode:'three-column',
+        sectionStyle:'minimal',
         fontHead:'Georgia,"Times New Roman",serif',
         fontBody:'Georgia,"Times New Roman",serif'
       },
       'modern': {
-        label:'Portfolio', className:'style-portfolio',
-        layout:'portfolio', skillStyle:'pills', sectionStyle:'cards',
+        label:'Portfolio',
+        description:'Modern public web profile',
+        className:'style-portfolio',
+        // Portfolio is web-first. For PDF/DOCX it falls back to a clean,
+        // executive-like document layout (no cards, no pill chips).
+        webLayout:'portfolio-cards', docLayout:'centered-formal',
+        webSkillMode:'pills-grouped', docSkillMode:'inline-grouped',
+        sectionStyle:'cards',
         fontHead:'"Outfit",-apple-system,Segoe UI,sans-serif',
         fontBody:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif'
       }
     };
     var base = presets[style] || presets['modern-sidebar'];
+    var isDocument = format === 'pdf' || format === 'docx';
+    var layout = isDocument ? base.docLayout : base.webLayout;
+    var skillStyle = isDocument ? base.docSkillMode : base.webSkillMode;
     return {
       style: style, color: color, format: format,
-      label: base.label, className: base.className,
+      label: base.label, description: base.description, className: base.className,
       accent: p.a, accentDark: p.d,
       fontHead: base.fontHead, fontBody: base.fontBody,
-      layout: base.layout, skillStyle: base.skillStyle, sectionStyle: base.sectionStyle
+      layout: layout, skillStyle: skillStyle, sectionStyle: base.sectionStyle,
+      isDocument: isDocument,
+      webLayout: base.webLayout, docLayout: base.docLayout,
+      webSkillMode: base.webSkillMode, docSkillMode: base.docSkillMode
     };
   }
 
@@ -3328,44 +3374,90 @@
     var flat = Array.isArray(rd.skills) ? rd.skills.slice() : [];
     return { groups: groups, flat: flat };
   }
-  function renderSkillsBlock(rd, cfg, format) {
+  // Document skills: never emit `.chip` pills. Modes: sidebar-grouped,
+  // inline-grouped, three-column, bullet-list. Used for PDF/DOCX.
+  function renderDocumentSkills(rd, cfg) {
     var data = getSkillGroupsForPreview(rd);
     var hasGroups = data.groups.length > 0;
     var flat = data.flat;
-    var max = format === 'pptx' ? 12 : 40;
-    function chip(s, klass) {
-      return '<span class="' + (klass || 'chip') + '">' + _esc(_safeStr(s)) + '</span>';
+    var mode = cfg.docSkillMode || cfg.skillStyle || 'bullet-list';
+    if (!hasGroups && !flat.length) return '';
+
+    if (mode === 'sidebar-grouped') {
+      if (hasGroups) {
+        return '<div class="sk-doc sk-doc-sidebar">' + data.groups.map(function (g) {
+          return '<div class="sk-group"><h4>' + _esc(g.label) + '</h4><ul class="sk-list">' +
+            g.items.map(function (s) { return '<li>' + _esc(_safeStr(s)) + '</li>'; }).join('') +
+            '</ul></div>';
+        }).join('') + '</div>';
+      }
+      return '<ul class="sk-list">' + flat.map(function (s) { return '<li>' + _esc(_safeStr(s)) + '</li>'; }).join('') + '</ul>';
     }
-    function renderItems(items, klass) {
-      return items.slice(0, max).map(function (s) { return chip(s, klass); }).join('');
+    if (mode === 'inline-grouped') {
+      if (hasGroups) {
+        return '<div class="sk-doc sk-doc-inline">' + data.groups.map(function (g) {
+          var line = g.items.map(function (s) { return _esc(_safeStr(s)); }).join(' &middot; ');
+          return '<p class="sk-inline"><strong>' + _esc(g.label) + ':</strong> ' + line + '</p>';
+        }).join('') + '</div>';
+      }
+      return '<p class="sk-inline">' + flat.map(function (s) { return _esc(_safeStr(s)); }).join(' &middot; ') + '</p>';
     }
-    var skillStyle = cfg.skillStyle;
-    if (skillStyle === 'sidebar-list') {
-      // Modern Sidebar: grouped vertical list when groups present, else simple list.
+    if (mode === 'three-column') {
+      var src = hasGroups ? data.groups.reduce(function (a, g) { return a.concat(g.items); }, []) : flat;
+      if (!src.length) return '';
+      return '<ul class="sk-three-col">' + src.map(function (s) {
+        return '<li>' + _esc(_safeStr(s)) + '</li>';
+      }).join('') + '</ul>';
+    }
+    // bullet-list (fallback)
+    var src2 = hasGroups ? data.groups.reduce(function (a, g) { return a.concat(g.items); }, []) : flat;
+    return src2.length ? '<ul class="sk-list">' + src2.map(function (s) { return '<li>' + _esc(_safeStr(s)) + '</li>'; }).join('') + '</ul>' : '';
+  }
+
+  // Web skills: only Portfolio uses pill chips. Modes: pills-grouped,
+  // compact-tags, plain-list, card-grid.
+  function renderWebSkills(rd, cfg) {
+    var data = getSkillGroupsForPreview(rd);
+    var hasGroups = data.groups.length > 0;
+    var flat = data.flat;
+    var mode = cfg.webSkillMode || cfg.skillStyle || 'compact-tags';
+    if (!hasGroups && !flat.length) return '';
+
+    if (mode === 'pills-grouped') {
       if (hasGroups) {
         return data.groups.map(function (g) {
-          return '<div class="sk-group"><h4>' + _esc(g.label) + '</h4><ul class="sk-list">' +
-            g.items.slice(0, max).map(function (s) { return '<li>' + _esc(_safeStr(s)) + '</li>'; }).join('') +
-            '</ul></div>';
+          return '<div class="sk-group"><h4>' + _esc(g.label) + '</h4><div class="chips">' +
+            g.items.map(function (s) { return '<span class="chip">' + _esc(_safeStr(s)) + '</span>'; }).join('') +
+          '</div></div>';
         }).join('');
       }
-      return flat.length ? '<ul class="sk-list">' + flat.slice(0, max).map(function (s) { return '<li>' + _esc(_safeStr(s)) + '</li>'; }).join('') + '</ul>' : '';
+      return '<div class="chips">' + flat.map(function (s) { return '<span class="chip">' + _esc(_safeStr(s)) + '</span>'; }).join('') + '</div>';
     }
-    if (skillStyle === 'compact-tags') {
+    if (mode === 'compact-tags') {
       var src = hasGroups ? data.groups.reduce(function (a, g) { return a.concat(g.items); }, []) : flat;
-      return src.length ? '<div class="sk-compact">' + renderItems(src, 'sk-tag') + '</div>' : '';
+      return '<div class="sk-compact">' + src.map(function (s) {
+        return '<span class="sk-tag">' + _esc(_safeStr(s)) + '</span>';
+      }).join('') + '</div>';
     }
-    if (skillStyle === 'plain-list') {
+    if (mode === 'plain-list') {
       var src2 = hasGroups ? data.groups.reduce(function (a, g) { return a.concat(g.items); }, []) : flat;
-      return src2.length ? '<p class="sk-plain">' + src2.slice(0, max).map(function (s) { return _esc(_safeStr(s)); }).join(' &middot; ') + '</p>' : '';
+      return '<p class="sk-plain">' + src2.map(function (s) { return _esc(_safeStr(s)); }).join(' &middot; ') + '</p>';
     }
-    // pills (default Portfolio)
+    // card-grid fallback
     if (hasGroups) {
-      return data.groups.map(function (g) {
-        return '<div class="sk-group"><h4>' + _esc(g.label) + '</h4><div class="chips">' + renderItems(g.items, 'chip') + '</div></div>';
-      }).join('');
+      return '<div class="sk-cards">' + data.groups.map(function (g) {
+        return '<div class="sk-card"><h4>' + _esc(g.label) + '</h4><p>' +
+          g.items.map(function (s) { return _esc(_safeStr(s)); }).join(', ') +
+        '</p></div>';
+      }).join('') + '</div>';
     }
-    return flat.length ? '<div class="chips">' + renderItems(flat, 'chip') + '</div>' : '';
+    return '<p class="sk-plain">' + flat.map(function (s) { return _esc(_safeStr(s)); }).join(', ') + '</p>';
+  }
+
+  // Single entry point used by renderers; routes to the doc/web variant.
+  function renderSkillsBlock(rd, cfg, format) {
+    var isDocument = (format === 'pdf' || format === 'docx');
+    return isDocument ? renderDocumentSkills(rd, cfg) : renderWebSkills(rd, cfg);
   }
 
   // ---------- Sanitizer ----------
@@ -3376,12 +3468,18 @@
       var doc = new DOMParser().parseFromString(raw, 'text/html');
       doc.querySelectorAll('script').forEach(function (el) { el.remove(); });
       doc.querySelectorAll('*').forEach(function (el) {
+        var tag = (el.tagName || '').toLowerCase();
         Array.from(el.attributes || []).forEach(function (attr) {
           var name = attr.name || '';
           var value = attr.value || '';
           if (/^on/i.test(name)) el.removeAttribute(name);
-          if ((name === 'href' || name === 'src') && /^\s*javascript:/i.test(value)) {
-            el.setAttribute(name, '#');
+          if (name === 'formaction') el.removeAttribute(name);
+          if ((name === 'href' || name === 'src' || name === 'action') && /^\s*javascript:/i.test(value)) {
+            if (name === 'href') el.setAttribute(name, '#'); else el.removeAttribute(name);
+          }
+          // Disallow data: URLs on iframe[src] (defense in depth).
+          if (tag === 'iframe' && name === 'src' && /^\s*data:/i.test(value)) {
+            el.removeAttribute(name);
           }
         });
       });
@@ -3391,6 +3489,8 @@
         .replace(/<script\b[\s\S]*?<\/script>/gi, '')
         .replace(/\son\w+="[^"]*"/gi, '')
         .replace(/\son\w+='[^']*'/gi, '')
+        .replace(/\sformaction="[^"]*"/gi, '')
+        .replace(/\sformaction='[^']*'/gi, '')
         .replace(/\shref=["']javascript:[^"']*["']/gi, ' href="#"');
     }
   }
@@ -3501,8 +3601,17 @@
     var education = Array.isArray(rd.education) ? rd.education : [];
     var certs = Array.isArray(rd.certifications) ? rd.certifications : [];
     var projects = Array.isArray(rd.projects) ? rd.projects : [];
+    var achievements = Array.isArray(rd.achievements) ? rd.achievements
+      : (Array.isArray(rd.awards) ? rd.awards : []);
+    var volunteer = Array.isArray(rd.volunteer_experience) ? rd.volunteer_experience
+      : (Array.isArray(rd.volunteer) ? rd.volunteer : (Array.isArray(rd.volunteering) ? rd.volunteering : []));
+    var additional = Array.isArray(rd.additional_sections) ? rd.additional_sections
+      : (Array.isArray(rd.additional) ? rd.additional : []);
 
-    var sidebarLayout = cfg.layout === 'sidebar' && (format === 'pdf' || format === 'docx');
+    var isDocument = format === 'pdf' || format === 'docx';
+    // Sidebar rail handles contact/skills/certifications/achievements for
+    // Modern Sidebar PDF/DOCX. The main column should not duplicate them.
+    var sidebarLayout = cfg.docLayout === 'sidebar-rail' && isDocument;
 
     var contactHtml = sidebarLayout ? '' : [
       email && '<span>' + _esc(email) + '</span>',
@@ -3521,10 +3630,11 @@
       var loc = _esc(_safeStr(e.location || ''));
       var bullets = Array.isArray(e.bullets) ? e.bullets : (Array.isArray(e.achievements) ? e.achievements : (Array.isArray(e.highlights) ? e.highlights : []));
       var summary2 = _esc(_safeStr(e.role_summary || e.roleSummary || e.summary || e.description || ''));
+      // No truncation: documents must show full content; web also stays readable.
       return '<article class="exp-item">' +
         '<div class="exp-head"><strong>' + role + '</strong>' + (co ? ' <span class="co">@ ' + co + '</span>' : '') + '</div>' +
         '<div class="exp-meta muted">' + [dates, loc].filter(Boolean).join(' &middot; ') + '</div>' +
-        (summary2 ? '<p>' + summary2 + '</p>' : '') +
+        (summary2 ? '<p class="role-summary">' + summary2 + '</p>' : '') +
         _bullets(bullets) +
         '</article>';
     }).join('');
@@ -3542,6 +3652,29 @@
     var certsHtml = (sidebarLayout || !certs.length) ? '' : _bullets(certs.map(function (c) {
       return _safeStr(c && (c.name || c.title || c));
     }));
+
+    var achHtml = (sidebarLayout || !achievements.length) ? '' : _bullets(achievements.map(function (a) {
+      return _safeStr(a && (a.title || a.name || a.description || a));
+    }));
+
+    var volHtml = volunteer.length ? volunteer.map(function (v) {
+      var role = _esc(_safeStr(v.role || v.title || ''));
+      var org = _esc(_safeStr(v.organization || v.org || v.company || ''));
+      var dates = _esc(_safeStr(v.dates || v.year || ''));
+      var desc = _esc(_safeStr(v.description || v.summary || ''));
+      return '<article class="exp-item"><div class="exp-head"><strong>' + role + '</strong>' +
+        (org ? ' <span class="co">@ ' + org + '</span>' : '') + '</div>' +
+        (dates ? '<div class="exp-meta muted">' + dates + '</div>' : '') +
+        (desc ? '<p>' + desc + '</p>' : '') +
+      '</article>';
+    }).join('') : '';
+
+    var addHtml = additional.length ? additional.map(function (a) {
+      var t = _esc(_safeStr(a && (a.title || a.heading || a.name) || ''));
+      var c = a && Array.isArray(a.items) ? _bullets(a.items)
+            : (a && (a.body || a.description) ? '<p>' + _esc(_safeStr(a.body || a.description)) + '</p>' : '');
+      return (t || c) ? '<section class="sub"><h2>' + (t || 'Additional') + '</h2>' + c + '</section>' : '';
+    }).join('') : '';
 
     var projHtml = projects.map(function (p) {
       var title = _esc(_safeStr(p.title || p.name || ''));
@@ -3563,6 +3696,9 @@
       (projHtml ? '<section class="sub"><h2>Projects</h2>' + projHtml + '</section>' : '') +
       (eduHtml ? '<section class="sub"><h2>Education</h2>' + eduHtml + '</section>' : '') +
       (certsHtml ? '<section class="sub"><h2>Certifications</h2>' + certsHtml + '</section>' : '') +
+      (achHtml ? '<section class="sub"><h2>Achievements</h2>' + achHtml + '</section>' : '') +
+      (volHtml ? '<section class="sub"><h2>Volunteer Experience</h2>' + volHtml + '</section>' : '') +
+      addHtml +
     '</section>';
   }
 
@@ -3715,7 +3851,7 @@
     var s = pkg.selected || {};
     var role = d.targetRole || {};
     // Modern Sidebar gets a left-rail layout for PDF/DOCX.
-    if (cfg.layout === 'sidebar' && s.resume && d.resume) {
+    if (cfg.docLayout === 'sidebar-rail' && s.resume && d.resume) {
       var rd = d.resume;
       var contact = rd.contact || rd.basics || {};
       var name = _safeStr(rd.full_name || contact.name || rd.name || '');
@@ -3725,7 +3861,9 @@
       var location = _safeStr(contact.location || rd.location || '');
       var links = Array.isArray(rd.links) ? rd.links : (Array.isArray(contact.links) ? contact.links : []);
       var certs = Array.isArray(rd.certifications) ? rd.certifications : [];
-      var skillsHtml = renderSkillsBlock(rd, cfg, format);
+      var achievements = Array.isArray(rd.achievements) ? rd.achievements
+        : (Array.isArray(rd.awards) ? rd.awards : []);
+      var skillsHtml = renderDocumentSkills(rd, cfg);
       var rail = '<aside class="sidebar-rail">' +
         (name ? '<h1>' + _esc(name) + '</h1>' : '') +
         (headline ? '<p class="rail-headline">' + _esc(headline) + '</p>' : '') +
@@ -3737,12 +3875,13 @@
         '</div>' +
         (skillsHtml ? '<div class="rail-block"><h4>Skills</h4>' + skillsHtml + '</div>' : '') +
         (certs.length ? '<div class="rail-block"><h4>Certifications</h4><ul class="sk-list">' + certs.map(function (c) { return '<li>' + _esc(_safeStr(c && (c.name || c.title || c))) + '</li>'; }).join('') + '</ul></div>' : '') +
+        (achievements.length ? '<div class="rail-block"><h4>Achievements</h4><ul class="sk-list">' + achievements.map(function (a) { return '<li>' + _esc(_safeStr(a && (a.title || a.name || a.description || a))) + '</li>'; }).join('') + '</ul></div>' : '') +
       '</aside>';
       var mainBody = '';
       mainBody += _renderResumeSection(rd, cfg, format);
       if (s.coverLetter) mainBody += d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role) : _missingCard('Cover Letter', 'Generate a cover letter first.');
       if (s.rolePlan) mainBody += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
-      return '<main class="document-package layout-sidebar">' + rail + '<div class="main-col">' + mainBody + '</div></main>';
+      return '<main class="document-package layout-sidebar-rail">' + rail + '<div class="main-col">' + mainBody + '</div></main>';
     }
     var body = '';
     if (s.resume) body += d.resume ? _renderResumeSection(d.resume, cfg, format) : _missingCard('Resume', 'Import a resume first.');
@@ -4013,7 +4152,18 @@
       '.sk-tag:last-child::after{content:"";}',
       '.sk-plain{font-size:.92rem;}',
       // ---------- Style: Modern Sidebar (PDF/DOCX layout) ----------
-      'body.style-modern-sidebar.format-pdf .document-package.layout-sidebar,body.style-modern-sidebar.format-docx .document-package.layout-sidebar{display:grid;grid-template-columns:230px 1fr;gap:24px;max-width:8.5in;}',
+      'body.style-modern-sidebar.format-pdf .document-package.layout-sidebar-rail,body.style-modern-sidebar.format-docx .document-package.layout-sidebar-rail{display:grid;grid-template-columns:230px 1fr;gap:0;max-width:8.5in;background:#fff;}',
+      'body.style-modern-sidebar .document-package.layout-sidebar-rail .sidebar-rail{background:linear-gradient(180deg,var(--accent),var(--accent-dark));color:#fff;padding:28px 20px;}',
+      'body.style-modern-sidebar .document-package.layout-sidebar-rail .main-col{padding:24px 28px;}',
+      // Doc skills helper styles
+      '.sk-three-col{list-style:disc;padding:0;margin:.3rem 0 .4rem 1.1rem;display:grid;grid-template-columns:repeat(3,1fr);gap:.15rem 1.4rem;}',
+      '.sk-three-col li{margin:.1rem 0;font-size:.88rem;break-inside:avoid;}',
+      '.sk-doc-inline .sk-inline{margin:.25rem 0;font-size:.92rem;}',
+      '.sk-doc-inline .sk-inline strong{color:var(--accent-dark);}',
+      '.sk-doc-sidebar .sk-group{margin:.45rem 0;}',
+      '.sk-doc-sidebar .sk-group h4{font-size:.74rem;text-transform:uppercase;letter-spacing:.06em;color:#fff;border-bottom:1px solid rgba(255,255,255,.4);padding-bottom:2px;margin:0 0 .25rem;}',
+      '.sk-doc-sidebar .sk-list{margin:.15rem 0 .25rem 1rem;color:#fff;}',
+      '.sk-doc-sidebar .sk-list li{font-size:.82rem;color:#fff;}',
       '.document-package .sidebar-rail{background:var(--accent);color:#fff;padding:24px 18px;border-radius:0;}',
       '.document-package .sidebar-rail h1{color:#fff;font-size:1.4rem;margin-bottom:.25rem;}',
       '.document-package .sidebar-rail .rail-headline{color:rgba(255,255,255,.92);font-weight:600;font-size:.92rem;margin:0 0 .8rem;}',
@@ -4033,6 +4183,8 @@
       // ---------- Style: Executive ----------
       'body.style-executive .doc-section{border-color:#94A3B8;border-radius:4px;}',
       'body.style-executive .doc-header{border-bottom:3px double var(--accent);padding-bottom:.5rem;}',
+      'body.style-executive.format-pdf .doc-header,body.style-executive.format-docx .doc-header{text-align:center;}',
+      'body.style-executive.format-pdf h1,body.style-executive.format-docx h1{letter-spacing:.04em;}',
       'body.style-executive h1{font-family:Georgia,serif;letter-spacing:.01em;}',
       'body.style-executive h2{font-family:Georgia,serif;text-transform:uppercase;letter-spacing:.08em;font-size:1.05rem;}',
       'body.style-executive .web-portfolio .hero{background:#0F172A;color:#fff;border-radius:4px;}',
@@ -4050,7 +4202,14 @@
       'body.style-portfolio .web-portfolio .hero{padding:60px 32px;}',
       'body.style-portfolio .web-portfolio .hero h1{font-size:2.6rem;}',
       'body.style-portfolio .doc-section{border-radius:16px;box-shadow:0 6px 18px rgba(15,23,42,.06);}',
-      'body.style-portfolio .chip{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;border:0;}',
+      // Web only: Portfolio uses gradient pill chips. Documents NEVER use chips.
+      'body.style-portfolio.format-web .chip{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;border:0;}',
+      // Portfolio in PDF/DOCX falls back to a clean executive-like document.
+      'body.style-portfolio.format-pdf .doc-section,body.style-portfolio.format-docx .doc-section{border-radius:0;box-shadow:none;border:0;border-bottom:1px solid var(--border);background:transparent;padding:12px 0;}',
+      'body.style-portfolio.format-pdf .doc-header,body.style-portfolio.format-docx .doc-header{text-align:center;border-bottom:2px solid var(--accent);}',
+      // ---------- Coming Soon card (PowerPoint) ----------
+      '.coming-soon-card{max-width:680px;margin:32px auto;text-align:center;background:#FFFBEB;border:1px solid #FCD34D;color:#78350F;}',
+      '.coming-soon-card h2{color:#92400E;border-bottom:0;}',
       // ---------- PPTX portrait (8.5/11 ratio) ----------
       'body.format-pptx .deck{padding:24px 14px;}',
       'body.format-pptx .slide{aspect-ratio:8.5/11;max-width:680px;width:100%;background:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.25);}',
@@ -4098,7 +4257,15 @@
       'layout-' + cfg.layout, 'skill-' + cfg.skillStyle, 'section-' + cfg.sectionStyle
     ].join(' ');
     var inner;
-    if (format === 'pptx') inner = _renderPresentationPackage(pkg, cfg);
+    if (format === 'pptx') {
+      // PowerPoint preview is intentionally disabled (Coming Soon). The deck
+      // renderer is preserved for later but never surfaced to users in this pass.
+      inner = '<main class="document-package layout-coming-soon"><section class="doc-section coming-soon-card">' +
+        '<h2>PowerPoint Preview &mdash; Coming Soon</h2>' +
+        '<p>We are polishing the PowerPoint preview so it matches a true presentation experience. ' +
+        'For now, please use <strong>PDF Document</strong> or <strong>Word / DOCX</strong> for your package preview.</p>' +
+        '</section></main>';
+    }
     else if (format === 'pdf' || format === 'docx') inner = _renderDocumentPackage(pkg, format, cfg);
     else inner = _renderWebPortfolio(pkg, cfg);
 
@@ -4222,7 +4389,13 @@
         srcdocScriptTagCount: scriptCount,
         selectedStyle: template,
         selectedColor: color,
-        effectiveStyleClass: cfg ? cfg.className : null
+        effectiveStyleClass: cfg ? cfg.className : null,
+        effectiveSkillMode: cfg ? cfg.skillStyle : null,
+        effectiveDocLayout: cfg ? cfg.docLayout : null,
+        pptxDisabled: (function () {
+          var b = document.querySelector('[data-preview-format="pptx"]');
+          return !!(b && (b.disabled || b.getAttribute('aria-disabled') === 'true'));
+        })()
       }
     };
   };
@@ -4234,12 +4407,13 @@
     var format = getSelectedPreviewFormat();
     var cfg = getPreviewStyleConfig(template, color, format);
     var frame = document.getElementById('preview-frame');
-    var bodyClass = null, mainClass = null;
+    var bodyClass = null, mainClass = null, chipCount = 0;
     try {
       if (frame && frame.contentDocument && frame.contentDocument.body) {
         bodyClass = frame.contentDocument.body.className || '';
         var main = frame.contentDocument.querySelector('main');
         if (main) mainClass = main.className || '';
+        chipCount = frame.contentDocument.querySelectorAll('span.chip').length;
       }
     } catch (_) {}
     return {
@@ -4247,8 +4421,15 @@
       selectedColor: color,
       selectedFormat: format,
       styleConfig: cfg,
+      docLayout: cfg.docLayout,
+      webLayout: cfg.webLayout,
+      docSkillMode: cfg.docSkillMode,
+      webSkillMode: cfg.webSkillMode,
+      effectiveSkillMode: cfg.skillStyle,
+      effectiveLayout: cfg.layout,
       iframeBodyClass: bodyClass,
       iframeMainClass: mainClass,
+      iframePillChipCount: chipCount,
       hasExpectedClass: bodyClass ? bodyClass.indexOf(cfg.className) !== -1 : false
     };
   };
@@ -4258,13 +4439,25 @@
     var deviceBtn = document.querySelector('[data-preview-device].active');
     var deviceRow = document.getElementById('preview-device-row');
     var deviceVisible = !!(deviceRow && deviceRow.style.display !== 'none' && !deviceRow.hasAttribute('aria-hidden'));
+    var pptxBtn = document.querySelector('[data-preview-format="pptx"]');
+    var pptxDisabled = !!(pptxBtn && (pptxBtn.disabled || pptxBtn.getAttribute('aria-disabled') === 'true'));
+    var available = Array.from(document.querySelectorAll('[data-preview-format]'))
+      .filter(function (b) { return !(b.disabled || b.getAttribute('aria-disabled') === 'true'); })
+      .map(function (b) { return b.getAttribute('data-preview-format'); });
     return {
       activeFormat: formatBtn ? formatBtn.getAttribute('data-preview-format') : null,
       activeDevice: deviceBtn ? deviceBtn.getAttribute('data-preview-device') : null,
       effectiveMode: getEffectivePreviewMode(getSelectedPreviewFormat()),
       deviceControlsVisible: deviceVisible,
+      pptxDisabled: pptxDisabled,
+      availableFormats: available,
       formatLabels: Array.from(document.querySelectorAll('[data-preview-format]')).map(function (b) {
-        return { value: b.getAttribute('data-preview-format'), label: (b.textContent || '').trim(), active: b.classList.contains('active') };
+        return {
+          value: b.getAttribute('data-preview-format'),
+          label: (b.textContent || '').trim(),
+          active: b.classList.contains('active'),
+          disabled: !!(b.disabled || b.getAttribute('aria-disabled') === 'true')
+        };
       })
     };
   };
@@ -4297,6 +4490,13 @@
       deviceMode: device,
       mode: mode,
       effectiveMode: mode,
+      isDocument: format === 'pdf' || format === 'docx',
+      effectiveSkillMode: (function () {
+        var styleEl = document.getElementById('export-style');
+        var t = (styleEl && styleEl.value) || 'modern-sidebar';
+        var c = getSelectedExportColor();
+        return getPreviewStyleConfig(t, c, format).skillStyle;
+      })(),
       deviceControlsVisible: deviceVisible,
       wrapperClientWidth: wrap ? wrap.clientWidth : 0,
       wrapperComputedMaxWidth: wrapperMaxWidth,
