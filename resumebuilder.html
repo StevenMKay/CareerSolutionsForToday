@@ -1462,11 +1462,29 @@
     if (!raw || typeof raw !== 'object') return null;
     var bulletsRaw = raw.bullets || raw.responsibilities || raw.accomplishments || raw.achievements || [];
     if (typeof bulletsRaw === 'string') bulletsRaw = bulletsRaw.split(/\r?\n/);
+    // ISS-016: backend (projectbackend/server.js) now returns a combined `dates`
+    // field plus separate `start` / `end`. Older payloads used various aliases.
+    // Build `dates` from whichever combined alias is present, else synthesize
+    // from start+end so the Dates input is never blank when the source had a
+    // year. "Present" / "Current" are valid end values.
+    var combinedDates = _firstNonEmpty(
+      raw.dates, raw.date_range, raw.dateRange,
+      raw.tenure, raw.duration, raw.period
+    );
+    var startVal = _firstNonEmpty(raw.start, raw.start_date, raw.startDate, raw.from);
+    var endVal   = _firstNonEmpty(raw.end,   raw.end_date,   raw.endDate,   raw.to);
+    if (!combinedDates) {
+      if (startVal && endVal) combinedDates = startVal + ' - ' + endVal;
+      else if (startVal)      combinedDates = startVal + ' - Present';
+      else if (endVal)        combinedDates = endVal;
+    }
     return {
       title:        _firstNonEmpty(raw.title, raw.position, raw.role, raw.job_title),
       company:      _firstNonEmpty(raw.company, raw.employer, raw.organization),
       location:     _firstNonEmpty(raw.location, raw.city),
-      dates:        _firstNonEmpty(raw.dates, raw.date_range, raw.tenure, raw.duration),
+      dates:        combinedDates,
+      start:        startVal,
+      end:          endVal,
       role_summary: _firstNonEmpty(raw.role_summary, raw.summary, raw.description),
       bullets:      _strArr(bulletsRaw)
     };
@@ -1893,6 +1911,29 @@
       experienceCount: normalized.experience.length,
       skillsCount: normalized.skills.length
     });
+    // ISS-016 diagnostic: per-role bullet/date counts so we can see if the
+    // backend (parse-resume) is dropping bullets, dates, role_summary, or
+    // location from any role — most commonly the third/oldest role on
+    // two-column PDFs.
+    try {
+      var rawExp = Array.isArray(rawResumeData && rawResumeData.experience) ? rawResumeData.experience : [];
+      console.table(rawExp.map(function (r, i) {
+        return {
+          i: i,
+          title: r && r.title || '',
+          company: r && r.company || '',
+          dates: r && r.dates || '',
+          start: r && r.start || '',
+          end: r && r.end || '',
+          location: r && r.location || '',
+          role_summary: (r && (r.role_summary || r.summary || r.description) || '').slice(0, 80),
+          bulletCount: Array.isArray(r && r.bullets) ? r.bullets.length : 0,
+          bullets: (Array.isArray(r && r.bullets) ? r.bullets : []).slice(0, 3).join(' | ').slice(0, 200)
+        };
+      }));
+      window.__lastRawResumeData = rawResumeData;
+      window.__lastNormalizedResumeData = normalized;
+    } catch (_) {}
     populateResumeFieldsFromData(normalized);
     setExtractionStatus('success', 'Resume details imported. Review your information below.');
     showToast('Resume imported', 'success');
@@ -2843,6 +2884,51 @@
     initSkillsPillEditor: initSkillsPillEditor,
     getSkillSuggestions: getSkillSuggestions
   });
+
+  // ISS-016 diagnostic: comprehensive resume-extraction inspector. Reports
+  // top-level keys, per-role coverage flags (dates/location/role_summary),
+  // and counts of every supplemental section we ask the backend to capture.
+  // Run from console after upload: debugComprehensiveResumeExtraction()
+  window.debugComprehensiveResumeExtraction = function () {
+    var rd = (window.RB_STATE && window.RB_STATE.resumeData) || (typeof RB_STATE !== 'undefined' ? RB_STATE.resumeData : null) || window.__lastNormalizedResumeData || {};
+    var rawRd = window.__lastRawResumeData || {};
+    var exp = Array.isArray(rd.experience) ? rd.experience : [];
+    var sectionKeys = [
+      'education','certifications','licenses','training','courses','projects',
+      'publications','presentations','patents','awards','honors','achievements',
+      'volunteer_experience','leadership_engagement','community_involvement',
+      'professional_affiliations','memberships','board_service','military_service',
+      'references','additional_sections'
+    ];
+    var sectionCounts = {};
+    sectionKeys.forEach(function (k) {
+      var fromNormalized = Array.isArray(rd[k]) ? rd[k].length : (rd[k] ? 1 : 0);
+      var fromRaw = Array.isArray(rawRd[k]) ? rawRd[k].length : (rawRd[k] ? 1 : 0);
+      sectionCounts[k] = Math.max(fromNormalized, fromRaw);
+    });
+    return {
+      topLevelKeys: Object.keys(rd),
+      rawTopLevelKeys: Object.keys(rawRd),
+      experienceCount: exp.length,
+      experienceRows: exp.map(function (r, i) {
+        return {
+          index: i,
+          title: r.title || '',
+          company: r.company || '',
+          dates: r.dates || '',
+          start: r.start || '',
+          end: r.end || '',
+          location: r.location || '',
+          role_summary: r.role_summary || '',
+          bulletCount: Array.isArray(r.bullets) ? r.bullets.length : 0,
+          hasDates: !!r.dates,
+          hasLocation: !!r.location,
+          hasRoleSummary: !!r.role_summary
+        };
+      }),
+      sectionCounts: sectionCounts
+    };
+  };
 
   // Boot
   if (document.readyState === 'loading') {
