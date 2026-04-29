@@ -728,10 +728,10 @@
   .preview-device.device-mobile  { max-width:390px; border-radius:24px; }
   .preview-device.device-app     { max-width:390px; border-radius:24px; padding:24px 8px 18px; background:#0F172A; }
   .preview-device.device-app > iframe { border-radius:14px; background:#fff; }
-  .preview-device > iframe { display:block; width:100%; height:720px; border:0; background:#fff; }
+  .preview-device > iframe { display:block; width:100%; height:760px; border:0; background:#fff; }
   .preview-device.device-tablet > iframe { height:720px; }
-  .preview-device.device-mobile > iframe { height:720px; }
-  .preview-device.device-app    > iframe { height:680px; }
+  .preview-device.device-mobile > iframe { height:700px; }
+  .preview-device.device-app    > iframe { height:660px; }
 </style>
 </head>
 <body>
@@ -3228,12 +3228,33 @@
     if (typeof v === 'string') return v;
     if (typeof v === 'number' || typeof v === 'boolean') return String(v);
     if (typeof v === 'object') {
-      if (v.text) return String(v.text);
-      if (v.title) return String(v.title);
-      if (v.name) return String(v.name);
-      try { return JSON.stringify(v); } catch (_) { return ''; }
+      // Priority order per spec.
+      var keys = ['title', 'name', 'label', 'text', 'description', 'summary', 'value', 'url', 'role'];
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (v[k] != null && (typeof v[k] === 'string' || typeof v[k] === 'number')) {
+          return String(v[k]);
+        }
+      }
+      // Don't dump ugly JSON. Only keep if short and useful.
+      try {
+        var j = JSON.stringify(v);
+        if (j && j.length > 0 && j.length < 80 && j !== '{}' && j !== '[]') return j;
+      } catch (_) {}
+      return '';
     }
     return String(v);
+  }
+  function _linkLabel(l) {
+    if (!l) return '';
+    if (typeof l === 'string') return l;
+    if (typeof l === 'object') {
+      var label = l.label || l.name || l.title || '';
+      var url = l.url || l.href || l.value || '';
+      if (label && url && label !== url) return label + ' \u2014 ' + url;
+      return label || url || '';
+    }
+    return String(l);
   }
   function _list(arr, mapFn) {
     if (!Array.isArray(arr) || !arr.length) return '';
@@ -3270,8 +3291,8 @@
       location && '<span>' + _esc(location) + '</span>'
     ].filter(Boolean).join(' &middot; ');
     var linksHtml = links.length ? '<div class="links">' + links.map(function (l) {
-      var label = _safeStr(l && (l.label || l.name || l.url || l));
-      return '<span class="link">' + _esc(label) + '</span>';
+      var label = _linkLabel(l);
+      return label ? '<span class="link">' + _esc(label) + '</span>' : '';
     }).join('') + '</div>' : '';
 
     var expHtml = experience.map(function (e) {
@@ -3418,14 +3439,22 @@
   function _renderPortfolioSections(plan) {
     if (!plan || !plan.portfolio_sections || typeof plan.portfolio_sections !== 'object') return '';
     var ps = plan.portfolio_sections;
+    function linkBlock(label, arr) {
+      if (!Array.isArray(arr) || !arr.length) return '';
+      var items = arr.map(function (l) {
+        var txt = _linkLabel(l);
+        return txt ? '<li>' + _esc(txt) + '</li>' : '';
+      }).filter(Boolean).join('');
+      return items ? '<section class="sub"><h3>' + _esc(label) + '</h3><ul>' + items + '</ul></section>' : '';
+    }
     function block(label, arr) {
       if (!Array.isArray(arr) || !arr.length) return '';
       return '<section class="sub"><h3>' + _esc(label) + '</h3>' + _bullets(arr) + '</section>';
     }
-    var html = block('Important Links', ps.important_links) +
+    var html = linkBlock('Important Links', ps.important_links) +
                block('Certifications', ps.certifications) +
                block('Interactive Tools', ps.interactive_tools) +
-               block('Supporting Documents', ps.supporting_documents) +
+               linkBlock('Supporting Documents', ps.supporting_documents) +
                block('Project Highlights', ps.project_highlights);
     if (!html) return '';
     return '<section id="sec-portfolio" class="doc-section">' +
@@ -3469,6 +3498,15 @@
     if (s.rolePlan) body += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
     return '<main class="document-package">' + body + '</main>';
   }
+  function _truncate(str, max) {
+    var s = String(str == null ? '' : str).trim();
+    if (!s) return '';
+    if (s.length <= max) return s;
+    var cut = s.slice(0, max);
+    var sp = cut.lastIndexOf(' ');
+    if (sp > max - 30) cut = cut.slice(0, sp);
+    return cut.replace(/[\s,;:.\-]+$/, '') + '\u2026';
+  }
   function _renderPresentationPackage(pkg) {
     var d = pkg.documents || {};
     var s = pkg.selected || {};
@@ -3478,76 +3516,99 @@
     var plan = d.rolePlan || {};
     var key = d.rolePlanType === '12-month' ? 'months12' : d.rolePlanType === '2-year' ? 'years2' : 'days90';
     var bucket = plan[key] || {};
-    var phases = Array.isArray(bucket.phases) ? bucket.phases : [];
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : (Array.isArray(bucket.quarters) ? bucket.quarters : []);
     var name = _safeStr(rd.full_name || (rd.contact && rd.contact.name) || rd.name || '');
     var headline = _safeStr(rd.headline || rd.title || (role && role.job_title) || '');
     var slides = [];
+
+    // 1. Title slide
     slides.push(
       '<article class="slide slide-title"><div class="slide-inner">' +
         '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
-        (headline ? '<p>' + _esc(headline) + '</p>' : '') +
-        (role && role.company ? '<p class="muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
+        (headline ? '<p>' + _esc(_truncate(headline, 80)) + '</p>' : '') +
+        (role && role.company ? '<p class="muted">Targeting ' + _esc(_truncate(_safeStr(role.job_title || ''), 40)) + (role.company ? ' at ' + _esc(_truncate(_safeStr(role.company), 40)) : '') + '</p>' : '') +
       '</div></article>'
     );
-    if (s.resume && rd) {
-      var summary = _safeStr(rd.summary || rd.objective || '');
-      var skills = Array.isArray(rd.skills) ? rd.skills.slice(0, 8) : [];
-      slides.push(
-        '<article class="slide"><div class="slide-inner">' +
-          '<h2>Summary</h2>' +
-          (summary ? '<p>' + _esc(summary) + '</p>' : '<p class="muted">No summary.</p>') +
-          (skills.length ? '<div class="chips">' + skills.map(function (k) { return '<span class="chip">' + _esc(_safeStr(k)) + '</span>'; }).join('') + '</div>' : '') +
-        '</div></article>'
-      );
-      var exp = Array.isArray(rd.experience) ? rd.experience.slice(0, 4) : [];
+
+    // 2. Candidate summary slide
+    if (s.resume) {
+      if (rd && (rd.summary || rd.objective || (Array.isArray(rd.skills) && rd.skills.length))) {
+        var summary = _safeStr(rd.summary || rd.objective || '');
+        var skills = (Array.isArray(rd.skills) ? rd.skills : []).slice(0, 8);
+        slides.push(
+          '<article class="slide"><div class="slide-inner">' +
+            '<h2>Candidate Summary</h2>' +
+            (summary ? '<p>' + _esc(_truncate(summary, 260)) + '</p>' : '') +
+            (skills.length ? '<h3>Top Skills</h3><div class="chips">' + skills.map(function (k) { return '<span class="chip">' + _esc(_truncate(_safeStr(k), 28)) + '</span>'; }).join('') + '</div>' : '') +
+          '</div></article>'
+        );
+      } else if (!rd || !Object.keys(rd).length) {
+        slides.push('<article class="slide"><div class="slide-inner"><h2>Candidate Summary</h2><p class="muted">Import a resume first.</p></div></article>');
+      }
+
+      // 3. Experience highlights slide (2-3 roles, 1-2 bullets each)
+      var exp = Array.isArray(rd.experience) ? rd.experience.slice(0, 3) : [];
       if (exp.length) {
         slides.push(
           '<article class="slide"><div class="slide-inner">' +
             '<h2>Experience Highlights</h2>' +
-            '<ul>' + exp.map(function (e) {
-              var role2 = _esc(_safeStr(e.title || e.role || ''));
-              var co = _esc(_safeStr(e.company || ''));
-              return '<li><strong>' + role2 + '</strong>' + (co ? ' &mdash; ' + co : '') + '</li>';
-            }).join('') + '</ul>' +
+            exp.map(function (e) {
+              var role2 = _esc(_truncate(_safeStr(e.title || e.role || ''), 60));
+              var co = _esc(_truncate(_safeStr(e.company || e.employer || ''), 50));
+              var bullets = Array.isArray(e.bullets) ? e.bullets : (Array.isArray(e.achievements) ? e.achievements : (Array.isArray(e.highlights) ? e.highlights : []));
+              var topBullets = bullets.slice(0, 2).map(function (b) { return '<li>' + _esc(_truncate(_safeStr(b), 110)) + '</li>'; }).join('');
+              return '<h3>' + role2 + (co ? ' <span class="muted">@ ' + co + '</span>' : '') + '</h3>' +
+                (topBullets ? '<ul>' + topBullets + '</ul>' : '');
+            }).join('') +
           '</div></article>'
         );
       }
-    } else if (s.resume) {
-      slides.push('<article class="slide"><div class="slide-inner"><h2>Resume</h2><p class="muted">Import a resume first.</p></div></article>');
     }
+
+    // 4. Cover letter / positioning slide
     if (s.coverLetter) {
-      if (cv && (cv.opening || (cv.body && cv.body.length))) {
+      if (cv && (cv.opening || (Array.isArray(cv.body) && cv.body.length))) {
+        var opening = _safeStr(cv.opening || '');
+        var bodyArr = Array.isArray(cv.body) ? cv.body : (cv.body ? [String(cv.body)] : []);
+        // Mine alignment bullets from the first body paragraph(s): split by sentence.
+        var alignmentSrc = (bodyArr[0] || '') + ' ' + (bodyArr[1] || '');
+        var sentences = alignmentSrc.split(/(?<=[.!?])\s+/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
         slides.push(
           '<article class="slide"><div class="slide-inner">' +
-            '<h2>' + _esc(_safeStr(cv.heading || 'Why Me')) + '</h2>' +
-            (cv.opening ? '<p>' + _esc(_safeStr(cv.opening)) + '</p>' : '') +
-            (Array.isArray(cv.body) && cv.body[0] ? '<p>' + _esc(_safeStr(cv.body[0])) + '</p>' : '') +
+            '<h2>' + _esc(_truncate(_safeStr(cv.heading || 'Why Me'), 60)) + '</h2>' +
+            (opening ? '<p>' + _esc(_truncate(opening, 220)) + '</p>' : '') +
+            (sentences.length ? '<h3>Alignment</h3><ul>' + sentences.map(function (x) { return '<li>' + _esc(_truncate(x, 130)) + '</li>'; }).join('') + '</ul>' : '') +
           '</div></article>'
         );
       } else {
         slides.push('<article class="slide"><div class="slide-inner"><h2>Cover Letter</h2><p class="muted">Generate a cover letter first.</p></div></article>');
       }
     }
+
+    // 5. Role plan roadmap slide (phase cards)
     if (s.rolePlan) {
       if (phases.length) {
+        var phaseCards = phases.slice(0, 6).map(function (p, i) {
+          var tf = _esc(_truncate(_safeStr(p.timeframe || ('Phase ' + (i + 1))), 28));
+          var ttl = _esc(_truncate(_safeStr(p.title || p.primary_objective || ''), 70));
+          return '<div class="pcard"><strong>' + tf + '</strong>' + (ttl || '<span class="muted">&nbsp;</span>') + '</div>';
+        }).join('');
         slides.push(
           '<article class="slide"><div class="slide-inner">' +
             '<h2>Role Plan Roadmap</h2>' +
-            '<ol class="phase-list">' + phases.slice(0, 4).map(function (p, i) {
-              var tf = _esc(_safeStr(p.timeframe || ('Phase ' + (i + 1))));
-              var ttl = _esc(_safeStr(p.title || p.primary_objective || ''));
-              return '<li><strong>' + tf + '</strong>' + (ttl ? ' &mdash; ' + ttl : '') + '</li>';
-            }).join('') + '</ol>' +
+            '<div class="slide-phases">' + phaseCards + '</div>' +
           '</div></article>'
         );
+
+        // 6. KPIs / success metrics
         var kpis = Array.isArray(bucket.suggested_kpis) ? bucket.suggested_kpis.slice(0, 6) : [];
-        var success = Array.isArray(bucket.what_success_looks_like) ? bucket.what_success_looks_like.slice(0, 5) : [];
+        var success = Array.isArray(bucket.what_success_looks_like) ? bucket.what_success_looks_like.slice(0, 4) : [];
         if (kpis.length || success.length) {
           slides.push(
             '<article class="slide"><div class="slide-inner">' +
-              '<h2>Success & KPIs</h2>' +
-              (success.length ? '<h3>What Success Looks Like</h3>' + _bullets(success) : '') +
-              (kpis.length ? '<h3>Suggested KPIs</h3>' + _bullets(kpis) : '') +
+              '<h2>Success &amp; KPIs</h2>' +
+              (success.length ? '<h3>What Success Looks Like</h3><ul>' + success.map(function (x) { return '<li>' + _esc(_truncate(_safeStr(x), 120)) + '</li>'; }).join('') + '</ul>' : '') +
+              (kpis.length ? '<h3>Suggested KPIs</h3><ul>' + kpis.map(function (x) { return '<li>' + _esc(_truncate(_safeStr(x), 120)) + '</li>'; }).join('') + '</ul>' : '') +
             '</div></article>'
           );
         }
@@ -3555,13 +3616,20 @@
         slides.push('<article class="slide"><div class="slide-inner"><h2>Role Plan</h2><p class="muted">Generate a role plan first.</p></div></article>');
       }
     }
+
+    // Slide numbers
+    var totalSlides = slides.length;
+    slides = slides.map(function (html, i) {
+      return html.replace('</article>', '<span class="slide-num">' + (i + 1) + ' / ' + totalSlides + '</span></article>');
+    });
+
     return '<main class="deck">' + slides.join('') + '</main>';
   }
 
   function _previewCSS() {
     return [
       '*,*::before,*::after{box-sizing:border-box;}',
-      'html,body{margin:0;padding:0;}',
+      'html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden;}',
       'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--text);background:var(--page);line-height:1.5;-webkit-text-size-adjust:100%;}',
       ':root{--accent:#2563EB;--accent-dark:#1D4ED8;--text:#0F172A;--muted:#64748B;--surface:#FFFFFF;--border:#E2E8F0;--page:#F8FAFC;--sidebar:#F1F5F9;}',
       'body.color-blue{--accent:#2563EB;--accent-dark:#1D4ED8;}',
@@ -3592,63 +3660,111 @@
       '.phase-card{background:var(--sidebar);border-radius:8px;padding:10px 12px;border-top:0;}',
       '.phase-head{font-size:.95rem;color:var(--accent-dark);margin-bottom:.3rem;}',
       '.goals .goal{padding:.3rem .5rem;border-left:3px solid var(--accent);background:var(--surface);border-radius:4px;margin:.3rem 0;}',
-      // Web portfolio
-      '.web-portfolio{max-width:960px;margin:0 auto;padding:24px;}',
-      '.web-portfolio .hero{padding:32px 22px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;text-align:center;}',
-      '.web-portfolio .hero h1{color:#fff;font-size:2rem;}',
-      '.web-portfolio .hero .hero-sub{color:rgba(255,255,255,.95);font-weight:600;}',
+      // ---------- Web portfolio (format=web) ----------
+      '.web-portfolio{max-width:1080px;margin:0 auto;padding:24px 28px;}',
+      '.web-portfolio .hero{padding:42px 32px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;text-align:center;}',
+      '.web-portfolio .hero h1{color:#fff;font-size:2.25rem;margin-bottom:.4rem;}',
+      '.web-portfolio .hero .hero-sub{color:rgba(255,255,255,.95);font-weight:600;font-size:1.05rem;}',
       '.web-portfolio .hero .hero-meta{color:rgba(255,255,255,.85);}',
-      '.web-portfolio .site-nav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:14px 0;border-bottom:1px solid var(--border);margin-bottom:14px;}',
-      '.web-portfolio .site-nav a{padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);text-decoration:none;font-size:.85rem;}',
-      '.web-portfolio .site-footer{padding:14px;text-align:center;font-size:.78rem;}',
-      // Document
-      '.document-package{max-width:780px;margin:0 auto;padding:28px;background:var(--surface);}',
-      '.document-package .doc-section{box-shadow:0 1px 0 rgba(0,0,0,.02);}',
-      // PPTX deck
-      '.deck{display:flex;flex-direction:column;gap:18px;padding:18px;align-items:center;}',
-      '.slide{width:100%;max-width:860px;aspect-ratio:16/9;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.08);overflow:hidden;display:flex;}',
-      '.slide-inner{padding:32px 40px;width:100%;display:flex;flex-direction:column;justify-content:flex-start;overflow:auto;}',
+      '.web-portfolio .site-nav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:16px;}',
+      '.web-portfolio .site-nav a{padding:7px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--border);text-decoration:none;font-size:.88rem;color:var(--text);}',
+      '.web-portfolio .site-nav a:hover{background:var(--sidebar);}',
+      '.web-portfolio .site-footer{padding:18px;text-align:center;font-size:.78rem;}',
+      // Web device-aware widths (format-web only)
+      'body.format-web.device-desktop .web-portfolio{max-width:1100px;}',
+      'body.format-web.device-tablet  .web-portfolio{max-width:760px;}',
+      'body.format-web.device-mobile  .web-portfolio,body.format-web.device-app .web-portfolio{max-width:100%;padding:14px;}',
+      // ---------- Document (format=pdf|docx) ----------
+      '.document-package{max-width:8.5in;margin:0 auto;padding:.5in .6in;background:var(--surface);}',
+      '.document-package .doc-section{box-shadow:none;}',
+      '.document-package .doc-header{border-bottom:2px solid var(--accent);}',
+      // PDF: page-like with light gray surrounding background
+      'body.format-pdf{background:#EEF2F7;}',
+      'body.format-pdf .document-package{background:#fff;border:1px solid #CBD5E1;box-shadow:0 4px 14px rgba(15,23,42,.08);}',
+      'body.format-pdf .doc-section{border:none;border-radius:0;background:transparent;padding:14px 0;border-bottom:1px solid var(--border);}',
+      'body.format-pdf .doc-section:last-of-type{border-bottom:0;}',
+      // DOCX: Word-style
+      'body.format-docx{background:#EEF2F7;}',
+      'body.format-docx .document-package{font-family:Georgia,"Times New Roman",serif;padding:1in .9in;border:1px solid #CBD5E1;box-shadow:0 4px 14px rgba(15,23,42,.08);}',
+      'body.format-docx h1,body.format-docx h2,body.format-docx h3,body.format-docx h4{font-family:Georgia,"Times New Roman",serif;color:#1F2937;}',
+      'body.format-docx h1{font-size:1.5rem;}body.format-docx h2{font-size:1.15rem;color:#1F2937;border-bottom:1px solid #94A3B8;padding-bottom:2px;}',
+      'body.format-docx .doc-section{border:none;border-radius:0;padding:0 0 14px;background:transparent;}',
+      'body.format-docx .doc-header{border-bottom:1px solid #94A3B8;}',
+      'body.format-docx .chip{background:transparent;border:0;padding:0;font-family:Georgia,serif;font-size:.92rem;}',
+      'body.format-docx .skills-row{gap:.4rem;}',
+      'body.format-docx .skills-row .chip+.chip::before{content:"\\2022";margin-right:.4rem;color:#94A3B8;}',
+      'body.format-docx .phase-card{background:transparent;border:0;border-top:1px solid #CBD5E1;border-radius:0;padding:8px 0;}',
+      // Print
+      '@media print{@page{size:Letter;margin:.5in;} body{background:#fff;} .document-package{box-shadow:none;border:0;padding:0;max-width:none;} .doc-section{break-inside:avoid;page-break-inside:avoid;}}',
+      // ---------- PPTX deck ----------
+      'body.format-pptx{background:#1E293B;}',
+      '.deck{display:flex;flex-direction:column;gap:18px;padding:20px;align-items:center;}',
+      '.slide{width:100%;max-width:960px;aspect-ratio:16/9;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.18);overflow:hidden;display:flex;position:relative;}',
+      '.slide-inner{padding:32px 44px;width:100%;height:100%;display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;gap:6px;}',
       '.slide-title{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;}',
-      '.slide-title h1{color:#fff;font-size:2.2rem;}',
-      '.slide-title p{color:rgba(255,255,255,.95);}',
-      '.slide h2{color:var(--accent-dark);font-size:1.4rem;margin-bottom:.6rem;}',
-      '.slide ol.phase-list,.slide ul{font-size:1rem;}',
-      // Templates
+      '.slide-title .slide-inner{justify-content:center;align-items:center;text-align:center;}',
+      '.slide-title h1{color:#fff;font-size:2.2rem;margin-bottom:.4rem;}',
+      '.slide-title p{color:rgba(255,255,255,.95);margin:.2rem 0;}',
+      '.slide h2{color:var(--accent-dark);font-size:1.4rem;margin-bottom:.5rem;border-bottom:2px solid var(--accent);padding-bottom:4px;}',
+      '.slide h3{color:var(--accent-dark);font-size:1rem;margin:.4rem 0 .2rem;}',
+      '.slide p{font-size:.95rem;margin:.2rem 0;}',
+      '.slide ul,.slide ol{font-size:.92rem;margin:.2rem 0 .2rem 1.1rem;overflow:hidden;}',
+      '.slide li{margin:.15rem 0;}',
+      '.slide .chips{margin-top:.4rem;}',
+      '.slide .chip{font-size:.78rem;padding:2px 8px;}',
+      '.slide-num{position:absolute;bottom:10px;right:14px;font-size:.7rem;color:var(--muted);}',
+      '.slide-phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:.4rem;}',
+      '.slide-phases .pcard{background:var(--sidebar);border-radius:8px;padding:8px 10px;border-left:3px solid var(--accent);font-size:.85rem;}',
+      '.slide-phases .pcard strong{display:block;color:var(--accent-dark);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px;}',
+      // ---------- Templates ----------
       'body.template-executive .doc-section{border-radius:4px;border-color:#94A3B8;}',
       'body.template-executive h2{font-family:"Outfit",serif;letter-spacing:.02em;}',
       'body.template-executive .doc-header{border-bottom-width:3px;}',
       'body.template-classic{background:#FFFFFF;}',
       'body.template-classic .doc-section{border:none;border-bottom:1px solid var(--border);border-radius:0;padding:14px 0;background:transparent;}',
       'body.template-classic .doc-header{border-bottom:1px solid #94A3B8;}',
-      'body.template-modern-sidebar .web-portfolio,body.template-modern-sidebar .document-package{display:grid;grid-template-columns:240px 1fr;gap:18px;max-width:1100px;}',
-      'body.template-modern-sidebar .doc-section:first-of-type{grid-row:1/span 99;background:var(--sidebar);}',
-      // DOCX style
-      'body.format-docx{background:#E5E7EB;}',
-      'body.format-docx .document-package{font-family:Georgia,"Times New Roman",serif;background:#fff;padding:1in .9in;max-width:8.5in;border:1px solid #CBD5E1;box-shadow:0 4px 12px rgba(15,23,42,.08);}',
-      'body.format-docx .doc-section{border:none;border-radius:0;padding:0 0 18px;background:transparent;box-shadow:none;}',
-      'body.format-docx h2{font-family:Georgia,serif;}',
-      // PDF style
-      'body.format-pdf{background:#E5E7EB;}',
-      'body.format-pdf .document-package{background:#fff;padding:.5in .6in;max-width:8.5in;border:1px solid #CBD5E1;box-shadow:0 4px 12px rgba(15,23,42,.08);}',
-      '@media print{@page{size:Letter;margin:.5in;} body{background:#fff;} .document-package{box-shadow:none;border:0;padding:0;max-width:none;} .doc-section{break-inside:avoid;page-break-inside:avoid;}}',
-      // Devices
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio{display:grid;grid-template-columns:260px 1fr;gap:24px;max-width:1140px;align-items:start;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio .hero{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio .site-nav{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop .web-portfolio .site-footer{grid-column:1/-1;}',
+      'body.template-modern-sidebar.format-web.device-desktop #sec-resume{position:sticky;top:14px;background:var(--sidebar);}',
+      'body.template-modern-sidebar.format-web.device-tablet .web-portfolio{display:grid;grid-template-columns:220px 1fr;gap:18px;}',
+      'body.template-modern-sidebar.format-web.device-tablet .web-portfolio .hero,body.template-modern-sidebar.format-web.device-tablet .web-portfolio .site-nav,body.template-modern-sidebar.format-web.device-tablet .web-portfolio .site-footer{grid-column:1/-1;}',
+      // ---------- Devices (general) ----------
+      'body.device-tablet{font-size:15.5px;}',
       'body.device-mobile,body.device-app{font-size:15px;}',
-      'body.device-mobile .web-portfolio,body.device-app .web-portfolio,body.device-mobile .document-package,body.device-app .document-package{padding:14px;}',
-      'body.device-mobile .web-portfolio .hero,body.device-app .web-portfolio .hero{padding:20px 14px;}',
+      'body.device-mobile .web-portfolio,body.device-app .web-portfolio{padding:14px;}',
+      'body.device-mobile .web-portfolio .hero,body.device-app .web-portfolio .hero{padding:24px 16px;}',
+      'body.device-mobile .web-portfolio .hero h1,body.device-app .web-portfolio .hero h1{font-size:1.6rem;}',
       'body.device-mobile .doc-section,body.device-app .doc-section{padding:14px;}',
-      'body.device-mobile.template-modern-sidebar .web-portfolio,body.device-app.template-modern-sidebar .web-portfolio,body.device-mobile.template-modern-sidebar .document-package,body.device-app.template-modern-sidebar .document-package{grid-template-columns:1fr;}',
-      'body.device-tablet.template-modern-sidebar .web-portfolio,body.device-tablet.template-modern-sidebar .document-package{grid-template-columns:200px 1fr;}',
-      'body.device-mobile .slide,body.device-app .slide{aspect-ratio:auto;min-height:360px;}',
-      'body.device-mobile .slide-inner,body.device-app .slide-inner{padding:18px 20px;}',
+      // PPTX scales by width on smaller devices, preserves 16:9 via aspect-ratio
+      'body.device-tablet .slide{max-width:100%;}',
+      'body.device-mobile .slide,body.device-app .slide{max-width:100%;aspect-ratio:16/9;}',
+      'body.device-mobile .slide-inner,body.device-app .slide-inner{padding:14px 18px;gap:4px;}',
+      'body.device-mobile .slide h1,body.device-app .slide h1{font-size:1.2rem;}',
+      'body.device-mobile .slide h2,body.device-app .slide h2{font-size:.95rem;}',
+      'body.device-mobile .slide p,body.device-app .slide p{font-size:.78rem;}',
+      'body.device-mobile .slide ul,body.device-app .slide ul,body.device-mobile .slide ol,body.device-app .slide ol{font-size:.75rem;margin-left:.9rem;}',
       'body.device-app{padding-bottom:18px;}'
     ].join('\n');
+  }
+
+  function getEffectivePreviewMode(format, requestedMode) {
+    if (format === 'web') return 'web';
+    if (format === 'pdf') return 'document';
+    if (format === 'docx') return 'document';
+    if (format === 'pptx') return 'presentation';
+    return requestedMode || 'web';
   }
 
   function renderPackageHTML(pkg, options) {
     var opts = options || {};
     var target = opts.target || 'preview';
     var format = opts.format || (pkg.style && pkg.style.previewFormat) || 'web';
-    var mode   = opts.mode   || (pkg.style && pkg.style.previewMode)   || 'web';
+    var requestedMode = opts.mode || (pkg.style && pkg.style.previewMode) || 'web';
+    // Format is the source of truth for layout. Mode is derived to prevent
+    // bad combos like mode=document + format=web from narrowing the layout.
+    var mode   = getEffectivePreviewMode(format, requestedMode);
     var device = opts.device || (pkg.style && pkg.style.deviceMode)    || 'desktop';
     var template = (pkg.style && pkg.style.template) || 'modern';
     var color    = (pkg.style && pkg.style.color)    || 'blue';
@@ -3745,6 +3861,10 @@
   window.debugDocumentPackage = function () {
     var pkg = (window.RB_STATE && RB_STATE.documentPackage) || buildSelectedDocumentPackage();
     var d = (pkg && pkg.documents) || {};
+    var frame = document.getElementById('preview-frame');
+    var format = (pkg && pkg.style && pkg.style.previewFormat) || null;
+    var device = (pkg && pkg.style && pkg.style.deviceMode) || null;
+    var mode = getEffectivePreviewMode(format || 'web', (pkg && pkg.style && pkg.style.previewMode) || null);
     return {
       hasPackage: !!pkg,
       selected: (pkg && pkg.selected) || {},
@@ -3757,8 +3877,46 @@
       coverLetterBodyCount: (d.coverLetter && Array.isArray(d.coverLetter.body)) ? d.coverLetter.body.length : 0,
       rolePlanPhaseCount: getRolePlanPhaseCount(d.rolePlan, d.rolePlanType),
       previewMode: (pkg && pkg.style && pkg.style.previewMode) || null,
-      previewFormat: (pkg && pkg.style && pkg.style.previewFormat) || null,
-      deviceMode: (pkg && pkg.style && pkg.style.deviceMode) || null
+      previewFormat: format,
+      deviceMode: device,
+      effectiveMode: mode,
+      previewHealth: {
+        hasIframe: !!frame,
+        iframeWidth: frame ? frame.clientWidth : 0,
+        iframeHeight: frame ? frame.clientHeight : 0,
+        format: format,
+        device: device,
+        mode: mode
+      }
+    };
+  };
+
+  window.debugPreviewLayout = function () {
+    var frame = document.getElementById('preview-frame');
+    var wrap = document.querySelector('.preview-device');
+    var format = getSelectedPreviewFormat();
+    var device = getSelectedPreviewDevice();
+    var mode = getEffectivePreviewMode(format, getSelectedPreviewMode());
+    var clientW = frame ? frame.clientWidth : 0;
+    var scrollW = 0;
+    try {
+      if (frame && frame.contentDocument && frame.contentDocument.documentElement) {
+        scrollW = frame.contentDocument.documentElement.scrollWidth || 0;
+      }
+    } catch (_) {}
+    return {
+      format: format,
+      device: device,
+      mode: mode,
+      iframeClientWidth: clientW,
+      iframeScrollWidth: scrollW,
+      hasHorizontalOverflow: !!(scrollW && clientW && scrollW > clientW + 1),
+      previewDeviceClass: (wrap && wrap.className) || null,
+      selected: {
+        resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
+        coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
+        rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
+      }
     };
   };
 
