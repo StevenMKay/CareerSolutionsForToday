@@ -712,6 +712,26 @@
   /* Step 3 readiness */
   .doc-card.doc-card-unavailable { opacity:.45; cursor:not-allowed; pointer-events:none; }
   .doc-card.doc-card-unavailable .doc-card-sub { font-style:italic; }
+
+  /* Live Preview shell */
+  #preview-container-export {
+    margin-top:.8rem; min-height:480px; padding:14px; border-radius:var(--radius);
+    border:1px solid #E2E8F0; background:#F1F5F9; color:#334155;
+    display:block; text-align:left; overflow:auto;
+  }
+  #preview-container-export .preview-empty { display:grid; place-items:center; min-height:240px; text-align:center; }
+  .preview-warnings { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+  .preview-warning { padding:8px 12px; border-radius:8px; background:rgba(220,160,0,.12); border:1px solid rgba(220,160,0,.4); color:#92400E; font-size:.88rem; }
+  .preview-device { margin:0 auto; background:#fff; border:1px solid #CBD5E1; border-radius:12px; box-shadow:0 4px 16px rgba(15,23,42,.08); overflow:hidden; transition:max-width .2s ease; }
+  .preview-device.device-desktop { max-width:1100px; }
+  .preview-device.device-tablet  { max-width:768px; }
+  .preview-device.device-mobile  { max-width:390px; border-radius:24px; }
+  .preview-device.device-app     { max-width:390px; border-radius:24px; padding:24px 8px 18px; background:#0F172A; }
+  .preview-device.device-app > iframe { border-radius:14px; background:#fff; }
+  .preview-device > iframe { display:block; width:100%; height:720px; border:0; background:#fff; }
+  .preview-device.device-tablet > iframe { height:720px; }
+  .preview-device.device-mobile > iframe { height:720px; }
+  .preview-device.device-app    > iframe { height:680px; }
 </style>
 </head>
 <body>
@@ -1100,10 +1120,22 @@
               <button type="button" class="active" data-preview-mode="document">Document</button>
               <button type="button"                data-preview-mode="web">Web</button>
             </div>
+            <div class="preview-toggle" role="tablist" aria-label="Preview format" style="margin-top:.4rem;">
+              <button type="button" class="active" data-preview-format="web">Web Page</button>
+              <button type="button"                data-preview-format="pdf">PDF / Document</button>
+              <button type="button"                data-preview-format="docx">DOCX</button>
+              <button type="button"                data-preview-format="pptx">PPTX</button>
+            </div>
+            <div class="preview-toggle" role="tablist" aria-label="Preview device" style="margin-top:.4rem;">
+              <button type="button" class="active" data-preview-device="desktop">Desktop</button>
+              <button type="button"                data-preview-device="tablet">Tablet</button>
+              <button type="button"                data-preview-device="mobile">Mobile</button>
+              <button type="button"                data-preview-device="app">App</button>
+            </div>
             <div id="preview-container-export">
-              <div>
+              <div id="preview-empty-state" class="preview-empty">
                 <i data-lucide="file" style="width:28px;height:28px;color:#94A3B8;"></i>
-                <p style="margin:.4rem 0 0;color:#64748B;">Live preview will appear here after resume parsing and optimization are wired.</p>
+                <p style="margin:.4rem 0 0;color:#64748B;">Select documents in Step 3 to preview your package.</p>
               </div>
             </div>
           </div>
@@ -1287,6 +1319,9 @@
       if (tIdx < idx)        btn.classList.add('completed');
       else if (tIdx === idx) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
     });
+    if (stepId === 'step-export') {
+      try { maybeRefreshPreview(); } catch (_) {}
+    }
   }
 
   function initAccordions() {
@@ -1297,6 +1332,9 @@
         if (!acc) return;
         var open = acc.classList.toggle('open');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && id === 'acc-live-preview') {
+          try { schedulePreviewRefresh(); } catch (_) {}
+        }
       });
     });
   }
@@ -1318,6 +1356,7 @@
         var cb   = cbId && document.getElementById(cbId);
         if (cb) cb.checked = card.classList.contains('selected');
         updateSelectedSummary();
+        try { maybeRefreshPreview(); } catch (_) {}
       });
     });
   }
@@ -1329,18 +1368,22 @@
         card.classList.add('selected');
         var hidden = document.getElementById('export-style');
         if (hidden) hidden.value = card.getAttribute('data-style') || '';
+        try { maybeRefreshPreview(); } catch (_) {}
       });
     });
     document.querySelectorAll('.swatch').forEach(function (sw) {
       sw.addEventListener('click', function () {
         document.querySelectorAll('.swatch').forEach(function (s) { s.classList.remove('selected'); });
         sw.classList.add('selected');
+        try { maybeRefreshPreview(); } catch (_) {}
       });
     });
     document.querySelectorAll('.preview-toggle button').forEach(function (b) {
       b.addEventListener('click', function () {
-        document.querySelectorAll('.preview-toggle button').forEach(function (x) { x.classList.remove('active'); });
+        var group = b.parentElement;
+        if (group) group.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
         b.classList.add('active');
+        try { maybeRefreshPreview(); } catch (_) {}
       });
     });
   }
@@ -3038,6 +3081,7 @@
       RB_STATE.cvDraft = RB_STATE.coverLetter;
       attachCoverLetterEditListener();
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
+      try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Cover letter generated.';
       showToast('Cover letter generated.', 'success');
     }).catch(function (err) {
@@ -3100,6 +3144,7 @@
       RB_STATE.rolePlanType = planTypeApi;
       renderRolePlanOutput(generated, planTypeUI);
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
+      try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
       showToast('Role plan generated.', 'success');
     }).catch(function (err) {
@@ -3113,7 +3158,610 @@
       updateAIReadinessUI();
     });
   }
-  function renderPreview()          { notImplemented('renderPreview'); }
+  // ============================================================
+  // Long-Term Responsive Preview Renderer
+  // Pipeline: RB_STATE -> buildSelectedDocumentPackage()
+  //          -> renderPackageHTML(pkg, opts) -> iframe.srcdoc
+  // No backend calls. No data mutation. iframe sandboxed (no scripts).
+  // ============================================================
+  function getSelectedExportColor() {
+    var sel = document.querySelector('.swatch.selected');
+    return (sel && sel.getAttribute('data-color')) || 'blue';
+  }
+  function getSelectedPreviewMode() {
+    var b = document.querySelector('[data-preview-mode].active');
+    return (b && b.getAttribute('data-preview-mode')) || 'web';
+  }
+  function getSelectedPreviewFormat() {
+    var b = document.querySelector('[data-preview-format].active');
+    return (b && b.getAttribute('data-preview-format')) || 'web';
+  }
+  function getSelectedPreviewDevice() {
+    var b = document.querySelector('[data-preview-device].active');
+    return (b && b.getAttribute('data-preview-device')) || 'desktop';
+  }
+  function getRolePlanPhaseCount(plan, type) {
+    if (!plan) return 0;
+    var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
+    var b = plan[key];
+    if (!b) return 0;
+    if (Array.isArray(b.phases)) return b.phases.length;
+    if (Array.isArray(b.quarters)) return b.quarters.length;
+    return 0;
+  }
+
+  function buildSelectedDocumentPackage() {
+    var styleEl = document.getElementById('export-style');
+    return {
+      generatedAt: new Date().toISOString(),
+      style: {
+        template: (styleEl && styleEl.value) || 'modern',
+        color: getSelectedExportColor(),
+        previewMode: getSelectedPreviewMode(),
+        previewFormat: getSelectedPreviewFormat(),
+        deviceMode: getSelectedPreviewDevice()
+      },
+      selected: {
+        resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
+        coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
+        rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
+      },
+      documents: {
+        resume: RB_STATE.resumeData || null,
+        coverLetter: RB_STATE.coverLetter || RB_STATE.cvDraft || null,
+        rolePlan: RB_STATE.rolePlan || null,
+        rolePlanType: RB_STATE.rolePlanType || null,
+        targetRole: RB_STATE.targetRole || null,
+        roleResearch: RB_STATE.roleResearch || null
+      }
+    };
+  }
+
+  // ----- Renderer helpers -----
+  function _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+  function _safeStr(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (typeof v === 'object') {
+      if (v.text) return String(v.text);
+      if (v.title) return String(v.title);
+      if (v.name) return String(v.name);
+      try { return JSON.stringify(v); } catch (_) { return ''; }
+    }
+    return String(v);
+  }
+  function _list(arr, mapFn) {
+    if (!Array.isArray(arr) || !arr.length) return '';
+    var items = arr.map(function (v, i) {
+      var html = mapFn ? mapFn(v, i) : ('<li>' + _esc(_safeStr(v)) + '</li>');
+      return html || '';
+    }).join('');
+    return items ? '<ul>' + items + '</ul>' : '';
+  }
+  function _bullets(arr) { return _list(arr, function (v) { return '<li>' + _esc(_safeStr(v)) + '</li>'; }); }
+  function _missingCard(label, hint) {
+    return '<section class="doc-section missing"><h2>' + _esc(label) + '</h2><p class="muted">' + _esc(hint) + '</p></section>';
+  }
+
+  function _renderResumeSection(rd) {
+    if (!rd) return '';
+    var contact = rd.contact || rd.basics || {};
+    var name = _safeStr(rd.full_name || contact.name || rd.name || '');
+    var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || '');
+    var summary = _safeStr(rd.summary || rd.objective || '');
+    var email = _safeStr(contact.email || rd.email || '');
+    var phone = _safeStr(contact.phone || rd.phone || '');
+    var location = _safeStr(contact.location || rd.location || '');
+    var links = Array.isArray(rd.links) ? rd.links : (Array.isArray(contact.links) ? contact.links : []);
+    var experience = Array.isArray(rd.experience) ? rd.experience : [];
+    var education = Array.isArray(rd.education) ? rd.education : [];
+    var skills = Array.isArray(rd.skills) ? rd.skills : [];
+    var certs = Array.isArray(rd.certifications) ? rd.certifications : [];
+    var projects = Array.isArray(rd.projects) ? rd.projects : [];
+
+    var contactHtml = [
+      email && '<span>' + _esc(email) + '</span>',
+      phone && '<span>' + _esc(phone) + '</span>',
+      location && '<span>' + _esc(location) + '</span>'
+    ].filter(Boolean).join(' &middot; ');
+    var linksHtml = links.length ? '<div class="links">' + links.map(function (l) {
+      var label = _safeStr(l && (l.label || l.name || l.url || l));
+      return '<span class="link">' + _esc(label) + '</span>';
+    }).join('') + '</div>' : '';
+
+    var expHtml = experience.map(function (e) {
+      var role = _esc(_safeStr(e.title || e.role || ''));
+      var co = _esc(_safeStr(e.company || e.employer || ''));
+      var dates = _esc(_safeStr(e.dates || (e.start_date ? e.start_date + (e.end_date ? ' - ' + e.end_date : '') : '')));
+      var loc = _esc(_safeStr(e.location || ''));
+      var bullets = Array.isArray(e.bullets) ? e.bullets : (Array.isArray(e.achievements) ? e.achievements : (Array.isArray(e.highlights) ? e.highlights : []));
+      var summary2 = _esc(_safeStr(e.summary || e.description || ''));
+      return '<article class="exp-item">' +
+        '<div class="exp-head"><strong>' + role + '</strong>' + (co ? ' <span class="co">@ ' + co + '</span>' : '') + '</div>' +
+        '<div class="exp-meta muted">' + [dates, loc].filter(Boolean).join(' &middot; ') + '</div>' +
+        (summary2 ? '<p>' + summary2 + '</p>' : '') +
+        _bullets(bullets) +
+        '</article>';
+    }).join('');
+
+    var eduHtml = education.map(function (e) {
+      var deg = _esc(_safeStr(e.degree || e.qualification || ''));
+      var sch = _esc(_safeStr(e.school || e.institution || ''));
+      var dates = _esc(_safeStr(e.dates || e.year || ''));
+      return '<article class="edu-item"><strong>' + deg + '</strong>' + (sch ? ' &mdash; ' + sch : '') + (dates ? ' <span class="muted">(' + dates + ')</span>' : '') + '</article>';
+    }).join('');
+
+    var skillsHtml = skills.length ? '<div class="skills-row">' + skills.map(function (s) {
+      return '<span class="chip">' + _esc(_safeStr(s)) + '</span>';
+    }).join('') + '</div>' : '';
+
+    var certsHtml = certs.length ? _bullets(certs.map(function (c) {
+      return _safeStr(c && (c.name || c.title || c));
+    })) : '';
+
+    var projHtml = projects.map(function (p) {
+      var title = _esc(_safeStr(p.title || p.name || ''));
+      var desc = _esc(_safeStr(p.description || p.summary || ''));
+      return '<article class="proj-item"><strong>' + title + '</strong>' + (desc ? '<p>' + desc + '</p>' : '') + '</article>';
+    }).join('');
+
+    return '<section id="sec-resume" class="doc-section">' +
+      '<header class="doc-header">' +
+        (name ? '<h1>' + _esc(name) + '</h1>' : '<h1>Resume</h1>') +
+        (headline ? '<p class="headline">' + _esc(headline) + '</p>' : '') +
+        (contactHtml ? '<div class="contact muted">' + contactHtml + '</div>' : '') +
+        linksHtml +
+      '</header>' +
+      (summary ? '<section class="sub"><h2>Summary</h2><p>' + _esc(summary) + '</p></section>' : '') +
+      (skillsHtml ? '<section class="sub"><h2>Skills</h2>' + skillsHtml + '</section>' : '') +
+      (expHtml ? '<section class="sub"><h2>Experience</h2>' + expHtml + '</section>' : '') +
+      (projHtml ? '<section class="sub"><h2>Projects</h2>' + projHtml + '</section>' : '') +
+      (eduHtml ? '<section class="sub"><h2>Education</h2>' + eduHtml + '</section>' : '') +
+      (certsHtml ? '<section class="sub"><h2>Certifications</h2>' + certsHtml + '</section>' : '') +
+    '</section>';
+  }
+
+  function _renderCoverLetterSection(cv, targetRole) {
+    if (!cv) return '';
+    var heading = _safeStr(cv.heading || '');
+    var opening = _safeStr(cv.opening || '');
+    var body = Array.isArray(cv.body) ? cv.body : (cv.body ? [String(cv.body)] : []);
+    var closing = _safeStr(cv.closing || '');
+    var role = targetRole ? _safeStr(targetRole.job_title || '') : '';
+    var co = targetRole ? _safeStr(targetRole.company || '') : '';
+    var subtitle = (role || co) ? (role + (co ? ' &mdash; ' + co : '')) : '';
+    return '<section id="sec-cv" class="doc-section">' +
+      '<header class="doc-header">' +
+        '<h2>' + (heading ? _esc(heading) : 'Cover Letter') + '</h2>' +
+        (subtitle ? '<p class="headline">' + _esc(subtitle) + '</p>' : '') +
+      '</header>' +
+      (opening ? '<p>' + _esc(opening) + '</p>' : '') +
+      body.map(function (p) { return '<p>' + _esc(_safeStr(p)) + '</p>'; }).join('') +
+      (closing ? '<p>' + _esc(closing) + '</p>' : '') +
+    '</section>';
+  }
+
+  function _renderRolePlanSection(plan, type) {
+    if (!plan) return '';
+    var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
+    var bucket = plan[key] || {};
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : (Array.isArray(bucket.quarters) ? bucket.quarters : []);
+    var title = _safeStr(bucket.title || (type ? type + ' Plan' : 'Role Plan'));
+    var subtitle = _safeStr(bucket.subtitle || bucket.portfolio_headline || '');
+    var execSum = _safeStr(bucket.executiveSummary || '');
+    var theme = _safeStr(bucket.strategic_theme || '');
+    var success = Array.isArray(bucket.what_success_looks_like) ? bucket.what_success_looks_like : [];
+    var kpis = Array.isArray(bucket.suggested_kpis) ? bucket.suggested_kpis : [];
+
+    var phasesHtml = phases.map(function (p, i) {
+      var tf = _esc(_safeStr(p.timeframe || ('Phase ' + (i + 1))));
+      var ttl = _esc(_safeStr(p.title || ''));
+      var summary = _esc(_safeStr(p.phase_summary || p.summary || ''));
+      var primary = _esc(_safeStr(p.primary_objective || ''));
+      var execVal = _esc(_safeStr(p.executive_value || ''));
+      var portfolioNote = _esc(_safeStr(p.portfolio_display_note || ''));
+      var goals = Array.isArray(p.goals) ? p.goals : [];
+      var goalsHtml = goals.length ? '<div class="goals">' + goals.map(function (g) {
+        if (g && typeof g === 'object') {
+          return '<div class="goal"><strong>' + _esc(_safeStr(g.title || '')) + '</strong>' +
+            (g.description ? '<p>' + _esc(_safeStr(g.description)) + '</p>' : '') +
+            (g.why_it_matters ? '<p class="muted"><em>Why it matters:</em> ' + _esc(_safeStr(g.why_it_matters)) + '</p>' : '') +
+            (g.success_measure ? '<p class="muted"><em>Success measure:</em> ' + _esc(_safeStr(g.success_measure)) + '</p>' : '') +
+          '</div>';
+        }
+        return '<div class="goal">' + _esc(_safeStr(g)) + '</div>';
+      }).join('') + '</div>' : '';
+      var risksHtml = (Array.isArray(p.risks) && p.risks.length) ? '<h4>Risks</h4>' + _list(p.risks, function (r) {
+        if (r && typeof r === 'object') return '<li><strong>Risk:</strong> ' + _esc(_safeStr(r.risk || '')) + (r.mitigation ? ' &mdash; <strong>Mitigation:</strong> ' + _esc(_safeStr(r.mitigation)) : '') + '</li>';
+        return '<li>' + _esc(_safeStr(r)) + '</li>';
+      }) : '';
+      function listSection(label, arr) {
+        return (Array.isArray(arr) && arr.length) ? '<h4>' + label + '</h4>' + _bullets(arr) : '';
+      }
+      return '<article class="phase-card">' +
+        '<header class="phase-head"><span class="tf">' + tf + '</span>' + (ttl ? ' &mdash; <strong>' + ttl + '</strong>' : '') + '</header>' +
+        (summary ? '<p>' + summary + '</p>' : '') +
+        (primary ? '<p class="muted"><em>Primary objective:</em> ' + primary + '</p>' : '') +
+        (goalsHtml ? '<h4>Goals</h4>' + goalsHtml : '') +
+        listSection('Actions', p.actions) +
+        listSection('Quick Wins', p.quick_wins) +
+        listSection('Deliverables', p.deliverables) +
+        listSection('Milestones', p.milestones) +
+        listSection('Success Metrics', p.success_metrics) +
+        listSection('Stakeholders', p.stakeholders) +
+        listSection('Tools & Resources', p.tools_and_resources) +
+        listSection('Communication Plan', p.communication_plan) +
+        risksHtml +
+        (execVal ? '<p class="muted"><em>Executive value:</em> ' + execVal + '</p>' : '') +
+        (portfolioNote ? '<p class="muted"><em>Portfolio note:</em> ' + portfolioNote + '</p>' : '') +
+      '</article>';
+    }).join('');
+
+    return '<section id="sec-plan" class="doc-section">' +
+      '<header class="doc-header">' +
+        '<h2>' + _esc(title) + '</h2>' +
+        (subtitle ? '<p class="headline">' + _esc(subtitle) + '</p>' : '') +
+      '</header>' +
+      (execSum ? '<section class="sub"><h3>Executive Summary</h3><p>' + _esc(execSum) + '</p></section>' : '') +
+      (theme ? '<section class="sub"><h3>Strategic Theme</h3><p>' + _esc(theme) + '</p></section>' : '') +
+      (success.length ? '<section class="sub"><h3>What Success Looks Like</h3>' + _bullets(success) + '</section>' : '') +
+      (kpis.length ? '<section class="sub"><h3>Suggested KPIs</h3>' + _bullets(kpis) + '</section>' : '') +
+      (phasesHtml ? '<section class="sub"><h3>Phases</h3>' + phasesHtml + '</section>' : '') +
+    '</section>';
+  }
+
+  function _renderPortfolioSections(plan) {
+    if (!plan || !plan.portfolio_sections || typeof plan.portfolio_sections !== 'object') return '';
+    var ps = plan.portfolio_sections;
+    function block(label, arr) {
+      if (!Array.isArray(arr) || !arr.length) return '';
+      return '<section class="sub"><h3>' + _esc(label) + '</h3>' + _bullets(arr) + '</section>';
+    }
+    var html = block('Important Links', ps.important_links) +
+               block('Certifications', ps.certifications) +
+               block('Interactive Tools', ps.interactive_tools) +
+               block('Supporting Documents', ps.supporting_documents) +
+               block('Project Highlights', ps.project_highlights);
+    if (!html) return '';
+    return '<section id="sec-portfolio" class="doc-section">' +
+      '<header class="doc-header"><h2>Portfolio</h2></header>' + html +
+    '</section>';
+  }
+
+  // ----- Format dispatchers -----
+  function _renderWebPortfolio(pkg) {
+    var d = pkg.documents || {};
+    var s = pkg.selected || {};
+    var role = d.targetRole || {};
+    var name = _safeStr(d.resume && (d.resume.full_name || (d.resume.contact && d.resume.contact.name) || d.resume.name) || '');
+    var headline = _safeStr((d.resume && (d.resume.headline || d.resume.title)) || (role.job_title || ''));
+    var hero = '<header class="hero">' +
+      '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
+      (headline ? '<p class="hero-sub">' + _esc(headline) + '</p>' : '') +
+      (role.company ? '<p class="hero-meta muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
+    '</header>';
+    var nav = '<nav class="site-nav">' +
+      (s.resume && d.resume ? '<a href="#sec-resume">Resume</a>' : '') +
+      (s.coverLetter && d.coverLetter ? '<a href="#sec-cv">Cover Letter</a>' : '') +
+      (s.rolePlan && d.rolePlan ? '<a href="#sec-plan">Role Plan</a>' : '') +
+      (s.rolePlan && d.rolePlan ? '<a href="#sec-portfolio">Portfolio</a>' : '') +
+    '</nav>';
+    var body = '';
+    if (s.resume) body += d.resume ? _renderResumeSection(d.resume) : _missingCard('Resume', 'Import a resume first.');
+    if (s.coverLetter) body += d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role) : _missingCard('Cover Letter', 'Generate a cover letter first.');
+    if (s.rolePlan) body += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
+    if (s.rolePlan && d.rolePlan) body += _renderPortfolioSections(d.rolePlan);
+    var footer = '<footer class="site-footer muted">Generated ' + _esc(pkg.generatedAt) + '</footer>';
+    return '<main class="web-portfolio">' + hero + nav + body + footer + '</main>';
+  }
+  function _renderDocumentPackage(pkg /*, format */) {
+    var d = pkg.documents || {};
+    var s = pkg.selected || {};
+    var role = d.targetRole || {};
+    var body = '';
+    if (s.resume) body += d.resume ? _renderResumeSection(d.resume) : _missingCard('Resume', 'Import a resume first.');
+    if (s.coverLetter) body += d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role) : _missingCard('Cover Letter', 'Generate a cover letter first.');
+    if (s.rolePlan) body += d.rolePlan ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan', 'Generate a role plan first.');
+    return '<main class="document-package">' + body + '</main>';
+  }
+  function _renderPresentationPackage(pkg) {
+    var d = pkg.documents || {};
+    var s = pkg.selected || {};
+    var role = d.targetRole || {};
+    var rd = d.resume || {};
+    var cv = d.coverLetter || {};
+    var plan = d.rolePlan || {};
+    var key = d.rolePlanType === '12-month' ? 'months12' : d.rolePlanType === '2-year' ? 'years2' : 'days90';
+    var bucket = plan[key] || {};
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : [];
+    var name = _safeStr(rd.full_name || (rd.contact && rd.contact.name) || rd.name || '');
+    var headline = _safeStr(rd.headline || rd.title || (role && role.job_title) || '');
+    var slides = [];
+    slides.push(
+      '<article class="slide slide-title"><div class="slide-inner">' +
+        '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
+        (headline ? '<p>' + _esc(headline) + '</p>' : '') +
+        (role && role.company ? '<p class="muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
+      '</div></article>'
+    );
+    if (s.resume && rd) {
+      var summary = _safeStr(rd.summary || rd.objective || '');
+      var skills = Array.isArray(rd.skills) ? rd.skills.slice(0, 8) : [];
+      slides.push(
+        '<article class="slide"><div class="slide-inner">' +
+          '<h2>Summary</h2>' +
+          (summary ? '<p>' + _esc(summary) + '</p>' : '<p class="muted">No summary.</p>') +
+          (skills.length ? '<div class="chips">' + skills.map(function (k) { return '<span class="chip">' + _esc(_safeStr(k)) + '</span>'; }).join('') + '</div>' : '') +
+        '</div></article>'
+      );
+      var exp = Array.isArray(rd.experience) ? rd.experience.slice(0, 4) : [];
+      if (exp.length) {
+        slides.push(
+          '<article class="slide"><div class="slide-inner">' +
+            '<h2>Experience Highlights</h2>' +
+            '<ul>' + exp.map(function (e) {
+              var role2 = _esc(_safeStr(e.title || e.role || ''));
+              var co = _esc(_safeStr(e.company || ''));
+              return '<li><strong>' + role2 + '</strong>' + (co ? ' &mdash; ' + co : '') + '</li>';
+            }).join('') + '</ul>' +
+          '</div></article>'
+        );
+      }
+    } else if (s.resume) {
+      slides.push('<article class="slide"><div class="slide-inner"><h2>Resume</h2><p class="muted">Import a resume first.</p></div></article>');
+    }
+    if (s.coverLetter) {
+      if (cv && (cv.opening || (cv.body && cv.body.length))) {
+        slides.push(
+          '<article class="slide"><div class="slide-inner">' +
+            '<h2>' + _esc(_safeStr(cv.heading || 'Why Me')) + '</h2>' +
+            (cv.opening ? '<p>' + _esc(_safeStr(cv.opening)) + '</p>' : '') +
+            (Array.isArray(cv.body) && cv.body[0] ? '<p>' + _esc(_safeStr(cv.body[0])) + '</p>' : '') +
+          '</div></article>'
+        );
+      } else {
+        slides.push('<article class="slide"><div class="slide-inner"><h2>Cover Letter</h2><p class="muted">Generate a cover letter first.</p></div></article>');
+      }
+    }
+    if (s.rolePlan) {
+      if (phases.length) {
+        slides.push(
+          '<article class="slide"><div class="slide-inner">' +
+            '<h2>Role Plan Roadmap</h2>' +
+            '<ol class="phase-list">' + phases.slice(0, 4).map(function (p, i) {
+              var tf = _esc(_safeStr(p.timeframe || ('Phase ' + (i + 1))));
+              var ttl = _esc(_safeStr(p.title || p.primary_objective || ''));
+              return '<li><strong>' + tf + '</strong>' + (ttl ? ' &mdash; ' + ttl : '') + '</li>';
+            }).join('') + '</ol>' +
+          '</div></article>'
+        );
+        var kpis = Array.isArray(bucket.suggested_kpis) ? bucket.suggested_kpis.slice(0, 6) : [];
+        var success = Array.isArray(bucket.what_success_looks_like) ? bucket.what_success_looks_like.slice(0, 5) : [];
+        if (kpis.length || success.length) {
+          slides.push(
+            '<article class="slide"><div class="slide-inner">' +
+              '<h2>Success & KPIs</h2>' +
+              (success.length ? '<h3>What Success Looks Like</h3>' + _bullets(success) : '') +
+              (kpis.length ? '<h3>Suggested KPIs</h3>' + _bullets(kpis) : '') +
+            '</div></article>'
+          );
+        }
+      } else {
+        slides.push('<article class="slide"><div class="slide-inner"><h2>Role Plan</h2><p class="muted">Generate a role plan first.</p></div></article>');
+      }
+    }
+    return '<main class="deck">' + slides.join('') + '</main>';
+  }
+
+  function _previewCSS() {
+    return [
+      '*,*::before,*::after{box-sizing:border-box;}',
+      'html,body{margin:0;padding:0;}',
+      'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--text);background:var(--page);line-height:1.5;-webkit-text-size-adjust:100%;}',
+      ':root{--accent:#2563EB;--accent-dark:#1D4ED8;--text:#0F172A;--muted:#64748B;--surface:#FFFFFF;--border:#E2E8F0;--page:#F8FAFC;--sidebar:#F1F5F9;}',
+      'body.color-blue{--accent:#2563EB;--accent-dark:#1D4ED8;}',
+      'body.color-slate{--accent:#475569;--accent-dark:#334155;}',
+      'body.color-green{--accent:#047857;--accent-dark:#065F46;}',
+      'body.color-purple{--accent:#7C3AED;--accent-dark:#5B21B6;}',
+      'h1,h2,h3,h4{font-family:"Outfit",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);margin:0 0 .5rem;}',
+      'h1{font-size:1.7rem;}h2{font-size:1.3rem;color:var(--accent-dark);}h3{font-size:1.05rem;}h4{font-size:.95rem;}',
+      'p{margin:.4rem 0;overflow-wrap:anywhere;word-break:break-word;}',
+      'a{color:var(--accent);overflow-wrap:anywhere;}',
+      'ul,ol{margin:.3rem 0 .6rem 1.2rem;padding:0;}',
+      'li{margin:.15rem 0;overflow-wrap:anywhere;}',
+      '.muted{color:var(--muted);}',
+      '.doc-section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;margin:14px 0;break-inside:avoid;page-break-inside:avoid;}',
+      '.doc-section.missing{background:rgba(220,160,0,.08);border-color:rgba(220,160,0,.4);color:#92400E;}',
+      '.doc-header{margin-bottom:.6rem;border-bottom:2px solid var(--accent);padding-bottom:.4rem;}',
+      '.doc-header .headline{margin:.15rem 0;color:var(--accent-dark);font-weight:600;}',
+      '.doc-header .contact{font-size:.88rem;}',
+      '.sub{margin-top:.8rem;}',
+      '.exp-item,.edu-item,.proj-item,.phase-card{margin:.6rem 0;padding:.5rem 0;border-top:1px solid var(--border);}',
+      '.exp-item:first-of-type,.edu-item:first-of-type,.proj-item:first-of-type,.phase-card:first-of-type{border-top:0;padding-top:0;}',
+      '.exp-head{font-size:1rem;}',
+      '.exp-meta{font-size:.85rem;}',
+      '.skills-row,.chips{display:flex;flex-wrap:wrap;gap:6px;margin:.4rem 0;}',
+      '.chip{background:var(--sidebar);color:var(--text);padding:3px 10px;border-radius:999px;font-size:.8rem;border:1px solid var(--border);}',
+      '.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:.3rem;}',
+      '.links .link{font-size:.82rem;color:var(--accent-dark);}',
+      '.phase-card{background:var(--sidebar);border-radius:8px;padding:10px 12px;border-top:0;}',
+      '.phase-head{font-size:.95rem;color:var(--accent-dark);margin-bottom:.3rem;}',
+      '.goals .goal{padding:.3rem .5rem;border-left:3px solid var(--accent);background:var(--surface);border-radius:4px;margin:.3rem 0;}',
+      // Web portfolio
+      '.web-portfolio{max-width:960px;margin:0 auto;padding:24px;}',
+      '.web-portfolio .hero{padding:32px 22px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;text-align:center;}',
+      '.web-portfolio .hero h1{color:#fff;font-size:2rem;}',
+      '.web-portfolio .hero .hero-sub{color:rgba(255,255,255,.95);font-weight:600;}',
+      '.web-portfolio .hero .hero-meta{color:rgba(255,255,255,.85);}',
+      '.web-portfolio .site-nav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:14px 0;border-bottom:1px solid var(--border);margin-bottom:14px;}',
+      '.web-portfolio .site-nav a{padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);text-decoration:none;font-size:.85rem;}',
+      '.web-portfolio .site-footer{padding:14px;text-align:center;font-size:.78rem;}',
+      // Document
+      '.document-package{max-width:780px;margin:0 auto;padding:28px;background:var(--surface);}',
+      '.document-package .doc-section{box-shadow:0 1px 0 rgba(0,0,0,.02);}',
+      // PPTX deck
+      '.deck{display:flex;flex-direction:column;gap:18px;padding:18px;align-items:center;}',
+      '.slide{width:100%;max-width:860px;aspect-ratio:16/9;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.08);overflow:hidden;display:flex;}',
+      '.slide-inner{padding:32px 40px;width:100%;display:flex;flex-direction:column;justify-content:flex-start;overflow:auto;}',
+      '.slide-title{background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;}',
+      '.slide-title h1{color:#fff;font-size:2.2rem;}',
+      '.slide-title p{color:rgba(255,255,255,.95);}',
+      '.slide h2{color:var(--accent-dark);font-size:1.4rem;margin-bottom:.6rem;}',
+      '.slide ol.phase-list,.slide ul{font-size:1rem;}',
+      // Templates
+      'body.template-executive .doc-section{border-radius:4px;border-color:#94A3B8;}',
+      'body.template-executive h2{font-family:"Outfit",serif;letter-spacing:.02em;}',
+      'body.template-executive .doc-header{border-bottom-width:3px;}',
+      'body.template-classic{background:#FFFFFF;}',
+      'body.template-classic .doc-section{border:none;border-bottom:1px solid var(--border);border-radius:0;padding:14px 0;background:transparent;}',
+      'body.template-classic .doc-header{border-bottom:1px solid #94A3B8;}',
+      'body.template-modern-sidebar .web-portfolio,body.template-modern-sidebar .document-package{display:grid;grid-template-columns:240px 1fr;gap:18px;max-width:1100px;}',
+      'body.template-modern-sidebar .doc-section:first-of-type{grid-row:1/span 99;background:var(--sidebar);}',
+      // DOCX style
+      'body.format-docx{background:#E5E7EB;}',
+      'body.format-docx .document-package{font-family:Georgia,"Times New Roman",serif;background:#fff;padding:1in .9in;max-width:8.5in;border:1px solid #CBD5E1;box-shadow:0 4px 12px rgba(15,23,42,.08);}',
+      'body.format-docx .doc-section{border:none;border-radius:0;padding:0 0 18px;background:transparent;box-shadow:none;}',
+      'body.format-docx h2{font-family:Georgia,serif;}',
+      // PDF style
+      'body.format-pdf{background:#E5E7EB;}',
+      'body.format-pdf .document-package{background:#fff;padding:.5in .6in;max-width:8.5in;border:1px solid #CBD5E1;box-shadow:0 4px 12px rgba(15,23,42,.08);}',
+      '@media print{@page{size:Letter;margin:.5in;} body{background:#fff;} .document-package{box-shadow:none;border:0;padding:0;max-width:none;} .doc-section{break-inside:avoid;page-break-inside:avoid;}}',
+      // Devices
+      'body.device-mobile,body.device-app{font-size:15px;}',
+      'body.device-mobile .web-portfolio,body.device-app .web-portfolio,body.device-mobile .document-package,body.device-app .document-package{padding:14px;}',
+      'body.device-mobile .web-portfolio .hero,body.device-app .web-portfolio .hero{padding:20px 14px;}',
+      'body.device-mobile .doc-section,body.device-app .doc-section{padding:14px;}',
+      'body.device-mobile.template-modern-sidebar .web-portfolio,body.device-app.template-modern-sidebar .web-portfolio,body.device-mobile.template-modern-sidebar .document-package,body.device-app.template-modern-sidebar .document-package{grid-template-columns:1fr;}',
+      'body.device-tablet.template-modern-sidebar .web-portfolio,body.device-tablet.template-modern-sidebar .document-package{grid-template-columns:200px 1fr;}',
+      'body.device-mobile .slide,body.device-app .slide{aspect-ratio:auto;min-height:360px;}',
+      'body.device-mobile .slide-inner,body.device-app .slide-inner{padding:18px 20px;}',
+      'body.device-app{padding-bottom:18px;}'
+    ].join('\n');
+  }
+
+  function renderPackageHTML(pkg, options) {
+    var opts = options || {};
+    var target = opts.target || 'preview';
+    var format = opts.format || (pkg.style && pkg.style.previewFormat) || 'web';
+    var mode   = opts.mode   || (pkg.style && pkg.style.previewMode)   || 'web';
+    var device = opts.device || (pkg.style && pkg.style.deviceMode)    || 'desktop';
+    var template = (pkg.style && pkg.style.template) || 'modern';
+    var color    = (pkg.style && pkg.style.color)    || 'blue';
+    var bodyClass = [
+      'template-' + template, 'color-' + color,
+      'format-' + format, 'mode-' + mode,
+      'device-' + device, 'target-' + target
+    ].join(' ');
+    var inner;
+    if (format === 'pptx') inner = _renderPresentationPackage(pkg);
+    else if (format === 'pdf' || format === 'docx') inner = _renderDocumentPackage(pkg, format);
+    else inner = _renderWebPortfolio(pkg);
+
+    return '<!doctype html><html lang="en"><head>' +
+      '<meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>Preview</title>' +
+      '<style>' + _previewCSS() + '</style>' +
+      '</head><body class="' + bodyClass + '">' + inner + '</body></html>';
+  }
+
+  // ----- renderPreview replaces placeholder -----
+  var _previewRefreshTimer = null;
+  function schedulePreviewRefresh() {
+    if (_previewRefreshTimer) clearTimeout(_previewRefreshTimer);
+    _previewRefreshTimer = setTimeout(function () {
+      _previewRefreshTimer = null;
+      try { renderPreview(); } catch (_) {}
+    }, 60);
+  }
+  function isPreviewVisible() {
+    if (getActiveStep() !== 'step-export') return false;
+    var acc = document.getElementById('acc-live-preview');
+    return !!(acc && acc.classList.contains('open'));
+  }
+  function maybeRefreshPreview() {
+    if (isPreviewVisible()) schedulePreviewRefresh();
+  }
+
+  function renderPreview() {
+    var host = document.getElementById('preview-container-export');
+    if (!host) return;
+    var pkg = buildSelectedDocumentPackage();
+    RB_STATE.documentPackage = pkg;
+
+    var anySelected = pkg.selected.resume || pkg.selected.coverLetter || pkg.selected.rolePlan;
+    if (!anySelected) {
+      host.innerHTML = '<div id="preview-empty-state" class="preview-empty">' +
+        '<p style="margin:.4rem 0 0;color:#64748B;">Select Resume, Cover Letter, or Career Plan in Step 3 to preview your package.</p>' +
+        '</div>';
+      return;
+    }
+
+    var warnings = [];
+    if (pkg.selected.resume && !pkg.documents.resume) warnings.push('Resume selected but missing - import a resume first.');
+    if (pkg.selected.coverLetter && !pkg.documents.coverLetter) warnings.push('Cover Letter selected but missing - generate a cover letter first.');
+    if (pkg.selected.rolePlan && !pkg.documents.rolePlan) warnings.push('Career Plan selected but missing - generate a role plan first.');
+
+    var device = pkg.style.deviceMode || 'desktop';
+    var deviceClass = 'preview-device device-' + device;
+
+    var warnHtml = warnings.length ? ('<div class="preview-warnings">' + warnings.map(function (w) {
+      return '<div class="preview-warning">' + _esc(w) + '</div>';
+    }).join('') + '</div>') : '';
+
+    // Reuse existing iframe if present.
+    var existingFrame = host.querySelector('iframe#preview-frame');
+    var existingDevice = host.querySelector('.preview-device');
+    if (!existingFrame || !existingDevice) {
+      host.innerHTML = warnHtml +
+        '<div class="' + deviceClass + '" id="preview-device-wrap">' +
+          '<iframe id="preview-frame" sandbox="allow-same-origin" loading="lazy" title="Package preview"></iframe>' +
+        '</div>';
+    } else {
+      // Update warnings + device class without recreating iframe.
+      var oldWarn = host.querySelector('.preview-warnings');
+      if (oldWarn) oldWarn.remove();
+      if (warnHtml) host.insertAdjacentHTML('afterbegin', warnHtml);
+      existingDevice.className = deviceClass;
+    }
+
+    var frame = host.querySelector('iframe#preview-frame');
+    if (frame) {
+      var html = renderPackageHTML(pkg, {
+        target: 'preview',
+        format: pkg.style.previewFormat,
+        mode: pkg.style.previewMode,
+        device: pkg.style.deviceMode
+      });
+      frame.srcdoc = html;
+    }
+  }
+
+  window.debugDocumentPackage = function () {
+    var pkg = (window.RB_STATE && RB_STATE.documentPackage) || buildSelectedDocumentPackage();
+    var d = (pkg && pkg.documents) || {};
+    return {
+      hasPackage: !!pkg,
+      selected: (pkg && pkg.selected) || {},
+      style: (pkg && pkg.style) || {},
+      hasResume: !!d.resume,
+      hasCoverLetter: !!d.coverLetter,
+      hasRolePlan: !!d.rolePlan,
+      rolePlanType: d.rolePlanType || null,
+      resumeExperienceCount: (d.resume && Array.isArray(d.resume.experience)) ? d.resume.experience.length : 0,
+      coverLetterBodyCount: (d.coverLetter && Array.isArray(d.coverLetter.body)) ? d.coverLetter.body.length : 0,
+      rolePlanPhaseCount: getRolePlanPhaseCount(d.rolePlan, d.rolePlanType),
+      previewMode: (pkg && pkg.style && pkg.style.previewMode) || null,
+      previewFormat: (pkg && pkg.style && pkg.style.previewFormat) || null,
+      deviceMode: (pkg && pkg.style && pkg.style.deviceMode) || null
+    };
+  };
+
   function downloadSelectedPackage(){ if (!requireAuth()) return; notImplemented('downloadSelectedPackage'); }
   function saveDraft()              { if (!requireAuth()) return; notImplemented('saveDraft'); }
   function loadDraft()              { if (!requireAuth()) return; notImplemented('loadDraft'); }
