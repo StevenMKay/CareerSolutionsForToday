@@ -708,6 +708,10 @@
   .rp-quality { padding:8px 12px; border-radius:6px; margin-top:8px; font-size:.9rem; }
   .rp-quality.ok { background:rgba(0,160,80,.15); border:1px solid rgba(0,160,80,.4); }
   .rp-quality.warn { background:rgba(220,160,0,.15); border:1px solid rgba(220,160,0,.4); }
+
+  /* Step 3 readiness */
+  .doc-card.doc-card-unavailable { opacity:.45; cursor:not-allowed; pointer-events:none; }
+  .doc-card.doc-card-unavailable .doc-card-sub { font-style:italic; }
 </style>
 </head>
 <body>
@@ -909,6 +913,10 @@
                 <span id="cv-status" class="status-text" aria-live="polite"></span>
               </div>
               <div class="empty-state">Cover letter content will appear after generation.</div>
+              <div>
+                <label class="field-label" for="cv-heading">Heading</label>
+                <input id="cv-heading" class="input" placeholder="Cover letter heading…">
+              </div>
               <div>
                 <label class="field-label" for="cv-opening">Opening note</label>
                 <textarea id="cv-opening" class="textarea" placeholder="Opening paragraph…"></textarea>
@@ -1936,6 +1944,7 @@
     }
     var normalized = normalizeExtractedResumeData(rawResumeData);
     RB_STATE.resumeData = normalized;
+    try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
     RB_STATE.resumeSource = source;
     RB_STATE.extractionLastError = null;
     if (fileMeta) RB_STATE.extractionLastFile = fileMeta;
@@ -2894,6 +2903,100 @@
     });
   }
   function optimizeForJob()         { if (!requireAuth()) return; notImplemented('optimizeForJob'); }
+
+  // ----- Cover Letter / Role CV helpers -----
+  function normalizeCoverLetterResponse(body) {
+    var src = body || {};
+    var cv = src.cv || src.cover_letter || (src.generated && (src.generated.cv || src.generated.cover_letter)) || src;
+    if (!cv || typeof cv !== 'object') cv = {};
+    var heading = String(cv.heading || cv.title || '');
+    var opening = String(cv.opening || '');
+    var closing = String(cv.closing || '');
+    var rawBody = cv.body;
+    var bodyArr;
+    if (Array.isArray(rawBody)) {
+      bodyArr = rawBody.map(function (p) { return String(p == null ? '' : p); }).filter(function (p) { return p.trim().length > 0; });
+    } else if (typeof rawBody === 'string') {
+      bodyArr = rawBody.split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean);
+    } else {
+      bodyArr = [];
+    }
+    return { heading: heading, opening: opening, body: bodyArr, closing: closing };
+  }
+
+  function onCoverLetterEdit(ev) {
+    var t = ev && ev.target;
+    if (!t || !t.id) return;
+    var ids = { 'cv-heading': 1, 'cv-opening': 1, 'cv-alignment': 1, 'cv-closing': 1 };
+    if (!ids[t.id]) return;
+    if (!RB_STATE.coverLetter || typeof RB_STATE.coverLetter !== 'object') {
+      RB_STATE.coverLetter = { heading: '', opening: '', body: [], closing: '' };
+    }
+    var cv = RB_STATE.coverLetter;
+    var hd = document.getElementById('cv-heading');
+    var op = document.getElementById('cv-opening');
+    var al = document.getElementById('cv-alignment');
+    var cl = document.getElementById('cv-closing');
+    cv.heading = hd ? hd.value : (cv.heading || '');
+    cv.opening = op ? op.value : (cv.opening || '');
+    cv.closing = cl ? cl.value : (cv.closing || '');
+    var alignText = al ? al.value : '';
+    cv.body = String(alignText || '').split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean);
+    RB_STATE.cvDraft = cv;
+  }
+
+  function attachCoverLetterEditListener() {
+    var shell = document.getElementById('role-cv-shell');
+    if (!shell || shell._cvListenerAttached) return;
+    shell.addEventListener('input', onCoverLetterEdit);
+    shell._cvListenerAttached = true;
+  }
+
+  function updateGeneratedDocumentReadinessUI() {
+    var map = [
+      { docKey: 'resume', cbId: 'include-resume', ready: !!(RB_STATE.resumeData && Array.isArray(RB_STATE.resumeData.experience)) },
+      { docKey: 'cv',     cbId: 'include-cv',     ready: !!RB_STATE.coverLetter },
+      { docKey: 'plan',   cbId: 'include-plan',   ready: !!RB_STATE.rolePlan }
+    ];
+    map.forEach(function (m) {
+      var card = document.querySelector('[data-doc-card="' + m.docKey + '"]');
+      var cb = document.getElementById(m.cbId);
+      if (card) {
+        card.classList.toggle('doc-card-unavailable', !m.ready);
+        card.setAttribute('aria-disabled', m.ready ? 'false' : 'true');
+        var sub = card.querySelector('.doc-card-sub');
+        if (sub) {
+          if (!m.ready) {
+            if (!sub.dataset.origText) sub.dataset.origText = sub.textContent;
+            sub.textContent = 'Not generated yet';
+          } else if (sub.dataset.origText) {
+            sub.textContent = sub.dataset.origText;
+          }
+        }
+        if (!m.ready && card.classList.contains('selected')) {
+          card.classList.remove('selected');
+          if (cb) cb.checked = false;
+        }
+      }
+      if (cb) cb.disabled = !m.ready;
+    });
+    try { if (typeof updateSelectedSummary === 'function') updateSelectedSummary(); } catch (_) {}
+  }
+
+  window.debugCoverLetter = function () {
+    var cv = (window.RB_STATE && (RB_STATE.coverLetter || RB_STATE.cvDraft)) || null;
+    return {
+      hasCoverLetter: !!cv,
+      hasHeading: !!(cv && cv.heading),
+      hasOpening: !!(cv && cv.opening),
+      bodyParagraphCount: (cv && Array.isArray(cv.body)) ? cv.body.length : 0,
+      hasClosing: !!(cv && cv.closing),
+      heading: (cv && cv.heading) || '',
+      openingPreview: ((cv && cv.opening) || '').slice(0, 120),
+      closingPreview: ((cv && cv.closing) || '').slice(0, 120)
+    };
+  };
+
   function generateCoverLetter() {
     if (!requireAuth()) return;
     if (!hasResumeReady()) { showToast('Upload and parse a resume first.', 'warning'); return; }
@@ -2926,17 +3029,15 @@
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
     }).then(function (r) {
       if (!r.ok) throw new Error((r.body && (r.body.error || r.body.message)) || ('CV failed (' + r.status + ').'));
-      var cv = (r.body && (r.body.cover_letter || r.body.cv || r.body)) || {};
-      var opening = cv.opening || '';
-      var body = cv.body;
-      var closing = cv.closing || '';
-      var alignment = '';
-      if (Array.isArray(body)) alignment = body.join('\n\n');
-      else if (typeof body === 'string') alignment = body;
-      var op = document.getElementById('cv-opening'); if (op) op.value = opening;
-      var al = document.getElementById('cv-alignment'); if (al) al.value = alignment;
-      var cl = document.getElementById('cv-closing'); if (cl) cl.value = closing;
-      RB_STATE.coverLetter = cv;
+      var normalized = normalizeCoverLetterResponse(r.body);
+      var hd = document.getElementById('cv-heading'); if (hd) hd.value = normalized.heading;
+      var op = document.getElementById('cv-opening'); if (op) op.value = normalized.opening;
+      var al = document.getElementById('cv-alignment'); if (al) al.value = (normalized.body || []).join('\n\n');
+      var cl = document.getElementById('cv-closing'); if (cl) cl.value = normalized.closing;
+      RB_STATE.coverLetter = normalized;
+      RB_STATE.cvDraft = RB_STATE.coverLetter;
+      attachCoverLetterEditListener();
+      try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Cover letter generated.';
       showToast('Cover letter generated.', 'success');
     }).catch(function (err) {
@@ -2998,6 +3099,7 @@
       RB_STATE.rolePlan = generated;
       RB_STATE.rolePlanType = planTypeApi;
       renderRolePlanOutput(generated, planTypeUI);
+      try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
       showToast('Role plan generated.', 'success');
     }).catch(function (err) {
@@ -3082,6 +3184,7 @@
     _wireResumeEditBack();
     _wireTargetRoleAutoResearch();
     updateAIReadinessUI();
+    try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
 
     // Render Lucide icons
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
