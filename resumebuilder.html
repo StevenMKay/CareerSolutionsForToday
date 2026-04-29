@@ -718,17 +718,18 @@
     margin-top:.8rem; min-height:480px; padding:14px; border-radius:var(--radius);
     border:1px solid #E2E8F0; background:#F1F5F9; color:#334155;
     display:block; text-align:left; overflow:auto;
+    width:100%; box-sizing:border-box;
   }
   #preview-container-export .preview-empty { display:grid; place-items:center; min-height:240px; text-align:center; }
   .preview-warnings { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
   .preview-warning { padding:8px 12px; border-radius:8px; background:rgba(220,160,0,.12); border:1px solid rgba(220,160,0,.4); color:#92400E; font-size:.88rem; }
-  .preview-device { margin:0 auto; background:#fff; border:1px solid #CBD5E1; border-radius:12px; box-shadow:0 4px 16px rgba(15,23,42,.08); overflow:hidden; transition:max-width .2s ease; }
-  .preview-device.device-desktop { max-width:1100px; }
-  .preview-device.device-tablet  { max-width:768px; }
-  .preview-device.device-mobile  { max-width:390px; border-radius:24px; }
-  .preview-device.device-app     { max-width:390px; border-radius:24px; padding:24px 8px 18px; background:#0F172A; }
+  #preview-device-wrap, .preview-device { width:100%; margin-left:auto; margin-right:auto; background:#fff; border:1px solid #CBD5E1; border-radius:12px; box-shadow:0 4px 16px rgba(15,23,42,.08); overflow:hidden; transition:max-width .2s ease; box-sizing:border-box; }
+  .preview-device.device-desktop { width:100%; max-width:1100px; }
+  .preview-device.device-tablet  { width:100%; max-width:768px; }
+  .preview-device.device-mobile  { width:100%; max-width:390px; border-radius:24px; }
+  .preview-device.device-app     { width:100%; max-width:390px; border-radius:24px; padding:24px 8px 18px; background:#0F172A; }
   .preview-device.device-app > iframe { border-radius:14px; background:#fff; }
-  .preview-device > iframe { display:block; width:100%; height:760px; border:0; background:#fff; }
+  #preview-frame, .preview-device > iframe { display:block; width:100% !important; min-width:100%; max-width:100%; height:760px; border:0; background:#fff; box-sizing:border-box; }
   .preview-device.device-tablet > iframe { height:720px; }
   .preview-device.device-mobile > iframe { height:700px; }
   .preview-device.device-app    > iframe { height:660px; }
@@ -3804,6 +3805,15 @@
     if (isPreviewVisible()) schedulePreviewRefresh();
   }
 
+  // Strip <script> tags and inline on*= handlers before assigning iframe.srcdoc.
+  // Defense in depth on top of sandbox="allow-same-origin" (no allow-scripts).
+  function stripScriptsFromPreviewHTML(html) {
+    return String(html || '')
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/\son\w+="[^"]*"/gi, '')
+      .replace(/\son\w+='[^']*'/gi, '');
+  }
+
   function renderPreview() {
     var host = document.getElementById('preview-container-export');
     if (!host) return;
@@ -3830,31 +3840,22 @@
       return '<div class="preview-warning">' + _esc(w) + '</div>';
     }).join('') + '</div>') : '';
 
-    // Reuse existing iframe if present.
-    var existingFrame = host.querySelector('iframe#preview-frame');
-    var existingDevice = host.querySelector('.preview-device');
-    if (!existingFrame || !existingDevice) {
-      host.innerHTML = warnHtml +
-        '<div class="' + deviceClass + '" id="preview-device-wrap">' +
-          '<iframe id="preview-frame" sandbox="allow-same-origin" loading="lazy" title="Package preview"></iframe>' +
-        '</div>';
-    } else {
-      // Update warnings + device class without recreating iframe.
-      var oldWarn = host.querySelector('.preview-warnings');
-      if (oldWarn) oldWarn.remove();
-      if (warnHtml) host.insertAdjacentHTML('afterbegin', warnHtml);
-      existingDevice.className = deviceClass;
-    }
+    // Always rebuild wrapper and iframe each render. Cheap and avoids stale
+    // class/width state when device or format toggles change.
+    host.innerHTML = warnHtml +
+      '<div class="' + deviceClass + '" id="preview-device-wrap">' +
+        '<iframe id="preview-frame" sandbox="allow-same-origin" loading="lazy" title="Package preview"></iframe>' +
+      '</div>';
 
     var frame = host.querySelector('iframe#preview-frame');
     if (frame) {
-      var html = renderPackageHTML(pkg, {
+      var rawHtml = renderPackageHTML(pkg, {
         target: 'preview',
         format: pkg.style.previewFormat,
         mode: pkg.style.previewMode,
         device: pkg.style.deviceMode
       });
-      frame.srcdoc = html;
+      frame.srcdoc = stripScriptsFromPreviewHTML(rawHtml);
     }
   }
 
@@ -3862,9 +3863,12 @@
     var pkg = (window.RB_STATE && RB_STATE.documentPackage) || buildSelectedDocumentPackage();
     var d = (pkg && pkg.documents) || {};
     var frame = document.getElementById('preview-frame');
+    var wrap = document.getElementById('preview-device-wrap') || document.querySelector('.preview-device');
     var format = (pkg && pkg.style && pkg.style.previewFormat) || null;
     var device = (pkg && pkg.style && pkg.style.deviceMode) || null;
     var mode = getEffectivePreviewMode(format || 'web', (pkg && pkg.style && pkg.style.previewMode) || null);
+    var srcdoc = (frame && frame.srcdoc) || '';
+    var scriptCount = srcdoc ? (srcdoc.match(/<script\b/gi) || []).length : 0;
     return {
       hasPackage: !!pkg,
       selected: (pkg && pkg.selected) || {},
@@ -3882,18 +3886,20 @@
       effectiveMode: mode,
       previewHealth: {
         hasIframe: !!frame,
+        wrapperWidth: wrap ? wrap.clientWidth : 0,
         iframeWidth: frame ? frame.clientWidth : 0,
         iframeHeight: frame ? frame.clientHeight : 0,
         format: format,
         device: device,
-        mode: mode
+        mode: mode,
+        srcdocScriptTagCount: scriptCount
       }
     };
   };
 
   window.debugPreviewLayout = function () {
     var frame = document.getElementById('preview-frame');
-    var wrap = document.querySelector('.preview-device');
+    var wrap = document.getElementById('preview-device-wrap') || document.querySelector('.preview-device');
     var format = getSelectedPreviewFormat();
     var device = getSelectedPreviewDevice();
     var mode = getEffectivePreviewMode(format, getSelectedPreviewMode());
@@ -3904,14 +3910,24 @@
         scrollW = frame.contentDocument.documentElement.scrollWidth || 0;
       }
     } catch (_) {}
+    var srcdoc = (frame && frame.srcdoc) || '';
+    var scriptCount = srcdoc ? (srcdoc.match(/<script\b/gi) || []).length : 0;
+    var wrapperMaxWidth = '';
+    if (wrap) {
+      try { wrapperMaxWidth = window.getComputedStyle(wrap).maxWidth; } catch (_) {}
+    }
     return {
       format: format,
       device: device,
       mode: mode,
+      wrapperClientWidth: wrap ? wrap.clientWidth : 0,
+      wrapperComputedMaxWidth: wrapperMaxWidth,
       iframeClientWidth: clientW,
       iframeScrollWidth: scrollW,
       hasHorizontalOverflow: !!(scrollW && clientW && scrollW > clientW + 1),
       previewDeviceClass: (wrap && wrap.className) || null,
+      srcdocLength: srcdoc.length,
+      srcdocScriptTagCount: scriptCount,
       selected: {
         resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
         coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
