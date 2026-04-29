@@ -36,6 +36,19 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
+<!-- PDF.js for layout-aware (vision) PDF resume parsing -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  (function () {
+    try {
+      if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+    } catch (_) {}
+  })();
+</script>
+
 <style>
   /* ============================================================
      :root tokens
@@ -767,6 +780,11 @@
                 <input id="resume-file-input" type="file" accept=".pdf,.doc,.docx,.txt" hidden>
               </div>
             </div>
+            <p class="upload-notice" style="font-size:.78rem;color:#475569;line-height:1.4;margin:.25rem 0 0;">
+              Resume files may be processed with AI to extract and organize your resume details.
+              You can review, edit, and remove extracted details before generating documents.
+              See our <a href="privacy-policy.html" target="_blank" rel="noopener">Privacy Policy</a>.
+            </p>
             <div>
               <label class="field-label" for="resume-text">Or paste resume text</label>
               <textarea id="resume-text" class="textarea" placeholder="Paste your resume content here…"></textarea>
@@ -1949,11 +1967,98 @@
     try { updateAIReadinessUI(); maybeAutoRunRoleResearch('resume-extracted'); } catch (_) {}
   }
 
-  function runResumeExtractionFromFile(file) {
-    if (_extractionInFlight) return Promise.resolve();
-    var v = validateResumeFile(file);
-    if (!v.ok) { showToast(v.message, 'warning'); return Promise.resolve(); }
-    _extractionInFlight = true;
+  // ============================================================
+  // PDF vision extraction (layout-aware) constants + helpers
+  // ============================================================
+  var PDF_VISION_MAX_PAGES = 3;
+  var PDF_VISION_MAX_WIDTH = 1400;
+  var PDF_VISION_JPEG_QUALITY = 0.72;
+  var PDF_VISION_MAX_TOTAL_CHARS = 14000000;
+
+  function _isPdfFile(file) {
+    if (!file) return false;
+    if (/\.pdf$/i.test(file.name || '')) return true;
+    if (String(file.type || '').toLowerCase().indexOf('pdf') !== -1) return true;
+    return false;
+  }
+
+  function renderPdfFileToPageImages(file) {
+    if (!window.pdfjsLib) {
+      return Promise.reject(new Error('PDF.js not loaded.'));
+    }
+    return file.arrayBuffer().then(function (arrayBuffer) {
+      return window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    }).then(function (pdf) {
+      var pageCount = Math.min(pdf.numPages, PDF_VISION_MAX_PAGES);
+      var pages = [];
+      var chain = Promise.resolve();
+      for (var pageNum = 1; pageNum <= pageCount; pageNum++) {
+        (function (n) {
+          chain = chain.then(function () {
+            setExtractionStatus('loading',
+              'Rendering page ' + n + ' of ' + pageCount + ' for layout-aware extraction\u2026');
+            return pdf.getPage(n).then(function (page) {
+              var baseViewport = page.getViewport({ scale: 1 });
+              var scale = Math.min(PDF_VISION_MAX_WIDTH / baseViewport.width, 2);
+              var viewport = page.getViewport({ scale: scale });
+              var canvas = document.createElement('canvas');
+              var ctx = canvas.getContext('2d', { alpha: false });
+              canvas.width  = Math.floor(viewport.width);
+              canvas.height = Math.floor(viewport.height);
+              return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+                var dataUrl = canvas.toDataURL('image/jpeg', PDF_VISION_JPEG_QUALITY);
+                pages.push({
+                  page: n,
+                  width: canvas.width,
+                  height: canvas.height,
+                  mime_type: 'image/jpeg',
+                  data_url: dataUrl
+                });
+                canvas.width = 0; canvas.height = 0;
+              });
+            });
+          });
+        })(pageNum);
+      }
+      return chain.then(function () {
+        var totalChars = pages.reduce(function (sum, p) {
+          return sum + String(p.data_url || '').length;
+        }, 0);
+        if (totalChars > PDF_VISION_MAX_TOTAL_CHARS) {
+          throw new Error('Rendered PDF images are too large for AI extraction. Try a smaller PDF, DOCX, or pasted text.');
+        }
+        return pages;
+      });
+    });
+  }
+
+  function parseResumePdfVision(file) {
+    requireAuth();
+    return getAuthHeaders().then(function (headers) {
+      headers['Content-Type'] = 'application/json';
+      return renderPdfFileToPageImages(file).then(function (pages) {
+        setExtractionStatus('loading', 'Analyzing resume layout with AI\u2026');
+        return fetch(getResumeExtractionEndpoint(), {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            source: 'pdf-vision',
+            filename: file.name,
+            mime_type: file.type || 'application/pdf',
+            page_count: pages.length,
+            page_images_json: pages
+          })
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok) throw new Error((data && (data.error || data.message)) || ('HTTP ' + res.status));
+            return data;
+          });
+        });
+      });
+    });
+  }
+
+  function _runResumeExtractionMultipart(file) {
     var endpoint = getResumeExtractionEndpoint();
     RB_STATE.extractionEndpoint = endpoint;
     setExtractionStatus('loading', 'Extracting resume details\u2026');
@@ -1975,7 +2080,36 @@
         if (!res.ok) throw new Error((data && (data.error || data.message)) || ('HTTP ' + res.status));
         _handleExtractionResponse(data, 'file-upload', { name: file.name, type: file.type, size: file.size });
       });
-    }).catch(function (err) {
+    });
+  }
+
+  function runResumeExtractionFromFile(file) {
+    if (_extractionInFlight) return Promise.resolve();
+    var v = validateResumeFile(file);
+    if (!v.ok) { showToast(v.message, 'warning'); return Promise.resolve(); }
+    _extractionInFlight = true;
+
+    var endpoint = getResumeExtractionEndpoint();
+    RB_STATE.extractionEndpoint = endpoint;
+
+    var primary;
+    if (_isPdfFile(file) && window.pdfjsLib) {
+      console.log('[extract] sending resume parse', {
+        source: 'pdf-vision', endpoint: endpoint,
+        filename: file.name, mimeType: file.type, sizeBytes: file.size, textLength: 0
+      });
+      primary = parseResumePdfVision(file).then(function (data) {
+        _handleExtractionResponse(data, 'pdf-vision', { name: file.name, type: file.type, size: file.size });
+      }).catch(function (visionErr) {
+        console.warn('[extract] PDF vision failed, falling back to text parse:', visionErr && visionErr.message || visionErr);
+        setExtractionStatus('loading', 'Layout-aware extraction failed. Falling back to text extraction\u2026');
+        return _runResumeExtractionMultipart(file);
+      });
+    } else {
+      primary = _runResumeExtractionMultipart(file);
+    }
+
+    return primary.catch(function (err) {
       RB_STATE.extractionLastError = String(err && err.message || err);
       console.warn('[extract] file extraction failed', err);
       setExtractionStatus('error', 'Resume extraction failed. You can paste resume text or try another file.');
