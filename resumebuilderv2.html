@@ -1955,23 +1955,83 @@
     });
   }
 
-  window.debugAIFlowState = function () {
-    getTargetRoleFromDOM();
-    var rr = RB_STATE.roleResearch || null;
-    var len = function (a) { return Array.isArray(a) ? a.length : 0; };
-    var priorityCount        = len(rr && rr.priorities);
-    var keywordCount         = len(rr && rr.keywords) + len(rr && rr.ats_keywords);
-    var requiredSkillCount   = len(rr && rr.required_skills);
-    var optimizationTargetCount = len(rr && rr.resume_optimization_targets);
-    var gapRiskCount         = len(rr && rr.gap_risks);
-    var atsKeywordCount      = len(rr && rr.ats_keywords);
-    var hasSummary           = !!(rr && (rr.role_summary || rr.summary));
-    var usefulForOptimization = !!rr &&
+  // Accept old or new role_research schema and return the canonical shape.
+  function asArray(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value
+        .map(function (v) { if (v && typeof v === 'object') return v.title || v.name || v.label || JSON.stringify(v); return String(v); })
+        .map(function (s) { return s.trim(); })
+        .filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value
+        .split(/\r?\n|;|\u2022/g)
+        .map(function (s) { return s.replace(/^[-\u2013\u2014\u2022]\s*/, '').trim(); })
+        .filter(Boolean);
+    }
+    if (typeof value === 'object') {
+      var out = [];
+      Object.keys(value).forEach(function (k) { out = out.concat(asArray(value[k])); });
+      return out;
+    }
+    return [];
+  }
+  function normalizeRoleResearchShape(raw) {
+    var r = raw && raw.role_research ? raw.role_research : (raw || {});
+    return {
+      role_summary: String(r.role_summary || r.summary || '').trim(),
+      seniority_level: String(r.seniority_level || '').trim(),
+      function_area: String(r.function_area || '').trim(),
+      business_context: String(r.business_context || r.company_context || '').trim(),
+
+      priorities: asArray(r.priorities || r.top_priorities),
+      responsibilities: asArray(r.responsibilities || r.key_responsibilities),
+      required_skills: asArray(r.required_skills || r.critical_skills || r.must_have_skills),
+      preferred_skills: asArray(r.preferred_skills || r.nice_to_have_skills),
+      tools_and_systems: asArray(r.tools_and_systems || r.tools || r.systems),
+      keywords: asArray(r.keywords || r.role_keywords),
+
+      leadership_expectations: asArray(r.leadership_expectations),
+      execution_expectations: asArray(r.execution_expectations),
+      stakeholder_groups: asArray(r.stakeholder_groups),
+
+      success_metrics: asArray(r.success_metrics || r.success_measures),
+      first_90_day_expectations: asArray(r.first_90_day_expectations || r.first_90_days),
+      likely_interview_themes: asArray(r.likely_interview_themes || r.interview_themes),
+
+      candidate_positioning_notes: asArray(r.candidate_positioning_notes || r.positioning_notes),
+      resume_optimization_targets: asArray(r.resume_optimization_targets || r.optimization_targets || r.resume_targets),
+      gap_risks: asArray(r.gap_risks || r.risks_or_gaps || r.gaps),
+      gap_mitigation_suggestions: asArray(r.gap_mitigation_suggestions || r.gap_mitigation || r.mitigations),
+
+      ats_keywords: asArray(r.ats_keywords || r.ats_terms),
+      high_value_phrases: asArray(r.high_value_phrases),
+      transferable_experience_to_emphasize: asArray(r.transferable_experience_to_emphasize || r.transferable_experience)
+    };
+  }
+  function getRoleResearchQuality(roleResearch) {
+    var src = roleResearch || RB_STATE.roleResearch || (RB_STATE.targetRole && RB_STATE.targetRole.roleResearch) || null;
+    if (!src) {
+      return { hasSummary:false, priorityCount:0, keywordCount:0, requiredSkillCount:0, optimizationTargetCount:0, gapRiskCount:0, atsKeywordCount:0, usefulForOptimization:false };
+    }
+    var r = normalizeRoleResearchShape(src);
+    var priorityCount           = r.priorities.length;
+    var atsKeywordCount         = r.ats_keywords.length;
+    var keywordCount            = r.keywords.length + atsKeywordCount;
+    var requiredSkillCount      = r.required_skills.length;
+    var optimizationTargetCount = r.resume_optimization_targets.length;
+    var gapRiskCount            = r.gap_risks.length;
+    var hasSummary              = !!r.role_summary;
+    var usefulForOptimization =
+      hasSummary &&
       priorityCount >= 3 &&
       keywordCount  >= 5 &&
+      requiredSkillCount >= 3 &&
       optimizationTargetCount >= 3 &&
-      gapRiskCount  >= 1;
-    var roleResearchQuality = {
+      gapRiskCount  >= 1 &&
+      atsKeywordCount >= 5;
+    return {
       hasSummary: hasSummary,
       priorityCount: priorityCount,
       keywordCount: keywordCount,
@@ -1981,6 +2041,12 @@
       atsKeywordCount: atsKeywordCount,
       usefulForOptimization: usefulForOptimization
     };
+  }
+
+  window.debugAIFlowState = function () {
+    getTargetRoleFromDOM();
+    var rr = RB_STATE.roleResearch || null;
+    var roleResearchQuality = getRoleResearchQuality(rr);
     return {
       apiBase: API_BASE,
       builderApiBase: BUILDER_API_BASE,
@@ -2112,52 +2178,41 @@
   function renderRoleResearchSummary() {
     var el = document.getElementById('role-research-summary');
     if (!el) return;
-    var rr = RB_STATE.roleResearch;
-    if (!rr) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    var raw = RB_STATE.roleResearch;
+    if (!raw) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    var rr = normalizeRoleResearchShape(raw);
     function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
     function listBlock(label, arr, max) {
       if (!Array.isArray(arr) || !arr.length) return '';
-      var items = arr.slice(0, max || 12).map(function (s) {
-        if (s && typeof s === 'object') s = s.title || s.name || s.label || JSON.stringify(s);
-        return '<li>' + escapeHtml(String(s)) + '</li>';
-      }).join('');
+      var items = arr.slice(0, max || 12).map(function (s) { return '<li>' + escapeHtml(String(s)) + '</li>'; }).join('');
       return '<div><strong>' + escapeHtml(label) + '</strong><ul style="margin:4px 0 8px 18px;">' + items + '</ul></div>';
     }
     function textBlock(label, val) {
       if (!val) return '';
       return '<div><strong>' + escapeHtml(label) + '</strong><div>' + escapeHtml(String(val)) + '</div></div>';
     }
-    var keywordsCombined = []
-      .concat(Array.isArray(rr.keywords) ? rr.keywords : [])
-      .concat(Array.isArray(rr.ats_keywords) ? rr.ats_keywords : []);
-    var skillsCombined = []
-      .concat(Array.isArray(rr.required_skills) ? rr.required_skills : [])
-      .concat(Array.isArray(rr.preferred_skills) ? rr.preferred_skills : [])
-      .concat(Array.isArray(rr.critical_skills) ? rr.critical_skills : [])
-      .concat(Array.isArray(rr.skills) ? rr.skills : []);
-    // Dedupe (case-insensitive)
-    var seen = {}; keywordsCombined = keywordsCombined.filter(function (k) { var x = String(k).toLowerCase(); if (seen[x]) return false; seen[x] = 1; return true; });
-    var seen2 = {}; skillsCombined  = skillsCombined.filter(function (k) { var x = String(k).toLowerCase(); if (seen2[x]) return false; seen2[x] = 1; return true; });
+    // Deduped union of skills + keywords
+    var seen = {};
+    var skillsAndKeywords = [].concat(rr.required_skills, rr.preferred_skills, rr.keywords, rr.ats_keywords)
+      .filter(function (k) { var x = String(k).toLowerCase(); if (seen[x]) return false; seen[x] = 1; return true; });
 
     var topHtml = '<strong>Role Research</strong>';
-    topHtml += textBlock('Role Summary', rr.role_summary || rr.summary);
+    topHtml += textBlock('Role Summary', rr.role_summary);
     topHtml += listBlock('Top Priorities', rr.priorities, 8);
-    topHtml += listBlock('Key Skills / Keywords', skillsCombined.concat(keywordsCombined).slice(0, 20), 20);
+    topHtml += listBlock('Key Skills / Keywords', skillsAndKeywords, 20);
     topHtml += listBlock('Success Metrics', rr.success_metrics, 8);
     topHtml += listBlock('Resume Optimization Targets', rr.resume_optimization_targets, 10);
     topHtml += listBlock('Gap Risks', rr.gap_risks, 8);
+    topHtml += listBlock('ATS Keywords', rr.ats_keywords, 20);
 
-    // Detail accordion
     var detailHtml = '';
     detailHtml += textBlock('Seniority Level', rr.seniority_level);
     detailHtml += textBlock('Function Area', rr.function_area);
-    detailHtml += textBlock('Business Context', rr.business_context || rr.company_context);
+    detailHtml += textBlock('Business Context', rr.business_context);
     detailHtml += listBlock('Responsibilities', rr.responsibilities, 16);
     detailHtml += listBlock('Required Skills', rr.required_skills, 16);
     detailHtml += listBlock('Preferred Skills', rr.preferred_skills, 16);
     detailHtml += listBlock('Tools & Systems', rr.tools_and_systems, 16);
-    detailHtml += listBlock('Keywords', rr.keywords, 20);
-    detailHtml += listBlock('ATS Keywords', rr.ats_keywords, 20);
     detailHtml += listBlock('High-Value Phrases', rr.high_value_phrases, 12);
     detailHtml += listBlock('Leadership Expectations', rr.leadership_expectations, 10);
     detailHtml += listBlock('Execution Expectations', rr.execution_expectations, 10);
@@ -2207,8 +2262,12 @@
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
     }).then(function (r) {
       if (!r.ok) throw new Error((r.body && (r.body.error || r.body.message)) || ('Research failed (' + r.status + ').'));
-      var rr = (r.body && (r.body.role_research || r.body.research || r.body)) || null;
+      var rawRr = (r.body && (r.body.role_research || r.body.research || r.body)) || null;
+      var rr = rawRr ? normalizeRoleResearchShape(rawRr) : null;
       RB_STATE.roleResearch = rr;
+      RB_STATE.targetRole = RB_STATE.targetRole || {};
+      RB_STATE.targetRole.roleResearch = rr;
+      RB_STATE.targetRole.lastRoleResearchFingerprint = fp;
       RB_STATE._roleResearchHash = fp;
       renderRoleResearchSummary();
       if (statusEl) statusEl.textContent = 'Role research updated.';
@@ -2724,6 +2783,9 @@
     roleResearchFingerprint: roleResearchFingerprint,
     updateAIReadinessUI: updateAIReadinessUI,
     renderRoleResearchSummary: renderRoleResearchSummary,
+    normalizeRoleResearchShape: normalizeRoleResearchShape,
+    getRoleResearchQuality: getRoleResearchQuality,
+    asArray: asArray,
     getSelectedPlanType: getSelectedPlanType,
     getSelectedPlanSections: getSelectedPlanSections,
     mapPlanTypeForApi: mapPlanTypeForApi,
