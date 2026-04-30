@@ -749,6 +749,8 @@
   /* Step 3 readiness */
   .doc-card.doc-card-unavailable { opacity:.45; cursor:not-allowed; pointer-events:none; }
   .doc-card.doc-card-unavailable .doc-card-sub { font-style:italic; }
+  /* PowerPoint preview hidden until ready */
+  [data-preview-format="pptx"] { display:none !important; }
 
   /* Live Preview shell */
   #preview-container-export {
@@ -1186,10 +1188,12 @@
                 <button type="button" class="active" data-preview-format="web">Public Web Page</button>
                 <button type="button"                data-preview-format="pdf">PDF Document</button>
                 <button type="button"                data-preview-format="docx">Word / DOCX</button>
+                <!-- PowerPoint preview hidden until ready; CSS rule [data-preview-format="pptx"]{display:none} also enforces this.
                 <button type="button" disabled aria-disabled="true" data-preview-format="pptx" title="PowerPoint preview is being polished">PowerPoint <span class="badge-soon">Coming Soon</span></button>
+                -->
               </div>
             </div>
-            <div id="preview-device-row">
+            <div id="preview-device-row" style="display:none" aria-hidden="true">
               <label class="field-label">Device</label>
               <div class="preview-toggle" role="tablist" aria-label="Preview device">
                 <button type="button" class="active" data-preview-device="desktop">Desktop</button>
@@ -1503,18 +1507,117 @@
     var pill = document.getElementById('selected-summary');
     if (pill) pill.textContent = 'Selected: ' + (labels.join(', ') || 'None');
   }
+
+  // ============================================================
+  // Document readiness helpers — single source of truth used by
+  // updateGeneratedDocumentReadinessUI(), initDocumentSelection(),
+  // and debugDocumentReadiness().
+  // ============================================================
+  function hasUsableResumeDocument() {
+    var rd =
+      (window.RB_STATE && RB_STATE.resumeData) ||
+      (window.RB_STATE && RB_STATE.documentPackage && RB_STATE.documentPackage.documents && RB_STATE.documentPackage.documents.resume) ||
+      null;
+    if (!rd || typeof rd !== 'object') return false;
+    return !!(
+      rd.full_name ||
+      rd.name ||
+      rd.summary ||
+      (Array.isArray(rd.experience) && rd.experience.length) ||
+      (Array.isArray(rd.skills) && rd.skills.length)
+    );
+  }
+  function hasUsableCoverLetterDocument() {
+    var cv =
+      (window.RB_STATE && RB_STATE.coverLetter) ||
+      (window.RB_STATE && RB_STATE.cvDraft) ||
+      (window.RB_STATE && RB_STATE.documentPackage && RB_STATE.documentPackage.documents && RB_STATE.documentPackage.documents.coverLetter) ||
+      null;
+    if (!cv) return false;
+    if (typeof cv === 'string') return cv.trim().length > 40;
+    if (typeof cv === 'object') {
+      return !!(
+        String(cv.heading || '').trim() ||
+        String(cv.opening || '').trim() ||
+        String(cv.closing || '').trim() ||
+        (Array.isArray(cv.body) && cv.body.some(function (p) { return String(p || '').trim().length > 0; }))
+      );
+    }
+    return false;
+  }
+  function hasUsableRolePlanDocument() {
+    var plan =
+      (window.RB_STATE && RB_STATE.rolePlan) ||
+      (window.RB_STATE && RB_STATE.documentPackage && RB_STATE.documentPackage.documents && RB_STATE.documentPackage.documents.rolePlan) ||
+      null;
+    if (!plan || typeof plan !== 'object') return false;
+    var buckets = [
+      plan.days90, plan.months12, plan.years2,
+      plan['90-day'], plan['12-month'], plan['2-year'],
+      plan
+    ].filter(Boolean);
+    return buckets.some(function (b) {
+      return !!(
+        (Array.isArray(b.phases) && b.phases.length) ||
+        (Array.isArray(b.quarters) && b.quarters.length) ||
+        String(b.executiveSummary || b.executive_summary || b.title || '').trim()
+      );
+    });
+  }
+  function getDocumentReadinessState() {
+    return {
+      resume: hasUsableResumeDocument(),
+      coverLetter: hasUsableCoverLetterDocument(),
+      rolePlan: hasUsableRolePlanDocument()
+    };
+  }
+
   function initDocumentSelection() {
     document.querySelectorAll('.doc-card').forEach(function (card) {
+      if (card._docSelectionAttached) return;
+      card._docSelectionAttached = true;
       card.addEventListener('click', function () {
+        if (card.classList.contains('doc-card-unavailable') || card.getAttribute('aria-disabled') === 'true') {
+          try { showToast('Generate or load this document before selecting it.', 'warning'); } catch (_) {}
+          return;
+        }
         card.classList.toggle('selected');
         var cbId = card.getAttribute('data-doc-checkbox');
         var cb   = cbId && document.getElementById(cbId);
-        if (cb) cb.checked = card.classList.contains('selected');
+        if (cb && !cb.disabled) cb.checked = card.classList.contains('selected');
         updateSelectedSummary();
         try { maybeRefreshPreview(); } catch (_) {}
       });
     });
+    try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
   }
+
+  window.debugDocumentReadiness = function () {
+    var ready = getDocumentReadinessState();
+    var ir = document.getElementById('include-resume');
+    var ic = document.getElementById('include-cv');
+    var ip = document.getElementById('include-plan');
+    return {
+      ready: ready,
+      selected: {
+        resume: !!(ir && ir.checked),
+        coverLetter: !!(ic && ic.checked),
+        rolePlan: !!(ip && ip.checked)
+      },
+      disabled: {
+        resume: !!(ir && ir.disabled),
+        coverLetter: !!(ic && ic.disabled),
+        rolePlan: !!(ip && ip.disabled)
+      },
+      hasState: {
+        resumeData: !!(window.RB_STATE && RB_STATE.resumeData),
+        coverLetter: !!(window.RB_STATE && RB_STATE.coverLetter),
+        cvDraft: !!(window.RB_STATE && RB_STATE.cvDraft),
+        rolePlan: !!(window.RB_STATE && RB_STATE.rolePlan),
+        documentPackage: !!(window.RB_STATE && RB_STATE.documentPackage)
+      }
+    };
+  };
 
   function initStyleAndSwatches() {
     document.querySelectorAll('.style-card').forEach(function (card) {
@@ -3225,10 +3328,19 @@
   }
 
   function updateGeneratedDocumentReadinessUI() {
+    var ready;
+    try { ready = getDocumentReadinessState(); }
+    catch (_) {
+      ready = {
+        resume: !!(window.RB_STATE && RB_STATE.resumeData && Array.isArray(RB_STATE.resumeData.experience)),
+        coverLetter: !!(window.RB_STATE && RB_STATE.coverLetter),
+        rolePlan: !!(window.RB_STATE && RB_STATE.rolePlan)
+      };
+    }
     var map = [
-      { docKey: 'resume', cbId: 'include-resume', ready: !!(RB_STATE.resumeData && Array.isArray(RB_STATE.resumeData.experience)) },
-      { docKey: 'cv',     cbId: 'include-cv',     ready: !!RB_STATE.coverLetter },
-      { docKey: 'plan',   cbId: 'include-plan',   ready: !!RB_STATE.rolePlan }
+      { docKey: 'resume', cbId: 'include-resume', ready: !!ready.resume,      fallbackSub: 'Import a resume first' },
+      { docKey: 'cv',     cbId: 'include-cv',     ready: !!ready.coverLetter, fallbackSub: 'Generate a cover letter first' },
+      { docKey: 'plan',   cbId: 'include-plan',   ready: !!ready.rolePlan,    fallbackSub: 'Generate a career plan first' }
     ];
     map.forEach(function (m) {
       var card = document.querySelector('[data-doc-card="' + m.docKey + '"]');
@@ -3240,19 +3352,23 @@
         if (sub) {
           if (!m.ready) {
             if (!sub.dataset.origText) sub.dataset.origText = sub.textContent;
-            sub.textContent = 'Not generated yet';
+            sub.textContent = m.fallbackSub;
           } else if (sub.dataset.origText) {
             sub.textContent = sub.dataset.origText;
           }
         }
-        if (!m.ready && card.classList.contains('selected')) {
-          card.classList.remove('selected');
+        if (!m.ready) {
+          if (card.classList.contains('selected')) card.classList.remove('selected');
           if (cb) cb.checked = false;
+        } else if (card.classList.contains('selected')) {
+          // Preserve existing user selection when content is ready.
+          if (cb) cb.checked = true;
         }
       }
       if (cb) cb.disabled = !m.ready;
     });
     try { if (typeof updateSelectedSummary === 'function') updateSelectedSummary(); } catch (_) {}
+    try { if (typeof maybeRefreshPreview === 'function') maybeRefreshPreview(); } catch (_) {}
   }
 
   window.debugCoverLetter = function () {
@@ -3415,22 +3531,46 @@
   function getSelectedPreviewDevice() {
     var fmt = getSelectedPreviewFormat();
     if (fmt !== 'web') return 'desktop'; // forced for non-web outputs
-    var b = document.querySelector('[data-preview-device].active');
-    return (b && b.getAttribute('data-preview-device')) || 'desktop';
+    return autoDetectPreviewDevice();
   }
 
-  // Show device controls only for Public Web Page.
+  // Auto-pick device bucket from viewport width so the live preview always
+  // matches the user's real screen. No manual toggle.
+  //   < 640px  -> mobile
+  //   < 1024px -> tablet
+  //   else     -> desktop
+  function autoDetectPreviewDevice() {
+    var w = (window.innerWidth || document.documentElement.clientWidth || 1100);
+    if (w < 640) return 'mobile';
+    if (w < 1024) return 'tablet';
+    return 'desktop';
+  }
+
+  // Re-tag #preview-device-wrap when the viewport crosses a breakpoint so
+  // the device frame switches live without a full preview re-render.
+  function applyAutoDeviceToPreviewWrap() {
+    var wrap = document.getElementById('preview-device-wrap');
+    if (!wrap) return;
+    var device = getSelectedPreviewDevice();
+    var next = 'preview-device device-' + device;
+    if (wrap.className !== next) wrap.className = next;
+  }
+  (function initAutoPreviewDevice(){
+    var t = null;
+    function onResize() {
+      if (t) clearTimeout(t);
+      t = setTimeout(applyAutoDeviceToPreviewWrap, 80);
+    }
+    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('orientationchange', onResize, { passive: true });
+  })();
+
+  // Device toggle is auto-driven now — keep the row hidden regardless of format.
   function updatePreviewControlsVisibility() {
-    var fmt = getSelectedPreviewFormat();
     var row = document.getElementById('preview-device-row');
     if (!row) return;
-    if (fmt === 'web') {
-      row.style.display = '';
-      row.removeAttribute('aria-hidden');
-    } else {
-      row.style.display = 'none';
-      row.setAttribute('aria-hidden', 'true');
-    }
+    row.style.display = 'none';
+    row.setAttribute('aria-hidden', 'true');
   }
 
   // Retint the .style-card mini-previews when the swatch changes.
@@ -5733,6 +5873,8 @@
 
     var summary = resume.summary || resume.objective || '';
     var executiveSummary = activePlanBucket.executiveSummary || activePlanBucket.executive_summary || (rolePlan && rolePlan.success_summary) || summary || '';
+    var heroTagline = summary || executiveSummary || '';
+    var heroSubtitle = (company && jobTitle) ? (jobTitle + ' at ' + company) : (jobTitle || currentTitle || '');
 
     return {
       hero: {
@@ -5740,10 +5882,16 @@
         current_title: currentTitle,
         target_title: jobTitle,
         company: company,
+        subtitle: heroSubtitle,
+        summary: summary,
+        tagline: heroTagline,
         location: resume.location || '',
         email: resume.email || '',
         phone: resume.phone || '',
         linkedin: resume.linkedin || '',
+        github: resume.github || '',
+        twitter: resume.twitter || '',
+        portfolio: resume.portfolio || resume.website || '',
         website: resume.website || resume.portfolio || '',
         photo_url: RB_STATE.profilePhotoDataUrl || resume.photo_url || resume.photo || ''
       },
@@ -5890,6 +6038,7 @@
       else if (typeof rawColor === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(rawColor)) color = rawColor;
       else color = '#005EB8';
 
+      var heroForPayload = generated.hero || {};
       var payload = sanitizeForFirestore({
         schemaVersion: 'resume-builder-clean-lean-v1',
         source: 'resumebuilder.html',
@@ -5910,7 +6059,15 @@
         rolePlan: RB_STATE.rolePlan || null,
         style: styleToken,
         color: color,
-        styleSettings: styleSettings
+        styleSettings: styleSettings,
+        contactPhone: heroForPayload.phone || '',
+        contactEmail: heroForPayload.email || '',
+        contactLinkedin: heroForPayload.linkedin || '',
+        contactGithub: heroForPayload.github || '',
+        contactWebsite: heroForPayload.website || heroForPayload.portfolio || '',
+        contactTwitter: heroForPayload.twitter || '',
+        photoUrl: heroForPayload.photo_url || '',
+        showPhoto: true
       });
       if (!existingData.createdAt) {
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -6203,6 +6360,7 @@
     }
     if (typeof updateAIReadinessUI === 'function') { try { updateAIReadinessUI(); } catch (_) {} }
     if (typeof renderPreview === 'function')      { try { renderPreview(); }      catch (_) {} }
+    if (typeof updateGeneratedDocumentReadinessUI === 'function') { try { updateGeneratedDocumentReadinessUI(); } catch (_) {} }
   }
 
   async function loadDraft(planId) {
