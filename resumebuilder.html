@@ -2707,7 +2707,7 @@
         twitter:  !!(rd && rd.twitter)
       },
       extraSectionKeys: addl.map(function (e) { return e && e.key; }).filter(Boolean),
-      hasProfilePhoto: !!(RB_STATE && RB_STATE.profilePhotoDataUrl),
+      hasProfilePhoto: !!(RB_STATE && (RB_STATE.profilePhotoUrl || RB_STATE.profilePhotoDataUrl)),
       optimizeForJobStillPlaceholder:    String(window.optimizeForJob    || '').indexOf('notImplemented') !== -1,
       generateRolePlanStillPlaceholder:  String(window.generateRolePlan  || '').indexOf('notImplemented') !== -1,
       renderPreviewStillPlaceholder:     String(window.renderPreview     || '').indexOf('notImplemented') !== -1
@@ -3954,37 +3954,62 @@
       return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
     });
   }
-  // Safe profile photo URL gate. Only data:image/* or https:// are allowed.
-  // TODO(photo-upload): Personal Information step should expose an upload
-  // control that writes a data: URL into RB_STATE.profilePhotoDataUrl. Save/
-  // Publish should later upload to Firebase Storage and rewrite the field to
-  // a stable hosted URL before publishing, so we don't ship giant data URLs.
+  // Safe profile photo URL gate. Allows data:image/*, https://, and blob:.
+  // blob: is only used for the brief in-flight preview while a freshly
+  // selected photo uploads to Firebase Storage; persisted state must end up
+  // as an https:// Storage download URL. Firestore must never receive
+  // data:image/* or blob: values.
   function _safePhotoUrl(url) {
     var s = String(url == null ? '' : url).trim();
     if (!s) return '';
     if (/^data:image\/(png|jpe?g|gif|webp|svg\+xml);/i.test(s)) return s;
     if (/^https:\/\//i.test(s)) return s;
+    if (/^blob:/i.test(s)) return s;
     return '';
   }
   function getPreviewProfilePhoto(pkg) {
-    var fromState = (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
-    var fromPkg = (pkg && pkg.documents && pkg.documents.profilePhotoDataUrl) || '';
+    var fromState = (window.RB_STATE && (RB_STATE.profilePhotoUrl || RB_STATE.profilePhotoDataUrl)) || '';
+    var fromPkg = (pkg && pkg.documents && (pkg.documents.profilePhotoUrl || pkg.documents.profilePhotoDataUrl)) || '';
     return _safePhotoUrl(fromState || fromPkg);
   }
 
   // ============================================================
   // Profile Photo upload (Step 1 / Personal Information)
   // Web-profile only. Not rendered in PDF/DOCX/print outputs.
+  //
+  // Architecture:
+  //   file -> validate JPG/PNG/WEBP <= 8MB
+  //        -> resize/compress to max 768px JPEG @ 0.86
+  //        -> upload to Firebase Storage at
+  //           builderProfilePhotos/<uid>/profile-<timestamp>.jpg
+  //        -> store only profilePhotoUrl / profilePhotoPath in Firestore.
+  //   profilePhotoDataUrl is reserved for transient pre-upload preview only
+  //   (data: or blob:) and must never be persisted to Firestore.
   // ============================================================
+  function getProfilePhotoUrl() {
+    if (!window.RB_STATE) return '';
+    var rd = RB_STATE.resumeData || {};
+    return (
+      RB_STATE.profilePhotoUrl ||
+      RB_STATE.profilePhotoDataUrl ||
+      rd.photo_url ||
+      rd.photo ||
+      ''
+    );
+  }
+  // Back-compat shim — some legacy call sites may still reference this.
   function getProfilePhotoDataUrl() {
     return (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
   }
-  function setProfilePhotoDataUrl(dataUrl) {
+  function setProfilePhotoUrl(url, path) {
     if (!window.RB_STATE) return;
-    RB_STATE.profilePhotoDataUrl = dataUrl || '';
+    RB_STATE.profilePhotoUrl = url || '';
+    RB_STATE.profilePhotoPath = path || '';
+    // Drop transient Data/Blob URL once Storage URL is set.
+    RB_STATE.profilePhotoDataUrl = '';
     if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
-    RB_STATE.resumeData.photo_url = dataUrl || '';
-    RB_STATE.resumeData.photo = dataUrl || '';
+    RB_STATE.resumeData.photo_url = url || '';
+    RB_STATE.resumeData.photo = url || '';
     updateProfilePhotoPreview();
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
     try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
@@ -3993,13 +4018,13 @@
     var img = document.getElementById('profile-photo-img');
     var initials = document.getElementById('profile-photo-initials');
     var removeBtn = document.getElementById('profile-photo-remove-btn');
-    var dataUrl = getProfilePhotoDataUrl();
+    var url = getProfilePhotoUrl();
     if (img) {
-      img.src = dataUrl || '';
-      img.hidden = !dataUrl;
+      img.src = url || '';
+      img.hidden = !url;
     }
-    if (initials) initials.hidden = !!dataUrl;
-    if (removeBtn) removeBtn.hidden = !dataUrl;
+    if (initials) initials.hidden = !!url;
+    if (removeBtn) removeBtn.hidden = !url;
   }
   function validateProfilePhotoFile(file) {
     if (!file) return { ok:false, message:'No file selected.' };
@@ -4007,27 +4032,97 @@
     if (allowed.indexOf(file.type) === -1) {
       return { ok:false, message:'Please upload a JPG, PNG, or WEBP image.' };
     }
-    var maxBytes = 4 * 1024 * 1024;
+    var maxBytes = 8 * 1024 * 1024;
     if (file.size > maxBytes) {
-      return { ok:false, message:'Please upload an image under 4MB.' };
+      return { ok:false, message:'Please upload an image under 8MB.' };
     }
     return { ok:true };
   }
-  function handleProfilePhotoFile(file) {
+  function resizeProfilePhotoFile(file, maxSize, quality) {
+    maxSize = maxSize || 768;
+    quality = typeof quality === 'number' ? quality : 0.86;
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var objectUrl = URL.createObjectURL(file);
+      img.onload = function () {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+        var w = img.naturalWidth || img.width;
+        var h = img.naturalHeight || img.height;
+        if (!w || !h) { reject(new Error('Could not read image dimensions.')); return; }
+        var scale = Math.min(1, maxSize / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, cw, ch);
+        canvas.toBlob(function (blob) {
+          if (!blob) { reject(new Error('Could not compress image.')); return; }
+          resolve(blob);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = function () {
+        try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+        reject(new Error('Could not load image.'));
+      };
+      img.src = objectUrl;
+    });
+  }
+  async function uploadProfilePhotoToStorage(file) {
+    if (typeof auth === 'undefined' || !auth || !auth.currentUser) {
+      throw new Error('Please sign in before uploading a profile photo.');
+    }
+    if (typeof storage === 'undefined' || !storage) {
+      throw new Error('Firebase Storage is not ready.');
+    }
+    var user = auth.currentUser;
+    var resizedBlob = await resizeProfilePhotoFile(file, 768, 0.86);
+    var path = 'builderProfilePhotos/' + user.uid + '/profile-' + Date.now() + '.jpg';
+    var ref = storage.ref().child(path);
+    await ref.put(resizedBlob, {
+      contentType: 'image/jpeg',
+      customMetadata: { source: 'resume-builder-profile-photo' }
+    });
+    var url = await ref.getDownloadURL();
+    return { url: url, path: path, size: resizedBlob.size };
+  }
+  async function handleProfilePhotoFile(file) {
     var check = validateProfilePhotoFile(file);
     if (!check.ok) {
       try { showToast(check.message, 'warning'); } catch (_) {}
       return;
     }
-    var reader = new FileReader();
-    reader.onload = function (e) {
-      setProfilePhotoDataUrl((e.target && e.target.result) || '');
+    var localPreviewUrl = '';
+    try { localPreviewUrl = URL.createObjectURL(file); } catch (_) {}
+    try {
+      RB_STATE.profilePhotoDataUrl = localPreviewUrl;
+      updateProfilePhotoPreview();
+      try { showToast('Uploading profile photo...', 'info'); } catch (_) {}
+      var uploaded = await uploadProfilePhotoToStorage(file);
+      try { if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl); } catch (_) {}
+      setProfilePhotoUrl(uploaded.url, uploaded.path);
       try { showToast('Profile photo added.', 'success'); } catch (_) {}
-    };
-    reader.onerror = function () {
-      try { showToast('Could not read that image file.', 'error'); } catch (_) {}
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      try { if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl); } catch (_) {}
+      RB_STATE.profilePhotoDataUrl = '';
+      updateProfilePhotoPreview();
+      console.error('[handleProfilePhotoFile] upload failed', err);
+      try { showToast('Profile photo upload failed: ' + ((err && err.message) || err), 'error'); } catch (_) {}
+    }
+  }
+  function removeProfilePhoto() {
+    if (!window.RB_STATE) return;
+    RB_STATE.profilePhotoUrl = '';
+    RB_STATE.profilePhotoPath = '';
+    RB_STATE.profilePhotoDataUrl = '';
+    if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+    RB_STATE.resumeData.photo_url = '';
+    RB_STATE.resumeData.photo = '';
+    updateProfilePhotoPreview();
+    try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
+    try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
+    try { showToast('Profile photo removed.', 'info'); } catch (_) {}
   }
   function initProfilePhotoUpload() {
     var input = document.getElementById('profile-photo-file');
@@ -4051,8 +4146,7 @@
     if (removeBtn && !removeBtn._profilePhotoAttached) {
       removeBtn._profilePhotoAttached = true;
       removeBtn.addEventListener('click', function () {
-        setProfilePhotoDataUrl('');
-        try { showToast('Profile photo removed.', 'info'); } catch (_) {}
+        removeProfilePhoto();
       });
     }
     if (card && !card._profilePhotoDropAttached) {
@@ -4075,21 +4169,37 @@
   }
 
   window.debugProfilePhoto = function () {
+    var url = (window.RB_STATE && RB_STATE.profilePhotoUrl) ||
+              (window.RB_STATE && RB_STATE.profilePhotoDataUrl) ||
+              (window.RB_STATE && RB_STATE.resumeData && (RB_STATE.resumeData.photo_url || RB_STATE.resumeData.photo)) || '';
     var img = document.getElementById('profile-photo-img');
-    var webImg = null;
-    try {
-      var frame = document.getElementById('preview-frame');
-      if (frame && frame.contentDocument) {
-        webImg = frame.contentDocument.querySelector('.web-hero-photo, img.preview-profile-photo.hero-photo');
-      }
-    } catch (_) {}
+    var dataUrlState = (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
     return {
-      hasPhoto: !!(window.RB_STATE && RB_STATE.profilePhotoDataUrl),
-      photoLength: String((window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '').length,
-      resumePhotoUrl: (window.RB_STATE && RB_STATE.resumeData && RB_STATE.resumeData.photo_url) || '',
+      hasPhoto: !!url,
+      usesDataUrl: /^data:image\//i.test(url),
+      usesBlobUrl: /^blob:/i.test(url),
+      usesStorageUrl: /^https:\/\//i.test(url),
+      photoUrlLength: String(url || '').length,
+      profilePhotoPath: (window.RB_STATE && RB_STATE.profilePhotoPath) || '',
+      persistedDataUrlStillPresent: !!dataUrlState && /^data:image\//i.test(dataUrlState),
+      resumePhotoUrlLength: String((window.RB_STATE && RB_STATE.resumeData && RB_STATE.resumeData.photo_url) || '').length,
       imgVisible: !!(img && !img.hidden),
-      inputExists: !!document.getElementById('profile-photo-file'),
-      webPreviewHasPhoto: !!webImg
+      inputExists: !!document.getElementById('profile-photo-file')
+    };
+  };
+
+  window.debugPhotoSavePayload = function () {
+    var p = (typeof getCurrentBuilderPayload === 'function') ? getCurrentBuilderPayload() : {};
+    var json = '';
+    try { json = JSON.stringify(p || {}); } catch (_) { json = ''; }
+    var bytes = 0;
+    try { bytes = new Blob([json]).size; } catch (_) { bytes = json.length; }
+    return {
+      hasProfilePhotoDataUrlField: Object.prototype.hasOwnProperty.call(p, 'profilePhotoDataUrl'),
+      hasProfilePhotoUrlField: Object.prototype.hasOwnProperty.call(p, 'profilePhotoUrl'),
+      profilePhotoUrlLength: String((p && p.profilePhotoUrl) || '').length,
+      approximatePayloadBytes: bytes,
+      containsDataImage: json.indexOf('data:image/') >= 0
     };
   };
   function _safeStr(v) {
@@ -6063,7 +6173,12 @@
         twitter: resume.twitter || '',
         portfolio: resume.portfolio || resume.website || '',
         website: resume.website || resume.portfolio || '',
-        photo_url: RB_STATE.profilePhotoDataUrl || resume.photo_url || resume.photo || ''
+        photo_url: (function(){
+          var u = RB_STATE.profilePhotoUrl || resume.photo_url || resume.photo || '';
+          // Never let a leftover data:image/* or blob: leak into the published payload.
+          if (/^data:image\//i.test(u) || /^blob:/i.test(u)) return '';
+          return u;
+        })()
       },
       executive_summary: executiveSummary,
       summary: summary,
@@ -6237,8 +6352,13 @@
         contactWebsite: heroForPayload.website || heroForPayload.portfolio || '',
         contactTwitter: heroForPayload.twitter || '',
         photoUrl: heroForPayload.photo_url || '',
-        showPhoto: true
+        photoPath: RB_STATE.profilePhotoPath || '',
+        showPhoto: !!heroForPayload.photo_url
       });
+      // Aggressive legacy cleanup on publish as well.
+      try {
+        payload.profilePhotoDataUrl = firebase.firestore.FieldValue.delete();
+      } catch (_) {}
       if (!existingData.createdAt) {
         payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
       }
@@ -6348,6 +6468,25 @@
       closing: getBuilderFieldValue('cv-closing')
     };
     var rolePlan = RB_STATE.rolePlan || null;
+    // Sanitize resumeData so legacy data:image/* values do not get re-persisted.
+    // Replace any base64 photo with the Storage URL (if available) or empty string.
+    var safeResumeData = resumeData;
+    try {
+      var rdPhoto    = (resumeData && resumeData.photo)     || '';
+      var rdPhotoUrl = (resumeData && resumeData.photo_url) || '';
+      var hasLegacyDataImage =
+        /^data:image\//i.test(rdPhoto) ||
+        /^data:image\//i.test(rdPhotoUrl) ||
+        /^blob:/i.test(rdPhoto) ||
+        /^blob:/i.test(rdPhotoUrl);
+      if (hasLegacyDataImage) {
+        var replacement = RB_STATE.profilePhotoUrl || '';
+        safeResumeData = Object.assign({}, resumeData, {
+          photo: replacement,
+          photo_url: replacement
+        });
+      }
+    } catch (_) {}
     var displayName =
       resumeData.full_name ||
       resumeData.name ||
@@ -6363,7 +6502,7 @@
       resumeBuildName: displayName + (jobTitle ? ' - ' + jobTitle : ''),
       jobTitle:      jobTitle,
       company:       company,
-      resumeData:    resumeData,
+      resumeData:    safeResumeData,
       targetRole:    targetRole,
       coverLetter:   coverLetter,
       rolePlan:      rolePlan,
@@ -6371,7 +6510,8 @@
       styleSettings: getCurrentStyleSettings(),
       documentPackage: RB_STATE.documentPackage || null,
       rawResumeText: RB_STATE.rawResumeText || (rawTextEl && rawTextEl.value) || '',
-      profilePhotoDataUrl: RB_STATE.profilePhotoDataUrl || '',
+      profilePhotoUrl:  RB_STATE.profilePhotoUrl  || (safeResumeData && safeResumeData.photo_url) || '',
+      profilePhotoPath: RB_STATE.profilePhotoPath || '',
       updatedAtClient: new Date().toISOString()
     };
   }
@@ -6419,9 +6559,14 @@
       address:   resume.location || getBuilderFieldValue('pi-location') || '',
       resumeData: resume,
       rawResumeText: RB_STATE.rawResumeText || (rawTextEl && rawTextEl.value) || '',
-      photoUrl:  RB_STATE.profilePhotoDataUrl || '',
+      photoUrl:  RB_STATE.profilePhotoUrl || (resume && resume.photo_url) || '',
+      photoPath: RB_STATE.profilePhotoPath || '',
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    // Aggressively delete legacy base64 fields from any prior profile doc.
+    try {
+      profile.profilePhotoDataUrl = firebase.firestore.FieldValue.delete();
+    } catch (_) {}
     await db.collection('builderProfiles').doc(user.uid).set(profile, { merge: true });
   }
 
@@ -6444,6 +6589,11 @@
         source:    'resumebuilder.html',
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }));
+      // Aggressive legacy cleanup: strip any prior base64 profile photo from
+      // the existing Firestore doc since merge:true would otherwise leave it.
+      try {
+        docData.profilePhotoDataUrl = firebase.firestore.FieldValue.delete();
+      } catch (_) {}
       var ref;
       if (currentPlanId) {
         ref = db.collection('plans').doc(currentPlanId);
@@ -6531,19 +6681,39 @@
     if (typeof updateAIReadinessUI === 'function') { try { updateAIReadinessUI(); } catch (_) {} }
     if (typeof renderPreview === 'function')      { try { renderPreview(); }      catch (_) {} }
     if (typeof updateGeneratedDocumentReadinessUI === 'function') { try { updateGeneratedDocumentReadinessUI(); } catch (_) {} }
-    // Restore profile photo from any of the supported draft fields.
+    // Restore profile photo. Storage URL is preferred. Legacy base64 from old
+    // drafts may still be present on data.profilePhotoDataUrl or nested in
+    // resumeData; show it for display only — the next save will clear it from
+    // Firestore via FieldValue.delete().
     try {
-      if (data.profilePhotoDataUrl) {
-        RB_STATE.profilePhotoDataUrl = data.profilePhotoDataUrl;
-      } else if (data.photoUrl) {
-        RB_STATE.profilePhotoDataUrl = data.photoUrl;
-      } else if (data.resumeData && (data.resumeData.photo_url || data.resumeData.photo)) {
-        RB_STATE.profilePhotoDataUrl = data.resumeData.photo_url || data.resumeData.photo;
+      var restoredPhotoUrl =
+        data.profilePhotoUrl ||
+        data.photoUrl ||
+        (data.resumeData && (data.resumeData.photo_url || data.resumeData.photo)) ||
+        '';
+      // If only a legacy data:image/* lives on the doc, surface it for display.
+      var legacyDataUrl =
+        (typeof data.profilePhotoDataUrl === 'string' && /^data:image\//i.test(data.profilePhotoDataUrl))
+          ? data.profilePhotoDataUrl
+          : '';
+      if (!restoredPhotoUrl && !legacyDataUrl &&
+          data.resumeData &&
+          typeof data.resumeData.photo_url === 'string' &&
+          /^data:image\//i.test(data.resumeData.photo_url)) {
+        legacyDataUrl = data.resumeData.photo_url;
       }
-      if (RB_STATE.profilePhotoDataUrl) {
-        if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
-        RB_STATE.resumeData.photo_url = RB_STATE.profilePhotoDataUrl;
-        RB_STATE.resumeData.photo = RB_STATE.profilePhotoDataUrl;
+      // Filter out anything that is not a Storage URL from profilePhotoUrl.
+      if (restoredPhotoUrl && /^(data:image\/|blob:)/i.test(restoredPhotoUrl)) {
+        legacyDataUrl = legacyDataUrl || restoredPhotoUrl;
+        restoredPhotoUrl = '';
+      }
+      RB_STATE.profilePhotoUrl  = restoredPhotoUrl;
+      RB_STATE.profilePhotoPath = data.profilePhotoPath || data.photoPath || '';
+      RB_STATE.profilePhotoDataUrl = legacyDataUrl;
+      if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+      if (restoredPhotoUrl) {
+        RB_STATE.resumeData.photo_url = restoredPhotoUrl;
+        RB_STATE.resumeData.photo = restoredPhotoUrl;
       }
       if (typeof updateProfilePhotoPreview === 'function') updateProfilePhotoPreview();
     } catch (_) {}
