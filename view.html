@@ -562,9 +562,29 @@ function renderPlan(g, plan, S, C, style) {
   // KPIs
   if (showSection('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
-    sections.push({ id: 'kpis', icon: 'bar-chart-3', label: 'KPIs',
-      html: card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3">${g.kpis.map(k => `<div class="p-3 rounded-lg text-center" style="border:${S.borderStyle}"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div>`)
-    });
+    // Normalize each KPI: accept strings ("CSAT: 95%") or objects with various field names.
+    const kpiItems = g.kpis.map(k => {
+      if (k == null) return null;
+      if (typeof k === 'string') {
+        const s = k.trim();
+        if (!s) return null;
+        const m = s.match(/^([^:|\u2013\u2014]+?)\s*(?::|\||\s[\-\u2013\u2014]\s)\s*(.+)$/);
+        return m ? { metric: m[1].trim(), target: m[2].trim() } : { metric: s, target: '' };
+      }
+      if (typeof k === 'object') {
+        return {
+          metric: k.metric || k.name || k.label || k.kpi || k.title || '',
+          target: k.target || k.value || k.goal || k.measure || k.threshold || '',
+          icon: k.icon || ''
+        };
+      }
+      return null;
+    }).filter(k => k && (k.metric || k.target));
+    if (kpiItems.length) {
+      sections.push({ id: 'kpis', icon: 'bar-chart-3', label: 'KPIs',
+        html: card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3">${kpiItems.map(k => `<div class="p-3 rounded-lg text-center" style="border:${S.borderStyle}"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric || ''}</p>${k.target ? `<p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p>` : ''}</div>`).join('')}</div>`)
+      });
+    }
   }
 
   // Experience
