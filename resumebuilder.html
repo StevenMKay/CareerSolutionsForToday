@@ -6882,7 +6882,33 @@
 
     var phases = activePlanBucket.phases || activePlanBucket.quarters || (rolePlan && rolePlan.plan_phases) || [];
     var successCriteria = activePlanBucket.success_criteria || activePlanBucket.successCriteria || (rolePlan && rolePlan.success_criteria) || [];
-    var kpis = activePlanBucket.kpis || (rolePlan && rolePlan.kpis) || activePlanBucket.success_metrics || activePlanBucket.successMetrics || [];
+    // KPIs are stored as `suggested_kpis` strings in the rolePlan bucket; the published view (view.html)
+    // expects objects with { metric, target }. Normalize here so the published page doesn't render "undefined".
+    var rawKpis =
+      activePlanBucket.suggested_kpis ||
+      activePlanBucket.kpis ||
+      (rolePlan && (rolePlan.suggested_kpis || rolePlan.kpis)) ||
+      activePlanBucket.success_metrics ||
+      activePlanBucket.successMetrics ||
+      [];
+    var kpis = (Array.isArray(rawKpis) ? rawKpis : []).map(function (k) {
+      if (k == null) return null;
+      if (typeof k === 'string') {
+        var s = k.trim();
+        if (!s) return null;
+        // Split on first ':' / ' - ' / ' – ' / ' — ' / '|' so "CSAT: 95%" => { metric:'CSAT', target:'95%' }.
+        var m = s.match(/^([^:|\u2013\u2014]+?)\s*(?::|\||\s[\-\u2013\u2014]\s)\s*(.+)$/);
+        if (m) return { metric: m[1].trim(), target: m[2].trim() };
+        return { metric: s, target: '' };
+      }
+      if (typeof k === 'object') {
+        var metric = k.metric || k.name || k.label || k.kpi || k.title || '';
+        var target = k.target || k.value || k.goal || k.measure || k.threshold || '';
+        var icon = k.icon || '';
+        return { metric: String(metric || ''), target: String(target || ''), icon: icon };
+      }
+      return null;
+    }).filter(function (k) { return k && (k.metric || k.target); });
 
     var summary = resume.summary || resume.objective || '';
     var executiveSummary = activePlanBucket.executiveSummary || activePlanBucket.executive_summary || (rolePlan && rolePlan.success_summary) || summary || '';
