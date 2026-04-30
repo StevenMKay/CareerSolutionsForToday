@@ -5650,7 +5650,327 @@
 
   function downloadSelectedPackage(){ if (!requireAuth()) return; notImplemented('downloadSelectedPackage'); }
   function resetBuilder()           { notImplemented('resetBuilder'); }
-  function publishShareLink()       { if (!requireAuth()) return; notImplemented('publishShareLink'); }
+
+  // ============================================================
+  // Publish Share Link (Firestore: collection "plans", read by view.html)
+  // view.html queries: where('slug','==',slug).where('published','==',true)
+  // and consumes plan.generated, plan.style, plan.color, plan.jobTitle,
+  // plan.company. This implementation is frontend-only and reuses the
+  // existing helpers buildSelectedDocumentPackage / getCurrentStyleSettings
+  // / sanitizeForFirestore / currentPlanId / RB_STATE.
+  // ============================================================
+  function slugifyForPublish(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/&amp;/g, 'and')
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 70) || 'resume-profile';
+  }
+
+  function randomSlugSuffix(len) {
+    len = len || 4;
+    var chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    var out = '';
+    for (var i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
+
+  async function makeUniquePublishSlug(base) {
+    var root = slugifyForPublish(base);
+    if (!db || !db.collection) return root + '-' + randomSlugSuffix(6);
+    for (var i = 0; i < 8; i++) {
+      var slug = root + '-' + randomSlugSuffix(i < 3 ? 4 : 6);
+      try {
+        var snap = await db.collection('plans').where('slug', '==', slug).limit(1).get();
+        if (snap.empty) return slug;
+      } catch (err) {
+        console.warn('[makeUniquePublishSlug] collision check failed', err);
+        return root + '-' + Date.now().toString(36);
+      }
+    }
+    return root + '-' + Date.now().toString(36);
+  }
+
+  function buildGeneratedForPublishedView(pkg) {
+    pkg = pkg || (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null);
+    var docs = (pkg && pkg.documents) || {};
+    var resume = docs.resume || RB_STATE.resumeData || {};
+    var rolePlan = docs.rolePlan || RB_STATE.rolePlan || null;
+    var coverLetter = docs.coverLetter || RB_STATE.coverLetter || null;
+
+    var targetRole = typeof getTargetRoleFromDOM === 'function'
+      ? getTargetRoleFromDOM()
+      : (RB_STATE.targetRole || {});
+
+    function val(id) {
+      var el = document.getElementById(id);
+      return el ? String(el.value || '') : '';
+    }
+
+    var name = resume.full_name || resume.name || val('pi-name') || 'Professional Profile';
+    var currentTitle = resume.current_title || resume.headline || val('pi-title') || '';
+    var jobTitle = targetRole.job_title || targetRole.title || val('job-title') || currentTitle || '';
+    var company = targetRole.company || val('company') || '';
+
+    var activePlanType = RB_STATE.rolePlanType || (typeof getSelectedPlanType === 'function' ? getSelectedPlanType() : '90-day');
+    var activePlanBucket = null;
+    try {
+      if (rolePlan) {
+        if (/12/i.test(activePlanType)) activePlanBucket = rolePlan.months12 || rolePlan['12-month'] || rolePlan.days90 || rolePlan;
+        else if (/2/i.test(activePlanType)) activePlanBucket = rolePlan.years2 || rolePlan['2-year'] || rolePlan.days90 || rolePlan;
+        else activePlanBucket = rolePlan.days90 || rolePlan['90-day'] || rolePlan;
+      }
+    } catch (_) {
+      activePlanBucket = rolePlan;
+    }
+    activePlanBucket = activePlanBucket || {};
+
+    var phases = activePlanBucket.phases || activePlanBucket.quarters || (rolePlan && rolePlan.plan_phases) || [];
+    var successCriteria = activePlanBucket.success_criteria || activePlanBucket.successCriteria || (rolePlan && rolePlan.success_criteria) || [];
+    var kpis = activePlanBucket.kpis || (rolePlan && rolePlan.kpis) || activePlanBucket.success_metrics || activePlanBucket.successMetrics || [];
+
+    var summary = resume.summary || resume.objective || '';
+    var executiveSummary = activePlanBucket.executiveSummary || activePlanBucket.executive_summary || (rolePlan && rolePlan.success_summary) || summary || '';
+
+    return {
+      hero: {
+        name: name,
+        current_title: currentTitle,
+        target_title: jobTitle,
+        company: company,
+        location: resume.location || '',
+        email: resume.email || '',
+        phone: resume.phone || '',
+        linkedin: resume.linkedin || '',
+        website: resume.website || resume.portfolio || '',
+        photo_url: RB_STATE.profilePhotoDataUrl || resume.photo_url || resume.photo || ''
+      },
+      executive_summary: executiveSummary,
+      summary: summary,
+      cover_letter: coverLetter || null,
+      plan_type: activePlanType,
+      plan_title: activePlanBucket.title || 'Career Plan',
+      plan_timeframe: activePlanBucket.timeframe || activePlanType || '',
+      plan_phases: Array.isArray(phases) ? phases : [],
+      success_criteria: Array.isArray(successCriteria) ? successCriteria : [],
+      kpis: Array.isArray(kpis) ? kpis : [],
+      resume: resume,
+      experience: Array.isArray(resume.experience) ? resume.experience : [],
+      skills: Array.isArray(resume.skills) ? resume.skills : [],
+      technical_skills: Array.isArray(resume.technical_skills) ? resume.technical_skills : [],
+      tools: Array.isArray(resume.tools) ? resume.tools : [],
+      software: Array.isArray(resume.software) ? resume.software : [],
+      methodologies: Array.isArray(resume.methodologies) ? resume.methodologies : [],
+      industry_knowledge: Array.isArray(resume.industry_knowledge) ? resume.industry_knowledge : [],
+      soft_skills: Array.isArray(resume.soft_skills) ? resume.soft_skills : [],
+      education: Array.isArray(resume.education) ? resume.education : [],
+      certifications: Array.isArray(resume.certifications) ? resume.certifications : [],
+      achievements: Array.isArray(resume.achievements) ? resume.achievements : [],
+      projects: Array.isArray(resume.projects) ? resume.projects : [],
+      volunteer_experience: Array.isArray(resume.volunteer_experience) ? resume.volunteer_experience : [],
+      leadership_engagement: Array.isArray(resume.leadership_engagement) ? resume.leadership_engagement : []
+    };
+  }
+
+  function showPublishedShareResult(url) {
+    var host = document.getElementById('publish-share-result');
+    if (!host) {
+      var acc = document.getElementById('acc-download-share-save')
+        || document.getElementById('step-export')
+        || document.body;
+      host = document.createElement('div');
+      host.id = 'publish-share-result';
+      host.style.cssText = 'margin-top:12px;padding:12px;border:1px solid #A7F3D0;background:#ECFDF5;color:#065F46;border-radius:10px;';
+      acc.appendChild(host);
+    }
+    host.innerHTML =
+      '<div style="font-weight:800;margin-bottom:6px;">Published share link ready</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+        '<input id="published-share-url" class="input" readonly value="' + _esc(url) + '" style="flex:1;min-width:260px;background:#fff;color:#0f172a;border-color:#A7F3D0;">' +
+        '<button type="button" class="btn btn-secondary" id="copy-published-share-url">Copy</button>' +
+        '<a class="btn btn-primary" href="' + _esc(url) + '" target="_blank" rel="noopener">Open</a>' +
+      '</div>';
+    var copyBtn = document.getElementById('copy-published-share-url');
+    if (copyBtn) {
+      copyBtn.onclick = function () {
+        var input = document.getElementById('published-share-url');
+        if (!input) return;
+        try {
+          navigator.clipboard.writeText(input.value);
+          showToast('Share link copied.', 'success');
+        } catch (_) {
+          input.select();
+          try { document.execCommand('copy'); } catch (__) {}
+          showToast('Share link copied.', 'success');
+        }
+      };
+    }
+  }
+
+  async function publishShareLink() {
+    if (!requireAuth()) return;
+    if (!db) { showToast('Firestore not ready', 'error'); return; }
+    var user = auth.currentUser;
+    var btn = document.querySelector('[data-action="publishShareLink"]')
+      || document.getElementById('publish-btn')
+      || document.getElementById('nav-publish');
+    var origHTML = btn ? btn.innerHTML : '';
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Publishing...';
+      }
+
+      var pkg = typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null;
+      if (!pkg) throw new Error('Could not build document package.');
+      var anySelected = pkg.selected && (pkg.selected.resume || pkg.selected.coverLetter || pkg.selected.rolePlan);
+      if (!anySelected) {
+        showToast('Select at least one document before publishing.', 'warning');
+        return;
+      }
+      var hasAnyContent =
+        (pkg.documents && (pkg.documents.resume || pkg.documents.coverLetter || pkg.documents.rolePlan)) ||
+        RB_STATE.resumeData ||
+        RB_STATE.coverLetter ||
+        RB_STATE.rolePlan;
+      if (!hasAnyContent) {
+        showToast('Add resume, cover letter, or career plan content before publishing.', 'warning');
+        return;
+      }
+
+      RB_STATE.documentPackage = pkg;
+      var generated = buildGeneratedForPublishedView(pkg);
+
+      var heroName = (generated.hero && generated.hero.name) || '';
+      var heroTitle = (generated.hero && generated.hero.target_title) || '';
+      var heroCompany = (generated.hero && generated.hero.company) || '';
+      var titleParts = [heroName, heroTitle, heroCompany].filter(Boolean);
+      var displayName = (RB_STATE.resumeData && (RB_STATE.resumeData.full_name || RB_STATE.resumeData.name)) || heroName || '';
+      var baseSlug = titleParts.length ? titleParts.join(' ') : (displayName || 'resume-profile');
+
+      var existingId = window.currentPlanId || RB_STATE.currentPlanId || currentPlanId || null;
+      var ref;
+      var existingData = {};
+      if (existingId) {
+        ref = db.collection('plans').doc(existingId);
+        try {
+          var existingSnap = await ref.get();
+          if (existingSnap.exists) existingData = existingSnap.data() || {};
+        } catch (e) {
+          existingData = {};
+        }
+      } else {
+        ref = db.collection('plans').doc();
+        currentPlanId = ref.id;
+        window.currentPlanId = ref.id;
+        RB_STATE.currentPlanId = ref.id;
+      }
+
+      var slug = existingData.slug || await makeUniquePublishSlug(baseSlug);
+
+      var styleSettings = typeof getCurrentStyleSettings === 'function'
+        ? getCurrentStyleSettings()
+        : {
+            style: (document.getElementById('export-style') && document.getElementById('export-style').value) || 'modern-sidebar',
+            color: (document.querySelector('.swatch.selected') && document.querySelector('.swatch.selected').getAttribute('data-color')) || 'blue'
+          };
+
+      var colorMap = {
+        blue: '#005EB8',
+        slate: '#475569',
+        green: '#047857',
+        purple: '#7C3AED'
+      };
+      var styleToken = styleSettings.style || 'modern-sidebar';
+      var rawColor = styleSettings.color || 'blue';
+      var color;
+      if (colorMap[rawColor]) color = colorMap[rawColor];
+      else if (typeof rawColor === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(rawColor)) color = rawColor;
+      else color = '#005EB8';
+
+      var payload = sanitizeForFirestore({
+        schemaVersion: 'resume-builder-clean-lean-v1',
+        source: 'resumebuilder.html',
+        userId: user.uid,
+        userEmail: user.email || '',
+        userName: heroName,
+        jobTitle: heroTitle,
+        company: heroCompany,
+        planType: generated.plan_type || RB_STATE.rolePlanType || '90-day',
+        slug: slug,
+        published: true,
+        publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        generated: generated,
+        documentPackage: pkg,
+        resumeData: RB_STATE.resumeData || null,
+        coverLetter: RB_STATE.coverLetter || null,
+        rolePlan: RB_STATE.rolePlan || null,
+        style: styleToken,
+        color: color,
+        styleSettings: styleSettings
+      });
+      if (!existingData.createdAt) {
+        payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      }
+
+      await ref.set(payload, { merge: true });
+      currentPlanId = ref.id;
+      window.currentPlanId = ref.id;
+      RB_STATE.currentPlanId = ref.id;
+
+      var url = location.origin + '/view.html?p=' + encodeURIComponent(slug);
+      showPublishedShareResult(url);
+      showToast('Published share link created.', 'success');
+      return url;
+    } catch (err) {
+      console.error('[publishShareLink] failed', err);
+      showToast('Publish failed: ' + ((err && err.message) || err), 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHTML || '<i data-lucide="share-2" style="width:16px;height:16px;"></i> Publish Share Link';
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          try { window.lucide.createIcons(); } catch (_) {}
+        }
+      }
+    }
+  }
+
+  window.debugPublishViewContract = async function () {
+    var id = window.currentPlanId || (window.RB_STATE && RB_STATE.currentPlanId) || currentPlanId;
+    if (!id) return { ok: false, reason: 'no currentPlanId' };
+    if (!db) return { ok: false, reason: 'no db' };
+    var snap = await db.collection('plans').doc(id).get();
+    if (!snap.exists) return { ok: false, reason: 'plan doc not found', id: id };
+    var d = snap.data() || {};
+    var viewUrl = d.slug ? (location.origin + '/view.html?p=' + encodeURIComponent(d.slug)) : '';
+    return {
+      ok: !!(d.slug && d.published === true && d.generated && d.generated.hero),
+      id: id,
+      slug: d.slug || '',
+      published: d.published === true,
+      hasGenerated: !!d.generated,
+      hasHero: !!(d.generated && d.generated.hero),
+      hasResumeData: !!d.resumeData,
+      hasDocumentPackage: !!d.documentPackage,
+      hasCoverLetter: !!d.coverLetter,
+      hasRolePlan: !!d.rolePlan,
+      style: d.style || '',
+      color: d.color || '',
+      jobTitle: d.jobTitle || '',
+      company: d.company || '',
+      viewUrl: viewUrl,
+      missing: [
+        !d.slug && 'slug',
+        d.published !== true && 'published:true',
+        !d.generated && 'generated',
+        !(d.generated && d.generated.hero) && 'generated.hero'
+      ].filter(Boolean)
+    };
+  };
 
   // ============================================================
   // Save Draft / Load Draft / My Resumes (Firestore: collection "plans")
@@ -6248,6 +6568,10 @@
     loadDraft: loadDraft,
     resetBuilder: resetBuilder,
     publishShareLink: publishShareLink,
+    buildGeneratedForPublishedView: buildGeneratedForPublishedView,
+    makeUniquePublishSlug: makeUniquePublishSlug,
+    slugifyForPublish: slugifyForPublish,
+    showPublishedShareResult: showPublishedShareResult,
     validateCleanBase: validateCleanBase,
     validateResponsiveShell: validateResponsiveShell,
     RB_STATE: RB_STATE,
