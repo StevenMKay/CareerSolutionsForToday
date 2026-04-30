@@ -2522,19 +2522,52 @@
   // Client-side validator — mirrors backend isBadLinkedInJobDescription.
   // Used to block authwall / login chrome from overwriting #job-desc on a soft-pass response.
   function isUsefulJobDescription(text) {
-    var s = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    if (!s || s.length < 80) return false;
-    var blockers = [
-      'sign in to view', 'join linkedin', 'agree & join', 'new to linkedin',
-      'create a linkedin account', 'continue with google', 'continue with apple',
-      'forgot password', 'sign in to see who', 'by clicking continue',
-      'linkedin user agreement', 'cookie policy', 'sign in to access',
-      'log in or sign up', 'this button displays', 'we and our partners use cookies'
+    var raw = String(text || '').trim();
+    var s = raw.toLowerCase().replace(/\s+/g, ' ');
+
+    if (!raw) return false;
+    if (raw.length < 500) return false;
+
+    var badPhrases = [
+      'login to linkedin',
+      'sign in to linkedin',
+      'join linkedin',
+      'keep in touch with people you know',
+      'share ideas, and build your career',
+      'welcome back',
+      'authwall',
+      'session_redirect',
+      'to view or add a comment, sign in',
+      'linkedin and 3rd parties use essential',
+      'we and our partners use cookies',
+      'linkedin respects your privacy',
+      'create a linkedin account',
+      'continue with google',
+      'continue with apple',
+      'forgot password',
+      'log in or sign up'
     ];
-    for (var i = 0; i < blockers.length; i++) { if (s.indexOf(blockers[i]) !== -1) return false; }
-    var lnHits = (s.match(/linkedin/g) || []).length;
-    if (lnHits >= 4 && s.length < 600) return false;
-    return true;
+    for (var i = 0; i < badPhrases.length; i++) {
+      if (s.indexOf(badPhrases[i]) !== -1) return false;
+    }
+
+    var jobSignals = [
+      'about the job',
+      'about this role',
+      'in this role',
+      'you will',
+      'required qualifications',
+      'desired qualifications',
+      'job expectations',
+      'pay range',
+      'responsibilities',
+      'qualifications'
+    ];
+    var signalCount = 0;
+    for (var j = 0; j < jobSignals.length; j++) {
+      if (s.indexOf(jobSignals[j]) !== -1) signalCount++;
+    }
+    return signalCount >= 2;
   }
   function hasResumeReady() {
     var rd = RB_STATE.resumeData;
@@ -4887,19 +4920,34 @@
     var stEl = document.getElementById('linkedin-job-status');
     var urlEl = document.getElementById('linkedin-job-url');
     var jd = jdEl ? jdEl.value : '';
-    var jdLower = jd.toLowerCase();
-    var loginPhrases = ['sign in to view', 'join linkedin', 'agree & join', 'new to linkedin', 'continue with google'];
-    var hits = loginPhrases.filter(function (p) { return jdLower.indexOf(p) !== -1; });
+    var s = jd.toLowerCase().replace(/\s+/g, ' ');
+    var badPhrases = [
+      'login to linkedin','sign in to linkedin','join linkedin',
+      'keep in touch with people you know','share ideas, and build your career',
+      'welcome back','authwall','session_redirect','to view or add a comment, sign in',
+      'linkedin and 3rd parties use essential','we and our partners use cookies',
+      'linkedin respects your privacy','create a linkedin account',
+      'continue with google','continue with apple','forgot password','log in or sign up'
+    ];
+    var jobSignals = [
+      'about the job','about this role','in this role','you will',
+      'required qualifications','desired qualifications','job expectations',
+      'pay range','responsibilities','qualifications'
+    ];
+    var matchedBadPhrases = badPhrases.filter(function (p) { return s.indexOf(p) !== -1; });
+    var matchedJobSignals = jobSignals.filter(function (p) { return s.indexOf(p) !== -1; });
     return {
       url: urlEl ? urlEl.value : '',
       status: stEl ? stEl.textContent : '',
       jobTitle: ttEl ? ttEl.value : '',
       company: coEl ? coEl.value : '',
-      jobDescriptionLength: jd.length,
+      descriptionLength: jd.length,
       jobDescriptionPreview: jd.slice(0, 240),
       isUseful: typeof isUsefulJobDescription === 'function' ? isUsefulJobDescription(jd) : null,
-      containsLinkedInLoginText: hits.length > 0,
-      loginPhrasesMatched: hits,
+      containsLinkedInLoginText: matchedBadPhrases.length > 0,
+      matchedBadPhrases: matchedBadPhrases,
+      jobSignalCount: matchedJobSignals.length,
+      matchedJobSignals: matchedJobSignals,
       lastResponse: RB_STATE._lastLinkedInImport || null
     };
   };
