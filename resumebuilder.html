@@ -3462,6 +3462,24 @@
     return 'Needs Alignment';
   }
 
+  function hasSafeOptimizationSuggestions(opt) {
+    var r    = (opt && opt.suggestions && opt.suggestions.resume)      || {};
+    var cv   = (opt && opt.suggestions && opt.suggestions.coverLetter) || {};
+    var plan = (opt && opt.suggestions && opt.suggestions.rolePlan)    || {};
+    return !!(
+      r.summaryRewrite ||
+      r.headlineRewrite ||
+      (Array.isArray(r.skillsToAdd) && r.skillsToAdd.length) ||
+      (Array.isArray(r.experienceBulletRewrites) && r.experienceBulletRewrites.some(function (x) { return x && x.safeToApply !== false; })) ||
+      (Array.isArray(r.roleSummaryRewrites)      && r.roleSummaryRewrites.some(function (x) { return x && x.safeToApply !== false; })) ||
+      cv.openingRewrite ||
+      cv.closingRewrite ||
+      (Array.isArray(cv.bodyParagraphRewrites) && cv.bodyParagraphRewrites.some(function (x) { return x && x.safeToApply !== false; })) ||
+      plan.executiveSummaryRewrite ||
+      (Array.isArray(plan.phaseEnhancements) && plan.phaseEnhancements.some(function (x) { return x && x.safeToApply !== false; }))
+    );
+  }
+
   function normalizeOptimizationResponse(opt, baselineScoreFallback) {
     opt = opt || {};
     var baseline = Number(
@@ -3487,8 +3505,11 @@
     } else if (projected === baseline) {
       status = 'maintains';
       label = 'Maintains Match Score';
-      shouldApply = true;
-      message = 'Suggested updates are projected to maintain the match score.';
+      // Per decision #2: maintains only enables Apply when there are safe non-destructive suggestions.
+      shouldApply = hasSafeOptimizationSuggestions(opt);
+      message = shouldApply
+        ? 'Suggested updates are projected to maintain the match score.'
+        : 'No safe updates are suggested. Insights are shown for review.';
     } else {
       status = 'rejected';
       label = 'Not Applied — Score Would Decrease';
