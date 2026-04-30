@@ -3518,10 +3518,32 @@
     return '<p class="sk-plain">' + flat.map(function (s) { return _esc(_safeStr(s)); }).join(', ') + '</p>';
   }
 
+  // Public Web Polish v3: render web skills as separate tiles, not a string blob.
+  function renderWebSkillsTiles(rd) {
+    var data = (typeof getSkillGroupsForPreview === 'function') ? getSkillGroupsForPreview(rd) : { groups: [], flat: [] };
+    var tiles = [];
+    if (data && data.groups && data.groups.length) {
+      data.groups.forEach(function (g) { (g.items || []).forEach(function (s) { tiles.push(_safeStr(s)); }); });
+    } else if (data && Array.isArray(data.flat)) {
+      data.flat.forEach(function (s) { tiles.push(_safeStr(s)); });
+    }
+    tiles = tiles.filter(function (t) { return !!t; });
+    if (!tiles.length) return '';
+    return '<div class="web-skills-tile-grid">' + tiles.map(function (label) {
+      return '<div class="web-skill-tile">' +
+        '<span class="web-skill-icon">' + professionalIconSvg('check') + '</span>' +
+        '<span class="web-skill-label">' + _esc(label) + '</span>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
   // Single entry point used by renderers; routes to the doc/web variant.
+  // Web format renders tile grid; document formats are unchanged.
   function renderSkillsBlock(rd, cfg, format) {
     var isDocument = (format === 'pdf' || format === 'docx');
-    return isDocument ? renderDocumentSkills(rd, cfg) : renderWebSkills(rd, cfg);
+    if (isDocument) return renderDocumentSkills(rd, cfg);
+    var tiles = renderWebSkillsTiles(rd);
+    return tiles || renderWebSkills(rd, cfg);
   }
 
   // ---------- Sanitizer ----------
@@ -3894,19 +3916,25 @@
 
   // ----- Web-only role plan renderer (vertical timeline of phase cards + icon KPIs/Success) -----
   // Inline SVG icons (24x24, currentColor). No external network requests, no scripts in iframe.
-  function _iconSvg(name) {
+  // Public Web Polish v3: professional line icons.
+  function professionalIconSvg(type) {
     var paths = {
-      target:    '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>',
-      check:     '<path d="M5 12.5l4.2 4.2L19 7" stroke-linecap="round" stroke-linejoin="round"/>',
-      bolt:      '<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke-linejoin="round"/>',
-      flag:      '<path d="M5 21V4M5 4h11l-2 4 2 4H5" stroke-linecap="round" stroke-linejoin="round"/>',
-      tools:     '<path d="M14.7 6.3a4 4 0 015.6 5.6L13 19.2 4.8 21l1.8-8.2 8.1-8.1z" stroke-linejoin="round"/>',
-      trending:  '<path d="M3 17l6-6 4 4 8-8M14 7h7v7" stroke-linecap="round" stroke-linejoin="round"/>',
-      list:      '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke-linecap="round"/>',
-      sparkle:   '<path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.2 4.2M14.2 14.2l4.2 4.2M5.6 18.4l4.2-4.2M14.2 9.8l4.2-4.2" stroke-linecap="round"/>'
+      check:      '<path d="M5 12.5l4.2 4.2L19 7" stroke-linecap="round" stroke-linejoin="round"/>',
+      target:     '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>',
+      chart:      '<path d="M3 3v18h18" stroke-linecap="round"/><path d="M7 15l4-4 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/>',
+      briefcase:  '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2M3 12h18" stroke-linecap="round"/>',
+      layers:     '<path d="M12 3l9 5-9 5-9-5 9-5z" stroke-linejoin="round"/><path d="M3 13l9 5 9-5M3 17l9 5 9-5" stroke-linecap="round" stroke-linejoin="round"/>',
+      graduation: '<path d="M22 10L12 5 2 10l10 5 10-5z" stroke-linejoin="round"/><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" stroke-linecap="round"/>',
+      award:      '<circle cx="12" cy="9" r="6"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5" stroke-linecap="round" stroke-linejoin="round"/>',
+      roadmap:    '<path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2z" stroke-linejoin="round"/><path d="M9 4v14M15 6v14" stroke-linecap="round"/>',
+      tool:       '<path d="M14.7 6.3a4 4 0 015.6 5.6L13 19.2 4.8 21l1.8-8.2 8.1-8.1z" stroke-linejoin="round"/>'
     };
-    var inner = paths[name] || paths.check;
-    return '<svg class="web-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' + inner + '</svg>';
+    var inner = paths[type] || paths.check;
+    return '<svg class="web-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' + inner + '</svg>';
+  }
+  function _iconSvg(name) {
+    var aliasMap = { bolt: 'roadmap', flag: 'target', sparkle: 'award', tools: 'tool', trending: 'chart', list: 'layers' };
+    return professionalIconSvg(aliasMap[name] || name);
   }
   function _previewTextFromItem(it) {
     if (it == null) return '';
@@ -4052,6 +4080,61 @@
     '</div>';
   }
 
+  // Public Web Polish v3 helpers: hero dedup + section shells + dividers.
+  function normalizeHeroText(value) {
+    if (value == null) return '';
+    var s = String(value);
+    if (typeof decodeHtmlEntitiesOnce === 'function') s = decodeHtmlEntitiesOnce(s);
+    return s.replace(/\s+/g, ' ').trim();
+  }
+  function buildCleanHeroText(pkg) {
+    var d = (pkg && pkg.documents) || {};
+    var rd = d.resume || {};
+    var contact = rd.contact || rd.basics || {};
+    var role = d.targetRole || {};
+    var name = normalizeHeroText(rd.full_name || contact.name || rd.name || '');
+    var primary = normalizeHeroText(rd.headline || rd.title || (contact && contact.headline) || (role && role.job_title) || '');
+    var targetTitle = normalizeHeroText(role && role.job_title || '');
+    var company = normalizeHeroText(role && role.company || '');
+    var targeting = '';
+    if (company) {
+      var combined = targetTitle ? (targetTitle + ' at ' + company) : ('at ' + company);
+      var primaryLower = primary.toLowerCase();
+      var redundant = !!(targetTitle && primaryLower.indexOf(targetTitle.toLowerCase()) !== -1 && primaryLower.indexOf(company.toLowerCase()) !== -1);
+      if (!redundant) targeting = 'Targeting ' + combined;
+    }
+    var summary = normalizeHeroText(rd.summary || rd.objective || '');
+    return { name: name, primary: primary, targeting: targeting, summary: summary };
+  }
+  function renderWebSection(opts) {
+    opts = opts || {};
+    var id = opts.id || '';
+    var eyebrow = opts.eyebrow || '';
+    var title = opts.title || '';
+    var subtitle = opts.subtitle || '';
+    var content = opts.content || '';
+    var hasHeader = eyebrow || title || subtitle;
+    return '<section class="web-section-shell"' + (id ? ' id="' + id + '"' : '') + '>' +
+      (hasHeader ? '<header class="web-section-header">' +
+        (eyebrow ? '<div class="web-section-eyebrow">' + _esc(eyebrow) + '</div>' : '') +
+        (title ? '<h2 class="web-section-title">' + _esc(title) + '</h2>' : '') +
+        (subtitle ? '<p class="web-section-subtitle">' + _esc(subtitle) + '</p>' : '') +
+      '</header>' : '') +
+      content +
+    '</section>';
+  }
+  function renderWebSectionDivider(fromLabel, toLabel) {
+    return '<div class="web-section-divider" role="separator" aria-hidden="true">' +
+      '<span class="web-divider-line"></span>' +
+      '<span class="web-divider-card">' +
+        '<span class="web-divider-from">' + _esc(fromLabel) + '</span>' +
+        '<span class="web-divider-arrow">&rarr;</span>' +
+        '<span class="web-divider-to">' + _esc(toLabel) + '</span>' +
+      '</span>' +
+      '<span class="web-divider-line"></span>' +
+    '</div>';
+  }
+
   function _renderWebPortfolio(pkg, cfg) {
     cfg = cfg || getPreviewStyleConfig((pkg.style && pkg.style.template) || 'modern-sidebar', (pkg.style && pkg.style.color) || 'blue', 'web');
     var d = pkg.documents || {};
@@ -4074,33 +4157,41 @@
     if (rd.github)   heroLinks.push(_safeStr(rd.github));
     if (rd.website)  heroLinks.push(_safeStr(rd.website));
 
+    // Public Web Polish v3: dedupe hero text via buildCleanHeroText.
+    var heroText = buildCleanHeroText(pkg);
     var hero = '<header class="hero" id="sec-top">' +
-      (photo ? '<img class="preview-profile-photo hero-photo" alt="' + _esc(name) + '" src="' + _esc(photo) + '">' : '') +
-      '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
-      (headline ? '<p class="hero-sub">' + _esc(_truncate(headline, 140)) + '</p>' : '') +
-      (role.company ? '<p class="hero-meta muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
-      ((headline && headline.length > 140) ? '<p class="hero-meta muted hero-context">' + _esc(headline) + '</p>' : '') +
+      (photo ? '<img class="preview-profile-photo hero-photo" alt="' + _esc(heroText.name || name) + '" src="' + _esc(photo) + '">' : '') +
+      '<h1>' + _esc(heroText.name || 'My Portfolio') + '</h1>' +
+      (heroText.primary ? '<p class="hero-sub">' + _esc(_truncate(heroText.primary, 160)) + '</p>' : '') +
+      (heroText.targeting ? '<p class="hero-meta muted">' + _esc(heroText.targeting) + '</p>' : '') +
       (heroLinks.length ? '<div class="hero-links">' + heroLinks.map(function (l) { return '<span class="hero-link">' + _esc(l) + '</span>'; }).join('') + '</div>' : '') +
     '</header>';
 
-    // Build navigation — only emit anchors whose target will render.
+    // Public Web Polish v3: non-navigating sidebar nav. Spans avoid the
+    // sandboxed-iframe "blocked script" warning that fires when href="#sec-x"
+    // resolves against the parent URL inside a sandbox="allow-same-origin"
+    // iframe (which has no allow-scripts). Spans carry data-target so a
+    // future host can wire scroll-to behavior without violating sandbox.
+    function navSpan(target, label, isFirst) {
+      return '<span class="web-nav-link' + (isFirst ? ' is-active' : '') + '" data-target="' + target + '" role="link" tabindex="0">' + label + '</span>';
+    }
     var navItems = [];
-    navItems.push('<a href="#sec-overview">Overview</a>');
-    if (order.indexOf('rolePlan') !== -1)    navItems.push('<a href="#sec-plan">Career Plan</a>');
-    if (order.indexOf('coverLetter') !== -1) navItems.push('<a href="#sec-cv">Cover Letter</a>');
+    navItems.push(navSpan('sec-overview', 'Overview', true));
+    if (order.indexOf('rolePlan') !== -1)    navItems.push(navSpan('sec-plan', 'Career Plan', false));
+    if (order.indexOf('coverLetter') !== -1) navItems.push(navSpan('sec-cv', 'Cover Letter', false));
     if (order.indexOf('resume') !== -1) {
-      navItems.push('<a href="#sec-resume">Resume</a>');
-      if (Array.isArray(rd.experience) && rd.experience.length) navItems.push('<a href="#sec-experience">Experience</a>');
+      navItems.push(navSpan('sec-resume', 'Resume', false));
+      if (Array.isArray(rd.experience) && rd.experience.length) navItems.push(navSpan('sec-experience', 'Experience', false));
       var hasSkills = (Array.isArray(rd.skills) && rd.skills.length) ||
         (Array.isArray(rd.technical_skills) && rd.technical_skills.length);
-      if (hasSkills) navItems.push('<a href="#sec-skills">Skills</a>');
-      if (Array.isArray(rd.education) && rd.education.length)         navItems.push('<a href="#sec-education">Education</a>');
-      if (Array.isArray(rd.certifications) && rd.certifications.length) navItems.push('<a href="#sec-certifications">Certifications</a>');
+      if (hasSkills) navItems.push(navSpan('sec-skills', 'Skills', false));
+      if (Array.isArray(rd.education) && rd.education.length)         navItems.push(navSpan('sec-education', 'Education', false));
+      if (Array.isArray(rd.certifications) && rd.certifications.length) navItems.push(navSpan('sec-certifications', 'Certifications', false));
       var hasAch = (Array.isArray(rd.achievements) && rd.achievements.length) ||
         (Array.isArray(rd.projects) && rd.projects.length);
-      if (hasAch) navItems.push('<a href="#sec-achievements">Achievements</a>');
+      if (hasAch) navItems.push(navSpan('sec-achievements', 'Achievements', false));
     }
-    var nav = '<nav class="site-nav" aria-label="Section navigation">' + navItems.join('') + '</nav>';
+    var nav = '<aside class="web-sidebar" aria-label="Section navigation">' + navItems.join('') + '</aside>';
 
     var overviewSummary = _safeStr(rd.summary || rd.objective || '');
     var overview = '<section id="sec-overview" class="doc-section overview-card">' +
@@ -4110,8 +4201,18 @@
         : '<p class="muted">Add a summary to your resume to populate this overview.</p>') +
     '</section>';
 
+    // Public Web Polish v3: insert section dividers between subdocs.
     var body = overview;
-    order.forEach(function (key) { body += _renderDocSectionByKey(key, pkg, cfg, 'web'); });
+    var prevKey = null;
+    order.forEach(function (key) {
+      var content = _renderDocSectionByKey(key, pkg, cfg, 'web');
+      if (!content) return;
+      if (prevKey === 'coverLetter' && key === 'rolePlan') body += renderWebSectionDivider('Cover Letter', 'Career Plan');
+      else if (prevKey === 'rolePlan' && key === 'resume') body += renderWebSectionDivider('Career Plan', 'Resume');
+      else if (prevKey === 'coverLetter' && key === 'resume') body += renderWebSectionDivider('Cover Letter', 'Resume');
+      body += content;
+      prevKey = key;
+    });
     if (order.indexOf('rolePlan') !== -1 && d.rolePlan) body += _renderPortfolioSections(d.rolePlan);
 
     var footer = '<footer class="site-footer muted">Generated ' + _esc(pkg.generatedAt) + '</footer>';
@@ -4648,7 +4749,30 @@
       // Portfolio PPTX: bold gradient title slide.
       'body.format-pptx.style-portfolio .slide-title{background:linear-gradient(135deg,var(--accent),var(--accent-dark));}',
       // Disable internal scrollbars on all PPTX slides; rely on truncation.
-      'body.format-pptx .slide-inner ul,body.format-pptx .slide-inner ol{overflow:hidden;}'
+      'body.format-pptx .slide-inner ul,body.format-pptx .slide-inner ol{overflow:hidden;}',
+      // ---------- Public Web Polish v3 (scoped to body.format-web) ----------
+      'body.format-web .web-section-shell{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px 28px;margin:18px 0;box-shadow:0 1px 2px rgba(15,23,42,.04);}',
+      'body.format-web .web-section-header{margin:0 0 14px;}',
+      'body.format-web .web-section-eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:6px;}',
+      'body.format-web .web-section-title{font-size:1.4rem;color:var(--text);margin:0 0 4px;}',
+      'body.format-web .web-section-subtitle{color:var(--muted);margin:0;font-size:.95rem;}',
+      'body.format-web .web-section-divider{display:flex;align-items:center;gap:14px;margin:28px 0;}',
+      'body.format-web .web-divider-line{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent);}',
+      'body.format-web .web-divider-card{background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 14px;font-size:.8rem;color:var(--muted);display:inline-flex;align-items:center;gap:8px;white-space:nowrap;}',
+      'body.format-web .web-divider-arrow{color:var(--accent);font-weight:700;}',
+      'body.format-web .web-skills-tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:8px 0;}',
+      'body.format-web .web-skill-tile{display:flex;align-items:center;gap:10px;background:#F8FAFC;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:.9rem;color:var(--text);}',
+      'body.format-web .web-skill-icon{display:inline-flex;color:var(--accent);}',
+      'body.format-web .web-skill-icon svg,body.format-web .web-icon{width:16px;height:16px;}',
+      'body.format-web .web-sidebar{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:4px;align-self:flex-start;margin:14px 0;}',
+      'body.format-web .web-nav-link{display:block;padding:8px 12px;border-radius:8px;color:var(--muted);font-size:.9rem;cursor:pointer;user-select:none;transition:background .12s,color .12s;}',
+      'body.format-web .web-nav-link:hover{background:#F1F5F9;color:var(--text);}',
+      'body.format-web .web-nav-link.is-active{background:rgba(37,99,235,.10);color:var(--accent-dark);font-weight:600;}',
+      'body.format-web .web-roadmap{display:flex;flex-direction:column;gap:22px;}',
+      'body.format-web .web-phase-card{width:100%;}',
+      '@media (max-width:860px){body.format-web .web-skills-tile-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));}}',
+      '@media (max-width:640px){body.format-web .web-section-divider{flex-direction:column;gap:8px;}body.format-web .web-divider-line{width:60%;height:1px;}}',
+      '@media (max-width:560px){body.format-web .web-skills-tile-grid{grid-template-columns:1fr;}}'
     ].join('\n');
   }
 
@@ -4971,6 +5095,25 @@
     var visibleText = (doc.body && doc.body.innerText) || '';
     var bodyClass = (doc.body && doc.body.className) || '';
     var scrollTop = (doc.documentElement && doc.documentElement.scrollTop) || (doc.body && doc.body.scrollTop) || 0;
+    // Public Web Polish v3 metrics.
+    var sectionShells = doc.querySelectorAll('.web-section-shell');
+    var docSections = doc.querySelectorAll('.doc-section');
+    var sectionCount = sectionShells.length + docSections.length;
+    var bridgeCount = doc.querySelectorAll('.web-section-divider').length;
+    var sidebarEls = doc.querySelectorAll('.web-sidebar');
+    var hasSidebarNav = sidebarEls.length > 0;
+    var navRealAnchorCount = doc.querySelectorAll('.web-sidebar a, nav.site-nav a').length;
+    var skillTileCount = doc.querySelectorAll('.web-skill-tile').length;
+    var emojiIconCount = (visibleText.match(/[\u26A1\u270F\uFE0F\uD83D\uDEA9\uD83D\uDE0A\u274C]/g) || []).length;
+    var anchorEls = doc.querySelectorAll('a[href]');
+    var builderPageLinks = 0;
+    anchorEls.forEach(function (a) {
+      var h = a.getAttribute('href') || '';
+      if (h.indexOf('resumebuilder.html') !== -1) builderPageLinks++;
+    });
+    var srcdoc = '';
+    try { srcdoc = (frame && frame.srcdoc) || ''; } catch (_) {}
+    var scriptTagCount = srcdoc ? (srcdoc.match(/<script\b/gi) || []).length : 0;
     return {
       hasFrame: true,
       hasDoc: true,
@@ -4985,7 +5128,39 @@
       usesIframeScripts: iframeScripts.length,
       visibleTextHasDoubleEscapedAmp: visibleText.indexOf('&amp;') !== -1,
       visibleTextLength: visibleText.length,
-      scrollTop: scrollTop
+      scrollTop: scrollTop,
+      sectionCount: sectionCount,
+      bridgeCount: bridgeCount,
+      hasSidebarNav: hasSidebarNav,
+      navRealAnchorCount: navRealAnchorCount,
+      skillTileCount: skillTileCount,
+      emojiIconCount: emojiIconCount,
+      builderPageLinks: builderPageLinks,
+      scriptTagCount: scriptTagCount
+    };
+  };
+
+  // Public Web Polish v3: report sandbox-related anchor risks in iframe.
+  window.debugPreviewSandboxLinks = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null; try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { totalLinks: 0, hashLinks: 0, builderPageLinks: 0, scriptTagCount: 0 };
+    var anchors = doc.querySelectorAll('a[href]');
+    var totalLinks = anchors.length;
+    var hashLinks = 0, builderPageLinks = 0;
+    anchors.forEach(function (a) {
+      var h = a.getAttribute('href') || '';
+      if (h.charAt(0) === '#') hashLinks++;
+      if (h.indexOf('resumebuilder.html') !== -1) builderPageLinks++;
+    });
+    var srcdoc = '';
+    try { srcdoc = (frame && frame.srcdoc) || ''; } catch (_) {}
+    var scriptTagCount = srcdoc ? (srcdoc.match(/<script\b/gi) || []).length : 0;
+    return {
+      totalLinks: totalLinks,
+      hashLinks: hashLinks,
+      builderPageLinks: builderPageLinks,
+      scriptTagCount: scriptTagCount
     };
   };
 
