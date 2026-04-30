@@ -1092,16 +1092,65 @@
             <i data-lucide="chevron-down" class="acc-chevron" style="width:18px;height:18px;"></i>
           </button>
           <div class="acc-body stack">
-            <ul style="list-style:none;padding:0;margin:0;">
-              <li style="padding:.4rem 0;display:flex;align-items:center;gap:.5rem;"><i data-lucide="circle" style="width:14px;height:14px;color:#94A3B8;"></i> Resume imported</li>
-              <li style="padding:.4rem 0;display:flex;align-items:center;gap:.5rem;"><i data-lucide="circle" style="width:14px;height:14px;color:#94A3B8;"></i> Target role added</li>
-              <li style="padding:.4rem 0;display:flex;align-items:center;gap:.5rem;"><i data-lucide="circle" style="width:14px;height:14px;color:#94A3B8;"></i> Ready to optimize</li>
-            </ul>
-            <div class="row">
-              <button id="optimize-btn" class="btn btn-optimize" type="button" data-action="optimizeForJob"><i data-lucide="zap" style="width:16px;height:16px;"></i> Run Optimization</button>
+            <div class="row" style="gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+              <div style="display:flex;flex-direction:column;gap:.25rem;">
+                <label class="field-label" for="optimize-mode" style="font-size:.8rem;color:#475569;">Optimize Focus</label>
+                <select id="optimize-mode" class="field-input" style="min-width:180px;">
+                  <option value="balanced" selected>Balanced</option>
+                  <option value="ats">ATS Alignment</option>
+                  <option value="executive">Executive Impact</option>
+                  <option value="concise">Concise / Tighten</option>
+                </select>
+              </div>
+              <button id="optimize-btn" class="btn btn-optimize" type="button" data-action="runOptimize"><i data-lucide="zap" style="width:16px;height:16px;"></i> Run Optimization</button>
               <span id="optimize-status" style="color:#475569;font-size:.85rem;">Idle</span>
             </div>
-            <small style="color:#64748B;">Placeholder only &mdash; optimization logic will be wired later.</small>
+            <small style="color:#64748B;">Optimization compares your resume, cover letter, and role plan to the target job. You review and apply only safe updates.</small>
+
+            <div id="optimize-output" hidden style="display:flex;flex-direction:column;gap:1rem;margin-top:.5rem;">
+
+              <!-- ===== Match Score card ===== -->
+              <div id="opt-match-card" class="glass" style="padding:1rem 1.1rem;border-radius:14px;display:flex;flex-direction:column;gap:.75rem;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+                  <div>
+                    <div style="font-size:.75rem;letter-spacing:.05em;text-transform:uppercase;color:#64748B;">Match Score</div>
+                    <div style="display:flex;align-items:baseline;gap:.5rem;">
+                      <div id="opt-score-value" style="font-size:2.4rem;font-weight:700;color:#0F172A;line-height:1;">--</div>
+                      <div id="opt-score-label" style="font-size:.95rem;color:#475569;font-weight:600;">&nbsp;</div>
+                    </div>
+                    <div id="opt-score-delta" style="font-size:.85rem;color:#475569;margin-top:.15rem;">&nbsp;</div>
+                  </div>
+                  <span id="opt-score-badge" class="pill" style="align-self:center;">&nbsp;</span>
+                </div>
+                <div id="opt-gate-message" style="font-size:.85rem;color:#475569;display:none;padding:.5rem .75rem;border-radius:8px;background:#FEF3C7;border:1px solid #FDE68A;color:#92400E;"></div>
+                <details id="opt-why-score" style="font-size:.85rem;">
+                  <summary style="cursor:pointer;color:#1D4ED8;font-weight:600;">Why this score?</summary>
+                  <div id="opt-score-explanation" style="margin-top:.5rem;color:#334155;"></div>
+                  <div id="opt-score-breakdown" style="margin-top:.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem;"></div>
+                </details>
+              </div>
+
+              <!-- ===== Resume Insights ===== -->
+              <div id="opt-insights" class="glass" style="padding:1rem 1.1rem;border-radius:14px;display:flex;flex-direction:column;gap:.5rem;">
+                <h3 style="margin:0;font-size:1rem;color:#0F172A;">Resume Insights</h3>
+                <div id="opt-insights-summary" style="font-size:.9rem;color:#334155;"></div>
+                <div id="opt-insights-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;"></div>
+                <div id="opt-recruiter-impression" style="font-size:.85rem;color:#475569;font-style:italic;"></div>
+              </div>
+
+              <!-- ===== Suggested Updates ===== -->
+              <div id="opt-suggestions" class="glass" style="padding:1rem 1.1rem;border-radius:14px;display:flex;flex-direction:column;gap:.75rem;">
+                <h3 style="margin:0;font-size:1rem;color:#0F172A;">Suggested Updates</h3>
+                <div id="opt-suggestions-body" style="display:flex;flex-direction:column;gap:.75rem;font-size:.9rem;color:#334155;"></div>
+              </div>
+
+              <!-- ===== Apply controls ===== -->
+              <div class="row" style="gap:.5rem;align-items:center;flex-wrap:wrap;">
+                <button id="opt-apply" class="btn btn-primary" type="button" data-action="applyOptimizationUpdates"><i data-lucide="check" style="width:16px;height:16px;"></i> Apply Safe Updates</button>
+                <button id="opt-undo" class="btn btn-secondary" type="button" data-action="undoOptimizationUpdates" hidden><i data-lucide="rotate-ccw" style="width:16px;height:16px;"></i> Undo Optimization</button>
+                <span id="opt-apply-note" style="font-size:.8rem;color:#64748B;"></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3323,7 +3372,666 @@
       showToast(msg, 'error');
     });
   }
-  function optimizeForJob()         { if (!requireAuth()) return; notImplemented('optimizeForJob'); }
+  // ============================================================
+  // OPTIMIZE — analyze → enhance → gate (single Match Score)
+  // ============================================================
+  var OPT_PLAN_KEYS = [
+    'days90','months12','years2','plan_phases','success_summary',
+    'success_criteria','kpis','horizon','plan','planSource',
+    'planGeneratedAt','exportSettings'
+  ];
+
+  function stripPlanKeysFromResumeDataForOptimize(input) {
+    if (!input || typeof input !== 'object') return input || {};
+    var src;
+    try {
+      src = (typeof structuredClone === 'function')
+        ? structuredClone(input)
+        : JSON.parse(JSON.stringify(input));
+    } catch (_) { src = Object.assign({}, input); }
+    OPT_PLAN_KEYS.forEach(function (k) { try { delete src[k]; } catch (_) {} });
+    return src;
+  }
+
+  function getSingleMatchScore() {
+    var candidates = [
+      (document.querySelector('[data-resume-match-score]') || {}).textContent,
+      (document.querySelector('[data-match-score]') || {}).textContent,
+      (document.getElementById('opt-score-value') || {}).textContent,
+      (document.getElementById('resume-match-score') || {}).textContent,
+      (document.getElementById('resume-match-value') || {}).textContent,
+      RB_STATE.optimization && RB_STATE.optimization.matchScore && RB_STATE.optimization.matchScore.score,
+      RB_STATE.optimization && RB_STATE.optimization.projectedScore,
+      RB_STATE.analysisCache && RB_STATE.analysisCache.resume_match_score,
+      RB_STATE.analysisCache && RB_STATE.analysisCache.overall_score
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      var raw = candidates[i];
+      if (raw == null) continue;
+      var n = Number(String(raw).replace(/[^\d.]/g, ''));
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  }
+
+  function buildOptimizePayload() {
+    var resumeData = stripPlanKeysFromResumeDataForOptimize(RB_STATE.resumeData || {});
+    var targetRole = (typeof getTargetRoleFromDOM === 'function')
+      ? getTargetRoleFromDOM()
+      : {
+          job_title:       (document.getElementById('job-title')   || {}).value || '',
+          company:         (document.getElementById('company')     || {}).value || '',
+          job_description: (document.getElementById('job-desc')    || {}).value || '',
+          plan_context:    (document.getElementById('plan-context')|| {}).value || ''
+        };
+    var selectedDocs = (typeof getCurrentSelectedDocs === 'function')
+      ? getCurrentSelectedDocs()
+      : {
+          resume:      !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
+          coverLetter: !!(document.getElementById('include-cv')     && document.getElementById('include-cv').checked),
+          rolePlan:    !!(document.getElementById('include-plan')   && document.getElementById('include-plan').checked)
+        };
+    return {
+      resume_data: resumeData,
+      coverLetter: RB_STATE.coverLetter || RB_STATE.cvDraft || null,
+      rolePlan:    RB_STATE.rolePlan || null,
+      targetRole:  targetRole,
+      roleResearch: RB_STATE.roleResearch || null,
+      selectedDocs: selectedDocs,
+      additionalDetails: (document.getElementById('additional-resume-details') || {}).value || '',
+      activeVersionId: (RB_STATE.currentPlanId || window.currentPlanId || ''),
+      baselineScore: getSingleMatchScore(),
+      optimizeMode: (document.getElementById('optimize-mode') || {}).value || 'balanced'
+    };
+  }
+
+  function makeOptimizationSnapshot() {
+    return JSON.parse(JSON.stringify({
+      resumeData:  RB_STATE.resumeData  || null,
+      coverLetter: RB_STATE.coverLetter || null,
+      cvDraft:     RB_STATE.cvDraft     || null,
+      rolePlan:    RB_STATE.rolePlan    || null
+    }));
+  }
+
+  function optScoreLabel(score) {
+    var n = Number(score || 0);
+    if (n >= 85) return 'Strong Match';
+    if (n >= 70) return 'Good Match';
+    if (n >= 55) return 'Moderate Match';
+    return 'Needs Alignment';
+  }
+
+  function normalizeOptimizationResponse(opt, baselineScoreFallback) {
+    opt = opt || {};
+    var baseline = Number(
+      opt.baselineScore != null ? opt.baselineScore :
+      (opt.original_score != null ? opt.original_score :
+        (baselineScoreFallback != null ? baselineScoreFallback : (getSingleMatchScore() || 0)))
+    );
+    if (!Number.isFinite(baseline)) baseline = 0;
+    var projected = Number(
+      opt.projectedScore != null ? opt.projectedScore :
+      (opt.improved_score != null ? opt.improved_score :
+        (opt.matchScore && opt.matchScore.score != null ? opt.matchScore.score : baseline))
+    );
+    if (!Number.isFinite(projected)) projected = baseline;
+    var delta = projected - baseline;
+
+    var status, label, message, shouldApply;
+    if (projected > baseline) {
+      status = 'improves';
+      label = 'Improves Match';
+      shouldApply = true;
+      message = 'Suggested updates are projected to improve the match score.';
+    } else if (projected === baseline) {
+      status = 'maintains';
+      label = 'Maintains Match Score';
+      shouldApply = true;
+      message = 'Suggested updates are projected to maintain the match score.';
+    } else {
+      status = 'rejected';
+      label = 'Not Applied — Score Would Decrease';
+      shouldApply = false;
+      message = 'No changes will be applied because the projected match score decreased. Insights are still shown for review.';
+    }
+
+    opt.baselineScore  = baseline;
+    opt.projectedScore = projected;
+    opt.scoreDelta     = delta;
+    opt.shouldApply    = shouldApply;
+    opt.scoreGate = Object.assign({ status: status, label: label, message: message }, opt.scoreGate || {});
+    // Always force gate to match locally-computed status (server may agree).
+    opt.scoreGate.status  = status;
+    opt.scoreGate.label   = label;
+    opt.scoreGate.message = message;
+    opt.matchScore = opt.matchScore || {};
+    if (typeof opt.matchScore.score !== 'number' || !Number.isFinite(opt.matchScore.score)) {
+      opt.matchScore.score = projected;
+    }
+    if (!opt.matchScore.label) opt.matchScore.label = optScoreLabel(opt.matchScore.score);
+    opt.resumeInsights = opt.resumeInsights || {};
+    opt.suggestions    = opt.suggestions    || {};
+    opt.suggestions.resume      = opt.suggestions.resume      || {};
+    opt.suggestions.coverLetter = opt.suggestions.coverLetter || {};
+    opt.suggestions.rolePlan    = opt.suggestions.rolePlan    || {};
+    return opt;
+  }
+
+  function asTextList(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map(function (x) {
+        if (typeof x === 'string') return x;
+        if (!x || typeof x !== 'object') return '';
+        return x.title || x.keyword || x.gap || x.description || x.text || x.reason || x.label || '';
+      }).map(String).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+    if (typeof value === 'string') return value.split(/\n|;/).map(function (x) { return x.trim(); }).filter(Boolean);
+    return [];
+  }
+
+  function _hasPlaceholderTokens(text) {
+    if (!text) return false;
+    return /\[(X%|\$X|N-person team|TBD|placeholder)\]/i.test(String(text));
+  }
+
+  function _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function renderOptimizationOutput(opt) {
+    var output = document.getElementById('optimize-output');
+    if (!output) return;
+    output.hidden = false;
+
+    // ----- Match Score card -----
+    var scoreVal = document.getElementById('opt-score-value');
+    var scoreLbl = document.getElementById('opt-score-label');
+    var scoreDelta = document.getElementById('opt-score-delta');
+    var badge = document.getElementById('opt-score-badge');
+    var gateMsg = document.getElementById('opt-gate-message');
+    var explainEl = document.getElementById('opt-score-explanation');
+    var breakdownEl = document.getElementById('opt-score-breakdown');
+    var why = document.getElementById('opt-why-score');
+
+    var projected = Number(opt.projectedScore || 0);
+    var baseline  = Number(opt.baselineScore  || 0);
+    if (scoreVal) scoreVal.textContent = String(Math.round(projected));
+    if (scoreLbl) scoreLbl.textContent = (opt.matchScore && opt.matchScore.label) || '';
+    if (scoreDelta) {
+      var d = projected - baseline;
+      var sign = d > 0 ? '+' : '';
+      scoreDelta.textContent = 'Baseline ' + Math.round(baseline) + ' → Projected ' + Math.round(projected) + ' (' + sign + Math.round(d) + ')';
+    }
+
+    var status = opt.scoreGate && opt.scoreGate.status;
+    if (badge) {
+      badge.textContent = (opt.scoreGate && opt.scoreGate.label) || '';
+      badge.style.padding = '.25rem .6rem';
+      badge.style.borderRadius = '999px';
+      badge.style.fontSize = '.75rem';
+      badge.style.fontWeight = '600';
+      if (status === 'improves') {
+        badge.style.background = '#DCFCE7'; badge.style.color = '#166534'; badge.style.border = '1px solid #BBF7D0';
+      } else if (status === 'maintains') {
+        badge.style.background = '#DBEAFE'; badge.style.color = '#1E40AF'; badge.style.border = '1px solid #BFDBFE';
+      } else {
+        badge.style.background = '#FEE2E2'; badge.style.color = '#991B1B'; badge.style.border = '1px solid #FECACA';
+      }
+    }
+    if (gateMsg) {
+      if (status === 'rejected') {
+        gateMsg.style.display = '';
+        gateMsg.textContent = (opt.scoreGate && opt.scoreGate.message) || '';
+      } else {
+        gateMsg.style.display = 'none';
+        gateMsg.textContent = '';
+      }
+    }
+    if (explainEl) explainEl.textContent = (opt.matchScore && opt.matchScore.explanation) || '';
+    if (breakdownEl) {
+      var bd = (opt.matchScore && opt.matchScore.breakdown) || {};
+      var rows = [
+        ['Keyword alignment',     bd.keywordAlignment],
+        ['Experience alignment',  bd.experienceAlignment],
+        ['Accomplishment impact', bd.accomplishmentImpact],
+        ['Clarity & completeness',bd.clarityCompleteness]
+      ];
+      breakdownEl.innerHTML = rows.map(function (r) {
+        var n = Number(r[1] || 0);
+        return '<div style="background:#F1F5F9;border-radius:8px;padding:.5rem .65rem;">'
+          + '<div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#64748B;">' + _esc(r[0]) + '</div>'
+          + '<div style="font-size:1.1rem;font-weight:700;color:#0F172A;">' + Math.round(n) + '</div>'
+          + '</div>';
+      }).join('');
+    }
+    if (why) why.open = false; // collapsed by default
+
+    // ----- Insights -----
+    var insights = opt.resumeInsights || {};
+    var sumEl = document.getElementById('opt-insights-summary');
+    if (sumEl) sumEl.textContent = insights.summary || '';
+    var grid = document.getElementById('opt-insights-grid');
+    if (grid) {
+      var sections = [
+        ['Strengths', asTextList(insights.strengths)],
+        ['Priority gaps', asTextList(insights.priorityGaps)],
+        ['Keyword opportunities', asTextList(insights.keywordOpportunities)],
+        ['Accomplishment opportunities', asTextList(insights.accomplishmentOpportunities)],
+        ['Risk flags', asTextList(insights.riskFlags)],
+        ['Quick wins', asTextList(insights.quickWins)],
+        ['ATS notes', asTextList(insights.atsNotes)]
+      ];
+      grid.innerHTML = sections.map(function (s) {
+        var items = s[1];
+        var body = items.length
+          ? '<ul style="margin:.25rem 0 0 1rem;padding:0;color:#334155;font-size:.85rem;">'
+            + items.map(function (i) { return '<li>' + _esc(i) + '</li>'; }).join('')
+            + '</ul>'
+          : '<div style="color:#94A3B8;font-size:.8rem;font-style:italic;">None</div>';
+        return '<div style="background:#F8FAFC;border-radius:10px;padding:.6rem .75rem;border:1px solid #E2E8F0;">'
+          + '<div style="font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#475569;font-weight:600;">' + _esc(s[0]) + '</div>'
+          + body + '</div>';
+      }).join('');
+    }
+    var recEl = document.getElementById('opt-recruiter-impression');
+    if (recEl) {
+      recEl.textContent = insights.recruiterFirstImpression
+        ? '“' + insights.recruiterFirstImpression + '”'
+        : '';
+    }
+
+    // ----- Suggestions -----
+    var sBody = document.getElementById('opt-suggestions-body');
+    var sug = opt.suggestions || {};
+    var resumeS = sug.resume || {};
+    var cvS = sug.coverLetter || {};
+    var planS = sug.rolePlan || {};
+
+    function rewriteBlock(title, original, suggested, reason, flagPlaceholder) {
+      return '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:.6rem .75rem;background:#FFFFFF;">'
+        + '<div style="font-weight:600;color:#0F172A;font-size:.85rem;">' + _esc(title) + (flagPlaceholder ? ' <span class="pill" style="background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;padding:.1rem .4rem;border-radius:999px;font-size:.65rem;">Review needed</span>' : '') + '</div>'
+        + (original ? '<div style="font-size:.75rem;color:#94A3B8;margin-top:.25rem;">Current</div><div style="font-size:.85rem;color:#475569;">' + _esc(original) + '</div>' : '')
+        + (suggested ? '<div style="font-size:.75rem;color:#1D4ED8;margin-top:.35rem;">Suggested</div><div style="font-size:.85rem;color:#0F172A;">' + _esc(suggested) + '</div>' : '')
+        + (reason ? '<div style="font-size:.75rem;color:#64748B;margin-top:.35rem;font-style:italic;">' + _esc(reason) + '</div>' : '')
+        + '</div>';
+    }
+
+    var blocks = [];
+    if (resumeS.summaryRewrite) {
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Resume Summary</div>'
+        + rewriteBlock('Summary rewrite', (RB_STATE.resumeData && RB_STATE.resumeData.summary) || '', resumeS.summaryRewrite, '', _hasPlaceholderTokens(resumeS.summaryRewrite))
+        + '</div>');
+    }
+    if (resumeS.headlineRewrite) {
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Headline</div>'
+        + rewriteBlock('Headline rewrite', (RB_STATE.resumeData && (RB_STATE.resumeData.headline || RB_STATE.resumeData.current_title)) || '', resumeS.headlineRewrite, '', _hasPlaceholderTokens(resumeS.headlineRewrite))
+        + '</div>');
+    }
+    if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Skills to add</div>'
+        + '<div style="display:flex;flex-wrap:wrap;gap:.35rem;">'
+        + resumeS.skillsToAdd.map(function (s) { return '<span class="pill" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;padding:.2rem .5rem;border-radius:999px;font-size:.75rem;">' + _esc(s) + '</span>'; }).join('')
+        + '</div></div>');
+    }
+    if (Array.isArray(resumeS.experienceBulletRewrites) && resumeS.experienceBulletRewrites.length) {
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Experience bullet rewrites</div>'
+        + resumeS.experienceBulletRewrites.map(function (b) {
+            return rewriteBlock(
+              (b.roleTitle || ('Role ' + b.roleIndex)) + ' — bullet ' + (Number(b.bulletIndex) + 1),
+              b.original, b.suggested, b.reason, _hasPlaceholderTokens(b.suggested)
+            );
+          }).join('')
+        + '</div>');
+    }
+    if (Array.isArray(resumeS.roleSummaryRewrites) && resumeS.roleSummaryRewrites.length) {
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Role summaries</div>'
+        + resumeS.roleSummaryRewrites.map(function (r) {
+            return rewriteBlock('Role ' + (Number(r.roleIndex) + 1) + ' summary', r.original, r.suggested, r.reason, _hasPlaceholderTokens(r.suggested));
+          }).join('')
+        + '</div>');
+    }
+    if (cvS.openingRewrite || cvS.closingRewrite || (Array.isArray(cvS.bodyParagraphRewrites) && cvS.bodyParagraphRewrites.length)) {
+      var cvBlocks = [];
+      if (cvS.openingRewrite) cvBlocks.push(rewriteBlock('Cover letter opening', (RB_STATE.coverLetter && RB_STATE.coverLetter.opening) || '', cvS.openingRewrite, '', _hasPlaceholderTokens(cvS.openingRewrite)));
+      (cvS.bodyParagraphRewrites || []).forEach(function (p) {
+        cvBlocks.push(rewriteBlock('Cover letter paragraph ' + (Number(p.paragraphIndex) + 1), p.original, p.suggested, p.reason, _hasPlaceholderTokens(p.suggested)));
+      });
+      if (cvS.closingRewrite) cvBlocks.push(rewriteBlock('Cover letter closing', (RB_STATE.coverLetter && RB_STATE.coverLetter.closing) || '', cvS.closingRewrite, '', _hasPlaceholderTokens(cvS.closingRewrite)));
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Cover letter</div>' + cvBlocks.join('') + '</div>');
+    }
+    if (planS.executiveSummaryRewrite || (Array.isArray(planS.phaseEnhancements) && planS.phaseEnhancements.length)) {
+      var planBlocks = [];
+      if (planS.executiveSummaryRewrite) planBlocks.push(rewriteBlock('Plan executive summary', '', planS.executiveSummaryRewrite, '', _hasPlaceholderTokens(planS.executiveSummaryRewrite)));
+      (planS.phaseEnhancements || []).forEach(function (ph) {
+        var bits = [];
+        if (ph.suggestedActions && ph.suggestedActions.length) bits.push('<div><strong>Actions:</strong> ' + ph.suggestedActions.map(_esc).join('; ') + '</div>');
+        if (ph.suggestedMetrics && ph.suggestedMetrics.length) bits.push('<div><strong>Metrics:</strong> ' + ph.suggestedMetrics.map(_esc).join('; ') + '</div>');
+        if (ph.suggestedRisks   && ph.suggestedRisks.length)   bits.push('<div><strong>Risks:</strong> '   + ph.suggestedRisks.map(_esc).join('; ')   + '</div>');
+        var inner = '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:.6rem .75rem;background:#FFFFFF;">'
+          + '<div style="font-weight:600;color:#0F172A;font-size:.85rem;">Phase ' + (Number(ph.phaseIndex) + 1) + (ph.phaseTitle ? ' — ' + _esc(ph.phaseTitle) : '') + '</div>'
+          + '<div style="font-size:.85rem;color:#334155;margin-top:.25rem;">' + bits.join('') + '</div>'
+          + (ph.reason ? '<div style="font-size:.75rem;color:#64748B;margin-top:.35rem;font-style:italic;">' + _esc(ph.reason) + '</div>' : '')
+          + '</div>';
+        planBlocks.push(inner);
+      });
+      blocks.push('<div><div style="font-weight:600;color:#475569;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem;">Role plan</div>' + planBlocks.join('') + '</div>');
+    }
+
+    if (sBody) {
+      sBody.innerHTML = blocks.length
+        ? blocks.join('')
+        : '<div style="color:#94A3B8;font-style:italic;">No suggested updates.</div>';
+    }
+
+    // ----- Apply / Undo state -----
+    var applyBtn = document.getElementById('opt-apply');
+    var undoBtn  = document.getElementById('opt-undo');
+    var note     = document.getElementById('opt-apply-note');
+    if (applyBtn) {
+      applyBtn.disabled = !opt.shouldApply;
+      applyBtn.innerHTML = opt.shouldApply
+        ? '<i data-lucide="check" style="width:16px;height:16px;"></i> Apply Safe Updates'
+        : '<i data-lucide="x" style="width:16px;height:16px;"></i> Not Applied — Score Would Decrease';
+    }
+    if (undoBtn) {
+      undoBtn.hidden = !RB_STATE.optimizationAppliedAt;
+    }
+    if (note) {
+      if (status === 'rejected') {
+        note.textContent = 'Apply is disabled because the projected score is lower than the current score.';
+      } else if (status === 'maintains') {
+        note.textContent = 'Score would stay the same. Safe updates can still be applied for clarity / ATS.';
+      } else {
+        note.textContent = '';
+      }
+    }
+    try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
+  }
+
+  function _isApplyableSuggestion(s) {
+    if (!s) return false;
+    if (s.safeToApply === false) return false;
+    if (_hasPlaceholderTokens(s.suggested || s)) return false;
+    return true;
+  }
+
+  function applyCoverLetterOptimization(cvS) {
+    if (!cvS || typeof cvS !== 'object') return;
+    if (!RB_STATE.coverLetter || typeof RB_STATE.coverLetter !== 'object') {
+      RB_STATE.coverLetter = { heading: '', opening: '', body: [], closing: '' };
+    }
+    var cv = RB_STATE.coverLetter;
+    if (cvS.openingRewrite && !_hasPlaceholderTokens(cvS.openingRewrite)) {
+      cv.opening = String(cvS.openingRewrite);
+    }
+    if (cvS.closingRewrite && !_hasPlaceholderTokens(cvS.closingRewrite)) {
+      cv.closing = String(cvS.closingRewrite);
+    }
+    if (Array.isArray(cvS.bodyParagraphRewrites)) {
+      if (!Array.isArray(cv.body)) cv.body = [];
+      cvS.bodyParagraphRewrites.forEach(function (p) {
+        if (!p || p.safeToApply === false) return;
+        if (_hasPlaceholderTokens(p.suggested)) return;
+        var idx = Number(p.paragraphIndex);
+        var txt = String(p.suggested || '').trim();
+        if (!Number.isFinite(idx) || !txt) return;
+        cv.body[idx] = txt;
+      });
+    }
+    RB_STATE.cvDraft = RB_STATE.cvDraft || cv;
+  }
+
+  function applyRolePlanOptimization(planS) {
+    if (!planS || typeof planS !== 'object') return;
+    if (!RB_STATE.rolePlan || typeof RB_STATE.rolePlan !== 'object') return;
+    var plan = RB_STATE.rolePlan;
+    var bucketKey = plan.days90 ? 'days90' : plan.months12 ? 'months12' : plan.years2 ? 'years2' : null;
+    if (!bucketKey) return;
+    var bucket = plan[bucketKey];
+    if (!bucket || typeof bucket !== 'object') return;
+    if (planS.executiveSummaryRewrite && !_hasPlaceholderTokens(planS.executiveSummaryRewrite)) {
+      bucket.executiveSummary = String(planS.executiveSummaryRewrite);
+    }
+    if (Array.isArray(planS.phaseEnhancements) && Array.isArray(bucket.phases)) {
+      planS.phaseEnhancements.forEach(function (ph) {
+        if (!ph || ph.safeToApply === false) return;
+        var idx = Number(ph.phaseIndex);
+        var phase = bucket.phases[idx];
+        if (!phase) return;
+        function appendSafe(targetKey, additions) {
+          if (!Array.isArray(additions) || !additions.length) return;
+          if (!Array.isArray(phase[targetKey])) phase[targetKey] = [];
+          additions.forEach(function (item) {
+            var s = String(item || '').trim();
+            if (!s || _hasPlaceholderTokens(s)) return;
+            // de-dupe by lowercase comparison against string entries
+            var exists = phase[targetKey].some(function (e) {
+              return typeof e === 'string' && e.toLowerCase() === s.toLowerCase();
+            });
+            if (!exists) phase[targetKey].push(s);
+          });
+        }
+        appendSafe('actions',         ph.suggestedActions);
+        appendSafe('success_metrics', ph.suggestedMetrics);
+        appendSafe('risks',           ph.suggestedRisks);
+      });
+    }
+  }
+
+  function applyOptimizationUpdates() {
+    var opt = RB_STATE.optimization || {};
+    if (!opt.shouldApply) {
+      showToast((opt.scoreGate && opt.scoreGate.message) || 'No changes were applied because the match score would decrease.', 'warning');
+      return;
+    }
+    if (!RB_STATE.preOptimizationSnapshot) {
+      RB_STATE.preOptimizationSnapshot = makeOptimizationSnapshot();
+    }
+
+    var sug = opt.suggestions || {};
+    var resumeS = sug.resume || {};
+    if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+
+    if (resumeS.summaryRewrite && !_hasPlaceholderTokens(resumeS.summaryRewrite)) {
+      RB_STATE.resumeData.summary = String(resumeS.summaryRewrite);
+    }
+    if (resumeS.headlineRewrite && !_hasPlaceholderTokens(resumeS.headlineRewrite)) {
+      RB_STATE.resumeData.headline      = String(resumeS.headlineRewrite);
+      RB_STATE.resumeData.current_title = String(resumeS.headlineRewrite);
+    }
+    if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
+      var existing = Array.isArray(RB_STATE.resumeData.skills) ? RB_STATE.resumeData.skills.slice() : [];
+      resumeS.skillsToAdd.forEach(function (skill) {
+        var s = String(skill || '').trim();
+        if (!s || _hasPlaceholderTokens(s)) return;
+        var present = existing.some(function (x) { return String(x).toLowerCase() === s.toLowerCase(); });
+        if (!present) existing.push(s);
+      });
+      RB_STATE.resumeData.skills = existing;
+    }
+    if (Array.isArray(resumeS.roleSummaryRewrites)) {
+      resumeS.roleSummaryRewrites.forEach(function (r) {
+        if (!r || r.safeToApply === false) return;
+        if (_hasPlaceholderTokens(r.suggested)) return;
+        var idx = Number(r.roleIndex);
+        var suggested = String(r.suggested || '').trim();
+        if (!Number.isFinite(idx) || !suggested) return;
+        var role = RB_STATE.resumeData.experience && RB_STATE.resumeData.experience[idx];
+        if (role) role.role_summary = suggested;
+      });
+    }
+    if (Array.isArray(resumeS.experienceBulletRewrites)) {
+      resumeS.experienceBulletRewrites.forEach(function (r) {
+        if (!r || r.safeToApply === false) return;
+        if (_hasPlaceholderTokens(r.suggested)) return;
+        var roleIndex = Number(r.roleIndex);
+        var bulletIndex = Number(r.bulletIndex);
+        var suggested = String(r.suggested || '').trim();
+        if (!Number.isFinite(roleIndex) || !Number.isFinite(bulletIndex) || !suggested) return;
+        var role = RB_STATE.resumeData.experience && RB_STATE.resumeData.experience[roleIndex];
+        if (!role) return;
+        if (!Array.isArray(role.bullets)) role.bullets = [];
+        role.bullets[bulletIndex] = suggested;
+      });
+    }
+
+    applyCoverLetterOptimization(sug.coverLetter || {});
+    applyRolePlanOptimization(sug.rolePlan || {});
+
+    RB_STATE.optimizationAppliedAt = new Date().toISOString();
+
+    try { if (typeof populateResumeFieldsFromData === 'function') populateResumeFieldsFromData(RB_STATE.resumeData); } catch (_) {}
+    try {
+      if (typeof renderRolePlanOutput === 'function' && RB_STATE.rolePlan) {
+        var pt = RB_STATE.rolePlanType
+          || (RB_STATE.rolePlan.days90 ? '90-day'
+              : (RB_STATE.rolePlan.months12 ? '12-month'
+                : (RB_STATE.rolePlan.years2 ? '2-year' : '90-day')));
+        renderRolePlanOutput(RB_STATE.rolePlan, pt);
+      }
+    } catch (_) {}
+    try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
+    try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
+
+    var undoBtn = document.getElementById('opt-undo');
+    if (undoBtn) undoBtn.hidden = false;
+
+    showToast('Optimization updates applied to Application Details.', 'success');
+  }
+
+  function undoOptimizationUpdates() {
+    var snap = RB_STATE.preOptimizationSnapshot;
+    if (!snap) {
+      showToast('No optimization snapshot is available.', 'warning');
+      return;
+    }
+    RB_STATE.resumeData  = snap.resumeData  || RB_STATE.resumeData;
+    RB_STATE.coverLetter = snap.coverLetter || RB_STATE.coverLetter;
+    RB_STATE.cvDraft     = snap.cvDraft     || RB_STATE.cvDraft;
+    RB_STATE.rolePlan    = snap.rolePlan    || RB_STATE.rolePlan;
+    RB_STATE.optimizationAppliedAt = null;
+
+    try { if (typeof populateResumeFieldsFromData === 'function') populateResumeFieldsFromData(RB_STATE.resumeData); } catch (_) {}
+    try {
+      if (typeof renderRolePlanOutput === 'function' && RB_STATE.rolePlan) {
+        var pt = RB_STATE.rolePlanType
+          || (RB_STATE.rolePlan.days90 ? '90-day'
+              : (RB_STATE.rolePlan.months12 ? '12-month'
+                : (RB_STATE.rolePlan.years2 ? '2-year' : '90-day')));
+        renderRolePlanOutput(RB_STATE.rolePlan, pt);
+      }
+    } catch (_) {}
+    try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
+    try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
+
+    var undoBtn = document.getElementById('opt-undo');
+    if (undoBtn) undoBtn.hidden = true;
+
+    showToast('Optimization changes undone.', 'info');
+  }
+
+  async function runOptimize() {
+    if (!requireAuth()) return;
+    var payload = buildOptimizePayload();
+    if (!payload.resume_data || !Object.keys(payload.resume_data).length) {
+      showToast('Import or enter resume data before optimizing.', 'warning');
+      return;
+    }
+    var jd = (payload.targetRole && payload.targetRole.job_description) || '';
+    if (!jd || jd.trim().length < 30) {
+      showToast('Add a target job description (at least 30 characters) before optimizing.', 'warning');
+      return;
+    }
+
+    var btn = document.getElementById('optimize-btn');
+    var statusEl = document.getElementById('optimize-status');
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Optimizing...';
+      }
+      if (statusEl) statusEl.textContent = 'Analyzing resume against target role…';
+
+      RB_STATE.preOptimizationSnapshot = makeOptimizationSnapshot();
+      RB_STATE.optimizationAppliedAt = null;
+
+      var headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
+      if (!headers || !headers['Content-Type']) {
+        headers = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
+      }
+      var res = await fetch(BUILDER_API_BASE + '/builder/optimize', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok || data.error) {
+        throw new Error(data.error || ('Optimization failed (' + res.status + ').'));
+      }
+      var opt = data.optimization || data;
+      RB_STATE.optimization = normalizeOptimizationResponse(opt, payload.baselineScore);
+      renderOptimizationOutput(RB_STATE.optimization);
+      if (statusEl) statusEl.textContent = 'Optimization complete.';
+      showToast('Optimization insights ready.', 'success');
+    } catch (err) {
+      console.error('[runOptimize] failed', err);
+      if (statusEl) statusEl.textContent = 'Optimization failed.';
+      showToast('Optimize failed: ' + ((err && err.message) || err), 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.originalHtml || '<i data-lucide="zap" style="width:16px;height:16px;"></i> Run Optimization';
+        try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
+      }
+    }
+  }
+
+  // Alias kept for safety with any older wiring.
+  function optimizeForJob() { return runOptimize(); }
+
+  window.runOptimize               = runOptimize;
+  window.optimizeForJob            = optimizeForJob;
+  window.applyOptimizationUpdates  = applyOptimizationUpdates;
+  window.undoOptimizationUpdates   = undoOptimizationUpdates;
+  window.buildOptimizePayload      = buildOptimizePayload;
+
+  window.debugOptimizeState = function () {
+    var opt = RB_STATE.optimization || null;
+    return {
+      hasOptimization: !!opt,
+      baselineScore:  opt ? (opt.baselineScore  != null ? opt.baselineScore  : null) : null,
+      projectedScore: opt ? (opt.projectedScore != null ? opt.projectedScore : null) : null,
+      scoreDelta:     opt ? (opt.scoreDelta     != null ? opt.scoreDelta     : null) : null,
+      shouldApply:    opt ? !!opt.shouldApply : null,
+      scoreGate:      opt ? (opt.scoreGate || null) : null,
+      matchScore:     opt ? (opt.matchScore || null) : null,
+      insightCounts: {
+        strengths:       asTextList(opt && opt.resumeInsights && opt.resumeInsights.strengths).length,
+        gaps:            asTextList(opt && opt.resumeInsights && opt.resumeInsights.priorityGaps).length,
+        keywords:        asTextList(opt && opt.resumeInsights && opt.resumeInsights.keywordOpportunities).length,
+        accomplishments: asTextList(opt && opt.resumeInsights && opt.resumeInsights.accomplishmentOpportunities).length,
+        risks:           asTextList(opt && opt.resumeInsights && opt.resumeInsights.riskFlags).length
+      },
+      suggestionCounts: {
+        bulletRewrites:      (opt && opt.suggestions && opt.suggestions.resume && opt.suggestions.resume.experienceBulletRewrites && opt.suggestions.resume.experienceBulletRewrites.length) || 0,
+        skillsToAdd:         (opt && opt.suggestions && opt.suggestions.resume && opt.suggestions.resume.skillsToAdd && opt.suggestions.resume.skillsToAdd.length) || 0,
+        roleSummaryRewrites: (opt && opt.suggestions && opt.suggestions.resume && opt.suggestions.resume.roleSummaryRewrites && opt.suggestions.resume.roleSummaryRewrites.length) || 0,
+        cvParagraphs:        (opt && opt.suggestions && opt.suggestions.coverLetter && opt.suggestions.coverLetter.bodyParagraphRewrites && opt.suggestions.coverLetter.bodyParagraphRewrites.length) || 0,
+        planEnhancements:    (opt && opt.suggestions && opt.suggestions.rolePlan && opt.suggestions.rolePlan.phaseEnhancements && opt.suggestions.rolePlan.phaseEnhancements.length) || 0
+      },
+      hasSnapshot: !!RB_STATE.preOptimizationSnapshot,
+      appliedAt:   RB_STATE.optimizationAppliedAt || null,
+      payload:     buildOptimizePayload()
+    };
+  };
+  // ============================================================
+  // END OPTIMIZE
+  // ============================================================
 
   // ----- Cover Letter / Role CV helpers -----
   function normalizeCoverLetterResponse(body) {
@@ -6891,6 +7599,9 @@
     parseResumeText: parseResumeText,
     importLinkedInJob: importLinkedInJob,
     optimizeForJob: optimizeForJob,
+    runOptimize: runOptimize,
+    applyOptimizationUpdates: applyOptimizationUpdates,
+    undoOptimizationUpdates: undoOptimizationUpdates,
     runRoleResearch: function () { runRoleResearch({ force: true }); },
     generateCoverLetter: generateCoverLetter,
     generateRolePlan: generateRolePlan,
