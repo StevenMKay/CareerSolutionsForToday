@@ -752,6 +752,29 @@
   /* PowerPoint preview hidden until ready */
   [data-preview-format="pptx"] { display:none !important; }
 
+  /* Profile photo upload card (Step 1 / Personal Information).
+     Web-profile-only enhancement; PDF/DOCX/print do not render this photo. */
+  .profile-photo-card {
+    display:flex; align-items:center; gap:1rem;
+    padding:1rem; border:1px solid #CBD5E1; border-radius:14px;
+    background:#F8FAFC; color:#0F172A; margin-bottom:1rem;
+  }
+  .profile-photo-card.dragover { border-color:var(--c-primary); background:#EFF6FF; }
+  .profile-photo-preview {
+    width:86px; height:86px; min-width:86px; border-radius:999px;
+    display:grid; place-items:center; overflow:hidden;
+    background:linear-gradient(135deg,#DBEAFE,#EFF6FF);
+    border:2px solid #BFDBFE; color:#1D4ED8;
+    font-weight:800; font-size:.85rem;
+  }
+  .profile-photo-preview img { width:100%; height:100%; object-fit:cover; }
+  .profile-photo-actions { min-width:0; flex:1; }
+  .profile-photo-help { font-size:.82rem; color:#64748B; margin:0 0 .65rem; }
+  @media (max-width:640px) {
+    .profile-photo-card { align-items:flex-start; }
+    .profile-photo-preview { width:72px; height:72px; min-width:72px; }
+  }
+
   /* Live Preview shell */
   #preview-container-export {
     margin-top:.8rem; min-height:520px; padding:18px; border-radius:var(--radius);
@@ -884,6 +907,27 @@
           </button>
           <div class="acc-body">
             <div id="personal-work-shell" class="stack">
+              <!-- Profile Photo (web-profile only; not in PDF/DOCX/print) -->
+              <div class="profile-photo-card" id="profile-photo-card">
+                <div class="profile-photo-preview" id="profile-photo-preview">
+                  <span id="profile-photo-initials">Photo</span>
+                  <img id="profile-photo-img" alt="Profile photo preview" hidden>
+                </div>
+                <div class="profile-photo-actions">
+                  <label class="field-label">Profile Photo <span style="font-weight:400;color:#64748B;">(optional)</span></label>
+                  <p class="profile-photo-help">Optional. Used on your public web profile only. Not included in PDF or Word documents.</p>
+                  <div class="row" style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                    <button type="button" class="btn btn-secondary" id="profile-photo-upload-btn">
+                      <i data-lucide="image-plus" style="width:16px;height:16px;"></i>
+                      Upload Photo
+                    </button>
+                    <button type="button" class="btn btn-ghost" id="profile-photo-remove-btn" hidden>
+                      Remove
+                    </button>
+                  </div>
+                  <input type="file" id="profile-photo-file" accept="image/png,image/jpeg,image/webp" hidden>
+                </div>
+              </div>
               <div class="grid-2">
                 <div><label class="field-label" for="pi-name">Name</label><input id="pi-name" data-pi-field="name" class="input" placeholder="Full name"></div>
                 <div><label class="field-label" for="pi-title">Current title</label><input id="pi-title" data-pi-field="current_title" class="input" placeholder="e.g., Senior Analyst"></div>
@@ -3927,6 +3971,127 @@
     var fromPkg = (pkg && pkg.documents && pkg.documents.profilePhotoDataUrl) || '';
     return _safePhotoUrl(fromState || fromPkg);
   }
+
+  // ============================================================
+  // Profile Photo upload (Step 1 / Personal Information)
+  // Web-profile only. Not rendered in PDF/DOCX/print outputs.
+  // ============================================================
+  function getProfilePhotoDataUrl() {
+    return (window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '';
+  }
+  function setProfilePhotoDataUrl(dataUrl) {
+    if (!window.RB_STATE) return;
+    RB_STATE.profilePhotoDataUrl = dataUrl || '';
+    if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+    RB_STATE.resumeData.photo_url = dataUrl || '';
+    RB_STATE.resumeData.photo = dataUrl || '';
+    updateProfilePhotoPreview();
+    try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
+    try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
+  }
+  function updateProfilePhotoPreview() {
+    var img = document.getElementById('profile-photo-img');
+    var initials = document.getElementById('profile-photo-initials');
+    var removeBtn = document.getElementById('profile-photo-remove-btn');
+    var dataUrl = getProfilePhotoDataUrl();
+    if (img) {
+      img.src = dataUrl || '';
+      img.hidden = !dataUrl;
+    }
+    if (initials) initials.hidden = !!dataUrl;
+    if (removeBtn) removeBtn.hidden = !dataUrl;
+  }
+  function validateProfilePhotoFile(file) {
+    if (!file) return { ok:false, message:'No file selected.' };
+    var allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowed.indexOf(file.type) === -1) {
+      return { ok:false, message:'Please upload a JPG, PNG, or WEBP image.' };
+    }
+    var maxBytes = 4 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      return { ok:false, message:'Please upload an image under 4MB.' };
+    }
+    return { ok:true };
+  }
+  function handleProfilePhotoFile(file) {
+    var check = validateProfilePhotoFile(file);
+    if (!check.ok) {
+      try { showToast(check.message, 'warning'); } catch (_) {}
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      setProfilePhotoDataUrl((e.target && e.target.result) || '');
+      try { showToast('Profile photo added.', 'success'); } catch (_) {}
+    };
+    reader.onerror = function () {
+      try { showToast('Could not read that image file.', 'error'); } catch (_) {}
+    };
+    reader.readAsDataURL(file);
+  }
+  function initProfilePhotoUpload() {
+    var input = document.getElementById('profile-photo-file');
+    var uploadBtn = document.getElementById('profile-photo-upload-btn');
+    var removeBtn = document.getElementById('profile-photo-remove-btn');
+    var card = document.getElementById('profile-photo-card');
+    if (uploadBtn && input && !uploadBtn._profilePhotoAttached) {
+      uploadBtn._profilePhotoAttached = true;
+      uploadBtn.addEventListener('click', function () {
+        input.value = '';
+        input.click();
+      });
+    }
+    if (input && !input._profilePhotoAttached) {
+      input._profilePhotoAttached = true;
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (file) handleProfilePhotoFile(file);
+      });
+    }
+    if (removeBtn && !removeBtn._profilePhotoAttached) {
+      removeBtn._profilePhotoAttached = true;
+      removeBtn.addEventListener('click', function () {
+        setProfilePhotoDataUrl('');
+        try { showToast('Profile photo removed.', 'info'); } catch (_) {}
+      });
+    }
+    if (card && !card._profilePhotoDropAttached) {
+      card._profilePhotoDropAttached = true;
+      card.addEventListener('dragover', function (ev) {
+        ev.preventDefault();
+        card.classList.add('dragover');
+      });
+      card.addEventListener('dragleave', function () {
+        card.classList.remove('dragover');
+      });
+      card.addEventListener('drop', function (ev) {
+        ev.preventDefault();
+        card.classList.remove('dragover');
+        var file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+        if (file) handleProfilePhotoFile(file);
+      });
+    }
+    updateProfilePhotoPreview();
+  }
+
+  window.debugProfilePhoto = function () {
+    var img = document.getElementById('profile-photo-img');
+    var webImg = null;
+    try {
+      var frame = document.getElementById('preview-frame');
+      if (frame && frame.contentDocument) {
+        webImg = frame.contentDocument.querySelector('.web-hero-photo, img.preview-profile-photo.hero-photo');
+      }
+    } catch (_) {}
+    return {
+      hasPhoto: !!(window.RB_STATE && RB_STATE.profilePhotoDataUrl),
+      photoLength: String((window.RB_STATE && RB_STATE.profilePhotoDataUrl) || '').length,
+      resumePhotoUrl: (window.RB_STATE && RB_STATE.resumeData && RB_STATE.resumeData.photo_url) || '',
+      imgVisible: !!(img && !img.hidden),
+      inputExists: !!document.getElementById('profile-photo-file'),
+      webPreviewHasPhoto: !!webImg
+    };
+  };
   function _safeStr(v) {
     if (v == null) return '';
     if (typeof v === 'string') return v;
@@ -4632,12 +4797,15 @@
 
     var useRail = (cfg.docLayout === 'sidebar-rail' || cfg.docLayout === 'editorial-split') && order.indexOf('resume') !== -1;
     var pieces = [];
+    // Profile photo is a web-profile-only enhancement. Document renderers
+    // (PDF/DOCX/print) never receive a photo, regardless of format value.
+    var photoForRail = '';
     order.forEach(function (key, idx) {
       // Divider goes BETWEEN subdocs (never inside one). Skip before the
       // first rendered subdoc so the page starts cleanly.
       if (idx > 0) pieces.push(_docDivider(DOC_LABELS[key] || ''));
       if (key === 'resume' && useRail) {
-        pieces.push(_renderResumeWithRail(d.resume, cfg, format, photo));
+        pieces.push(_renderResumeWithRail(d.resume, cfg, format, photoForRail));
       } else {
         pieces.push(_renderDocSectionByKey(key, pkg, cfg, format));
       }
@@ -6363,6 +6531,22 @@
     if (typeof updateAIReadinessUI === 'function') { try { updateAIReadinessUI(); } catch (_) {} }
     if (typeof renderPreview === 'function')      { try { renderPreview(); }      catch (_) {} }
     if (typeof updateGeneratedDocumentReadinessUI === 'function') { try { updateGeneratedDocumentReadinessUI(); } catch (_) {} }
+    // Restore profile photo from any of the supported draft fields.
+    try {
+      if (data.profilePhotoDataUrl) {
+        RB_STATE.profilePhotoDataUrl = data.profilePhotoDataUrl;
+      } else if (data.photoUrl) {
+        RB_STATE.profilePhotoDataUrl = data.photoUrl;
+      } else if (data.resumeData && (data.resumeData.photo_url || data.resumeData.photo)) {
+        RB_STATE.profilePhotoDataUrl = data.resumeData.photo_url || data.resumeData.photo;
+      }
+      if (RB_STATE.profilePhotoDataUrl) {
+        if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+        RB_STATE.resumeData.photo_url = RB_STATE.profilePhotoDataUrl;
+        RB_STATE.resumeData.photo = RB_STATE.profilePhotoDataUrl;
+      }
+      if (typeof updateProfilePhotoPreview === 'function') updateProfilePhotoPreview();
+    } catch (_) {}
   }
 
   async function loadDraft(planId) {
@@ -6582,6 +6766,7 @@
     initDocumentSelection();
     initStyleAndSwatches();
     initSkillsPillEditor();
+    try { initProfilePhotoUpload(); } catch (_) {}
     _wireResumeEditBack();
     _wireTargetRoleAutoResearch();
     updateAIReadinessUI();
