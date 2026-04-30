@@ -1266,34 +1266,118 @@
   }
 
   // ---------- Auth state ----------
+  // Detect Android/WebView so we can bridge to native Google sign-in
+  // (the popup flow does not work inside in-app WebViews).
+  function isInAppWebView() {
+    try {
+      if (typeof window !== 'undefined' && window.ReactNativeWebView) return true;
+      if (typeof navigator !== 'undefined' && /CareerResumeBuilder/i.test(navigator.userAgent || '')) return true;
+    } catch (_) {}
+    return false;
+  }
+
+  function setAuthLoading(loading) {
+    var loginBtn  = document.getElementById('login-btn');
+    var logoutBtn = document.getElementById('logout-btn');
+    var googleBtn = document.querySelector('[data-testid="google-signin-btn"]');
+    [loginBtn, logoutBtn, googleBtn].forEach(function (btn) {
+      if (!btn) return;
+      btn.disabled = !!loading;
+      btn.style.opacity = loading ? '0.65' : '';
+    });
+    if (loginBtn) {
+      loginBtn.innerHTML = loading
+        ? '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Signing in...'
+        : '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign in with Google';
+    }
+    if (!loading && window.lucide && typeof window.lucide.createIcons === 'function') {
+      try { window.lucide.createIcons(); } catch (_) {}
+    }
+  }
+
   function applyAuthState(user) {
-    var html  = document.documentElement;
-    var status= document.getElementById('auth-status');
-    if (user) {
-      html.classList.add('signed-in');
-      html.classList.remove('signed-out');
-      html.classList.toggle('is-owner',  isOwnerUser(user));
-      html.classList.toggle('not-owner', !isOwnerUser(user));
-      if (status) {
-        var initial = (user.displayName || user.email || '?').charAt(0).toUpperCase();
-        status.innerHTML = '<span class="auth-avatar">' + initial + '</span>' + (user.email || user.displayName || '');
+    var html   = document.documentElement;
+    var status = document.getElementById('auth-status');
+    var isSignedIn = !!user;
+    var isOwner    = isOwnerUser(user);
+    html.classList.toggle('signed-in',  isSignedIn);
+    html.classList.toggle('signed-out', !isSignedIn);
+    html.classList.toggle('is-owner',   isOwner);
+    html.classList.toggle('not-owner',  !isOwner);
+    if (status) {
+      if (user) {
+        var label   = user.displayName || user.email || 'User';
+        var initial = String(label || '?').charAt(0).toUpperCase();
+        status.innerHTML =
+          '<span class="auth-avatar">' + initial + '</span>' +
+          '<span class="auth-label">'  + _esc(label) + '</span>';
+      } else {
+        status.textContent = 'Signed out';
       }
-    } else {
-      html.classList.remove('signed-in', 'is-owner');
-      html.classList.add('signed-out', 'not-owner');
-      if (status) status.textContent = 'Signed out';
+    }
+    var saveBtn   = document.getElementById('nav-save');
+    var myBtn     = document.getElementById('nav-my-resumes');
+    var logoutBtn = document.getElementById('logout-btn');
+    var loginBtn  = document.getElementById('login-btn');
+    if (saveBtn)   saveBtn.disabled  = !isSignedIn;
+    if (myBtn)     myBtn.disabled    = !isSignedIn;
+    if (logoutBtn) logoutBtn.hidden  = !isSignedIn;
+    if (loginBtn)  loginBtn.hidden   =  isSignedIn;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      try { window.lucide.createIcons(); } catch (_) {}
     }
   }
 
   function signInWithGoogle() {
-    if (!auth || !googleProvider) { showToast('Auth not ready', 'error'); return; }
-    auth.signInWithPopup(googleProvider)
-      .then(function (res) { showToast('Signed in as ' + (res.user && res.user.email), 'success'); })
-      .catch(function (err) { showToast('Sign-in failed: ' + (err && err.message), 'error'); });
+    if (!auth) { showToast('Auth not ready', 'error'); return; }
+    if (isInAppWebView()) {
+      try {
+        setAuthLoading(true);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'google-signin-request' }));
+      } catch (err) {
+        setAuthLoading(false);
+        showToast('Google sign-in unavailable. Please use web login.', 'error');
+      }
+      return;
+    }
+    try {
+      setAuthLoading(true);
+      var provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      auth.signInWithPopup(provider)
+        .then(function (res) { showToast('Signed in as ' + ((res.user && res.user.email) || 'Google user'), 'success'); })
+        .catch(function (err) { showToast('Sign-in failed: ' + ((err && err.message) || err), 'error'); })
+        .then(function () { setAuthLoading(false); });
+    } catch (err) {
+      setAuthLoading(false);
+      showToast('Sign-in failed: ' + ((err && err.message) || err), 'error');
+    }
   }
+
+  // Native Android/WebView callback: bridge posts an ID token here.
+  window.__handleNativeGoogleIdToken = function (idToken, errorMsg) {
+    try {
+      if (errorMsg || !idToken) {
+        setAuthLoading(false);
+        showToast(errorMsg || 'Google sign-in was cancelled.', 'warning');
+        return;
+      }
+      var credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+      auth.signInWithCredential(credential)
+        .then(function () { showToast('Signed in with Google.', 'success'); })
+        .catch(function (err) { showToast('Sign-in failed: ' + ((err && err.message) || err), 'error'); })
+        .then(function () { setAuthLoading(false); });
+    } catch (err) {
+      setAuthLoading(false);
+      showToast('Sign-in failed: ' + ((err && err.message) || err), 'error');
+    }
+  };
+
   function signOutUser() {
     if (!auth) return;
-    auth.signOut().then(function () { showToast('Signed out', 'info'); });
+    auth.signOut()
+      .then(function () { showToast('Signed out', 'info'); })
+      .catch(function (err) { showToast('Sign-out failed: ' + ((err && err.message) || err), 'error'); });
   }
 
   function requireAuth() {
@@ -1320,7 +1404,12 @@
     });
   }
 
-  if (auth) auth.onAuthStateChanged(applyAuthState);
+  if (auth) {
+    auth.onAuthStateChanged(function (user) {
+      setAuthLoading(false);
+      applyAuthState(user);
+    });
+  }
 
   function openOwnerDashboard() {
     if (!requireOwner()) return;
@@ -5297,11 +5386,389 @@
   };
 
   function downloadSelectedPackage(){ if (!requireAuth()) return; notImplemented('downloadSelectedPackage'); }
-  function saveDraft()              { if (!requireAuth()) return; notImplemented('saveDraft'); }
-  function loadDraft()              { if (!requireAuth()) return; notImplemented('loadDraft'); }
   function resetBuilder()           { notImplemented('resetBuilder'); }
   function publishShareLink()       { if (!requireAuth()) return; notImplemented('publishShareLink'); }
-  function myResumes()              { if (!requireAuth()) return; notImplemented('myResumes'); }
+
+  // ============================================================
+  // Save Draft / Load Draft / My Resumes (Firestore: collection "plans")
+  // Frontend-only. Compatible with the legacy site's saved-resume listing.
+  // ============================================================
+  var currentPlanId = window.currentPlanId || null;
+  window.currentPlanId = currentPlanId;
+
+  function getBuilderFieldValue(id) {
+    var el = document.getElementById(id);
+    return String((el && el.value) || '').trim();
+  }
+  function getCurrentSelectedDocs() {
+    var r = document.getElementById('include-resume');
+    var c = document.getElementById('include-cv');
+    var p = document.getElementById('include-plan');
+    return {
+      resume:      !!(r && r.checked),
+      coverLetter: !!(c && c.checked),
+      rolePlan:    !!(p && p.checked)
+    };
+  }
+  function getCurrentStyleSettings() {
+    var swatch = document.querySelector('.swatch.selected');
+    return {
+      style:         getBuilderFieldValue('export-style') || 'modern-sidebar',
+      color:         (swatch && swatch.getAttribute('data-color')) || 'blue',
+      previewFormat: typeof getSelectedPreviewFormat === 'function' ? getSelectedPreviewFormat() : 'web',
+      deviceMode:    typeof getSelectedDeviceMode    === 'function' ? getSelectedDeviceMode()    : 'desktop'
+    };
+  }
+  function getCurrentBuilderPayload() {
+    var resumeData = RB_STATE.resumeData || {};
+    var targetRole = typeof getTargetRoleFromDOM === 'function'
+      ? getTargetRoleFromDOM()
+      : {
+          job_title:       getBuilderFieldValue('job-title'),
+          company:         getBuilderFieldValue('company'),
+          job_description: getBuilderFieldValue('job-desc'),
+          plan_context:    getBuilderFieldValue('plan-context')
+        };
+    var coverLetter = RB_STATE.coverLetter || {
+      heading: getBuilderFieldValue('cv-heading'),
+      opening: getBuilderFieldValue('cv-opening'),
+      body:    getBuilderFieldValue('cv-alignment')
+        ? getBuilderFieldValue('cv-alignment').split(/\n{2,}/).filter(Boolean)
+        : [],
+      closing: getBuilderFieldValue('cv-closing')
+    };
+    var rolePlan = RB_STATE.rolePlan || null;
+    var displayName =
+      resumeData.full_name ||
+      resumeData.name ||
+      getBuilderFieldValue('pi-name') ||
+      'Untitled Resume';
+    var jobTitle = targetRole.job_title || targetRole.title || getBuilderFieldValue('job-title') || '';
+    var company  = targetRole.company  || getBuilderFieldValue('company')   || '';
+    var rawTextEl = document.getElementById('resume-text');
+    return {
+      schemaVersion: 'resume-builder-clean-lean-v1',
+      appVersion:    (window.ResumeBuilderBase && window.ResumeBuilderBase.version) || 'clean-lean',
+      displayName:   displayName,
+      resumeBuildName: displayName + (jobTitle ? ' - ' + jobTitle : ''),
+      jobTitle:      jobTitle,
+      company:       company,
+      resumeData:    resumeData,
+      targetRole:    targetRole,
+      coverLetter:   coverLetter,
+      rolePlan:      rolePlan,
+      selectedDocs:  getCurrentSelectedDocs(),
+      styleSettings: getCurrentStyleSettings(),
+      documentPackage: RB_STATE.documentPackage || null,
+      rawResumeText: RB_STATE.rawResumeText || (rawTextEl && rawTextEl.value) || '',
+      profilePhotoDataUrl: RB_STATE.profilePhotoDataUrl || '',
+      updatedAtClient: new Date().toISOString()
+    };
+  }
+
+  // Strip undefined/NaN/functions; preserve FieldValue sentinels and Date-likes.
+  function sanitizeForFirestore(input) {
+    if (input == null) return null;
+    if (typeof firebase !== 'undefined' && firebase.firestore &&
+        firebase.firestore.FieldValue && input instanceof firebase.firestore.FieldValue) {
+      return input;
+    }
+    if (Array.isArray(input)) {
+      return input.map(sanitizeForFirestore).filter(function (v) { return v !== undefined; });
+    }
+    if (typeof input === 'object') {
+      if (typeof input.toDate === 'function') return input;
+      var out = {};
+      Object.keys(input).forEach(function (key) {
+        var val = sanitizeForFirestore(input[key]);
+        if (val !== undefined) out[key] = val;
+      });
+      return out;
+    }
+    if (typeof input === 'undefined') return undefined;
+    if (typeof input === 'function')  return undefined;
+    if (typeof input === 'number' && Number.isNaN(input)) return null;
+    return input;
+  }
+
+  async function syncBuilderProfileFromCurrentState() {
+    var user = auth && auth.currentUser;
+    if (!user || !db) return;
+    var resume = RB_STATE.resumeData || {};
+    var name = resume.full_name || resume.name || getBuilderFieldValue('pi-name') || '';
+    var parts = String(name || '').trim().split(/\s+/);
+    var rawTextEl = document.getElementById('resume-text');
+    var profile = sanitizeForFirestore({
+      firstName: parts[0] || '',
+      lastName:  parts.slice(1).join(' ') || '',
+      email:     resume.email    || getBuilderFieldValue('pi-email')    || user.email || '',
+      phone:     resume.phone    || getBuilderFieldValue('pi-phone')    || '',
+      linkedin:  resume.linkedin || getBuilderFieldValue('pi-linkedin') || '',
+      city: '',
+      state: '',
+      address:   resume.location || getBuilderFieldValue('pi-location') || '',
+      resumeData: resume,
+      rawResumeText: RB_STATE.rawResumeText || (rawTextEl && rawTextEl.value) || '',
+      photoUrl:  RB_STATE.profilePhotoDataUrl || '',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await db.collection('builderProfiles').doc(user.uid).set(profile, { merge: true });
+  }
+
+  async function saveDraft() {
+    if (!requireAuth()) return;
+    if (!db) { showToast('Firestore not ready', 'error'); return; }
+    var user = auth.currentUser;
+    var btn = document.getElementById('nav-save');
+    var origHTML = btn ? btn.innerHTML : '';
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Saving...';
+      }
+      var payload = getCurrentBuilderPayload();
+      var docData = sanitizeForFirestore(Object.assign({}, payload, {
+        userId:    user.uid,
+        userEmail: user.email || '',
+        status:    'draft',
+        source:    'resumebuilder.html',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }));
+      var ref;
+      if (currentPlanId) {
+        ref = db.collection('plans').doc(currentPlanId);
+        await ref.set(docData, { merge: true });
+      } else {
+        docData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+        ref = await db.collection('plans').add(docData);
+        currentPlanId = ref.id;
+        window.currentPlanId = ref.id;
+      }
+      RB_STATE.currentPlanId = currentPlanId;
+      RB_STATE._lastSavedAt = Date.now();
+      try { await syncBuilderProfileFromCurrentState(); }
+      catch (profileErr) { console.debug('[saveDraft] profile sync skipped/failed', profileErr); }
+      showToast('Saved draft.', 'success');
+      return currentPlanId;
+    } catch (err) {
+      console.error('[saveDraft] failed', err);
+      showToast('Save failed: ' + ((err && err.message) || err), 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHTML || '<i data-lucide="save" style="width:16px;height:16px;"></i> Save';
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          try { window.lucide.createIcons(); } catch (_) {}
+        }
+      }
+    }
+  }
+
+  function hydrateBuilderFromSavedDraft(data, id) {
+    currentPlanId = id || data.id || null;
+    window.currentPlanId = currentPlanId;
+    RB_STATE.currentPlanId = currentPlanId;
+    if (data.resumeData) {
+      RB_STATE.resumeData = data.resumeData;
+      if (typeof populateResumeFieldsFromData === 'function') {
+        try { populateResumeFieldsFromData(data.resumeData); } catch (_) {}
+      }
+    }
+    if (data.rawResumeText) {
+      RB_STATE.rawResumeText = data.rawResumeText;
+      var rt = document.getElementById('resume-text');
+      if (rt) rt.value = data.rawResumeText;
+    }
+    if (data.targetRole) {
+      var tr = data.targetRole || {};
+      var jt = document.getElementById('job-title');    if (jt) jt.value = tr.job_title || tr.title || data.jobTitle || '';
+      var co = document.getElementById('company');      if (co) co.value = tr.company   || data.company  || '';
+      var jd = document.getElementById('job-desc');     if (jd) jd.value = tr.job_description || tr.description || '';
+      var pc = document.getElementById('plan-context'); if (pc) pc.value = tr.plan_context || '';
+      RB_STATE.targetRole = Object.assign({}, RB_STATE.targetRole || {}, tr);
+    }
+    if (data.coverLetter) {
+      RB_STATE.coverLetter = data.coverLetter;
+      var ch = document.getElementById('cv-heading');   if (ch) ch.value = data.coverLetter.heading || '';
+      var op = document.getElementById('cv-opening');   if (op) op.value = data.coverLetter.opening || '';
+      var al = document.getElementById('cv-alignment'); if (al) al.value = Array.isArray(data.coverLetter.body) ? data.coverLetter.body.join('\n\n') : (data.coverLetter.body || '');
+      var cl = document.getElementById('cv-closing');   if (cl) cl.value = data.coverLetter.closing || '';
+    }
+    if (data.rolePlan) {
+      RB_STATE.rolePlan = data.rolePlan;
+      if (typeof renderRolePlanOutput === 'function') {
+        try { renderRolePlanOutput(data.rolePlan, RB_STATE.rolePlanType || '90-day'); } catch (_) {}
+      }
+    }
+    if (data.selectedDocs) {
+      var ir = document.getElementById('include-resume'); if (ir) ir.checked = !!data.selectedDocs.resume;
+      var ic = document.getElementById('include-cv');     if (ic) ic.checked = !!data.selectedDocs.coverLetter;
+      var ip = document.getElementById('include-plan');   if (ip) ip.checked = !!data.selectedDocs.rolePlan;
+      if (typeof initDocumentSelection === 'function') { try { initDocumentSelection(); } catch (_) {} }
+    }
+    if (data.styleSettings) {
+      var es = document.getElementById('export-style'); if (es) es.value = data.styleSettings.style || 'modern-sidebar';
+    }
+    if (typeof updateAIReadinessUI === 'function') { try { updateAIReadinessUI(); } catch (_) {} }
+    if (typeof renderPreview === 'function')      { try { renderPreview(); }      catch (_) {} }
+  }
+
+  async function loadDraft(planId) {
+    if (!requireAuth()) return;
+    if (!db) { showToast('Firestore not ready', 'error'); return; }
+    try {
+      var user = auth.currentUser;
+      if (!planId) planId = currentPlanId || RB_STATE.currentPlanId;
+      if (!planId) { showToast('No draft selected.', 'warning'); return; }
+      var doc = await db.collection('plans').doc(planId).get();
+      if (!doc.exists) { showToast('Saved draft not found.', 'error'); return; }
+      var data = doc.data() || {};
+      if (data.userId && data.userId !== user.uid && !isOwnerUser(user)) {
+        showToast('You do not have access to this draft.', 'error');
+        return;
+      }
+      hydrateBuilderFromSavedDraft(data, doc.id);
+      showToast('Draft loaded.', 'success');
+    } catch (err) {
+      console.error('[loadDraft] failed', err);
+      showToast('Load failed: ' + ((err && err.message) || err), 'error');
+    }
+  }
+
+  function ensureMyResumesModal() {
+    var root = document.getElementById('modal-root') || document.body;
+    var existing = document.getElementById('my-resumes-modal');
+    if (existing) return existing;
+    var div = document.createElement('div');
+    div.id = 'my-resumes-modal';
+    div.className = 'hidden';
+    div.style.display = 'none';
+    div.innerHTML =
+      '<div class="modal-backdrop" data-close-my-resumes="1" style="position:fixed;inset:0;background:rgba(15,23,42,.65);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;">' +
+        '<div class="modal-card" style="width:min(760px,96vw);max-height:86vh;overflow:auto;background:#fff;color:#0f172a;border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.35);">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #e2e8f0;">' +
+            '<div>' +
+              '<h2 style="margin:0;color:#0f172a;font-size:22px;">My Resumes</h2>' +
+              '<p style="margin:4px 0 0;color:#64748b;font-size:13px;">Load a saved draft to continue testing.</p>' +
+            '</div>' +
+            '<button type="button" data-close-my-resumes="1" class="btn btn-secondary">Close</button>' +
+          '</div>' +
+          '<div id="my-resumes-list" style="padding:18px 20px;"></div>' +
+        '</div>' +
+      '</div>';
+    root.appendChild(div);
+    div.addEventListener('click', function (ev) {
+      if (ev.target && ev.target.getAttribute && ev.target.getAttribute('data-close-my-resumes')) {
+        closeMyResumesModal();
+      }
+    });
+    return div;
+  }
+  function openMyResumesModal() {
+    var modal = ensureMyResumesModal();
+    modal.classList.remove('hidden');
+    modal.style.display = 'block';
+    renderMyResumesList();
+  }
+  function closeMyResumesModal() {
+    var modal = document.getElementById('my-resumes-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+
+  // No orderBy: avoids Firestore composite-index requirement during testing.
+  // Sort client-side by updatedAt -> createdAt -> 0.
+  async function renderMyResumesList() {
+    var host = document.getElementById('my-resumes-list');
+    if (!host) return;
+    var user = auth && auth.currentUser;
+    if (!user || !db) {
+      host.innerHTML = '<div style="padding:20px;color:#64748b;">Sign in to view saved resumes.</div>';
+      return;
+    }
+    host.innerHTML = '<div style="padding:20px;color:#64748b;">Loading saved resumes...</div>';
+    try {
+      var snap = await db.collection('plans')
+        .where('userId', '==', user.uid)
+        .limit(25)
+        .get();
+      var docs = [];
+      snap.forEach(function (doc) { docs.push({ id: doc.id, data: doc.data() || {} }); });
+      docs.sort(function (a, b) {
+        var ad = (a.data.updatedAt && typeof a.data.updatedAt.toDate === 'function') ? a.data.updatedAt.toDate()
+               : (a.data.createdAt && typeof a.data.createdAt.toDate === 'function') ? a.data.createdAt.toDate()
+               : new Date(0);
+        var bd = (b.data.updatedAt && typeof b.data.updatedAt.toDate === 'function') ? b.data.updatedAt.toDate()
+               : (b.data.createdAt && typeof b.data.createdAt.toDate === 'function') ? b.data.createdAt.toDate()
+               : new Date(0);
+        return bd - ad;
+      });
+      if (!docs.length) {
+        host.innerHTML = '<div style="padding:20px;color:#64748b;">No saved resumes yet. Click Save to create your first draft.</div>';
+        return;
+      }
+      var rows = docs.map(function (entry) {
+        var d = entry.data;
+        var title = d.resumeBuildName || d.displayName || d.jobTitle || 'Untitled Resume';
+        var meta = [d.jobTitle, d.company].filter(Boolean).join(' @ ');
+        var ts = (d.updatedAt && typeof d.updatedAt.toDate === 'function') ? d.updatedAt.toDate()
+               : (d.createdAt && typeof d.createdAt.toDate === 'function') ? d.createdAt.toDate()
+               : null;
+        var when = ts ? ts.toLocaleString() : '';
+        return '<div class="saved-resume-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #e2e8f0;">' +
+            '<div style="min-width:0;">' +
+              '<div style="font-weight:800;color:#0f172a;">' + _esc(title) + '</div>' +
+              '<div style="font-size:13px;color:#64748b;">' + _esc(meta || 'Draft') + '</div>' +
+              '<div style="font-size:12px;color:#94a3b8;">' + _esc(when) + '</div>' +
+            '</div>' +
+            '<button type="button" class="btn btn-primary" data-load-plan-id="' + _esc(entry.id) + '">Load</button>' +
+          '</div>';
+      });
+      host.innerHTML = rows.join('');
+      host.querySelectorAll('[data-load-plan-id]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var id = btn.getAttribute('data-load-plan-id');
+          closeMyResumesModal();
+          loadDraft(id);
+        });
+      });
+    } catch (err) {
+      console.error('[myResumes] failed', err);
+      host.innerHTML = '<div style="padding:20px;color:#b91c1c;">Could not load saved resumes: ' + _esc((err && err.message) || err) + '</div>';
+    }
+  }
+
+  function myResumes() {
+    if (!requireAuth()) return;
+    openMyResumesModal();
+  }
+
+  // Debug helpers for fast manual verification.
+  window.debugAuthAndSave = function () {
+    var user = auth && auth.currentUser;
+    return {
+      firebaseLoaded: typeof firebase !== 'undefined',
+      authReady: !!auth,
+      dbReady: !!db,
+      storageReady: !!storage,
+      isSignedIn: !!user,
+      uid: user ? user.uid : null,
+      email: user ? user.email : null,
+      isOwner: isOwnerUser(user),
+      currentPlanId: currentPlanId || (RB_STATE && RB_STATE.currentPlanId) || null,
+      saveDraftType: typeof saveDraft,
+      loadDraftType: typeof loadDraft,
+      myResumesType: typeof myResumes,
+      hasResumeData: !!(RB_STATE && RB_STATE.resumeData),
+      resumeKeys: (RB_STATE && RB_STATE.resumeData) ? Object.keys(RB_STATE.resumeData) : [],
+      hasCoverLetter: !!(RB_STATE && RB_STATE.coverLetter),
+      hasRolePlan:    !!(RB_STATE && RB_STATE.rolePlan)
+    };
+  };
+  window.testSaveDraftDryRun = function () {
+    return sanitizeForFirestore(getCurrentBuilderPayload());
+  };
 
   // ============================================================
   // Event wiring
