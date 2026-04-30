@@ -2519,6 +2519,23 @@
     RB_STATE.targetRole.linkedin_url    = get('linkedin-job-url');
     return RB_STATE.targetRole;
   }
+  // Client-side validator — mirrors backend isBadLinkedInJobDescription.
+  // Used to block authwall / login chrome from overwriting #job-desc on a soft-pass response.
+  function isUsefulJobDescription(text) {
+    var s = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!s || s.length < 80) return false;
+    var blockers = [
+      'sign in to view', 'join linkedin', 'agree & join', 'new to linkedin',
+      'create a linkedin account', 'continue with google', 'continue with apple',
+      'forgot password', 'sign in to see who', 'by clicking continue',
+      'linkedin user agreement', 'cookie policy', 'sign in to access',
+      'log in or sign up', 'this button displays', 'we and our partners use cookies'
+    ];
+    for (var i = 0; i < blockers.length; i++) { if (s.indexOf(blockers[i]) !== -1) return false; }
+    var lnHits = (s.match(/linkedin/g) || []).length;
+    if (lnHits >= 4 && s.length < 600) return false;
+    return true;
+  }
   function hasResumeReady() {
     var rd = RB_STATE.resumeData;
     return !!(rd && Array.isArray(rd.experience) && rd.experience.length > 0);
@@ -2978,24 +2995,35 @@
     }).then(function (resp) {
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
     }).then(function (r) {
+      RB_STATE._lastLinkedInImport = { ok: r.ok, status: r.status, body: r.body, at: Date.now() };
       if (!r.ok) {
+        var rsn = r.body && r.body.reason;
         var msg = (r.body && (r.body.error || r.body.message)) || ('Import failed (' + r.status + ').');
         if (statusEl) statusEl.textContent = msg;
         showToast(msg, 'error');
+        // Do NOT overwrite fields, do NOT auto-run research.
         return;
       }
       var d = r.body || {};
       var title = d.job_title || d.title || '';
       var company = d.company || d.company_name || '';
-      var desc = d.job_description || d.description || '';
+      var desc = d.description || d.job_description || '';
+      // Soft-block: server returned 200 but description is unusable.
+      if (!isUsefulJobDescription(desc)) {
+        var softMsg = 'LinkedIn did not expose the full job description (likely an authwall). Paste it manually below.';
+        if (statusEl) statusEl.textContent = softMsg;
+        showToast(softMsg, 'warning');
+        // Leave job-title / company / job-desc untouched. Do not auto-run research.
+        return;
+      }
       var ti = document.getElementById('job-title'); if (ti && title) ti.value = title;
       var co = document.getElementById('company'); if (co && company) co.value = company;
-      var jd = document.getElementById('job-desc'); if (jd && desc) jd.value = desc;
+      var jd = document.getElementById('job-desc'); if (jd) jd.value = desc;
       RB_STATE.targetRole.job_title = title || RB_STATE.targetRole.job_title;
       RB_STATE.targetRole.company = company || RB_STATE.targetRole.company;
-      RB_STATE.targetRole.job_description = desc || RB_STATE.targetRole.job_description;
+      RB_STATE.targetRole.job_description = desc;
       RB_STATE.targetRole.linkedin_url = url;
-      if (statusEl) statusEl.textContent = 'Imported.';
+      if (statusEl) statusEl.textContent = 'Imported (' + (d.source || 'ok') + ', ' + desc.length + ' chars).';
       showToast('LinkedIn job imported.', 'success');
       updateAIReadinessUI();
       maybeAutoRunRoleResearch('linkedin-import');
@@ -3831,6 +3859,99 @@
     '</section>';
   }
 
+  // ----- Web-only role plan renderer (vertical timeline of phase cards + icon KPIs/Success) -----
+  // Inline SVG icons (24x24, currentColor). No external network requests, no scripts in iframe.
+  function _iconSvg(name) {
+    var paths = {
+      target:    '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>',
+      check:     '<path d="M5 12.5l4.2 4.2L19 7" stroke-linecap="round" stroke-linejoin="round"/>',
+      bolt:      '<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke-linejoin="round"/>',
+      flag:      '<path d="M5 21V4M5 4h11l-2 4 2 4H5" stroke-linecap="round" stroke-linejoin="round"/>',
+      tools:     '<path d="M14.7 6.3a4 4 0 015.6 5.6L13 19.2 4.8 21l1.8-8.2 8.1-8.1z" stroke-linejoin="round"/>',
+      trending:  '<path d="M3 17l6-6 4 4 8-8M14 7h7v7" stroke-linecap="round" stroke-linejoin="round"/>',
+      list:      '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke-linecap="round"/>',
+      sparkle:   '<path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.2 4.2M14.2 14.2l4.2 4.2M5.6 18.4l4.2-4.2M14.2 9.8l4.2-4.2" stroke-linecap="round"/>'
+    };
+    var inner = paths[name] || paths.check;
+    return '<svg class="web-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">' + inner + '</svg>';
+  }
+  function _previewTextFromItem(it) {
+    if (it == null) return '';
+    if (typeof it === 'string') return it;
+    if (typeof it === 'object') {
+      var label = it.metric || it.title || it.name || it.label || '';
+      var value = it.target || it.value || it.measure || '';
+      var desc  = it.description || it.detail || '';
+      var head  = label && value ? (label + ': ' + value) : (label || value);
+      return head + (desc ? ' \u2014 ' + desc : '');
+    }
+    return String(it);
+  }
+  function _listItems(arr, icon) {
+    if (!Array.isArray(arr) || !arr.length) return '';
+    return '<ul class="web-icon-list">' + arr.map(function (it) {
+      var t = _safeStr(_previewTextFromItem(it));
+      if (!t) return '';
+      return '<li>' + _iconSvg(icon) + '<span>' + _esc(_truncate(t, 280)) + '</span></li>';
+    }).filter(Boolean).join('') + '</ul>';
+  }
+  function renderWebIconCards(arr, gridClass, cardClass, icon) {
+    if (!Array.isArray(arr) || !arr.length) return '';
+    return '<div class="' + gridClass + '">' + arr.map(function (it) {
+      var t = _safeStr(_previewTextFromItem(it));
+      if (!t) return '';
+      return '<div class="' + cardClass + '">' + _iconSvg(icon) + '<span>' + _esc(_truncate(t, 200)) + '</span></div>';
+    }).filter(Boolean).join('') + '</div>';
+  }
+  function _renderWebRolePlanSection(plan, type) {
+    if (!plan) return '';
+    var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
+    var bucket = plan[key] || {};
+    var phases = Array.isArray(bucket.phases) ? bucket.phases : (Array.isArray(bucket.quarters) ? bucket.quarters : []);
+    var title = _safeStr(bucket.title || (type ? type + ' Plan' : 'Strategic Roadmap'));
+    var execSum = _safeStr(bucket.executiveSummary || '');
+    var theme = _safeStr(bucket.strategic_theme || '');
+    var success = Array.isArray(bucket.what_success_looks_like) ? bucket.what_success_looks_like : [];
+    var kpis = Array.isArray(bucket.suggested_kpis) ? bucket.suggested_kpis : [];
+
+    var phaseCards = phases.map(function (p, i) {
+      var num = i + 1;
+      var tf = _esc(_safeStr(p.timeframe || ('Phase ' + num)));
+      var ttl = _esc(_safeStr(p.title || ''));
+      var summary = _esc(_truncate(_safeStr(p.phase_summary || p.summary || p.primary_objective || ''), 320));
+      var execVal = _esc(_truncate(_safeStr(p.executive_value || ''), 280));
+      var actions = _listItems(p.actions, 'bolt');
+      var milestones = _listItems(p.milestones, 'flag');
+      var tools = _listItems(p.tools_and_resources, 'tools');
+      function block(label, html) {
+        return html ? '<div class="web-phase-block"><h4>' + _esc(label) + '</h4>' + html + '</div>' : '';
+      }
+      return '<article class="web-phase-card">' +
+        '<div class="web-phase-marker">' + num + '</div>' +
+        '<div class="web-phase-content">' +
+          '<div class="web-phase-timeframe">' + tf + '</div>' +
+          (ttl ? '<h3 class="web-phase-title">' + ttl + '</h3>' : '') +
+          (summary ? '<p class="web-phase-summary">' + summary + '</p>' : '') +
+          block('Actions', actions) +
+          block('Milestones', milestones) +
+          block('Tools & Resources', tools) +
+          (execVal ? '<p class="web-exec-value">' + _iconSvg('sparkle') + '<span><strong>Executive value:</strong> ' + execVal + '</span></p>' : '') +
+        '</div>' +
+      '</article>';
+    }).join('');
+
+    return '<section id="sec-plan" class="doc-section web-plan">' +
+      '<header class="doc-header"><h2>' + _esc(title) + '</h2></header>' +
+      (execSum ? '<p class="web-exec-summary">' + _esc(execSum) + '</p>' : '') +
+      (theme ? '<p class="muted"><em>Strategic theme:</em> ' + _esc(theme) + '</p>' : '') +
+      (success.length ? '<section class="sub"><h3>What Success Looks Like</h3>' +
+        renderWebIconCards(success, 'web-success-grid', 'web-success-card', 'check') + '</section>' : '') +
+      (kpis.length ? '<section class="sub"><h3>Key Performance Indicators</h3>' +
+        renderWebIconCards(kpis, 'web-kpi-grid', 'web-kpi-card', 'target') + '</section>' : '') +
+      (phaseCards ? '<section class="web-roadmap" aria-label="Roadmap phases">' + phaseCards + '</section>' : '') +
+    '</section>';
+  }
+
   function _renderPortfolioSections(plan) {
     if (!plan || !plan.portfolio_sections || typeof plan.portfolio_sections !== 'object') return '';
     var ps = plan.portfolio_sections;
@@ -3885,7 +4006,7 @@
     var inner;
     if (key === 'resume')           inner = d.resume      ? _renderResumeSection(d.resume, cfg, format)        : _missingCard('Resume',       'Import a resume first.');
     else if (key === 'coverLetter') inner = d.coverLetter ? _renderCoverLetterSection(d.coverLetter, role)     : _missingCard('Cover Letter', 'Generate a cover letter first.');
-    else if (key === 'rolePlan')    inner = d.rolePlan    ? _renderRolePlanSection(d.rolePlan, d.rolePlanType) : _missingCard('Career Plan',  'Generate a role plan first.');
+    else if (key === 'rolePlan')    inner = d.rolePlan    ? (format === 'web' ? _renderWebRolePlanSection(d.rolePlan, d.rolePlanType) : _renderRolePlanSection(d.rolePlan, d.rolePlanType)) : _missingCard('Career Plan',  'Generate a role plan first.');
     else return '';
     var slug = key === 'coverLetter' ? 'cv' : (key === 'rolePlan' ? 'plan' : 'resume');
     return '<section class="doc-subdoc doc-subdoc-' + slug + '">' + inner + '</section>';
@@ -3923,8 +4044,9 @@
     var hero = '<header class="hero" id="sec-top">' +
       (photo ? '<img class="preview-profile-photo hero-photo" alt="' + _esc(name) + '" src="' + _esc(photo) + '">' : '') +
       '<h1>' + _esc(name || 'My Portfolio') + '</h1>' +
-      (headline ? '<p class="hero-sub">' + _esc(headline) + '</p>' : '') +
+      (headline ? '<p class="hero-sub">' + _esc(_truncate(headline, 140)) + '</p>' : '') +
       (role.company ? '<p class="hero-meta muted">Targeting ' + _esc(_safeStr(role.job_title || '')) + ' at ' + _esc(_safeStr(role.company)) + '</p>' : '') +
+      ((headline && headline.length > 140) ? '<p class="hero-meta muted hero-context">' + _esc(headline) + '</p>' : '') +
       (heroLinks.length ? '<div class="hero-links">' + heroLinks.map(function (l) { return '<span class="hero-link">' + _esc(l) + '</span>'; }).join('') + '</div>' : '') +
     '</header>';
 
@@ -4446,10 +4568,33 @@
       'body.format-web .skills-block .sk-doc-sidebar{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;}',
       'body.format-web .skills-block .sk-group{margin:.2rem 0;padding-left:8px;border-left:3px solid var(--accent);}',
       'body.format-web .skills-block .sk-group h4{color:var(--accent-dark);}',
-      // Web plan polish: phase cards in balanced grid, no giant blank gaps.
+      // Web plan polish: vertical roadmap timeline (NOT side-by-side).
       'body.format-web #sec-plan .phase-card{margin:0;padding:14px 16px;border-top:0;background:var(--sidebar);border-radius:10px;box-shadow:0 1px 2px rgba(15,23,42,.04);}',
-      'body.format-web #sec-plan .sub:has(.phase-card){display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;}',
-      'body.format-web #sec-plan .sub:has(.phase-card) > h3{grid-column:1/-1;}',
+      // Web role-plan (vertical timeline). All selectors web-scoped so PDF/DOCX/PPTX cannot inherit.
+      'body.format-web .web-roadmap{display:flex;flex-direction:column;gap:16px;margin-top:.6rem;}',
+      'body.format-web .web-phase-card{display:grid;grid-template-columns:48px 1fr;gap:14px;padding:16px 18px;background:var(--sidebar);border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,.06);border-left:4px solid var(--accent);}',
+      'body.format-web .web-phase-marker{width:40px;height:40px;border-radius:999px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.05rem;}',
+      'body.format-web .web-phase-content{display:flex;flex-direction:column;gap:8px;min-width:0;}',
+      'body.format-web .web-phase-timeframe{display:inline-block;align-self:flex-start;padding:2px 10px;border-radius:999px;background:var(--accent-soft,rgba(59,130,246,.12));color:var(--accent-dark,var(--accent));font-size:.78rem;font-weight:600;letter-spacing:.02em;text-transform:uppercase;}',
+      'body.format-web .web-phase-title{margin:0;font-size:1.05rem;font-weight:700;color:var(--text,#0F172A);}',
+      'body.format-web .web-phase-summary{margin:0;color:var(--muted,#475569);}',
+      'body.format-web .web-phase-block{margin-top:6px;}',
+      'body.format-web .web-phase-block h4{margin:0 0 4px;font-size:.82rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,#475569);}',
+      'body.format-web .web-icon-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}',
+      'body.format-web .web-icon-list li{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:flex-start;color:var(--text,#0F172A);}',
+      'body.format-web .web-icon-list li svg{margin-top:2px;color:var(--accent);}',
+      'body.format-web .web-kpi-grid,body.format-web .web-success-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:.4rem;}',
+      'body.format-web .web-kpi-card,body.format-web .web-success-card{display:grid;grid-template-columns:24px 1fr;gap:10px;align-items:flex-start;padding:12px 14px;background:#fff;border:1px solid var(--border,#E2E8F0);border-radius:10px;box-shadow:0 1px 2px rgba(15,23,42,.04);}',
+      'body.format-web .web-kpi-card svg{color:var(--accent);}',
+      'body.format-web .web-success-card svg{color:#16A34A;}',
+      'body.format-web .web-exec-summary{margin:.4rem 0 .8rem;font-size:1.02rem;line-height:1.55;}',
+      'body.format-web .web-exec-value{display:grid;grid-template-columns:22px 1fr;gap:8px;align-items:flex-start;margin-top:8px;padding:10px 12px;background:rgba(99,102,241,.06);border-radius:8px;color:var(--text,#0F172A);}',
+      'body.format-web .web-exec-value svg{margin-top:2px;color:var(--accent);}',
+      'body.format-web .hero-context{margin-top:6px;font-size:.92rem;line-height:1.5;}',
+      // Mobile: collapse marker + content into single column.
+      '@media (max-width:720px){body.format-web .web-phase-card{grid-template-columns:1fr;}body.format-web .web-phase-marker{width:32px;height:32px;font-size:.95rem;}body.format-web .web-kpi-grid,body.format-web .web-success-grid{grid-template-columns:1fr;}}',
+      // Defensive scope guard: no web-only classes should ever render in PDF/DOCX. Hide if config drift.
+      'body.format-pdf .web-roadmap,body.format-docx .web-roadmap,body.format-pdf .web-phase-card,body.format-docx .web-phase-card,body.format-pdf .web-kpi-grid,body.format-docx .web-kpi-grid,body.format-pdf .web-success-grid,body.format-docx .web-success-grid{display:none;}',
       // Hide rail photo on web (we already render the hero photo).
       'body.format-web .preview-profile-photo.rail-photo{display:none;}',
       // ---------- PPTX portrait (8.5/11 ratio) ----------
@@ -4589,6 +4734,22 @@
       var cleanCount = (cleanHtml.match(/<script\b/gi) || []).length;
       _lastRenderCounts = { rawScriptTagCount: rawCount, cleanScriptTagCount: cleanCount };
       frame.srcdoc = cleanHtml;
+      // Reset iframe + container scroll on every render so the user sees the top of the new preview.
+      frame.addEventListener('load', function () {
+        try {
+          frame.contentWindow && frame.contentWindow.scrollTo(0, 0);
+          var doc = frame.contentDocument;
+          if (doc) {
+            if (doc.documentElement) doc.documentElement.scrollTop = 0;
+            if (doc.body) doc.body.scrollTop = 0;
+          }
+        } catch (_) {}
+      }, { once: true });
+      try { host && host.scrollTo && host.scrollTo(0, 0); } catch (_) {}
+      try {
+        var exportContainer = document.getElementById('preview-container-export');
+        if (exportContainer && exportContainer.scrollTo) exportContainer.scrollTo(0, 0);
+      } catch (_) {}
     }
   }
 
@@ -4716,6 +4877,67 @@
           disabled: !!(b.disabled || b.getAttribute('aria-disabled') === 'true')
         };
       })
+    };
+  };
+
+  window.debugLinkedInJobImport = function () {
+    var jdEl = document.getElementById('job-desc');
+    var ttEl = document.getElementById('job-title');
+    var coEl = document.getElementById('company');
+    var stEl = document.getElementById('linkedin-job-status');
+    var urlEl = document.getElementById('linkedin-job-url');
+    var jd = jdEl ? jdEl.value : '';
+    var jdLower = jd.toLowerCase();
+    var loginPhrases = ['sign in to view', 'join linkedin', 'agree & join', 'new to linkedin', 'continue with google'];
+    var hits = loginPhrases.filter(function (p) { return jdLower.indexOf(p) !== -1; });
+    return {
+      url: urlEl ? urlEl.value : '',
+      status: stEl ? stEl.textContent : '',
+      jobTitle: ttEl ? ttEl.value : '',
+      company: coEl ? coEl.value : '',
+      jobDescriptionLength: jd.length,
+      jobDescriptionPreview: jd.slice(0, 240),
+      isUseful: typeof isUsefulJobDescription === 'function' ? isUsefulJobDescription(jd) : null,
+      containsLinkedInLoginText: hits.length > 0,
+      loginPhrasesMatched: hits,
+      lastResponse: RB_STATE._lastLinkedInImport || null
+    };
+  };
+
+  window.debugWebPreviewQuality = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null; try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { hasFrame: !!frame, hasDoc: false };
+    var roadmaps = doc.querySelectorAll('.web-roadmap');
+    var phaseCards = doc.querySelectorAll('.web-phase-card');
+    var kpiCards = doc.querySelectorAll('.web-kpi-card');
+    var successCards = doc.querySelectorAll('.web-success-card');
+    var execValues = doc.querySelectorAll('.web-exec-value');
+    var iframeScripts = doc.querySelectorAll('script');
+    var phaseCardsSideBySide = false;
+    if (phaseCards.length >= 2) {
+      var a = phaseCards[0].getBoundingClientRect();
+      var b = phaseCards[1].getBoundingClientRect();
+      phaseCardsSideBySide = (b.top < a.bottom - 4) && (b.left >= a.right - 4);
+    }
+    var visibleText = (doc.body && doc.body.innerText) || '';
+    var bodyClass = (doc.body && doc.body.className) || '';
+    var scrollTop = (doc.documentElement && doc.documentElement.scrollTop) || (doc.body && doc.body.scrollTop) || 0;
+    return {
+      hasFrame: true,
+      hasDoc: true,
+      bodyClass: bodyClass,
+      hasWebRoadmap: roadmaps.length > 0,
+      roadmapCount: roadmaps.length,
+      phaseCardCount: phaseCards.length,
+      phaseCardsSideBySide: phaseCardsSideBySide,
+      kpiCardCount: kpiCards.length,
+      successCardCount: successCards.length,
+      execValueCount: execValues.length,
+      usesIframeScripts: iframeScripts.length,
+      visibleTextHasDoubleEscapedAmp: visibleText.indexOf('&amp;') !== -1,
+      visibleTextLength: visibleText.length,
+      scrollTop: scrollTop
     };
   };
 
