@@ -9113,6 +9113,7 @@
   var lazySaveQueued = false;
   var lazySavePaused = false;
   var lazySaveBlockedForPlan = false;
+  var lazySaveBlockedForPermissions = false;
   var lazySaveLastHash = '';
   var lazySaveFailureCount = 0;
   var LAZY_SAVE_DELAY_MS = 1800;
@@ -9193,9 +9194,18 @@
     // attempt was blocked by the plan/free-version gate. Prevents quiet retry
     // loop while still respecting the paywall on subsequent failures.
     lazySaveBlockedForPlan = false;
-    // Reset the consecutive-failure backoff on fresh user activity so the
-    // autosave loop can resume after a transient error has been resolved.
-    lazySaveFailureCount = 0;
+    // NOTE: Do NOT reset `lazySaveFailureCount` here. Cascading input/change
+    // events from a single user action (e.g. switching preview format) can
+    // call markBuilderDirty many times in a row; resetting the counter here
+    // would defeat the LAZY_SAVE_MAX_FAILURES backoff and cause runaway
+    // console spam (see ISS-019). The counter is reset only on a successful
+    // save in flushLazySave(). If autosave is currently paused for failures,
+    // we still leave the dirty flag set so the next successful save (manual
+    // or re-auth-triggered) flushes everything.
+    if (lazySaveBlockedForPermissions || lazySaveFailureCount >= LAZY_SAVE_MAX_FAILURES) {
+      try { updateLazySaveStatus('dirty'); } catch (_) {}
+      return;
+    }
     try { updateLazySaveStatus('dirty'); } catch (_) {}
     scheduleLazySave(reason);
   }
@@ -9244,6 +9254,7 @@
         RB_STATE._hasUnsavedChanges = false;
         RB_STATE._lastAutosavedAt = Date.now();
         lazySaveFailureCount = 0;
+        lazySaveBlockedForPermissions = false;
         try { updateLazySaveStatus('saved'); } catch (_) {}
       }
       return id;
@@ -9252,7 +9263,19 @@
       RB_STATE._lastSaveError = (err && err.message) || String(err);
       RB_STATE._hasUnsavedChanges = true;
       lazySaveFailureCount++;
-      try { updateLazySaveStatus('error', 'Autosave failed'); } catch (_) {}
+      // Permission-denied is not recoverable by retrying. Likely causes:
+      //   - Firestore security rules reject this user/document shape.
+      //   - Sign-in popup never completed (COOP blocked window.closed) so
+      //     auth.currentUser is set client-side but Firestore sees no auth.
+      // Pause autosave entirely until the next successful save (manual save
+      // or after re-auth) instead of hammering Firestore.
+      var errCode = err && (err.code || err.message) || '';
+      if (/permission-denied|insufficient permissions/i.test(String(errCode))) {
+        lazySaveBlockedForPermissions = true;
+        try { updateLazySaveStatus('error', 'Autosave paused \u2014 sign in to retry'); } catch (_) {}
+      } else {
+        try { updateLazySaveStatus('error', 'Autosave failed'); } catch (_) {}
+      }
       return null;
     } finally {
       lazySaveInFlight = false;
@@ -9260,6 +9283,11 @@
         // Autosave is blocked by the plan/free-version gate. Do not reschedule
         // until the user makes another edit (which clears the flag).
         lazySaveQueued = false;
+      } else if (lazySaveBlockedForPermissions) {
+        // Hard stop on permission errors -- no reschedule.
+        lazySaveQueued = false;
+        if (lazySaveTimer)    { clearTimeout(lazySaveTimer);    lazySaveTimer = null; }
+        if (lazySaveMaxTimer) { clearTimeout(lazySaveMaxTimer); lazySaveMaxTimer = null; }
       } else if (lazySaveFailureCount >= LAZY_SAVE_MAX_FAILURES) {
         // Defensive backoff: too many consecutive autosave failures. Stop the
         // reschedule loop until the next user edit (markBuilderDirty resets
@@ -10736,6 +10764,8 @@
       lazySaveQueued: lazySaveQueued,
       lazySavePaused: lazySavePaused,
       lazySaveBlockedForPlan: lazySaveBlockedForPlan,
+      lazySaveBlockedForPermissions: lazySaveBlockedForPermissions,
+      lazySaveFailureCount: lazySaveFailureCount,
       lazySaveHasTimer: !!lazySaveTimer,
       lazySaveHasMaxTimer: !!lazySaveMaxTimer,
       lazySaveLastHashLength: lazySaveLastHash ? lazySaveLastHash.length : 0,
