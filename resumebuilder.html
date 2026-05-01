@@ -157,6 +157,44 @@
   .nav-toolbar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
   .nav-toolbar .btn { padding: .42rem .85rem; font-size: .85rem; }
 
+  /* Lazy-save status pill (autosave indicator). */
+  .lazy-save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 28px;
+    padding: .22rem .55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148,163,184,.22);
+    color: #CBD5E1;
+    background: rgba(15,23,42,.38);
+    font-size: .72rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .lazy-save-status.dirty {
+    color: #FDE68A;
+    border-color: rgba(245,158,11,.35);
+    background: rgba(120,53,15,.22);
+  }
+  .lazy-save-status.saving {
+    color: #BFDBFE;
+    border-color: rgba(96,165,250,.35);
+    background: rgba(30,64,175,.22);
+  }
+  .lazy-save-status.saved {
+    color: #BBF7D0;
+    border-color: rgba(34,197,94,.35);
+    background: rgba(6,95,70,.22);
+  }
+  .lazy-save-status.error {
+    color: #FECACA;
+    border-color: rgba(248,113,113,.45);
+    background: rgba(127,29,29,.25);
+  }
+  /* Hide the autosave pill until the builder workspace is active. */
+  body:not(.builder-active) .lazy-save-status { display: none; }
+
   .nav-spacer { flex: 1 1 auto; }
 
   .nav-auth { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
@@ -1322,6 +1360,7 @@
     <div class="nav-toolbar" role="group" aria-label="Document actions">
       <button id="nav-my-resumes"  class="btn btn-secondary" type="button" data-action="myResumes"><i data-lucide="folder" style="width:16px;height:16px;"></i> My Resumes</button>
       <button id="nav-save"        class="btn btn-save"      type="button" data-action="saveDraft"><i data-lucide="save" style="width:16px;height:16px;"></i> Save</button>
+      <span id="lazy-save-status" class="lazy-save-status saved" aria-live="polite" title="Autosave status">Saved</span>
       <button id="nav-new-version" class="btn btn-secondary" type="button" data-action="resetBuilder"><i data-lucide="plus" style="width:16px;height:16px;"></i> New Version</button>
     </div>
 
@@ -3481,6 +3520,7 @@
     showToast('Resume imported', 'success');
     openAccordion('acc-personal-work');
     try { updateAIReadinessUI(); maybeAutoRunRoleResearch('resume-extracted'); } catch (_) {}
+    try { markBuilderDirty('resume-imported'); } catch (_) {}
   }
 
   // ============================================================
@@ -4090,6 +4130,7 @@
       try { if (typeof renderRoleResearchReview === 'function') renderRoleResearchReview(); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Role research updated.';
       if (!opts.auto) showToast('Role research updated.', 'success');
+      try { markBuilderDirty('role-research'); } catch (_) {}
     }).catch(function (err) {
       var msg = 'Research error: ' + (err && err.message || err);
       RB_STATE._aiLastError = msg;
@@ -5006,6 +5047,7 @@
     if (undoBtn) undoBtn.hidden = false;
 
     showToast('Optimization updates applied to Application Details.', 'success');
+    try { markBuilderDirty('optimization-applied'); } catch (_) {}
   }
 
   function undoOptimizationUpdates() {
@@ -5085,6 +5127,7 @@
       if (statusEl) statusEl.textContent = 'Optimization complete.';
       if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
       showToast('Optimization insights ready.', 'success');
+      try { markBuilderDirty('optimize-result'); } catch (_) {}
     } catch (err) {
       console.error('[runOptimize] failed', err);
       if (statusEl) statusEl.textContent = 'Optimization failed.';
@@ -5292,6 +5335,7 @@
       if (statusEl) statusEl.textContent = 'Cover letter generated.';
       if (!canUsePremium()) { try { markFreeUseConsumed('freeCoverUsed'); } catch (_) {} }
       showToast('Cover letter generated.', 'success');
+      try { markBuilderDirty('cover-letter-generated'); } catch (_) {}
     }).catch(function (err) {
       var msg = 'Cover letter error: ' + (err && err.message || err);
       RB_STATE._aiLastError = msg;
@@ -5357,6 +5401,7 @@
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
       if (!canUsePremium()) { try { markFreeUseConsumed('freeRolePlanUsed'); } catch (_) {} }
       showToast('Role plan generated.', 'success');
+      try { markBuilderDirty('role-plan-generated'); } catch (_) {}
     }).catch(function (err) {
       var msg = 'Plan error: ' + (err && err.message || err);
       RB_STATE._aiLastError = msg;
@@ -5832,6 +5877,7 @@
     updateProfilePhotoPreview();
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
     try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
+    try { markBuilderDirty('profile-photo'); } catch (_) {}
   }
   function updateProfilePhotoPreview() {
     var img = document.getElementById('profile-photo-img');
@@ -8432,21 +8478,240 @@
     await db.collection('builderProfiles').doc(user.uid).set(profile, { merge: true });
   }
 
-  async function saveDraft() {
-    if (!requireAuth()) return;
-    if (!db) { showToast('Firestore not ready', 'error'); return; }
+  // ============================================================
+  // Lazy-save / autosave system
+  // ============================================================
+  var lazySaveTimer = null;
+  var lazySaveMaxTimer = null;
+  var lazySaveInFlight = false;
+  var lazySaveQueued = false;
+  var lazySavePaused = false;
+  var lazySaveLastHash = '';
+  var LAZY_SAVE_DELAY_MS = 1800;
+  var LAZY_SAVE_MAX_WAIT_MS = 10000;
+  var lastAutosavePaywallNoticeAt = 0;
+
+  function updateLazySaveStatus(state, detail) {
+    var el = document.getElementById('lazy-save-status');
+    if (!el) return;
+    el.classList.remove('dirty', 'saving', 'saved', 'error');
+    el.classList.add(state || 'saved');
+    if (state === 'dirty') {
+      el.textContent = 'Unsaved changes';
+    } else if (state === 'saving') {
+      el.textContent = 'Saving...';
+    } else if (state === 'error') {
+      el.textContent = detail || 'Save failed';
+    } else {
+      var t = (RB_STATE && RB_STATE._lastSavedAt) ? new Date(RB_STATE._lastSavedAt) : null;
+      el.textContent = t ? 'Saved ' + t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Saved';
+    }
+  }
+
+  function hashLazySavePayload(payload) {
+    try { return JSON.stringify(payload); }
+    catch (_) { return String(Date.now()); }
+  }
+
+  function hasMeaningfulBuilderContent() {
+    var resume = (RB_STATE && RB_STATE.resumeData) || {};
+    var hasResume = !!(
+      resume.name ||
+      resume.full_name ||
+      resume.email ||
+      (Array.isArray(resume.experience) && resume.experience.length) ||
+      (Array.isArray(resume.skills) && resume.skills.length)
+    );
+    var target = {};
+    try { target = (typeof getTargetRoleFromDOM === 'function') ? (getTargetRoleFromDOM() || {}) : {}; }
+    catch (_) { target = {}; }
+    var hasTarget = !!(
+      target.job_title ||
+      target.company ||
+      target.job_description
+    );
+    return !!(
+      hasResume ||
+      hasTarget ||
+      (RB_STATE && (RB_STATE.coverLetter || RB_STATE.cvDraft || RB_STATE.rolePlan))
+    );
+  }
+
+  function shouldLazySave() {
+    if (lazySavePaused) return false;
+    if (typeof auth === 'undefined' || !auth || !auth.currentUser) return false;
+    if (typeof db === 'undefined' || !db) return false;
+    if (!document.body.classList.contains('builder-active')) return false;
+    var build = document.getElementById('builder-wrapper');
+    if (!build || build.classList.contains('hidden')) return false;
+    if (!hasMeaningfulBuilderContent()) return false;
+    return true;
+  }
+
+  function maybeShowAutosavePaywallNotice() {
+    var now = Date.now();
+    if (now - lastAutosavePaywallNoticeAt < 60000) return;
+    lastAutosavePaywallNoticeAt = now;
+    try { updateLazySaveStatus('error', 'Save paused \u2014 plan required'); } catch (_) {}
+  }
+
+  function markBuilderDirty(reason) {
+    if (!RB_STATE) return;
+    RB_STATE._hasUnsavedChanges = true;
+    RB_STATE._lastDirtyReason = reason || 'change';
+    RB_STATE._lastDirtyAt = Date.now();
+    try { updateLazySaveStatus('dirty'); } catch (_) {}
+    scheduleLazySave(reason);
+  }
+
+  function scheduleLazySave(reason) {
+    if (!shouldLazySave()) return;
+    if (lazySaveTimer) clearTimeout(lazySaveTimer);
+    lazySaveTimer = setTimeout(function () {
+      flushLazySave('debounced:' + (reason || 'change'));
+    }, LAZY_SAVE_DELAY_MS);
+    if (!lazySaveMaxTimer) {
+      lazySaveMaxTimer = setTimeout(function () {
+        flushLazySave('max-wait');
+      }, LAZY_SAVE_MAX_WAIT_MS);
+    }
+  }
+
+  async function flushLazySave(source) {
+    if (!shouldLazySave()) return null;
+    if (lazySaveTimer)    { clearTimeout(lazySaveTimer);    lazySaveTimer = null; }
+    if (lazySaveMaxTimer) { clearTimeout(lazySaveMaxTimer); lazySaveMaxTimer = null; }
+    if (lazySaveInFlight) {
+      lazySaveQueued = true;
+      return null;
+    }
+    var payload;
+    try { payload = getCurrentBuilderPayload(); }
+    catch (err) { console.warn('[lazy-save] could not build payload', err); return null; }
+    var hash = hashLazySavePayload(payload);
+    if (hash === lazySaveLastHash && !RB_STATE._hasUnsavedChanges) {
+      try { updateLazySaveStatus('saved'); } catch (_) {}
+      return currentPlanId || (RB_STATE && RB_STATE.currentPlanId) || null;
+    }
+    lazySaveInFlight = true;
+    lazySaveQueued = false;
+    try { updateLazySaveStatus('saving'); } catch (_) {}
+    try {
+      var id = await saveDraft({
+        silent: true,
+        source: source || 'autosave',
+        skipButtonSpinner: true,
+        isAutosave: true
+      });
+      try { lazySaveLastHash = hashLazySavePayload(getCurrentBuilderPayload()); } catch (_) {}
+      if (id) {
+        RB_STATE._hasUnsavedChanges = false;
+        RB_STATE._lastAutosavedAt = Date.now();
+        try { updateLazySaveStatus('saved'); } catch (_) {}
+      }
+      return id;
+    } catch (err) {
+      console.warn('[lazy-save] failed', err);
+      RB_STATE._lastSaveError = (err && err.message) || String(err);
+      RB_STATE._hasUnsavedChanges = true;
+      try { updateLazySaveStatus('error', 'Autosave failed'); } catch (_) {}
+      return null;
+    } finally {
+      lazySaveInFlight = false;
+      if (lazySaveQueued || RB_STATE._hasUnsavedChanges) {
+        lazySaveQueued = false;
+        scheduleLazySave('queued');
+      }
+    }
+  }
+
+  function initLazySaveListeners() {
+    if (window._lazySaveListenersAttached) return;
+    window._lazySaveListenersAttached = true;
+    var root = document.getElementById('builder-wrapper') || document.body;
+    root.addEventListener('input', function (ev) {
+      var el = ev.target;
+      if (!el || !el.matches) return;
+      if (el.matches('input, textarea, select, [contenteditable="true"]')) {
+        markBuilderDirty('input:' + (el.id || el.name || el.tagName));
+      }
+    }, true);
+    root.addEventListener('change', function (ev) {
+      var el = ev.target;
+      if (!el || !el.matches) return;
+      if (el.matches('input, textarea, select')) {
+        markBuilderDirty('change:' + (el.id || el.name || el.tagName));
+      }
+    }, true);
+    // Catch card clicks / style changes / doc selections that may not trigger input.
+    root.addEventListener('click', function (ev) {
+      var target = ev.target && ev.target.closest
+        ? ev.target.closest('.doc-card, .style-card, .swatch, [data-preview-format], [data-device-mode]')
+        : null;
+      if (target) {
+        setTimeout(function () { markBuilderDirty('click-selection'); }, 50);
+      }
+    }, true);
+    window.addEventListener('beforeunload', function (ev) {
+      if (RB_STATE && RB_STATE._hasUnsavedChanges) {
+        // Best-effort flush. Firestore may not finish before the page is gone,
+        // but trigger it anyway so the request goes out.
+        try { flushLazySave('beforeunload'); } catch (_) {}
+        ev.preventDefault();
+        ev.returnValue = '';
+      }
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden' && RB_STATE && RB_STATE._hasUnsavedChanges) {
+        try { flushLazySave('visibility-hidden'); } catch (_) {}
+      }
+    });
+    window.addEventListener('online', function () {
+      if (RB_STATE && RB_STATE._hasUnsavedChanges) scheduleLazySave('online');
+    });
+  }
+
+  async function saveDraft(options) {
+    options = options || {};
+    var silent = !!options.silent;
+    var source = options.source || 'manual';
+    var skipButtonSpinner = !!options.skipButtonSpinner;
+    var isAutosave = !!options.isAutosave;
+
+    if (!requireAuth()) return null;
+    if (!db) {
+      if (!silent) showToast('Firestore not ready', 'error');
+      return null;
+    }
     var user = auth.currentUser;
     // Gate creation of a NEW resume version (a brand-new Firestore plan doc).
     // Updates to an existing doc (currentPlanId already set) are unlimited.
     var isNewPlanDoc = !currentPlanId;
-    if (isNewPlanDoc && !requireResumeCreateOrTrial()) return;
+    if (isNewPlanDoc) {
+      var canCreate = canUsePremium() || !freeResumeCreated;
+      if (!canCreate) {
+        if (isAutosave) {
+          // Autosave path: do not spam the paywall modal. Surface a quiet
+          // status pill and bail. Manual Save still opens the paywall normally.
+          try { maybeShowAutosavePaywallNotice(); } catch (_) {}
+          RB_STATE._lastSaveError = 'Save paused \u2014 plan required';
+          RB_STATE._hasUnsavedChanges = true;
+          return null;
+        }
+        // Manual save: existing helper opens the paywall + toast.
+        if (!requireResumeCreateOrTrial()) return null;
+      }
+    }
     var btn = document.getElementById('nav-save');
     var origHTML = btn ? btn.innerHTML : '';
+    var spinnerActive = false;
     try {
-      if (btn) {
+      if (btn && !skipButtonSpinner) {
+        spinnerActive = true;
         btn.disabled = true;
         btn.innerHTML = '<span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></span> Saving...';
       }
+      if (silent) { try { updateLazySaveStatus('saving'); } catch (_) {} }
       var payload = getCurrentBuilderPayload();
       var docData = sanitizeForFirestore(Object.assign({}, payload, {
         userId:    user.uid,
@@ -8478,15 +8743,25 @@
       }
       RB_STATE.currentPlanId = currentPlanId;
       RB_STATE._lastSavedAt = Date.now();
+      RB_STATE._hasUnsavedChanges = false;
+      RB_STATE._lastSaveSource = source;
+      RB_STATE._lastSaveError = null;
       try { await syncBuilderProfileFromCurrentState(); }
       catch (profileErr) { console.debug('[saveDraft] profile sync skipped/failed', profileErr); }
-      showToast('Saved draft.', 'success');
+      if (!silent) showToast('Saved draft.', 'success');
+      try { updateLazySaveStatus('saved'); } catch (_) {}
       return currentPlanId;
     } catch (err) {
       console.error('[saveDraft] failed', err);
-      showToast('Save failed: ' + ((err && err.message) || err), 'error');
+      var msg = (err && err.message) || String(err);
+      RB_STATE._lastSaveError = msg;
+      RB_STATE._hasUnsavedChanges = true;
+      if (!silent) showToast('Save failed: ' + msg, 'error');
+      try { updateLazySaveStatus('error', silent ? 'Autosave failed' : 'Save failed'); } catch (_) {}
+      if (silent) return null;
+      throw err;
     } finally {
-      if (btn) {
+      if (btn && spinnerActive) {
         btn.disabled = false;
         btn.innerHTML = origHTML || '<i data-lucide="save" style="width:16px;height:16px;"></i> Save';
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -8497,6 +8772,8 @@
   }
 
   function hydrateBuilderFromSavedDraft(data, id) {
+    lazySavePaused = true;
+    try {
     currentPlanId = id || data.id || null;
     window.currentPlanId = currentPlanId;
     RB_STATE.currentPlanId = currentPlanId;
@@ -8606,6 +8883,14 @@
       }
       if (typeof updateProfilePhotoPreview === 'function') updateProfilePhotoPreview();
     } catch (_) {}
+    } finally {
+      lazySavePaused = false;
+      try {
+        lazySaveLastHash = hashLazySavePayload(getCurrentBuilderPayload());
+        if (RB_STATE) RB_STATE._hasUnsavedChanges = false;
+        updateLazySaveStatus('saved');
+      } catch (_) {}
+    }
   }
 
   async function loadDraft(planId) {
@@ -9626,6 +9911,8 @@
     if (modal) modal.classList.add('hidden');
   }
   function createNewResumeVersion() {
+    lazySavePaused = true;
+    try {
     var nameEl = document.getElementById('new-version-name');
     var name   = (nameEl && nameEl.value || '').trim() || 'Untitled Version';
     var keep = {
@@ -9694,6 +9981,14 @@
     closeNewVersionModal();
     showBuilderWorkspace();
     showToast('New version "' + name + '" started. Save to keep it.', 'success');
+    } finally {
+      lazySavePaused = false;
+      try {
+        lazySaveLastHash = hashLazySavePayload(getCurrentBuilderPayload());
+        if (RB_STATE) RB_STATE._hasUnsavedChanges = false;
+        updateLazySaveStatus('saved');
+      } catch (_) {}
+    }
   }
 
   // --- Account menu (top nav) ---
@@ -9761,6 +10056,35 @@
     };
   };
 
+  window.debugLazySave = function () {
+    return {
+      signedIn: !!(auth && auth.currentUser),
+      dbReady: !!db,
+      currentPlanId: currentPlanId || (RB_STATE && RB_STATE.currentPlanId) || null,
+      hasMeaningfulBuilderContent: hasMeaningfulBuilderContent(),
+      shouldLazySave: shouldLazySave(),
+      hasUnsavedChanges: !!(RB_STATE && RB_STATE._hasUnsavedChanges),
+      lastDirtyReason: (RB_STATE && RB_STATE._lastDirtyReason) || null,
+      lastDirtyAt:     (RB_STATE && RB_STATE._lastDirtyAt)     || null,
+      lastSavedAt:     (RB_STATE && RB_STATE._lastSavedAt)     || null,
+      lastAutosavedAt: (RB_STATE && RB_STATE._lastAutosavedAt) || null,
+      lastSaveSource:  (RB_STATE && RB_STATE._lastSaveSource)  || null,
+      lastSaveError:   (RB_STATE && RB_STATE._lastSaveError)   || null,
+      lazySaveInFlight: lazySaveInFlight,
+      lazySaveQueued: lazySaveQueued,
+      lazySavePaused: lazySavePaused,
+      lazySaveHasTimer: !!lazySaveTimer,
+      lazySaveHasMaxTimer: !!lazySaveMaxTimer,
+      lazySaveLastHashLength: lazySaveLastHash ? lazySaveLastHash.length : 0,
+      freeResumeCreated: typeof freeResumeCreated !== 'undefined' ? freeResumeCreated : null,
+      canUsePremium: typeof canUsePremium === 'function' ? canUsePremium() : null
+    };
+  };
+  window.flushLazySave    = flushLazySave;
+  window.markBuilderDirty = markBuilderDirty;
+  window.scheduleLazySave = scheduleLazySave;
+  window.updateLazySaveStatus = updateLazySaveStatus;
+
   // Expose so other modules / debug tools can invoke directly.
   window.showLoginLanding      = showLoginLanding;
   window.showResumeDashboard   = showResumeDashboard;
@@ -9802,6 +10126,8 @@
   };
 
   function wireBaseEvents() {
+    // Lazy-save / autosave listeners (idempotent).
+    try { initLazySaveListeners(); } catch (_) {}
     // Action buttons via [data-action]
     document.querySelectorAll('[data-action]').forEach(function (el) {
       el.addEventListener('click', function (ev) {
