@@ -8433,11 +8433,74 @@
   }
 
   function _docxArray(value) {
-    if (Array.isArray(value)) return value.filter(Boolean);
+    if (Array.isArray(value)) {
+      return value
+        .map(function (x) {
+          if (typeof x === 'string') return x.trim();
+          if (x && typeof x === 'object') {
+            return _docxText(
+              x.text ||
+              x.title ||
+              x.description ||
+              x.summary ||
+              x.goal ||
+              x.action ||
+              x.milestone ||
+              ''
+            );
+          }
+          return _docxText(x);
+        })
+        .filter(Boolean);
+    }
     if (typeof value === 'string') {
       return value.split(/\n|;/).map(function (x) { return x.trim(); }).filter(Boolean);
     }
     return [];
+  }
+
+  // ---- DOCX style metadata + resolver ----
+  var DOCX_STYLE_META = {
+    'classic': {
+      label: 'Classic ATS',
+      description: 'Centered header, simple headings, clean ATS-friendly structure.',
+      wordVariant: 'classic-ats'
+    },
+    'executive': {
+      label: 'Executive',
+      description: 'Formal leadership-style document with strong name header and accent rules.',
+      wordVariant: 'executive-rule'
+    },
+    'modern-sidebar': {
+      label: 'Modern Sidebar',
+      description: 'Word-friendly two-column resume layout with an accent rail.',
+      wordVariant: 'modern-rail'
+    },
+    'modern': {
+      label: 'Portfolio Clean',
+      description: 'Modern polished layout for a public-profile style export.',
+      wordVariant: 'portfolio-clean'
+    },
+    'portfolio': {
+      label: 'Portfolio Clean',
+      description: 'Modern polished layout for a public-profile style export.',
+      wordVariant: 'portfolio-clean'
+    },
+    'corporate': {
+      label: 'Corporate Rail',
+      description: 'Structured corporate layout with a deeper left rail and strong section labels.',
+      wordVariant: 'corporate-rail'
+    },
+    'editorial': {
+      label: 'Editorial Serif',
+      description: 'Serif headline, editorial spacing, and subtle cream/ink styling.',
+      wordVariant: 'editorial-serif'
+    }
+  };
+
+  function resolveDocxStyle(template) {
+    var key = String(template || '').trim().toLowerCase();
+    return DOCX_STYLE_META[key] || DOCX_STYLE_META.classic;
   }
 
   function normalizeResumeForDocx(resume) {
@@ -8499,23 +8562,29 @@
     var docs     = pkg.documents || {};
     var selected = pkg.selected  || {};
     var style    = pkg.style     || {};
+    var styleEl  = document.getElementById('export-style');
     return {
       selected: {
         resume:      !!selected.resume,
         coverLetter: !!selected.coverLetter,
         rolePlan:    !!selected.rolePlan
       },
-      accent:      style.accent || style.accentColor || '#0B487A',
+      template:
+        style.template ||
+        style.pageStyle ||
+        style.style ||
+        style.layout ||
+        (styleEl && styleEl.value) ||
+        'classic',
+      accent:      style.accent || style.accentColor || style.color || '#0B487A',
       resume:      normalizeResumeForDocx(docs.resume),
       coverLetter: normalizeCoverLetterForDocx(docs.coverLetter),
       rolePlan:    normalizeRolePlanForDocx(docs.rolePlan)
     };
   }
 
-  async function buildDocxProgrammaticFromPackage(pkg) {
-    var D     = await ensureDocxLibrary();
-    var model = buildDocxExportModelFromPackage(pkg);
-
+  // ---- Shared DOCX kit (constructed per export so accent reflects current model) ----
+  function makeDocxKit(D, model) {
     var Document      = D.Document;
     var Packer        = D.Packer;
     var Paragraph     = D.Paragraph;
@@ -8523,229 +8592,594 @@
     var AlignmentType = D.AlignmentType;
     var BorderStyle   = D.BorderStyle;
     var HeadingLevel  = D.HeadingLevel;
+    var Table         = D.Table;
+    var TableRow      = D.TableRow;
+    var TableCell     = D.TableCell;
+    var WidthType     = D.WidthType;
+    var VerticalAlign = D.VerticalAlign;
+    var ShadingType   = D.ShadingType;
 
     var accent = String(model.accent || '#0B487A').replace('#', '').toUpperCase();
+    var dark   = '0F172A';
+    var muted  = '64748B';
+    var light  = 'F8FAFC';
+    var cream  = 'F3EFE7';
 
-    function para(text, opts) {
+    function run(text, opts) {
       opts = opts || {};
-      return new Paragraph({
-        children: [
-          new TextRun(Object.assign({
-            text:    _docxText(text),
-            size:    opts.size || 22,
-            bold:    !!opts.bold,
-            italics: !!opts.italics,
-            color:   opts.color
-          }, opts.run || {}))
-        ],
-        spacing: {
-          after:  opts.after == null ? 90 : opts.after,
-          before: opts.before || 0
-        },
-        alignment: opts.align || AlignmentType.LEFT
+      return new TextRun({
+        text:    _docxText(text),
+        size:    opts.size || 22,
+        bold:    !!opts.bold,
+        italics: !!opts.italics,
+        color:   opts.color || dark,
+        font:    opts.font || undefined,
+        allCaps: !!opts.allCaps
       });
     }
 
-    function heading(text, level) {
+    function para(text, opts) {
+      opts = opts || {};
+      var runOpts = opts.run || opts;
+      return new Paragraph({
+        children: [run(text, runOpts)],
+        spacing: {
+          before: opts.before || 0,
+          after:  opts.after == null ? 90 : opts.after,
+          line:   opts.line || undefined
+        },
+        alignment: opts.align || AlignmentType.LEFT,
+        heading:   opts.heading || undefined,
+        border:    opts.border || undefined,
+        shading:   opts.shading || undefined
+      });
+    }
+
+    function heading(text, opts) {
+      opts = opts || {};
+      var level = opts.level || 2;
       return new Paragraph({
         children: [
-          new TextRun({
-            text:  _docxText(text).toUpperCase(),
+          run(String(text || '').toUpperCase(), {
             bold:  true,
-            size:  level === 1 ? 34 : 24,
-            color: accent
+            size:  opts.size || (level === 1 ? 34 : 24),
+            color: opts.color || accent,
+            font:  opts.font
           })
         ],
         heading: level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
         spacing: {
-          before: level === 1 ? 0 : 220,
-          after:  110
+          before: opts.before == null ? (level === 1 ? 0 : 220) : opts.before,
+          after:  opts.after  == null ? 110 : opts.after
         },
-        border: level === 2 ? {
-          bottom: { color: accent, space: 1, style: BorderStyle.SINGLE, size: 6 }
-        } : undefined
+        border: opts.noBorder ? undefined : {
+          bottom: {
+            color: opts.borderColor || accent,
+            space: 1,
+            style: BorderStyle.SINGLE,
+            size:  opts.borderSize || 6
+          }
+        }
       });
     }
 
-    function bullet(text) {
+    function bullet(text, opts) {
+      opts = opts || {};
       return new Paragraph({
-        children: [new TextRun({ text: _docxText(text), size: 21 })],
+        children: [run(text, { size: opts.size || 21, color: opts.color || dark })],
         bullet: { level: 0 },
-        spacing: { after: 50 }
+        spacing: { after: opts.after == null ? 50 : opts.after }
       });
     }
 
-    function spacer(size) {
+    function spacer(after) {
       return new Paragraph({
-        children: [new TextRun({ text: '', size: size || 8 })],
-        spacing: { after: 80 }
+        children: [new TextRun({ text: '', size: 8 })],
+        spacing: { after: after == null ? 80 : after }
       });
     }
 
-    var children = [];
+    function doc(children, opts) {
+      opts = opts || {};
+      return new Document({
+        creator: 'Career Solutions for Today',
+        description: 'Resume package generated by Career Solutions for Today',
+        title: opts.title || 'Resume Package',
+        sections: [{
+          properties: {
+            page: {
+              margin: opts.margin || { top: 720, right: 720, bottom: 720, left: 720 }
+            }
+          },
+          children: children && children.length ? children : [para('No content selected.')]
+        }]
+      });
+    }
 
-    function addResume() {
-      var r = model.resume || {};
+    function contactLine(r) {
+      r = r || {};
+      return [r.location, r.phone, r.email, r.linkedin].filter(Boolean).join(' | ');
+    }
 
-      children.push(new Paragraph({
+    function textList(value) {
+      return _docxArray(value);
+    }
+
+    return {
+      D: D,
+      Document: Document, Packer: Packer, Paragraph: Paragraph, TextRun: TextRun,
+      AlignmentType: AlignmentType, BorderStyle: BorderStyle, HeadingLevel: HeadingLevel,
+      Table: Table, TableRow: TableRow, TableCell: TableCell,
+      WidthType: WidthType, VerticalAlign: VerticalAlign, ShadingType: ShadingType,
+      accent: accent, dark: dark, muted: muted, light: light, cream: cream,
+      run: run, para: para, heading: heading, bullet: bullet, spacer: spacer,
+      doc: doc, contactLine: contactLine, textList: textList
+    };
+  }
+
+  // ---- Shared content helpers (used by every style) ----
+  function addDocxCoverLetterContent(children, model, kit, styleOpts) {
+    styleOpts = styleOpts || {};
+    var c = model.coverLetter;
+    if (!c) return;
+
+    children.push(kit.heading(c.title || 'Cover Letter', {
+      level: 1,
+      color: styleOpts.headingColor || kit.accent,
+      font:  styleOpts.headingFont,
+      noBorder: !!styleOpts.noHeadingBorder
+    }));
+
+    if (c.greeting) children.push(kit.para(c.greeting, { after: 120 }));
+
+    var parts = [c.intro, c.body, c.closing].filter(Boolean);
+    if (!parts.length && c.content) parts = [c.content];
+    if (!parts.length && c.letter)  parts = [c.letter];
+
+    parts.forEach(function (part) {
+      String(part)
+        .split(/\n{2,}/)
+        .map(function (x) { return x.trim(); })
+        .filter(Boolean)
+        .forEach(function (paragraph) {
+          children.push(kit.para(paragraph, { after: 140 }));
+        });
+    });
+  }
+
+  function addDocxRolePlanContent(children, model, kit, styleOpts) {
+    styleOpts = styleOpts || {};
+    var p = model.rolePlan;
+    if (!p) return;
+
+    children.push(kit.heading(p.title || 'Career Plan', {
+      level: 1,
+      color: styleOpts.headingColor || kit.accent,
+      font:  styleOpts.headingFont,
+      noBorder: !!styleOpts.noHeadingBorder
+    }));
+
+    if (p.summary) {
+      children.push(kit.heading('Executive Summary', { level: 2 }));
+      children.push(kit.para(p.summary));
+    }
+
+    var phases = Array.isArray(p.phases) ? p.phases : [];
+    if (phases.length) {
+      children.push(kit.heading('Plan Phases', { level: 2 }));
+      phases.forEach(function (phase, index) {
+        var title     = phase.title || phase.phase || phase.label || ('Phase ' + (index + 1));
+        var timeframe = phase.timeframe || phase.period || '';
+        children.push(kit.para([title, timeframe].filter(Boolean).join(' \u2014 '), {
+          bold: true, after: 50
+        }));
+        if (phase.summary || phase.description) {
+          children.push(kit.para(phase.summary || phase.description));
+        }
+        var goals = phase.goals || phase.actions || phase.milestones || phase.objectives || [];
+        kit.textList(goals).forEach(function (g) { children.push(kit.bullet(g)); });
+      });
+    }
+
+    var metrics = kit.textList(p.successMetrics);
+    if (metrics.length) {
+      children.push(kit.heading('Success Metrics', { level: 2 }));
+      metrics.forEach(function (m) { children.push(kit.bullet(m)); });
+    }
+  }
+
+  function addDocxResumeContentClassic(children, model, kit, styleOpts) {
+    styleOpts = styleOpts || {};
+    var r = model.resume || {};
+
+    if (!styleOpts.skipHeader) {
+      children.push(new kit.Paragraph({
         children: [
-          new TextRun({
-            text:  _docxText(r.name || 'Resume').toUpperCase(),
+          kit.run(r.name || 'Resume', {
             bold:  true,
-            size:  38,
-            color: accent
+            size:  styleOpts.nameSize || 38,
+            color: styleOpts.nameColor || kit.accent,
+            font:  styleOpts.nameFont,
+            allCaps: true
           })
         ],
-        alignment: AlignmentType.CENTER,
+        alignment: styleOpts.nameAlign || kit.AlignmentType.CENTER,
         spacing: { after: 60 }
       }));
 
-      var contact = [r.location, r.phone, r.email, r.linkedin].filter(Boolean).join(' | ');
       if (r.headline) {
-        children.push(para(r.headline, { align: AlignmentType.CENTER, bold: true, size: 22, after: 40 }));
-      }
-      if (contact) {
-        children.push(para(contact, { align: AlignmentType.CENTER, size: 19, color: '475569', after: 160 }));
+        children.push(kit.para(r.headline, {
+          align: styleOpts.nameAlign || kit.AlignmentType.CENTER,
+          bold: true, size: 22, after: 40
+        }));
       }
 
-      if (r.summary) {
-        children.push(heading('Professional Summary', 2));
-        children.push(para(r.summary));
+      var contact = kit.contactLine(r);
+      if (contact) {
+        children.push(kit.para(contact, {
+          align: styleOpts.nameAlign || kit.AlignmentType.CENTER,
+          size: 19, color: kit.muted, after: 160
+        }));
+      }
+    }
+
+    if (r.summary) {
+      children.push(kit.heading('Professional Summary', { level: 2 }));
+      children.push(kit.para(r.summary));
+    }
+
+    if (r.skills && r.skills.length) {
+      children.push(kit.heading('Core Skills', { level: 2 }));
+      children.push(kit.para(r.skills.join(' \u2022 '), { after: 120 }));
+    }
+
+    if (r.experience && r.experience.length) {
+      children.push(kit.heading('Professional Experience', { level: 2 }));
+      r.experience.forEach(function (job) {
+        var titleLine = [job.title || job.role || job.position, job.company].filter(Boolean).join(' | ');
+        var dateLine  = [job.location, job.startDate || job.start, job.endDate || job.end].filter(Boolean).join(' | ');
+
+        if (titleLine) children.push(kit.para(titleLine, { bold: true, after: 30 }));
+        if (dateLine)  children.push(kit.para(dateLine,  { italics: true, color: kit.muted, size: 20, after: 50 }));
+
+        var bullets = job.bullets || job.achievements || job.responsibilities || [];
+        kit.textList(bullets).forEach(function (b) { children.push(kit.bullet(b)); });
+
+        children.push(kit.spacer(4));
+      });
+    }
+
+    if (r.education && r.education.length) {
+      children.push(kit.heading('Education', { level: 2 }));
+      r.education.forEach(function (ed) {
+        var line = [ed.degree, ed.school || ed.institution, ed.year].filter(Boolean).join(' | ');
+        if (line) children.push(kit.para(line));
+      });
+    }
+
+    if (r.achievements && r.achievements.length) {
+      children.push(kit.heading('Achievements', { level: 2 }));
+      r.achievements.forEach(function (a) { children.push(kit.bullet(a)); });
+    }
+  }
+
+  // ---- Style builders ----
+  async function buildDocxClassicAts(model, D) {
+    var kit = makeDocxKit(D, model);
+    var children = [];
+
+    if (model.selected.coverLetter) {
+      addDocxCoverLetterContent(children, model, kit);
+      if (model.selected.rolePlan || model.selected.resume) children.push(kit.spacer(180));
+    }
+
+    if (model.selected.rolePlan) {
+      addDocxRolePlanContent(children, model, kit);
+      if (model.selected.resume) children.push(kit.spacer(180));
+    }
+
+    if (model.selected.resume) {
+      addDocxResumeContentClassic(children, model, kit, {
+        nameAlign: kit.AlignmentType.CENTER,
+        nameSize:  38,
+        nameColor: kit.accent
+      });
+    }
+
+    return await kit.Packer.toBlob(kit.doc(children, { title: 'Classic ATS Resume Package' }));
+  }
+
+  async function buildDocxExecutiveRule(model, D) {
+    var kit = makeDocxKit(D, model);
+    var children = [];
+
+    function addExecutiveDivider() {
+      children.push(new kit.Paragraph({
+        children: [kit.run('', { size: 1 })],
+        border: {
+          bottom: { color: kit.accent, space: 1, style: kit.BorderStyle.SINGLE, size: 12 }
+        },
+        spacing: { after: 180 }
+      }));
+    }
+
+    if (model.selected.coverLetter) {
+      addDocxCoverLetterContent(children, model, kit, { noHeadingBorder: true });
+      if (model.selected.rolePlan || model.selected.resume) addExecutiveDivider();
+    }
+
+    if (model.selected.rolePlan) {
+      addDocxRolePlanContent(children, model, kit, { noHeadingBorder: true });
+      if (model.selected.resume) addExecutiveDivider();
+    }
+
+    if (model.selected.resume) {
+      var r = model.resume || {};
+      children.push(new kit.Paragraph({
+        children: [
+          kit.run(r.name || 'Resume', { bold: true, size: 42, color: kit.dark, allCaps: true })
+        ],
+        alignment: kit.AlignmentType.LEFT,
+        spacing: { after: 40 }
+      }));
+
+      if (r.headline) {
+        children.push(kit.para(r.headline, { bold: true, size: 23, color: kit.accent, after: 40 }));
+      }
+      var contact = kit.contactLine(r);
+      if (contact) {
+        children.push(kit.para(contact, { size: 19, color: kit.muted, after: 120 }));
+      }
+      addExecutiveDivider();
+      addDocxResumeContentClassic(children, model, kit, { skipHeader: true });
+    }
+
+    return await kit.Packer.toBlob(kit.doc(children, { title: 'Executive Resume Package' }));
+  }
+
+  async function buildDocxModernRail(model, D) {
+    var kit = makeDocxKit(D, model);
+    var children = [];
+
+    if (model.selected.coverLetter) {
+      addDocxCoverLetterContent(children, model, kit);
+      if (model.selected.rolePlan || model.selected.resume) children.push(kit.spacer(180));
+    }
+
+    if (model.selected.rolePlan) {
+      addDocxRolePlanContent(children, model, kit);
+      if (model.selected.resume) children.push(kit.spacer(180));
+    }
+
+    if (model.selected.resume) {
+      var r = model.resume || {};
+      var left = [];
+      var right = [];
+
+      left.push(kit.para(r.name || 'Resume', { bold: true, size: 28, color: 'FFFFFF', after: 90 }));
+      if (r.headline) left.push(kit.para(r.headline, { size: 18, color: 'E2E8F0', after: 120 }));
+
+      var contact = [r.location, r.phone, r.email, r.linkedin].filter(Boolean);
+      if (contact.length) {
+        left.push(kit.para('CONTACT', { bold: true, size: 18, color: 'FFFFFF', after: 50 }));
+        contact.forEach(function (x) {
+          left.push(kit.para(x, { size: 17, color: 'E2E8F0', after: 40 }));
+        });
       }
 
       if (r.skills && r.skills.length) {
-        children.push(heading('Core Skills', 2));
-        children.push(para(r.skills.join(' \u2022 '), { after: 120 }));
+        left.push(kit.para('SKILLS', { bold: true, size: 18, color: 'FFFFFF', after: 50, before: 160 }));
+        r.skills.slice(0, 24).forEach(function (s) {
+          left.push(kit.para('\u2022 ' + s, { size: 17, color: 'E2E8F0', after: 28 }));
+        });
+      }
+
+      if (r.summary) {
+        right.push(kit.heading('Professional Summary', { level: 2 }));
+        right.push(kit.para(r.summary));
       }
 
       if (r.experience && r.experience.length) {
-        children.push(heading('Professional Experience', 2));
-
+        right.push(kit.heading('Professional Experience', { level: 2 }));
         r.experience.forEach(function (job) {
-          var titleLine = [
-            job.title || job.role || job.position,
-            job.company
-          ].filter(Boolean).join(' | ');
+          var titleLine = [job.title || job.role || job.position, job.company].filter(Boolean).join(' | ');
+          var dateLine  = [job.location, job.startDate || job.start, job.endDate || job.end].filter(Boolean).join(' | ');
 
-          var dateLine = [
-            job.location,
-            job.startDate || job.start,
-            job.endDate || job.end
-          ].filter(Boolean).join(' | ');
-
-          if (titleLine) children.push(para(titleLine, { bold: true, after: 30 }));
-          if (dateLine)  children.push(para(dateLine,  { italics: true, color: '64748B', size: 20, after: 50 }));
+          if (titleLine) right.push(kit.para(titleLine, { bold: true, after: 30 }));
+          if (dateLine)  right.push(kit.para(dateLine,  { italics: true, color: kit.muted, size: 20, after: 50 }));
 
           var bullets = job.bullets || job.achievements || job.responsibilities || [];
-          bullets = _docxArray(bullets);
-          bullets.forEach(function (b) { children.push(bullet(b)); });
+          kit.textList(bullets).forEach(function (b) { right.push(kit.bullet(b)); });
 
-          children.push(spacer(4));
+          right.push(kit.spacer(4));
         });
       }
 
       if (r.education && r.education.length) {
-        children.push(heading('Education', 2));
+        right.push(kit.heading('Education', { level: 2 }));
         r.education.forEach(function (ed) {
-          var line = [
-            ed.degree,
-            ed.school || ed.institution,
-            ed.year
-          ].filter(Boolean).join(' | ');
-          if (line) children.push(para(line));
+          var line = [ed.degree, ed.school || ed.institution, ed.year].filter(Boolean).join(' | ');
+          if (line) right.push(kit.para(line));
         });
       }
 
-      if (r.achievements && r.achievements.length) {
-        children.push(heading('Achievements', 2));
-        r.achievements.forEach(function (a) { children.push(bullet(a)); });
-      }
+      children.push(new kit.Table({
+        width: { size: 100, type: kit.WidthType.PERCENTAGE },
+        rows: [
+          new kit.TableRow({
+            children: [
+              new kit.TableCell({
+                width: { size: 28, type: kit.WidthType.PERCENTAGE },
+                shading: { type: kit.ShadingType.CLEAR, fill: kit.accent, color: 'auto' },
+                margins: { top: 260, bottom: 260, left: 220, right: 220 },
+                verticalAlign: kit.VerticalAlign.TOP,
+                children: left.length ? left : [kit.para('')]
+              }),
+              new kit.TableCell({
+                width: { size: 72, type: kit.WidthType.PERCENTAGE },
+                margins: { top: 260, bottom: 260, left: 280, right: 220 },
+                verticalAlign: kit.VerticalAlign.TOP,
+                children: right.length ? right : [kit.para('')]
+              })
+            ]
+          })
+        ]
+      }));
     }
 
-    function addCoverLetter() {
-      var c = model.coverLetter;
-      if (!c) return;
+    return await kit.Packer.toBlob(kit.doc(children, {
+      title: 'Modern Sidebar Resume Package',
+      margin: { top: 540, right: 540, bottom: 540, left: 540 }
+    }));
+  }
 
-      children.push(heading(c.title || 'Cover Letter', 1));
-      if (c.greeting) children.push(para(c.greeting, { after: 120 }));
-
-      var parts = [c.intro, c.body, c.closing].filter(Boolean);
-      if (!parts.length && c.body) parts = [c.body];
-
-      parts.forEach(function (part) {
-        String(part)
-          .split(/\n{2,}/)
-          .map(function (x) { return x.trim(); })
-          .filter(Boolean)
-          .forEach(function (paragraph) {
-            children.push(para(paragraph, { after: 140 }));
-          });
-      });
-    }
-
-    function addRolePlan() {
-      var p = model.rolePlan;
-      if (!p) return;
-
-      children.push(heading(p.title || 'Career Plan', 1));
-
-      if (p.summary) {
-        children.push(heading('Executive Summary', 2));
-        children.push(para(p.summary));
-      }
-
-      var phases = Array.isArray(p.phases) ? p.phases : [];
-      if (phases.length) {
-        children.push(heading('Plan Phases', 2));
-        phases.forEach(function (phase, index) {
-          var title     = phase.title || phase.phase || phase.label || ('Phase ' + (index + 1));
-          var timeframe = phase.timeframe || phase.period || '';
-          children.push(para([title, timeframe].filter(Boolean).join(' \u2014 '), { bold: true, after: 50 }));
-
-          if (phase.summary || phase.description) {
-            children.push(para(phase.summary || phase.description));
-          }
-
-          var goals = phase.goals || phase.actions || phase.milestones || phase.objectives || [];
-          goals = _docxArray(goals);
-          goals.forEach(function (g) { children.push(bullet(g)); });
-        });
-      }
-
-      var metrics = _docxArray(p.successMetrics);
-      if (metrics.length) {
-        children.push(heading('Success Metrics', 2));
-        metrics.forEach(function (m) { children.push(bullet(m)); });
-      }
-    }
+  async function buildDocxCorporateRail(model, D) {
+    var kit = makeDocxKit(D, model);
+    var children = [];
+    var corporateDark = '0F2A44';
 
     if (model.selected.coverLetter) {
-      addCoverLetter();
-      if (model.selected.rolePlan || model.selected.resume) children.push(spacer(12));
+      addDocxCoverLetterContent(children, model, kit, { headingColor: corporateDark });
+      if (model.selected.rolePlan || model.selected.resume) children.push(kit.spacer(180));
     }
 
     if (model.selected.rolePlan) {
-      addRolePlan();
-      if (model.selected.resume) children.push(spacer(12));
+      addDocxRolePlanContent(children, model, kit, { headingColor: corporateDark });
+      if (model.selected.resume) children.push(kit.spacer(180));
     }
 
     if (model.selected.resume) {
-      addResume();
+      var r = model.resume || {};
+      children.push(new kit.Paragraph({
+        children: [
+          kit.run(r.name || 'Resume', { bold: true, size: 40, color: corporateDark, allCaps: true })
+        ],
+        alignment: kit.AlignmentType.LEFT,
+        spacing: { after: 40 }
+      }));
+      if (r.headline) children.push(kit.para(r.headline, { bold: true, size: 22, color: kit.accent, after: 40 }));
+      var contact = kit.contactLine(r);
+      if (contact) children.push(kit.para(contact, { size: 19, color: kit.muted, after: 160 }));
+
+      children.push(new kit.Paragraph({
+        children: [kit.run('', { size: 1 })],
+        border: { bottom: { color: corporateDark, space: 1, style: kit.BorderStyle.SINGLE, size: 10 } },
+        spacing: { after: 160 }
+      }));
+
+      addDocxResumeContentClassic(children, model, kit, { skipHeader: true });
     }
 
-    var doc = new Document({
-      creator: 'Career Solutions for Today',
-      description: 'Resume package generated by Career Solutions for Today',
-      title: 'Resume Package',
-      sections: [{
-        properties: {
-          page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } }
-        },
-        children: children.length ? children : [para('No content selected.')]
-      }]
-    });
+    return await kit.Packer.toBlob(kit.doc(children, { title: 'Corporate Resume Package' }));
+  }
 
-    return await Packer.toBlob(doc);
+  async function buildDocxEditorialSerif(model, D) {
+    var kit = makeDocxKit(D, model);
+    var children = [];
+
+    if (model.selected.coverLetter) {
+      addDocxCoverLetterContent(children, model, kit, {
+        headingColor: '202020', headingFont: 'Georgia', noHeadingBorder: true
+      });
+      if (model.selected.rolePlan || model.selected.resume) children.push(kit.spacer(220));
+    }
+
+    if (model.selected.rolePlan) {
+      addDocxRolePlanContent(children, model, kit, {
+        headingColor: '202020', headingFont: 'Georgia', noHeadingBorder: true
+      });
+      if (model.selected.resume) children.push(kit.spacer(220));
+    }
+
+    if (model.selected.resume) {
+      var r = model.resume || {};
+      children.push(new kit.Paragraph({
+        children: [
+          kit.run(r.name || 'Resume', {
+            bold: true, size: 44, color: '202020', font: 'Georgia', allCaps: true
+          })
+        ],
+        alignment: kit.AlignmentType.LEFT,
+        spacing: { after: 50 }
+      }));
+
+      if (r.headline) {
+        children.push(kit.para(r.headline, {
+          size: 22, color: kit.accent, italics: true, after: 50,
+          run: { font: 'Georgia' }
+        }));
+      }
+
+      var contact = kit.contactLine(r);
+      if (contact) children.push(kit.para(contact, { size: 19, color: kit.muted, after: 180 }));
+
+      children.push(new kit.Paragraph({
+        children: [kit.run('', { size: 1 })],
+        border: { bottom: { color: '202020', space: 1, style: kit.BorderStyle.SINGLE, size: 10 } },
+        spacing: { after: 180 }
+      }));
+
+      addDocxResumeContentClassic(children, model, kit, { skipHeader: true, nameFont: 'Georgia' });
+    }
+
+    return await kit.Packer.toBlob(kit.doc(children, { title: 'Editorial Resume Package' }));
+  }
+
+  async function buildDocxPortfolioClean(model, D) {
+    var kit = makeDocxKit(D, model);
+    var children = [];
+
+    if (model.selected.coverLetter) {
+      addDocxCoverLetterContent(children, model, kit);
+      if (model.selected.rolePlan || model.selected.resume) children.push(kit.spacer(180));
+    }
+
+    if (model.selected.rolePlan) {
+      addDocxRolePlanContent(children, model, kit);
+      if (model.selected.resume) children.push(kit.spacer(180));
+    }
+
+    if (model.selected.resume) {
+      var r = model.resume || {};
+      children.push(new kit.Paragraph({
+        children: [
+          kit.run(r.name || 'Resume', { bold: true, size: 40, color: 'FFFFFF', allCaps: true })
+        ],
+        shading: { type: kit.ShadingType.CLEAR, fill: kit.accent, color: 'auto' },
+        spacing: { before: 0, after: 80 },
+        alignment: kit.AlignmentType.CENTER
+      }));
+
+      if (r.headline) {
+        children.push(kit.para(r.headline, {
+          align: kit.AlignmentType.CENTER, bold: true, size: 22, color: kit.dark, after: 60
+        }));
+      }
+      var contact = kit.contactLine(r);
+      if (contact) {
+        children.push(kit.para(contact, {
+          align: kit.AlignmentType.CENTER, size: 19, color: kit.muted, after: 180
+        }));
+      }
+
+      addDocxResumeContentClassic(children, model, kit, { skipHeader: true });
+    }
+
+    return await kit.Packer.toBlob(kit.doc(children, { title: 'Portfolio Clean Resume Package' }));
+  }
+
+  // ---- Style router ----
+  async function buildDocxProgrammaticFromPackage(pkg) {
+    var D         = await ensureDocxLibrary();
+    var model     = buildDocxExportModelFromPackage(pkg);
+    var styleMeta = resolveDocxStyle(model.template);
+
+    if (styleMeta.wordVariant === 'modern-rail')      return buildDocxModernRail(model, D);
+    if (styleMeta.wordVariant === 'executive-rule')   return buildDocxExecutiveRule(model, D);
+    if (styleMeta.wordVariant === 'corporate-rail')   return buildDocxCorporateRail(model, D);
+    if (styleMeta.wordVariant === 'editorial-serif')  return buildDocxEditorialSerif(model, D);
+    if (styleMeta.wordVariant === 'portfolio-clean')  return buildDocxPortfolioClean(model, D);
+    return buildDocxClassicAts(model, D);
   }
 
   async function downloadPackageWord(pkg, filename) {
@@ -8904,6 +9338,23 @@
       resumeName: model.resume && model.resume.name,
       resumeExperienceCount: model.resume && model.resume.experience ? model.resume.experience.length : 0,
       rolePlanPhaseCount: model.rolePlan && model.rolePlan.phases ? model.rolePlan.phases.length : 0
+    };
+  };
+
+  window.debugDocxStyleState = function () {
+    var pkg = buildSelectedDocumentPackage();
+    var model = buildDocxExportModelFromPackage(pkg);
+    var meta = resolveDocxStyle(model.template);
+    return {
+      selectedTemplate: model.template,
+      resolvedWordVariant: meta.wordVariant,
+      label: meta.label,
+      accent: model.accent,
+      selected: model.selected,
+      hasResume: !!model.resume,
+      hasCoverLetter: !!model.coverLetter,
+      hasRolePlan: !!model.rolePlan,
+      hasDocxLibrary: !!(window.docx && window.docx.Document && window.docx.Packer)
     };
   };
 
@@ -11349,6 +11800,8 @@
     openDownloadPackageModal: openDownloadPackageModal,
     closeDownloadPackageModal: closeDownloadPackageModal,
     debugDownloadPackageState: window.debugDownloadPackageState,
+    debugDocxExportState: window.debugDocxExportState,
+    debugDocxStyleState: window.debugDocxStyleState,
     saveDraft: saveDraft,
     loadDraft: loadDraft,
     resetBuilder: resetBuilder,
