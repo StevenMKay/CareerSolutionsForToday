@@ -2189,6 +2189,15 @@
   var singlePurchased         = false;   // legacy support only
   var singlePurchaseDate      = null;    // legacy support only
 
+  // Free-trial allowance (lifetime per uid, persisted in builderUsage/{uid}).
+  // Each flag flips to true ONLY after the corresponding action successfully
+  // completes for a non-subscriber. Subscribers/lifetime/owner bypass these.
+  var freeOptimizeUsed   = false;
+  var freeCoverUsed      = false;
+  var freeRolePlanUsed   = false;
+  var freeExportUsed     = false;
+  var freeResumeCreated  = false;
+
   // Hosted Stripe Payment Links (public).
   var STRIPE_MONTHLY_LINK  = 'https://buy.stripe.com/5kQ8wQ2Gjcyt7D0bxS43S09';
   var STRIPE_LIFETIME_LINK = 'https://buy.stripe.com/6oUaEY0yb2XT6yW8lG43S0a';
@@ -2221,6 +2230,88 @@
     return false;
   }
 
+  // ---- Free-trial allowance helpers ----
+  // Map logical action -> the local-state flag that tracks consumption.
+  function _isFreeTrialFlagUsed(field) {
+    switch (field) {
+      case 'freeOptimizeUsed':  return !!freeOptimizeUsed;
+      case 'freeCoverUsed':     return !!freeCoverUsed;
+      case 'freeRolePlanUsed':  return !!freeRolePlanUsed;
+      case 'freeExportUsed':    return !!freeExportUsed;
+      case 'freeResumeCreated': return !!freeResumeCreated;
+    }
+    return true; // unknown field: treat as consumed (fail closed)
+  }
+  function _setFreeTrialFlagLocal(field, value) {
+    var v = !!value;
+    switch (field) {
+      case 'freeOptimizeUsed':  freeOptimizeUsed  = v; return;
+      case 'freeCoverUsed':     freeCoverUsed     = v; return;
+      case 'freeRolePlanUsed':  freeRolePlanUsed  = v; return;
+      case 'freeExportUsed':    freeExportUsed    = v; return;
+      case 'freeResumeCreated': freeResumeCreated = v; return;
+    }
+  }
+  function hasAnyFreeTrialRemaining() {
+    return !freeOptimizeUsed || !freeCoverUsed || !freeRolePlanUsed ||
+           !freeExportUsed   || !freeResumeCreated;
+  }
+  // Persist a consumed free-use flag to Firestore. Local state is updated
+  // immediately; Firestore write is best-effort and never throws.
+  function markFreeUseConsumed(field) {
+    try {
+      _setFreeTrialFlagLocal(field, true);
+    } catch (_) {}
+    try { updatePaywallBadges(); } catch (_) {}
+    try {
+      var user = (typeof auth !== 'undefined' && auth && auth.currentUser) || null;
+      if (!user || typeof db === 'undefined' || !db) return;
+      var patch = {};
+      patch[field] = true;
+      try {
+        patch.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      } catch (_) {}
+      db.collection('builderUsage').doc(user.uid)
+        .set(patch, { merge: true })
+        .catch(function (err) {
+          console.warn('[paywall] markFreeUseConsumed write failed for ' + field + ':', err);
+        });
+    } catch (err) {
+      console.warn('[paywall] markFreeUseConsumed unexpected error:', err);
+    }
+  }
+  // Gate for AI actions (Optimize / Cover Letter / Role Plan).
+  // Returns true if the caller is allowed to proceed; on success the caller
+  // MUST call markFreeUseConsumed(field) after a confirmed result.
+  function requireAIUseOrTrial(featureName, field) {
+    if (canUsePremium()) return true;
+    if (!_isFreeTrialFlagUsed(field)) return true;
+    try { showPaywall(); } catch (_) {}
+    showToast((featureName || 'AI features') + ' require an active plan.', 'warning');
+    return false;
+  }
+  // Gate for export (PDF or DOCX). One free total across both formats.
+  // Caller must invoke markFreeUseConsumed('freeExportUsed') ONLY after a
+  // successful file delivery -- never on a stub or failed download.
+  function requireExportOrTrial() {
+    if (canUsePremium()) return true;
+    if (!freeExportUsed) return true;
+    try { showPaywall(); } catch (_) {}
+    showToast('Exporting requires an active plan.', 'warning');
+    return false;
+  }
+  // Gate for creating a NEW resume version (a new Firestore plan doc).
+  // Caller must invoke markFreeUseConsumed('freeResumeCreated') ONLY after
+  // a new plan doc is successfully created. Updating an existing version
+  // does not consume this flag.
+  function requireResumeCreateOrTrial() {
+    if (canUsePremium()) return true;
+    if (!freeResumeCreated) return true;
+    try { showPaywall(); } catch (_) {}
+    showToast('Creating additional resume versions requires an active plan.', 'warning');
+    return false;
+  }
+
   // Tolerant date normalizer for Firestore Timestamp | string | number | Date.
   function normalizeAccessDate(value) {
     if (!value) return null;
@@ -2246,7 +2337,8 @@
     }
     if (builderSubscribed) return 'Subscriber';
     if (aiUsesRemaining > 0) return aiUsesRemaining + ' AI use' + (aiUsesRemaining === 1 ? '' : 's') + ' remaining';
-    return 'Free';
+    if (hasAnyFreeTrialRemaining()) return 'Free trial available';
+    return 'Free trial used';
   }
   function updatePaywallBadges() {
     var label = getBuilderAccessLabel();
@@ -2270,6 +2362,11 @@
     freeUsesCount           = 0;
     singlePurchased         = false;
     singlePurchaseDate      = null;
+    freeOptimizeUsed        = false;
+    freeCoverUsed           = false;
+    freeRolePlanUsed        = false;
+    freeExportUsed          = false;
+    freeResumeCreated       = false;
 
     if (!user || typeof db === 'undefined' || !db) {
       try { updatePaywallBadges(); } catch (_) {}
@@ -2329,6 +2426,11 @@
         singlePurchased    = !!usg.singlePurchased;
         var spd = normalizeAccessDate(usg.singlePurchaseDate);
         singlePurchaseDate = spd ? spd.getTime() : null;
+        freeOptimizeUsed   = !!usg.freeOptimizeUsed;
+        freeCoverUsed      = !!usg.freeCoverUsed;
+        freeRolePlanUsed   = !!usg.freeRolePlanUsed;
+        freeExportUsed     = !!usg.freeExportUsed;
+        freeResumeCreated  = !!usg.freeResumeCreated;
       }
     }).catch(function (err) {
       console.warn('[paywall] failed to load builder access:', err);
@@ -4939,7 +5041,7 @@
 
   async function runOptimize() {
     if (!requireAuth()) return;
-    if (!requireAIUse('Optimization')) return;
+    if (!requireAIUseOrTrial('Optimization', 'freeOptimizeUsed')) return;
     var payload = buildOptimizePayload();
     if (!payload.resume_data || !Object.keys(payload.resume_data).length) {
       showToast('Import or enter resume data before optimizing.', 'warning');
@@ -4981,6 +5083,7 @@
       RB_STATE.optimization = normalizeOptimizationResponse(opt, payload.baselineScore);
       renderOptimizationOutput(RB_STATE.optimization);
       if (statusEl) statusEl.textContent = 'Optimization complete.';
+      if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
       showToast('Optimization insights ready.', 'success');
     } catch (err) {
       console.error('[runOptimize] failed', err);
@@ -5145,7 +5248,7 @@
 
   function generateCoverLetter() {
     if (!requireAuth()) return;
-    if (!requireAIUse('Cover Letter')) return;
+    if (!requireAIUseOrTrial('Cover Letter', 'freeCoverUsed')) return;
     if (!hasResumeReady()) { showToast('Upload and parse a resume first.', 'warning'); return; }
     if (!hasTargetRoleReady()) { showToast('Fill in Target Role first.', 'warning'); return; }
     if (RB_STATE._cvInFlight) return;
@@ -5187,6 +5290,7 @@
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Cover letter generated.';
+      if (!canUsePremium()) { try { markFreeUseConsumed('freeCoverUsed'); } catch (_) {} }
       showToast('Cover letter generated.', 'success');
     }).catch(function (err) {
       var msg = 'Cover letter error: ' + (err && err.message || err);
@@ -5201,7 +5305,7 @@
   }
   function generateRolePlan() {
     if (!requireAuth()) return;
-    if (!requireAIUse('Role Plan')) return;
+    if (!requireAIUseOrTrial('Role Plan', 'freeRolePlanUsed')) return;
     if (!hasResumeReady()) { showToast('Upload and parse a resume first.', 'warning'); return; }
     if (!hasTargetRoleReady()) { showToast('Fill in Target Role first.', 'warning'); return; }
     if (RB_STATE._planInFlight) return;
@@ -5251,6 +5355,7 @@
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
+      if (!canUsePremium()) { try { markFreeUseConsumed('freeRolePlanUsed'); } catch (_) {} }
       showToast('Role plan generated.', 'success');
     }).catch(function (err) {
       var msg = 'Plan error: ' + (err && err.message || err);
@@ -7786,7 +7891,16 @@
     };
   };
 
-  function downloadSelectedPackage(){ if (!requireAuth()) return; notImplemented('downloadSelectedPackage'); }
+  function downloadSelectedPackage(){
+    if (!requireAuth()) return;
+    // Free-trial gate: one export total (PDF or DOCX) for non-subscribers.
+    // NOTE: Do NOT call markFreeUseConsumed('freeExportUsed') here. The real
+    // PDF/DOCX export implementation must invoke it ONLY after a confirmed
+    // successful file delivery. While this function is a stub it must not
+    // consume the free export.
+    if (!requireExportOrTrial()) return;
+    notImplemented('downloadSelectedPackage');
+  }
   function resetBuilder()           { notImplemented('resetBuilder'); }
 
   // ============================================================
@@ -8322,6 +8436,10 @@
     if (!requireAuth()) return;
     if (!db) { showToast('Firestore not ready', 'error'); return; }
     var user = auth.currentUser;
+    // Gate creation of a NEW resume version (a brand-new Firestore plan doc).
+    // Updates to an existing doc (currentPlanId already set) are unlimited.
+    var isNewPlanDoc = !currentPlanId;
+    if (isNewPlanDoc && !requireResumeCreateOrTrial()) return;
     var btn = document.getElementById('nav-save');
     var origHTML = btn ? btn.innerHTML : '';
     try {
@@ -8351,6 +8469,12 @@
         ref = await db.collection('plans').add(docData);
         currentPlanId = ref.id;
         window.currentPlanId = ref.id;
+        // Successfully created a new plan doc -- consume the free resume
+        // version allowance for non-subscribers. Subscribers/lifetime/owner
+        // bypass canUsePremium() and never burn the flag.
+        if (!canUsePremium() && !freeResumeCreated) {
+          try { markFreeUseConsumed('freeResumeCreated'); } catch (_) {}
+        }
       }
       RB_STATE.currentPlanId = currentPlanId;
       RB_STATE._lastSavedAt = Date.now();
@@ -9232,6 +9356,12 @@
       singlePurchaseActive: isSinglePurchaseActive(),
       canUsePremium: canUsePremium(),
       canUseAI: canUseAI(),
+      freeOptimizeUsed:  freeOptimizeUsed,
+      freeCoverUsed:     freeCoverUsed,
+      freeRolePlanUsed:  freeRolePlanUsed,
+      freeExportUsed:    freeExportUsed,
+      freeResumeCreated: freeResumeCreated,
+      hasAnyFreeTrialRemaining: hasAnyFreeTrialRemaining(),
       accessLabel: getBuilderAccessLabel(),
       stripeLinks: {
         monthly:  STRIPE_MONTHLY_LINK,
@@ -9619,7 +9749,15 @@
       dashboardCardCount: document.querySelectorAll('.resume-version-card').length,
       accountMenuExists: !!document.getElementById('account-menu-btn'),
       stepperStickyTop: stepper ? getComputedStyle(stepper).top : null,
-      navStickyOffset: getComputedStyle(document.documentElement).getPropertyValue('--nav-sticky-offset').trim()
+      navStickyOffset: getComputedStyle(document.documentElement).getPropertyValue('--nav-sticky-offset').trim(),
+      freeOptimizeUsed:  freeOptimizeUsed,
+      freeCoverUsed:     freeCoverUsed,
+      freeRolePlanUsed:  freeRolePlanUsed,
+      freeExportUsed:    freeExportUsed,
+      freeResumeCreated: freeResumeCreated,
+      hasAnyFreeTrialRemaining: hasAnyFreeTrialRemaining(),
+      canUsePremium: canUsePremium(),
+      canUseAI: canUseAI()
     };
   };
 
