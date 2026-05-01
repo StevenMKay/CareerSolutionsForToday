@@ -8488,8 +8488,10 @@
   var lazySavePaused = false;
   var lazySaveBlockedForPlan = false;
   var lazySaveLastHash = '';
+  var lazySaveFailureCount = 0;
   var LAZY_SAVE_DELAY_MS = 1800;
   var LAZY_SAVE_MAX_WAIT_MS = 10000;
+  var LAZY_SAVE_MAX_FAILURES = 3;
   var lastAutosavePaywallNoticeAt = 0;
 
   function updateLazySaveStatus(state, detail) {
@@ -8565,6 +8567,9 @@
     // attempt was blocked by the plan/free-version gate. Prevents quiet retry
     // loop while still respecting the paywall on subsequent failures.
     lazySaveBlockedForPlan = false;
+    // Reset the consecutive-failure backoff on fresh user activity so the
+    // autosave loop can resume after a transient error has been resolved.
+    lazySaveFailureCount = 0;
     try { updateLazySaveStatus('dirty'); } catch (_) {}
     scheduleLazySave(reason);
   }
@@ -8612,6 +8617,7 @@
       if (id) {
         RB_STATE._hasUnsavedChanges = false;
         RB_STATE._lastAutosavedAt = Date.now();
+        lazySaveFailureCount = 0;
         try { updateLazySaveStatus('saved'); } catch (_) {}
       }
       return id;
@@ -8619,6 +8625,7 @@
       console.warn('[lazy-save] failed', err);
       RB_STATE._lastSaveError = (err && err.message) || String(err);
       RB_STATE._hasUnsavedChanges = true;
+      lazySaveFailureCount++;
       try { updateLazySaveStatus('error', 'Autosave failed'); } catch (_) {}
       return null;
     } finally {
@@ -8627,6 +8634,14 @@
         // Autosave is blocked by the plan/free-version gate. Do not reschedule
         // until the user makes another edit (which clears the flag).
         lazySaveQueued = false;
+      } else if (lazySaveFailureCount >= LAZY_SAVE_MAX_FAILURES) {
+        // Defensive backoff: too many consecutive autosave failures. Stop the
+        // reschedule loop until the next user edit (markBuilderDirty resets
+        // the counter). Prevents runaway console spam from a persistent error.
+        lazySaveQueued = false;
+        if (lazySaveTimer)    { clearTimeout(lazySaveTimer);    lazySaveTimer = null; }
+        if (lazySaveMaxTimer) { clearTimeout(lazySaveMaxTimer); lazySaveMaxTimer = null; }
+        try { updateLazySaveStatus('error', 'Autosave paused \u2014 edit to retry'); } catch (_) {}
       } else if (lazySaveQueued || RB_STATE._hasUnsavedChanges) {
         lazySaveQueued = false;
         scheduleLazySave('queued');
@@ -8730,16 +8745,26 @@
         source:    'resumebuilder.html',
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }));
-      // Aggressive legacy cleanup: strip any prior base64 profile photo from
-      // the existing Firestore doc since merge:true would otherwise leave it.
-      try {
-        docData.profilePhotoDataUrl = firebase.firestore.FieldValue.delete();
-      } catch (_) {}
       var ref;
       if (currentPlanId) {
+        // Aggressive legacy cleanup: strip any prior base64 profile photo from
+        // the existing Firestore doc since merge:true would otherwise leave it.
+        // FieldValue.delete() is only valid on set({merge:true})/update(); do
+        // NOT include it on the add() path below or Firestore throws and the
+        // autosave loop spams the console (see ISS-019).
+        try {
+          docData.profilePhotoDataUrl = firebase.firestore.FieldValue.delete();
+        } catch (_) {}
         ref = db.collection('plans').doc(currentPlanId);
         await ref.set(docData, { merge: true });
       } else {
+        // New doc path: nothing to delete yet. Drop the field entirely if it
+        // somehow ended up on docData so add() does not see a sentinel.
+        if (docData.profilePhotoDataUrl &&
+            typeof docData.profilePhotoDataUrl === 'object' &&
+            docData.profilePhotoDataUrl._methodName) {
+          delete docData.profilePhotoDataUrl;
+        }
         docData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
         ref = await db.collection('plans').add(docData);
         currentPlanId = ref.id;
