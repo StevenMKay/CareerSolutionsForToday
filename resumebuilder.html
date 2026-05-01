@@ -730,23 +730,52 @@
     .nav-toolbar .btn { padding: .42rem .7rem; font-size: .8rem; min-height: 40px; }
     #auth-status { font-size: .78rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    #builder-stepper { grid-template-columns: 1fr; gap: 7px; padding: .65rem 0 .8rem; }
-    .chev {
-      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
-      border-radius: 0;
-      padding: .85rem 1.25rem .85rem 1.45rem;
-      min-height: 54px;
-      justify-content: flex-start;
-      font-size: .92rem;
+    #builder-stepper {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      gap: 3px;
+      padding: .5rem 0 .65rem;
+      width: 100%;
+      overflow: visible;
+    }
+
+    body.builder-active #builder-stepper {
+      padding: .45rem 0 .55rem;
+      margin-bottom: .75rem;
+    }
+
+    #builder-stepper .chev {
+      min-width: 0;
+      min-height: 46px;
+      padding: .58rem .42rem .58rem .52rem;
+      gap: .32rem;
+      justify-content: center;
+      font-size: clamp(.68rem, 2.65vw, .86rem);
+      line-height: 1.08;
       white-space: normal;
+      text-align: center;
+      border-radius: 0;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
     }
-    .chev:first-child {
-      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
+
+    #builder-stepper .chev:first-child {
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
     }
-    .chev:last-child {
-      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 18px 50%);
+
+    #builder-stepper .chev:last-child {
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%);
     }
-    .chev .chev-dot { width: 24px; height: 24px; flex: 0 0 24px; }
+
+    #builder-stepper .chev .chev-dot {
+      width: 22px;
+      height: 22px;
+      flex: 0 0 22px;
+      font-size: .68rem;
+    }
+
+    #builder-stepper .chev span:not(.chev-dot):not(.chev-num):not(.chev-check) {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
 
     .step-header { padding: 1rem 1rem .85rem; }
     .step-header h2 { font-size: 1.2rem; }
@@ -1084,6 +1113,39 @@
   .preview-unavailable-note { font-size: .82rem; color: #64748B !important; }
   @media (max-width: 640px) {
     .preview-unavailable-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Mobile document preview fit — affects live preview only, not actual export */
+  @media (max-width: 640px) {
+    #preview-container-export.preview-format-document {
+      padding: 10px;
+      min-height: 0;
+      overflow: visible;
+    }
+    #preview-container-export.preview-format-document .preview-device,
+    #preview-container-export.preview-format-document #preview-device-wrap {
+      max-width: 100%;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    #preview-container-export.preview-format-document #preview-frame,
+    #preview-container-export.preview-format-document iframe {
+      height: min(72vh, 680px) !important;
+      min-height: 520px;
+      width: 100% !important;
+      background: #F8FAFC;
+    }
+  }
+  @media (max-width: 420px) {
+    #preview-container-export.preview-format-document {
+      padding: 8px;
+    }
+    #preview-container-export.preview-format-document #preview-frame,
+    #preview-container-export.preview-format-document iframe {
+      height: min(68vh, 620px) !important;
+      min-height: 480px;
+    }
   }
 
   /* ============================================================
@@ -2843,10 +2905,96 @@
         var cb   = cbId && document.getElementById(cbId);
         if (cb && !cb.disabled) cb.checked = card.classList.contains('selected');
         updateSelectedSummary();
+        try { applyDocumentSelectionState(getDocumentSelectionStateFromUI()); } catch (_) {}
         try { maybeRefreshPreview(); } catch (_) {}
       });
     });
     try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
+    try {
+      applyDocumentSelectionState(getPersistedDocumentSelectionState(), { silent: true });
+    } catch (_) {}
+  }
+
+  // ---- Document selection persistence helpers ----
+  function getDocumentSelectionStateFromUI() {
+    var resume = document.getElementById('include-resume');
+    var cv = document.getElementById('include-cv');
+    var plan = document.getElementById('include-plan');
+    return {
+      resume: !!(resume && resume.checked),
+      coverLetter: !!(cv && cv.checked),
+      rolePlan: !!(plan && plan.checked)
+    };
+  }
+
+  function normalizeDocumentSelection(selection) {
+    selection = selection || {};
+    var normalized = {
+      resume: !!selection.resume,
+      coverLetter: !!selection.coverLetter,
+      rolePlan: !!selection.rolePlan
+    };
+    if (!normalized.resume && !normalized.coverLetter && !normalized.rolePlan) {
+      normalized.resume = true;
+    }
+    return normalized;
+  }
+
+  function applyDocumentSelectionState(selection, opts) {
+    opts = opts || {};
+    var normalized = normalizeDocumentSelection(selection);
+    var map = {
+      resume: 'include-resume',
+      coverLetter: 'include-cv',
+      rolePlan: 'include-plan'
+    };
+    Object.keys(map).forEach(function (key) {
+      var checkbox = document.getElementById(map[key]);
+      if (checkbox && !checkbox.disabled) checkbox.checked = !!normalized[key];
+      var card = document.querySelector('[data-doc-checkbox="' + map[key] + '"]');
+      if (card && !card.classList.contains('doc-card-unavailable')) {
+        card.classList.toggle('selected', !!normalized[key]);
+      }
+    });
+    try { if (typeof updateSelectedSummary === 'function') updateSelectedSummary(); } catch (_) {}
+    if (!opts.silent) {
+      persistDocumentSelectionState(normalized);
+    }
+    return normalized;
+  }
+
+  function persistDocumentSelectionState(selection) {
+    var normalized = normalizeDocumentSelection(selection);
+    window.RB_STATE = window.RB_STATE || {};
+    RB_STATE.documentPackage = RB_STATE.documentPackage || {};
+    RB_STATE.documentPackage.selected = normalized;
+    try { localStorage.setItem('rb_selected_documents', JSON.stringify(normalized)); } catch (_) {}
+    // Use existing lazy autosave/dirty mechanism; never write to Firestore directly.
+    try {
+      if (typeof markBuilderDirty === 'function') markBuilderDirty('selected-documents');
+    } catch (_) {}
+    try {
+      if (typeof scheduleLazySave === 'function') scheduleLazySave('selected-documents');
+    } catch (_) {}
+  }
+
+  function getPersistedDocumentSelectionState() {
+    try {
+      if (window.RB_STATE && RB_STATE.documentPackage && RB_STATE.documentPackage.selected) {
+        return normalizeDocumentSelection(RB_STATE.documentPackage.selected);
+      }
+    } catch (_) {}
+    try {
+      var raw = localStorage.getItem('rb_selected_documents');
+      if (raw) return normalizeDocumentSelection(JSON.parse(raw));
+    } catch (_) {}
+    try {
+      var ui = getDocumentSelectionStateFromUI();
+      if (ui && (ui.resume || ui.coverLetter || ui.rolePlan)) {
+        return normalizeDocumentSelection(ui);
+      }
+    } catch (_) {}
+    return normalizeDocumentSelection({ resume: true });
   }
 
   window.debugDocumentReadiness = function () {
@@ -5811,6 +5959,30 @@
 
   function buildSelectedDocumentPackage() {
     var styleEl = document.getElementById('export-style');
+    var selected;
+    try {
+      selected = (typeof getDocumentSelectionStateFromUI === 'function')
+        ? getDocumentSelectionStateFromUI()
+        : {
+            resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
+            coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
+            rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
+          };
+      if (!selected.resume && !selected.coverLetter && !selected.rolePlan) {
+        if (typeof getPersistedDocumentSelectionState === 'function') {
+          selected = getPersistedDocumentSelectionState();
+        }
+      }
+      if (typeof normalizeDocumentSelection === 'function') {
+        selected = normalizeDocumentSelection(selected);
+      }
+    } catch (_) {
+      selected = {
+        resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
+        coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
+        rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
+      };
+    }
     return {
       generatedAt: new Date().toISOString(),
       style: {
@@ -5820,11 +5992,7 @@
         previewFormat: getSelectedPreviewFormat(),
         deviceMode: getSelectedPreviewDevice()
       },
-      selected: {
-        resume: !!(document.getElementById('include-resume') && document.getElementById('include-resume').checked),
-        coverLetter: !!(document.getElementById('include-cv') && document.getElementById('include-cv').checked),
-        rolePlan: !!(document.getElementById('include-plan') && document.getElementById('include-plan').checked)
-      },
+      selected: selected,
       documents: {
         resume: RB_STATE.resumeData || null,
         coverLetter: RB_STATE.coverLetter || RB_STATE.cvDraft || null,
@@ -7563,9 +7731,13 @@
     if (frame) {
       // Guard: if the user is previewing Word/DOCX and the selected style does not
       // support DOCX, show a clean unavailable card instead of a misleading preview.
-      var _previewFormat = String(pkg.style.previewFormat || '').toLowerCase();
+      var _previewFormat = pkg.style.previewFormat;
       var _selectedTemplate = getSelectedOutputTemplateKey();
-      if (_previewFormat === 'docx' && !doesOutputStyleSupportFormat(_selectedTemplate, 'docx')) {
+      try { syncPreviewFormatClasses(_previewFormat); } catch (_) {}
+      if (
+        isWordPreviewFormat(_previewFormat) &&
+        !doesOutputStyleSupportFormat(_selectedTemplate, 'docx')
+      ) {
         var _unavailableHtml = renderWordPreviewUnavailableHTML(_selectedTemplate);
         frame.srcdoc = [
           '<!doctype html><html><head><meta charset="utf-8">',
@@ -7599,6 +7771,9 @@
       var cleanHtml = sanitizePreviewHTML(rawHtml);
       var cleanCount = (cleanHtml.match(/<script\b/gi) || []).length;
       _lastRenderCounts = { rawScriptTagCount: rawCount, cleanScriptTagCount: cleanCount };
+      if (isDocumentPreviewFormat(_previewFormat)) {
+        cleanHtml = injectMobileDocumentPreviewFitCSS(cleanHtml);
+      }
       frame.srcdoc = cleanHtml;
       // Reset iframe + container scroll on every render so the user sees the top of the new preview.
       frame.addEventListener('load', function () {
@@ -8654,10 +8829,76 @@
   function doesOutputStyleSupportFormat(template, format) {
     var support = getOutputStyleSupport(template);
     var f = String(format || '').toLowerCase();
-    if (f === 'web' || f === 'html') return !!support.supportsWeb;
-    if (f === 'pdf') return !!support.supportsPdf;
-    if (f === 'word' || f === 'docx' || f === 'doc') return !!support.supportsDocx;
+    if (f === 'web' || f === 'html' || f === 'public' || f === 'public-web-page') return !!support.supportsWeb;
+    if (f === 'pdf' || f === 'pdf-document') return !!support.supportsPdf;
+    if (isWordPreviewFormat(f)) return !!support.supportsDocx;
     return true;
+  }
+
+  function isWordPreviewFormat(format) {
+    var f = String(format || '').trim().toLowerCase();
+    return (
+      f === 'word' ||
+      f === 'doc' ||
+      f === 'docx' ||
+      f === 'word-docx' ||
+      f === 'word / docx' ||
+      f.indexOf('word') !== -1 ||
+      f.indexOf('docx') !== -1
+    );
+  }
+
+  function isDocumentPreviewFormat(format) {
+    var f = String(format || '').trim().toLowerCase();
+    return (
+      f === 'pdf' ||
+      f === 'pdf-document' ||
+      isWordPreviewFormat(f)
+    );
+  }
+
+  function syncPreviewFormatClasses(format) {
+    var container = document.getElementById('preview-container-export');
+    var wrap = document.getElementById('preview-device-wrap');
+    var frame = document.getElementById('preview-frame');
+    var isDoc = isDocumentPreviewFormat(format);
+    var isWeb = !isDoc;
+    var isPdf = String(format || '').toLowerCase().indexOf('pdf') !== -1;
+    var isWord = isWordPreviewFormat(format);
+    [container, wrap, frame].forEach(function (el) {
+      if (!el || !el.classList) return;
+      el.classList.toggle('preview-format-document', isDoc);
+      el.classList.toggle('preview-format-web', isWeb);
+      el.classList.toggle('preview-format-word', isWord);
+      el.classList.toggle('preview-format-pdf', isPdf);
+    });
+  }
+
+  function injectMobileDocumentPreviewFitCSS(html) {
+    html = String(html || '');
+    if (html.indexOf('mobile-document-preview-fit-css') !== -1) return html;
+    var fitCss = [
+      '<style id="mobile-document-preview-fit-css">',
+      '@media (max-width: 640px) {',
+        'html, body { margin:0 !important; padding:0 !important; overflow-x:hidden !important; background:#F8FAFC !important; }',
+        'body { min-width:0 !important; }',
+        '.package-document, .document-package, .doc-page, .pdf-page, .resume-page, .preview-page, .page, main {',
+          'max-width:100% !important;',
+          'box-sizing:border-box !important;',
+        '}',
+        '.package-document, .document-package, .doc-page, .pdf-page, .resume-page, .preview-page {',
+          'margin-left:auto !important;',
+          'margin-right:auto !important;',
+          'overflow:hidden !important;',
+        '}',
+        'img, table { max-width:100% !important; }',
+      '}',
+      '</style>'
+    ].join('');
+    if (html.indexOf('</head>') !== -1) {
+      return html.replace('</head>', fitCss + '</head>');
+    }
+    return fitCss + html;
   }
 
   function renderWordPreviewUnavailableHTML(template) {
@@ -9560,6 +9801,40 @@
       supportsWeb: doesOutputStyleSupportFormat(template, 'web'),
       supportsPdf: doesOutputStyleSupportFormat(template, 'pdf'),
       supportsDocx: doesOutputStyleSupportFormat(template, 'docx')
+    };
+  };
+
+  window.debugPreviewFormatState = function () {
+    var format = typeof getSelectedPreviewFormat === 'function'
+      ? getSelectedPreviewFormat()
+      : ((window.RB_STATE && RB_STATE.documentPackage && RB_STATE.documentPackage.style && RB_STATE.documentPackage.style.previewFormat) || null);
+    var template = typeof getSelectedOutputTemplateKey === 'function'
+      ? getSelectedOutputTemplateKey()
+      : null;
+    return {
+      rawFormat: format,
+      isWordPreview: typeof isWordPreviewFormat === 'function' ? isWordPreviewFormat(format) : null,
+      isDocumentPreview: typeof isDocumentPreviewFormat === 'function' ? isDocumentPreviewFormat(format) : null,
+      selectedTemplate: template,
+      support: typeof getOutputStyleSupport === 'function' ? getOutputStyleSupport(template) : null,
+      supportsDocx: typeof doesOutputStyleSupportFormat === 'function' ? doesOutputStyleSupportFormat(template, 'docx') : null
+    };
+  };
+
+  window.debugSelectedDocumentsState = function () {
+    return {
+      ui: typeof getDocumentSelectionStateFromUI === 'function' ? getDocumentSelectionStateFromUI() : null,
+      persisted: typeof getPersistedDocumentSelectionState === 'function' ? getPersistedDocumentSelectionState() : null,
+      packageSelected:
+        window.RB_STATE &&
+        RB_STATE.documentPackage &&
+        RB_STATE.documentPackage.selected
+          ? RB_STATE.documentPackage.selected
+          : null,
+      buildPackageSelected:
+        typeof buildSelectedDocumentPackage === 'function'
+          ? buildSelectedDocumentPackage().selected
+          : null
     };
   };
 
@@ -10876,6 +11151,11 @@
     _syncDocCardSelectedState();
     try { initDocumentSelection(); } catch (_) {}
     try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
+    try {
+      if (typeof applyDocumentSelectionState === 'function') {
+        applyDocumentSelectionState(getDocumentSelectionStateFromUI(), { silent: true });
+      }
+    } catch (_) {}
     try { renderPreview(); } catch (_) {}
   }
 
@@ -12008,6 +12288,8 @@
     debugDocxExportState: window.debugDocxExportState,
     debugDocxStyleState: window.debugDocxStyleState,
     debugOutputStyleSupport: window.debugOutputStyleSupport,
+    debugPreviewFormatState: window.debugPreviewFormatState,
+    debugSelectedDocumentsState: window.debugSelectedDocumentsState,
     saveDraft: saveDraft,
     loadDraft: loadDraft,
     resetBuilder: resetBuilder,
