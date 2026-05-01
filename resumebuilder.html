@@ -1115,36 +1115,73 @@
     .preview-unavailable-grid { grid-template-columns: 1fr; }
   }
 
-  /* Mobile document preview fit — affects live preview only, not actual export */
+  /* Mobile fixed-page document preview.
+     PDF/DOCX are fixed-page outputs, so we scale the page instead of reflowing it.
+     Live preview only — actual PDF/DOCX export output is untouched. */
+  #preview-container-export:not(.preview-format-document) #preview-frame {
+    transform: none;
+  }
+
   @media (max-width: 640px) {
     #preview-container-export.preview-format-document {
       padding: 10px;
       min-height: 0;
-      overflow: visible;
-    }
-    #preview-container-export.preview-format-document .preview-device,
-    #preview-container-export.preview-format-document #preview-device-wrap {
-      max-width: 100%;
-      width: 100%;
-      border-radius: 14px;
       overflow: hidden;
+      background: #EEF2F7;
     }
+
+    #preview-container-export.preview-format-document::before {
+      content: "Document preview is scaled to fit your screen. Download the PDF or Word file for the final full-size version.";
+      display: block;
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #EFF6FF;
+      color: #1E3A8A;
+      border: 1px solid #BFDBFE;
+      font-size: .78rem;
+      line-height: 1.35;
+    }
+
+    #preview-container-export.preview-format-document #preview-device-wrap,
+    #preview-container-export.preview-format-document .preview-device {
+      width: 100%;
+      max-width: 100%;
+      height: min(72vh, 640px);
+      overflow: auto;
+      border-radius: 14px;
+      background: #CBD5E1;
+      padding: 8px;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+    }
+
     #preview-container-export.preview-format-document #preview-frame,
     #preview-container-export.preview-format-document iframe {
-      height: min(72vh, 680px) !important;
-      min-height: 520px;
-      width: 100% !important;
-      background: #F8FAFC;
+      width: 816px !important;
+      min-width: 816px !important;
+      max-width: none !important;
+      height: 1056px !important;
+      min-height: 1056px !important;
+      transform-origin: top left;
+      border: 0;
+      background: #FFFFFF;
+      box-shadow: 0 8px 24px rgba(15,23,42,.18);
+      display: block;
+    }
+
+    /* Scale an 8.5x11-ish preview page down to phone width.
+       816px approximates letter width at 96dpi. */
+    #preview-container-export.preview-format-document #preview-frame {
+      transform: scale(var(--preview-doc-scale, .42));
     }
   }
+
   @media (max-width: 420px) {
-    #preview-container-export.preview-format-document {
-      padding: 8px;
-    }
-    #preview-container-export.preview-format-document #preview-frame,
-    #preview-container-export.preview-format-document iframe {
-      height: min(68vh, 620px) !important;
-      min-height: 480px;
+    #preview-container-export.preview-format-document #preview-device-wrap,
+    #preview-container-export.preview-format-document .preview-device {
+      height: min(70vh, 600px);
+      padding: 6px;
     }
   }
 
@@ -5657,7 +5694,10 @@
     var t = null;
     function onResize() {
       if (t) clearTimeout(t);
-      t = setTimeout(applyAutoDeviceToPreviewWrap, 80);
+      t = setTimeout(function () {
+        applyAutoDeviceToPreviewWrap();
+        try { updateDocumentPreviewScale(); } catch (_) {}
+      }, 80);
     }
     window.addEventListener('resize', onResize, { passive: true });
     window.addEventListener('orientationchange', onResize, { passive: true });
@@ -7734,6 +7774,7 @@
       var _previewFormat = pkg.style.previewFormat;
       var _selectedTemplate = getSelectedOutputTemplateKey();
       try { syncPreviewFormatClasses(_previewFormat); } catch (_) {}
+      try { syncPreviewFormatNotice(_previewFormat); } catch (_) {}
       if (
         isWordPreviewFormat(_previewFormat) &&
         !doesOutputStyleSupportFormat(_selectedTemplate, 'docx')
@@ -8872,33 +8913,101 @@
       el.classList.toggle('preview-format-word', isWord);
       el.classList.toggle('preview-format-pdf', isPdf);
     });
+    setTimeout(function () {
+      try { updateDocumentPreviewScale(); } catch (_) {}
+    }, 0);
   }
 
   function injectMobileDocumentPreviewFitCSS(html) {
     html = String(html || '');
-    if (html.indexOf('mobile-document-preview-fit-css') !== -1) return html;
+
     var fitCss = [
       '<style id="mobile-document-preview-fit-css">',
+      'html, body {',
+        'margin: 0 !important;',
+        'padding: 0 !important;',
+        'background: #F8FAFC !important;',
+        'overflow: auto !important;',
+      '}',
+      'body {',
+        'min-width: 816px !important;',
+        'width: 816px !important;',
+      '}',
+      '.preview-mobile-scale-shell {',
+        'width: 816px !important;',
+        'min-width: 816px !important;',
+        'transform-origin: top left !important;',
+      '}',
       '@media (max-width: 640px) {',
-        'html, body { margin:0 !important; padding:0 !important; overflow-x:hidden !important; background:#F8FAFC !important; }',
-        'body { min-width:0 !important; }',
+        'html, body {',
+          'min-width: 816px !important;',
+          'width: 816px !important;',
+          'overflow: hidden !important;',
+        '}',
         '.package-document, .document-package, .doc-page, .pdf-page, .resume-page, .preview-page, .page, main {',
-          'max-width:100% !important;',
-          'box-sizing:border-box !important;',
+          'max-width: none !important;',
         '}',
-        '.package-document, .document-package, .doc-page, .pdf-page, .resume-page, .preview-page {',
-          'margin-left:auto !important;',
-          'margin-right:auto !important;',
-          'overflow:hidden !important;',
-        '}',
-        'img, table { max-width:100% !important; }',
       '}',
       '</style>'
     ].join('');
+
+    if (html.indexOf('mobile-document-preview-fit-css') !== -1) return html;
+
+    // Wrap body content in a fixed-width shell only if possible.
+    if (html.indexOf('<body') !== -1 && html.indexOf('preview-mobile-scale-shell') === -1) {
+      html = html.replace(/<body([^>]*)>/i, '<body$1><div class="preview-mobile-scale-shell">');
+      html = html.replace(/<\/body>/i, '</div></body>');
+    }
+
     if (html.indexOf('</head>') !== -1) {
       return html.replace('</head>', fitCss + '</head>');
     }
+
     return fitCss + html;
+  }
+
+  function updateDocumentPreviewScale() {
+    var container = document.getElementById('preview-container-export');
+    var frame = document.getElementById('preview-frame');
+    if (!container || !frame) return;
+
+    if (!container.classList.contains('preview-format-document')) {
+      container.style.removeProperty('--preview-doc-scale');
+      frame.style.removeProperty('transform');
+      frame.style.removeProperty('transform-origin');
+      return;
+    }
+
+    var available = Math.max(280, container.clientWidth - 28);
+    var pageWidth = 816;
+    var scale = Math.min(1, available / pageWidth);
+
+    // Keep a reasonable minimum so users can still visually understand the page.
+    scale = Math.max(0.32, scale);
+
+    container.style.setProperty('--preview-doc-scale', String(scale));
+  }
+
+  function syncPreviewFormatNotice(format) {
+    var existing = document.getElementById('document-preview-scale-note');
+    var isDoc = typeof isDocumentPreviewFormat === 'function' && isDocumentPreviewFormat(format);
+
+    if (!isDoc) {
+      if (existing) existing.remove();
+      return;
+    }
+
+    if (existing) return;
+
+    var toggle = document.querySelector('.preview-toggle');
+    if (!toggle || !toggle.parentNode) return;
+
+    var note = document.createElement('div');
+    note.id = 'document-preview-scale-note';
+    note.className = 'preview-warning';
+    note.textContent = 'PDF and Word previews are fixed-page documents. On mobile, this preview is scaled down; download the file to view the final full-size version.';
+
+    toggle.parentNode.insertBefore(note, toggle.nextSibling);
   }
 
   function renderWordPreviewUnavailableHTML(template) {
