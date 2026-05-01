@@ -8274,40 +8274,130 @@
 
     html = sanitizePreviewHTML(html);
 
-    var headers = await getAuthHeaders();
+    // Try the server-side renderer first (real PDF, no user dialog).
+    // Fall back to the client print dialog if the endpoint is unavailable
+    // (404/501) or the network call fails. Genuine HTTP errors (400/413/500)
+    // surface to the caller so the user is told what went wrong.
+    var serverResult = await tryServerPdfExport(html, filename);
+    if (serverResult === 'ok') return true;
+    if (serverResult && serverResult.error) {
+      // Hard server error -- do not silently fall back.
+      throw serverResult.error;
+    }
+    // serverResult === 'fallback' -> proceed with client print path.
+
+    return await clientPrintToPdfFallback(html, filename);
+  }
+
+  async function tryServerPdfExport(html, filename) {
+    var headers;
+    try {
+      headers = await getAuthHeaders();
+    } catch (_) {
+      headers = {};
+    }
     headers['Content-Type'] = 'application/json';
 
     var ctrl = new AbortController();
     var timeout = setTimeout(function () {
       try { ctrl.abort(); } catch (_) {}
-    }, 45000);
+    }, 60000);
 
+    var response;
     try {
-      var response = await fetch(PDF_EXPORT_ENDPOINT, {
+      response = await fetch(PDF_EXPORT_ENDPOINT, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({
-          html: html,
-          filename: filename,
-          paper: 'letter'
-        }),
+        body: JSON.stringify({ html: html, filename: filename, paper: 'letter' }),
         signal: ctrl.signal
       });
+    } catch (e) {
+      clearTimeout(timeout);
+      // Network error / abort / CORS -> fall back to client print.
+      console.warn('[download package] server PDF endpoint unreachable, using print fallback:', e && e.message);
+      return 'fallback';
+    }
+    clearTimeout(timeout);
 
-      if (!response.ok) {
-        var errText = await response.text().catch(function () { return ''; });
-        throw new Error('PDF export failed with HTTP ' + response.status + (errText ? ': ' + errText.slice(0, 180) : ''));
+    if (response.status === 404 || response.status === 501) {
+      // Endpoint not deployed or Puppeteer unavailable on host.
+      return 'fallback';
+    }
+
+    if (!response.ok) {
+      var errText = '';
+      try { errText = await response.text(); } catch (_) {}
+      return {
+        error: new Error('PDF export failed with HTTP ' + response.status + (errText ? ': ' + errText.slice(0, 180) : ''))
+      };
+    }
+
+    var blob;
+    try {
+      blob = await response.blob();
+    } catch (e) {
+      return { error: new Error('PDF export response could not be read.') };
+    }
+
+    if (!blob || blob.size < 500) {
+      return { error: new Error('PDF export returned an empty file.') };
+    }
+
+    downloadBlobFile(blob, filename);
+    return 'ok';
+  }
+
+  async function clientPrintToPdfFallback(html, filename) {
+    var titleSafe = String(filename || 'Resume Package')
+      .replace(/\.pdf$/i, '')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    var docHtml = [
+      '<!doctype html><html><head><meta charset="utf-8">',
+      '<title>' + titleSafe + '</title>',
+      '<style>@page{size:letter;margin:0.5in;}html,body{margin:0;padding:0;background:#fff;}</style>',
+      '</head><body>',
+      html,
+      '</body></html>'
+    ].join('');
+
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+
+    document.body.appendChild(iframe);
+
+    try {
+      iframe.srcdoc = docHtml;
+
+      await new Promise(function (resolve) {
+        var done = false;
+        function finish() { if (!done) { done = true; resolve(); } }
+        iframe.addEventListener('load', finish, { once: true });
+        setTimeout(finish, 4000);
+      });
+
+      await waitForDownloadTick(250);
+
+      var printWin = iframe.contentWindow;
+      if (!printWin || typeof printWin.print !== 'function') {
+        throw new Error('Could not open the print dialog. Please allow pop-ups for this site.');
       }
 
-      var blob = await response.blob();
-      if (!blob || blob.size < 500) {
-        throw new Error('PDF export returned an empty file.');
-      }
-
-      downloadBlobFile(blob, filename);
+      try { printWin.focus(); } catch (_) {}
+      printWin.print();
       return true;
     } finally {
-      clearTimeout(timeout);
+      setTimeout(function () {
+        try { document.body.removeChild(iframe); } catch (_) {}
+      }, 60000);
     }
   }
 
@@ -8443,12 +8533,19 @@
 
         closeDownloadPackageModal();
 
-        showToast(
-          mode === 'separate'
-            ? 'Downloaded selected documents as separate files.'
-            : 'Downloaded package.',
-          'success'
-        );
+        var successMsg;
+        if (format === 'pdf') {
+          // We can't tell here whether the server path or the print fallback
+          // ran, so use a message that's accurate either way.
+          successMsg = mode === 'separate'
+            ? 'Selected documents exported as PDF (or use the print dialog to save).'
+            : 'Package exported as PDF (or use the print dialog to save).';
+        } else {
+          successMsg = mode === 'separate'
+            ? 'Downloaded selected documents as separate Word files.'
+            : 'Downloaded Word package.';
+        }
+        showToast(successMsg, 'success');
       }
     } catch (err) {
       console.error('[download package] failed:', err);
