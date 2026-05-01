@@ -7939,14 +7939,543 @@
 
   function downloadSelectedPackage(){
     if (!requireAuth()) return;
-    // Free-trial gate: one export total (PDF or DOCX) for non-subscribers.
-    // NOTE: Do NOT call markFreeUseConsumed('freeExportUsed') here. The real
-    // PDF/DOCX export implementation must invoke it ONLY after a confirmed
-    // successful file delivery. While this function is a stub it must not
-    // consume the free export.
-    if (!requireExportOrTrial()) return;
-    notImplemented('downloadSelectedPackage');
+    openDownloadPackageModal();
   }
+
+  // ============================================================
+  // Download Package Modal + Export Flow
+  // Targeted implementation for Preview & Export > Download Package.
+  // Does not mutate selected document checkboxes or persistence state.
+  // ============================================================
+
+  function waitForDownloadTick(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms || 180);
+    });
+  }
+
+  function safeDownloadFileName(base, ext) {
+    var cleaned = String(base || 'download')
+      .trim()
+      .toLowerCase()
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+
+    if (!cleaned) cleaned = 'download';
+    ext = String(ext || '').replace(/^\./, '');
+    return cleaned + '.' + ext;
+  }
+
+  function downloadBlobFile(blob, filename) {
+    if (!blob || !blob.size) throw new Error('Download file was empty.');
+
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'download';
+    a.style.display = 'none';
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    setTimeout(function () {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    }, 10000);
+  }
+
+  function hasMeaningfulObject(value) {
+    if (!value) return false;
+    if (typeof value !== 'object') return String(value || '').trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    return Object.keys(value).some(function (k) {
+      var v = value[k];
+      if (v == null) return false;
+      if (typeof v === 'string') return v.trim().length > 0;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'object') return Object.keys(v).length > 0;
+      return true;
+    });
+  }
+
+  function getSelectedExportDocsForDownload(pkg) {
+    pkg = pkg || buildSelectedDocumentPackage();
+
+    var selected = pkg.selected || {};
+    var docs = pkg.documents || {};
+    var items = [];
+
+    if (selected.coverLetter) {
+      items.push({
+        key: 'coverLetter',
+        label: 'Cover Letter',
+        fileBase: 'cover-letter',
+        hasData: hasMeaningfulObject(docs.coverLetter)
+      });
+    }
+
+    if (selected.rolePlan) {
+      items.push({
+        key: 'rolePlan',
+        label: 'Career Plan',
+        fileBase: 'career-plan',
+        hasData: hasMeaningfulObject(docs.rolePlan)
+      });
+    }
+
+    if (selected.resume) {
+      items.push({
+        key: 'resume',
+        label: 'Resume',
+        fileBase: 'resume',
+        hasData: hasMeaningfulObject(docs.resume)
+      });
+    }
+
+    return items;
+  }
+
+  function validatePackageForDownload(pkg) {
+    pkg = pkg || buildSelectedDocumentPackage();
+
+    var selected = pkg.selected || {};
+    var docs = pkg.documents || {};
+    var anySelected = !!(selected.resume || selected.coverLetter || selected.rolePlan);
+
+    if (!anySelected) {
+      return {
+        ok: false,
+        message: 'Select at least one document before downloading.'
+      };
+    }
+
+    if (selected.resume && !hasMeaningfulObject(docs.resume)) {
+      return {
+        ok: false,
+        message: 'Resume is selected, but no resume data is available yet.'
+      };
+    }
+
+    if (selected.coverLetter && !hasMeaningfulObject(docs.coverLetter)) {
+      return {
+        ok: false,
+        message: 'Cover Letter is selected, but no cover letter has been generated yet.'
+      };
+    }
+
+    if (selected.rolePlan && !hasMeaningfulObject(docs.rolePlan)) {
+      return {
+        ok: false,
+        message: 'Career Plan is selected, but no role plan has been generated yet.'
+      };
+    }
+
+    return { ok: true };
+  }
+
+  function clonePackageWithOnlyDoc(pkg, docKey) {
+    var cloned;
+    try {
+      cloned = (typeof structuredClone === 'function') ? structuredClone(pkg) : null;
+    } catch (_) { cloned = null; }
+    if (!cloned) {
+      try { cloned = JSON.parse(JSON.stringify(pkg || {})); }
+      catch (__) { cloned = Object.assign({}, pkg || {}); }
+    }
+
+    cloned.selected = {
+      resume: docKey === 'resume',
+      coverLetter: docKey === 'coverLetter',
+      rolePlan: docKey === 'rolePlan'
+    };
+
+    return cloned;
+  }
+
+  function ensureDownloadPackageModal() {
+    var existing = document.getElementById('download-package-modal');
+    if (existing) return existing;
+
+    var modal = document.createElement('div');
+    modal.id = 'download-package-modal';
+    modal.className = 'download-package-modal hidden';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'download-package-title');
+
+    modal.innerHTML = [
+      '<div class="download-package-backdrop" data-download-close="true"></div>',
+      '<div class="download-package-card">',
+        '<button type="button" class="download-package-close" data-download-close="true" aria-label="Close download options">&times;</button>',
+        '<div class="download-package-header">',
+          '<div class="download-package-icon"><i data-lucide="download" style="width:22px;height:22px;"></i></div>',
+          '<div>',
+            '<h3 id="download-package-title">Download Package</h3>',
+            '<p>Choose the file format and whether to download one combined package or separate files.</p>',
+          '</div>',
+        '</div>',
+
+        '<div class="download-package-section">',
+          '<p class="download-package-section-title">Format</p>',
+          '<label class="download-option">',
+            '<input type="radio" name="download-package-format" value="pdf" checked>',
+            '<span>',
+              '<strong>PDF</strong>',
+              '<small>Best for sharing and uploading to job applications.</small>',
+            '</span>',
+          '</label>',
+          '<label class="download-option">',
+            '<input type="radio" name="download-package-format" value="doc">',
+            '<span>',
+              '<strong>Word-compatible (.doc)</strong>',
+              '<small>Opens in Microsoft Word. True DOCX can be added later.</small>',
+            '</span>',
+          '</label>',
+        '</div>',
+
+        '<div class="download-package-section">',
+          '<p class="download-package-section-title">File structure</p>',
+          '<label class="download-option">',
+            '<input type="radio" name="download-package-mode" value="combined" checked>',
+            '<span>',
+              '<strong>Combined package</strong>',
+              '<small>One file containing all selected documents.</small>',
+            '</span>',
+          '</label>',
+          '<label class="download-option">',
+            '<input type="radio" name="download-package-mode" value="separate">',
+            '<span>',
+              '<strong>Separate files</strong>',
+              '<small>Resume, Cover Letter, and Career Plan download as separate files.</small>',
+            '</span>',
+          '</label>',
+        '</div>',
+
+        '<div id="download-package-summary" class="download-package-summary"></div>',
+
+        '<div class="download-package-actions">',
+          '<button type="button" class="btn btn-secondary" data-download-close="true">Cancel</button>',
+          '<button type="button" class="btn btn-primary" id="confirm-download-package-btn">',
+            '<i data-lucide="download" style="width:16px;height:16px;"></i>',
+            '<span>Download</span>',
+          '</button>',
+        '</div>',
+      '</div>'
+    ].join('');
+
+    document.body.appendChild(modal);
+
+    if (!document.getElementById('download-package-modal-style')) {
+      var style = document.createElement('style');
+      style.id = 'download-package-modal-style';
+      style.textContent = [
+        '.download-package-modal.hidden{display:none!important;}',
+        '.download-package-modal{position:fixed;inset:0;z-index:2200;display:flex;align-items:center;justify-content:center;padding:1rem;}',
+        '.download-package-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}',
+        '.download-package-card{position:relative;width:min(620px,100%);max-height:calc(100vh - 2rem);overflow:auto;background:#fff;color:#0f172a;border-radius:20px;box-shadow:0 28px 90px rgba(2,6,23,.45);border:1px solid rgba(226,232,240,.9);padding:1.25rem;}',
+        '.download-package-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-size:24px;line-height:1;cursor:pointer;}',
+        '.download-package-close:hover{background:#f8fafc;color:#0f172a;}',
+        '.download-package-header{display:flex;gap:1rem;align-items:flex-start;padding-right:2.5rem;margin-bottom:1rem;}',
+        '.download-package-icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#1D4ED8,#7C3AED);color:#fff;flex-shrink:0;}',
+        '.download-package-header h3{margin:0 0 .25rem;color:#0f172a;font-size:1.25rem;}',
+        '.download-package-header p{margin:0;color:#475569;font-size:.9rem;}',
+        '.download-package-section{border:1px solid #e2e8f0;border-radius:14px;padding:.85rem;margin-top:.85rem;background:#f8fafc;}',
+        '.download-package-section-title{margin:0 0 .6rem;color:#334155;font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;}',
+        '.download-option{display:flex;gap:.75rem;align-items:flex-start;padding:.75rem;border:1px solid #e2e8f0;border-radius:12px;background:#fff;cursor:pointer;}',
+        '.download-option+.download-option{margin-top:.5rem;}',
+        '.download-option:hover{border-color:#93c5fd;background:#eff6ff;}',
+        '.download-option input{margin-top:.2rem;accent-color:#1D4ED8;}',
+        '.download-option strong{display:block;color:#0f172a;font-size:.94rem;}',
+        '.download-option small{display:block;color:#64748b;font-size:.78rem;margin-top:.12rem;line-height:1.35;}',
+        '.download-package-summary{margin-top:.85rem;padding:.75rem .85rem;border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:.82rem;line-height:1.45;}',
+        '.download-package-actions{display:flex;justify-content:flex-end;gap:.65rem;flex-wrap:wrap;margin-top:1rem;}',
+        '@media(max-width:640px){.download-package-card{padding:1rem;border-radius:16px}.download-package-actions{flex-direction:column-reverse}.download-package-actions .btn{width:100%;}}'
+      ].join('\n');
+      document.head.appendChild(style);
+    }
+
+    modal.addEventListener('click', function (event) {
+      if (event.target && event.target.getAttribute &&
+          event.target.getAttribute('data-download-close') === 'true') {
+        closeDownloadPackageModal();
+      }
+    });
+
+    var confirmBtn = modal.querySelector('#confirm-download-package-btn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', runSelectedPackageDownload);
+    }
+
+    ['download-package-format', 'download-package-mode'].forEach(function (name) {
+      Array.prototype.forEach.call(
+        modal.querySelectorAll('input[name="' + name + '"]'),
+        function (input) {
+          input.addEventListener('change', updateDownloadPackageSummary);
+        }
+      );
+    });
+
+    return modal;
+  }
+
+  function updateDownloadPackageSummary() {
+    var modal = document.getElementById('download-package-modal');
+    if (!modal) return;
+
+    var summary = modal.querySelector('#download-package-summary');
+    if (!summary) return;
+
+    var pkg = buildSelectedDocumentPackage();
+    var items = getSelectedExportDocsForDownload(pkg);
+    var selectedLabels = items.map(function (item) { return item.label; });
+
+    if (!selectedLabels.length) {
+      summary.textContent = 'No documents are selected yet. Select Resume, Cover Letter, or Career Plan before downloading.';
+      return;
+    }
+
+    var formatInput = modal.querySelector('input[name="download-package-format"]:checked');
+    var modeInput = modal.querySelector('input[name="download-package-mode"]:checked');
+
+    var format = formatInput ? formatInput.value : 'pdf';
+    var mode = modeInput ? modeInput.value : 'combined';
+
+    var formatLabel = format === 'pdf' ? 'PDF' : 'Word-compatible .doc';
+    var modeLabel = mode === 'separate' ? 'separate files' : 'one combined file';
+
+    summary.textContent = 'Selected: ' + selectedLabels.join(', ') + '. This will download as ' + modeLabel + ' in ' + formatLabel + ' format.';
+  }
+
+  function openDownloadPackageModal() {
+    var modal = ensureDownloadPackageModal();
+    updateDownloadPackageSummary();
+    modal.classList.remove('hidden');
+
+    try {
+      if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+    } catch (_) {}
+  }
+
+  function closeDownloadPackageModal() {
+    var modal = document.getElementById('download-package-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async function downloadPackagePdf(pkg, filename) {
+    pkg = pkg || buildSelectedDocumentPackage();
+    filename = filename || 'resume-package.pdf';
+
+    var html = renderPackageHTML(pkg, {
+      target: 'export',
+      format: 'pdf'
+    });
+
+    html = sanitizePreviewHTML(html);
+
+    var headers = await getAuthHeaders();
+    headers['Content-Type'] = 'application/json';
+
+    var ctrl = new AbortController();
+    var timeout = setTimeout(function () {
+      try { ctrl.abort(); } catch (_) {}
+    }, 45000);
+
+    try {
+      var response = await fetch(PDF_EXPORT_ENDPOINT, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          html: html,
+          filename: filename,
+          paper: 'letter'
+        }),
+        signal: ctrl.signal
+      });
+
+      if (!response.ok) {
+        var errText = await response.text().catch(function () { return ''; });
+        throw new Error('PDF export failed with HTTP ' + response.status + (errText ? ': ' + errText.slice(0, 180) : ''));
+      }
+
+      var blob = await response.blob();
+      if (!blob || blob.size < 500) {
+        throw new Error('PDF export returned an empty file.');
+      }
+
+      downloadBlobFile(blob, filename);
+      return true;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function downloadPackageWord(pkg, filename) {
+    pkg = pkg || buildSelectedDocumentPackage();
+    filename = filename || 'resume-package.doc';
+
+    // Intentionally .doc, not .docx. Word opens HTML-based .doc files
+    // reliably; this is not a true DOCX package. UI labels it clearly.
+    var html = renderPackageHTML(pkg, {
+      target: 'export',
+      format: 'docx'
+    });
+
+    html = sanitizePreviewHTML(html);
+
+    var safeTitle = filename.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    var wordHtml = [
+      '<html xmlns:o="urn:schemas-microsoft-com:office:office"',
+      ' xmlns:w="urn:schemas-microsoft-com:office:word"',
+      ' xmlns="http://www.w3.org/TR/REC-html40">',
+      '<head>',
+        '<meta charset="utf-8">',
+        '<title>' + safeTitle + '</title>',
+        '<!--[if gte mso 9]>',
+        '<xml>',
+          '<w:WordDocument>',
+            '<w:View>Print</w:View>',
+            '<w:Zoom>100</w:Zoom>',
+            '<w:DoNotOptimizeForBrowser/>',
+          '</w:WordDocument>',
+        '</xml>',
+        '<![endif]-->',
+      '</head>',
+      '<body>',
+        html,
+      '</body>',
+      '</html>'
+    ].join('');
+
+    var blob = new Blob([wordHtml], {
+      type: 'application/msword;charset=utf-8'
+    });
+
+    downloadBlobFile(blob, filename);
+    return true;
+  }
+
+  async function runSelectedPackageDownload() {
+    var modal = ensureDownloadPackageModal();
+    var confirmBtn = modal.querySelector('#confirm-download-package-btn');
+    var confirmLabel = confirmBtn ? confirmBtn.querySelector('span') : null;
+
+    var pkg = buildSelectedDocumentPackage();
+    var validation = validatePackageForDownload(pkg);
+
+    if (!validation.ok) {
+      showToast(validation.message, 'warning');
+      updateDownloadPackageSummary();
+      return;
+    }
+
+    // Gate at actual export confirmation, not on modal open. This keeps
+    // open/cancel from being treated as an attempted export.
+    if (!requireExportOrTrial()) return;
+
+    var formatInput = modal.querySelector('input[name="download-package-format"]:checked');
+    var modeInput = modal.querySelector('input[name="download-package-mode"]:checked');
+
+    var format = formatInput ? formatInput.value : 'pdf';
+    var mode = modeInput ? modeInput.value : 'combined';
+
+    var ext = format === 'pdf' ? 'pdf' : 'doc';
+    var didComplete = false;
+
+    try {
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        if (confirmLabel) confirmLabel.textContent = 'Preparing...';
+      }
+
+      if (mode === 'combined') {
+        var combinedName = safeDownloadFileName('resume-package', ext);
+
+        if (format === 'pdf') {
+          await downloadPackagePdf(pkg, combinedName);
+        } else {
+          await downloadPackageWord(pkg, combinedName);
+        }
+
+        didComplete = true;
+      } else {
+        var items = getSelectedExportDocsForDownload(pkg);
+
+        if (!items.length) {
+          showToast('Select at least one document before downloading.', 'warning');
+          return;
+        }
+
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+
+          if (!item.hasData) {
+            throw new Error(item.label + ' is selected but missing data.');
+          }
+
+          var singlePkg = clonePackageWithOnlyDoc(pkg, item.key);
+          var singleName = safeDownloadFileName(item.fileBase, ext);
+
+          if (confirmLabel) {
+            confirmLabel.textContent = 'Downloading ' + item.label + '...';
+          }
+
+          if (format === 'pdf') {
+            await downloadPackagePdf(singlePkg, singleName);
+          } else {
+            await downloadPackageWord(singlePkg, singleName);
+          }
+
+          await waitForDownloadTick(220);
+        }
+
+        didComplete = true;
+      }
+
+      if (didComplete) {
+        // Consume free export only after success, and only for non-premium users.
+        // Separate-files path only reaches here once all files succeeded,
+        // so the free export is consumed once total — not per file.
+        if (typeof canUsePremium === 'function' && !canUsePremium()) {
+          try { markFreeUseConsumed('freeExportUsed'); } catch (_) {}
+        }
+
+        closeDownloadPackageModal();
+
+        showToast(
+          mode === 'separate'
+            ? 'Downloaded selected documents as separate files.'
+            : 'Downloaded package.',
+          'success'
+        );
+      }
+    } catch (err) {
+      console.error('[download package] failed:', err);
+      showToast('Download failed: ' + ((err && err.message) || 'Unknown error'), 'error');
+    } finally {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        if (confirmLabel) confirmLabel.textContent = 'Download';
+      }
+    }
+  }
+
+  window.debugDownloadPackageState = function () {
+    var pkg = buildSelectedDocumentPackage();
+    var docs = pkg.documents || {};
+    return {
+      selected: pkg.selected,
+      items: getSelectedExportDocsForDownload(pkg),
+      hasResume: hasMeaningfulObject(docs.resume),
+      hasCoverLetter: hasMeaningfulObject(docs.coverLetter),
+      hasRolePlan: hasMeaningfulObject(docs.rolePlan),
+      freeExportUsed: typeof freeExportUsed !== 'undefined' ? freeExportUsed : null,
+      canUsePremium: typeof canUsePremium === 'function' ? canUsePremium() : null,
+      endpoint: typeof PDF_EXPORT_ENDPOINT !== 'undefined' ? PDF_EXPORT_ENDPOINT : null
+    };
+  };
+
   function resetBuilder()           { notImplemented('resetBuilder'); }
 
   // ============================================================
@@ -10356,6 +10885,9 @@
     buildSelectedDocumentPackage: buildSelectedDocumentPackage,
     getPreviewStyleConfig: getPreviewStyleConfig,
     downloadSelectedPackage: downloadSelectedPackage,
+    openDownloadPackageModal: openDownloadPackageModal,
+    closeDownloadPackageModal: closeDownloadPackageModal,
+    debugDownloadPackageState: window.debugDownloadPackageState,
     saveDraft: saveDraft,
     loadDraft: loadDraft,
     resetBuilder: resetBuilder,
