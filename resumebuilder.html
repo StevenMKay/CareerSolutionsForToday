@@ -8129,8 +8129,8 @@
           '<label class="download-option">',
             '<input type="radio" name="download-package-format" value="doc">',
             '<span>',
-              '<strong>Word-compatible (.doc)</strong>',
-              '<small>Opens in Microsoft Word. True DOCX can be added later.</small>',
+              '<strong>Word (.docx)</strong>',
+              '<small>Editable Microsoft Word document using a clean ATS-friendly layout.</small>',
             '</span>',
           '</label>',
         '</div>',
@@ -8242,7 +8242,7 @@
     var format = formatInput ? formatInput.value : 'pdf';
     var mode = modeInput ? modeInput.value : 'combined';
 
-    var formatLabel = format === 'pdf' ? 'PDF' : 'Word-compatible .doc';
+    var formatLabel = format === 'pdf' ? 'PDF' : 'Word .docx';
     var modeLabel = mode === 'separate' ? 'separate files' : 'one combined file';
 
     summary.textContent = 'Selected: ' + selectedLabels.join(', ') + '. This will download as ' + modeLabel + ' in ' + formatLabel + ' format.';
@@ -8401,46 +8401,365 @@
     }
   }
 
+  async function ensureDocxLibrary() {
+    if (window.docx && window.docx.Document && window.docx.Packer) return window.docx;
+
+    await new Promise(function (resolve, reject) {
+      var existing = document.querySelector('script[data-lib="docx-programmatic"]');
+      if (existing) {
+        existing.addEventListener('load', function () { resolve(); }, { once: true });
+        existing.addEventListener('error', function () { reject(new Error('DOCX library failed to load.')); }, { once: true });
+        return;
+      }
+
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js';
+      s.async = true;
+      s.dataset.lib = 'docx-programmatic';
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('DOCX library failed to load.')); };
+      document.head.appendChild(s);
+    });
+
+    if (!window.docx || !window.docx.Document || !window.docx.Packer) {
+      throw new Error('DOCX library loaded but window.docx is unavailable.');
+    }
+
+    return window.docx;
+  }
+
+  function _docxText(value) {
+    return String(value == null ? '' : value).trim();
+  }
+
+  function _docxArray(value) {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if (typeof value === 'string') {
+      return value.split(/\n|;/).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+    return [];
+  }
+
+  function normalizeResumeForDocx(resume) {
+    resume = resume || {};
+    var personal = resume.personal || {};
+    return {
+      name:     _docxText(resume.name || resume.fullName || personal.name),
+      headline: _docxText(resume.headline || resume.title || resume.targetRole),
+      location: _docxText(resume.location || personal.location),
+      phone:    _docxText(resume.phone || personal.phone),
+      email:    _docxText(resume.email || personal.email),
+      linkedin: _docxText(resume.linkedin || personal.linkedin),
+      summary:  _docxText(resume.summary || resume.professionalSummary),
+      skills:       _docxArray(resume.skills),
+      experience:   Array.isArray(resume.experience) ? resume.experience : [],
+      education:    Array.isArray(resume.education)  ? resume.education  : [],
+      achievements: _docxArray(resume.achievements)
+    };
+  }
+
+  function normalizeCoverLetterForDocx(coverLetter) {
+    if (!coverLetter) return null;
+    if (typeof coverLetter === 'string') return { body: coverLetter };
+    return {
+      title:    _docxText(coverLetter.title || 'Cover Letter'),
+      greeting: _docxText(coverLetter.greeting),
+      intro:    _docxText(coverLetter.intro || coverLetter.opening),
+      body:     _docxText(coverLetter.body || coverLetter.content || coverLetter.letter),
+      closing:  _docxText(coverLetter.closing)
+    };
+  }
+
+  function normalizeRolePlanForDocx(rolePlan) {
+    if (!rolePlan) return null;
+    var d90 = rolePlan.days90  || {};
+    var m12 = rolePlan.months12 || {};
+    var y2  = rolePlan.years2   || {};
+    return {
+      title:   _docxText(rolePlan.title || rolePlan.planTitle || 'Career Plan'),
+      summary: _docxText(rolePlan.executiveSummary || rolePlan.summary || rolePlan.success_summary),
+      phases:
+        rolePlan.phases ||
+        rolePlan.plan_phases ||
+        d90.phases ||
+        m12.phases ||
+        m12.quarters ||
+        y2.phases ||
+        [],
+      successMetrics:
+        rolePlan.successMetrics ||
+        rolePlan.success_criteria ||
+        rolePlan.kpis ||
+        []
+    };
+  }
+
+  function buildDocxExportModelFromPackage(pkg) {
+    pkg = pkg || buildSelectedDocumentPackage();
+    var docs     = pkg.documents || {};
+    var selected = pkg.selected  || {};
+    var style    = pkg.style     || {};
+    return {
+      selected: {
+        resume:      !!selected.resume,
+        coverLetter: !!selected.coverLetter,
+        rolePlan:    !!selected.rolePlan
+      },
+      accent:      style.accent || style.accentColor || '#0B487A',
+      resume:      normalizeResumeForDocx(docs.resume),
+      coverLetter: normalizeCoverLetterForDocx(docs.coverLetter),
+      rolePlan:    normalizeRolePlanForDocx(docs.rolePlan)
+    };
+  }
+
+  async function buildDocxProgrammaticFromPackage(pkg) {
+    var D     = await ensureDocxLibrary();
+    var model = buildDocxExportModelFromPackage(pkg);
+
+    var Document      = D.Document;
+    var Packer        = D.Packer;
+    var Paragraph     = D.Paragraph;
+    var TextRun       = D.TextRun;
+    var AlignmentType = D.AlignmentType;
+    var BorderStyle   = D.BorderStyle;
+    var HeadingLevel  = D.HeadingLevel;
+
+    var accent = String(model.accent || '#0B487A').replace('#', '').toUpperCase();
+
+    function para(text, opts) {
+      opts = opts || {};
+      return new Paragraph({
+        children: [
+          new TextRun(Object.assign({
+            text:    _docxText(text),
+            size:    opts.size || 22,
+            bold:    !!opts.bold,
+            italics: !!opts.italics,
+            color:   opts.color
+          }, opts.run || {}))
+        ],
+        spacing: {
+          after:  opts.after == null ? 90 : opts.after,
+          before: opts.before || 0
+        },
+        alignment: opts.align || AlignmentType.LEFT
+      });
+    }
+
+    function heading(text, level) {
+      return new Paragraph({
+        children: [
+          new TextRun({
+            text:  _docxText(text).toUpperCase(),
+            bold:  true,
+            size:  level === 1 ? 34 : 24,
+            color: accent
+          })
+        ],
+        heading: level === 1 ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
+        spacing: {
+          before: level === 1 ? 0 : 220,
+          after:  110
+        },
+        border: level === 2 ? {
+          bottom: { color: accent, space: 1, style: BorderStyle.SINGLE, size: 6 }
+        } : undefined
+      });
+    }
+
+    function bullet(text) {
+      return new Paragraph({
+        children: [new TextRun({ text: _docxText(text), size: 21 })],
+        bullet: { level: 0 },
+        spacing: { after: 50 }
+      });
+    }
+
+    function spacer(size) {
+      return new Paragraph({
+        children: [new TextRun({ text: '', size: size || 8 })],
+        spacing: { after: 80 }
+      });
+    }
+
+    var children = [];
+
+    function addResume() {
+      var r = model.resume || {};
+
+      children.push(new Paragraph({
+        children: [
+          new TextRun({
+            text:  _docxText(r.name || 'Resume').toUpperCase(),
+            bold:  true,
+            size:  38,
+            color: accent
+          })
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 60 }
+      }));
+
+      var contact = [r.location, r.phone, r.email, r.linkedin].filter(Boolean).join(' | ');
+      if (r.headline) {
+        children.push(para(r.headline, { align: AlignmentType.CENTER, bold: true, size: 22, after: 40 }));
+      }
+      if (contact) {
+        children.push(para(contact, { align: AlignmentType.CENTER, size: 19, color: '475569', after: 160 }));
+      }
+
+      if (r.summary) {
+        children.push(heading('Professional Summary', 2));
+        children.push(para(r.summary));
+      }
+
+      if (r.skills && r.skills.length) {
+        children.push(heading('Core Skills', 2));
+        children.push(para(r.skills.join(' \u2022 '), { after: 120 }));
+      }
+
+      if (r.experience && r.experience.length) {
+        children.push(heading('Professional Experience', 2));
+
+        r.experience.forEach(function (job) {
+          var titleLine = [
+            job.title || job.role || job.position,
+            job.company
+          ].filter(Boolean).join(' | ');
+
+          var dateLine = [
+            job.location,
+            job.startDate || job.start,
+            job.endDate || job.end
+          ].filter(Boolean).join(' | ');
+
+          if (titleLine) children.push(para(titleLine, { bold: true, after: 30 }));
+          if (dateLine)  children.push(para(dateLine,  { italics: true, color: '64748B', size: 20, after: 50 }));
+
+          var bullets = job.bullets || job.achievements || job.responsibilities || [];
+          bullets = _docxArray(bullets);
+          bullets.forEach(function (b) { children.push(bullet(b)); });
+
+          children.push(spacer(4));
+        });
+      }
+
+      if (r.education && r.education.length) {
+        children.push(heading('Education', 2));
+        r.education.forEach(function (ed) {
+          var line = [
+            ed.degree,
+            ed.school || ed.institution,
+            ed.year
+          ].filter(Boolean).join(' | ');
+          if (line) children.push(para(line));
+        });
+      }
+
+      if (r.achievements && r.achievements.length) {
+        children.push(heading('Achievements', 2));
+        r.achievements.forEach(function (a) { children.push(bullet(a)); });
+      }
+    }
+
+    function addCoverLetter() {
+      var c = model.coverLetter;
+      if (!c) return;
+
+      children.push(heading(c.title || 'Cover Letter', 1));
+      if (c.greeting) children.push(para(c.greeting, { after: 120 }));
+
+      var parts = [c.intro, c.body, c.closing].filter(Boolean);
+      if (!parts.length && c.body) parts = [c.body];
+
+      parts.forEach(function (part) {
+        String(part)
+          .split(/\n{2,}/)
+          .map(function (x) { return x.trim(); })
+          .filter(Boolean)
+          .forEach(function (paragraph) {
+            children.push(para(paragraph, { after: 140 }));
+          });
+      });
+    }
+
+    function addRolePlan() {
+      var p = model.rolePlan;
+      if (!p) return;
+
+      children.push(heading(p.title || 'Career Plan', 1));
+
+      if (p.summary) {
+        children.push(heading('Executive Summary', 2));
+        children.push(para(p.summary));
+      }
+
+      var phases = Array.isArray(p.phases) ? p.phases : [];
+      if (phases.length) {
+        children.push(heading('Plan Phases', 2));
+        phases.forEach(function (phase, index) {
+          var title     = phase.title || phase.phase || phase.label || ('Phase ' + (index + 1));
+          var timeframe = phase.timeframe || phase.period || '';
+          children.push(para([title, timeframe].filter(Boolean).join(' \u2014 '), { bold: true, after: 50 }));
+
+          if (phase.summary || phase.description) {
+            children.push(para(phase.summary || phase.description));
+          }
+
+          var goals = phase.goals || phase.actions || phase.milestones || phase.objectives || [];
+          goals = _docxArray(goals);
+          goals.forEach(function (g) { children.push(bullet(g)); });
+        });
+      }
+
+      var metrics = _docxArray(p.successMetrics);
+      if (metrics.length) {
+        children.push(heading('Success Metrics', 2));
+        metrics.forEach(function (m) { children.push(bullet(m)); });
+      }
+    }
+
+    if (model.selected.coverLetter) {
+      addCoverLetter();
+      if (model.selected.rolePlan || model.selected.resume) children.push(spacer(12));
+    }
+
+    if (model.selected.rolePlan) {
+      addRolePlan();
+      if (model.selected.resume) children.push(spacer(12));
+    }
+
+    if (model.selected.resume) {
+      addResume();
+    }
+
+    var doc = new Document({
+      creator: 'Career Solutions for Today',
+      description: 'Resume package generated by Career Solutions for Today',
+      title: 'Resume Package',
+      sections: [{
+        properties: {
+          page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } }
+        },
+        children: children.length ? children : [para('No content selected.')]
+      }]
+    });
+
+    return await Packer.toBlob(doc);
+  }
+
   async function downloadPackageWord(pkg, filename) {
     pkg = pkg || buildSelectedDocumentPackage();
-    filename = filename || 'resume-package.doc';
 
-    // Intentionally .doc, not .docx. Word opens HTML-based .doc files
-    // reliably; this is not a true DOCX package. UI labels it clearly.
-    var html = renderPackageHTML(pkg, {
-      target: 'export',
-      format: 'docx'
-    });
+    filename = filename || 'resume-package.docx';
+    filename = filename.replace(/\.doc$/i, '.docx');
+    if (!/\.docx$/i.test(filename)) filename += '.docx';
 
-    html = sanitizePreviewHTML(html);
+    var blob = await buildDocxProgrammaticFromPackage(pkg);
 
-    var safeTitle = filename.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    var wordHtml = [
-      '<html xmlns:o="urn:schemas-microsoft-com:office:office"',
-      ' xmlns:w="urn:schemas-microsoft-com:office:word"',
-      ' xmlns="http://www.w3.org/TR/REC-html40">',
-      '<head>',
-        '<meta charset="utf-8">',
-        '<title>' + safeTitle + '</title>',
-        '<!--[if gte mso 9]>',
-        '<xml>',
-          '<w:WordDocument>',
-            '<w:View>Print</w:View>',
-            '<w:Zoom>100</w:Zoom>',
-            '<w:DoNotOptimizeForBrowser/>',
-          '</w:WordDocument>',
-        '</xml>',
-        '<![endif]-->',
-      '</head>',
-      '<body>',
-        html,
-      '</body>',
-      '</html>'
-    ].join('');
-
-    var blob = new Blob([wordHtml], {
-      type: 'application/msword;charset=utf-8'
-    });
+    if (!blob || !blob.size) {
+      throw new Error('DOCX export returned an empty file.');
+    }
 
     downloadBlobFile(blob, filename);
     return true;
@@ -8470,7 +8789,7 @@
     var format = formatInput ? formatInput.value : 'pdf';
     var mode = modeInput ? modeInput.value : 'combined';
 
-    var ext = format === 'pdf' ? 'pdf' : 'doc';
+    var ext = format === 'pdf' ? 'pdf' : 'docx';
     var didComplete = false;
 
     try {
@@ -8570,6 +8889,21 @@
       freeExportUsed: typeof freeExportUsed !== 'undefined' ? freeExportUsed : null,
       canUsePremium: typeof canUsePremium === 'function' ? canUsePremium() : null,
       endpoint: typeof PDF_EXPORT_ENDPOINT !== 'undefined' ? PDF_EXPORT_ENDPOINT : null
+    };
+  };
+
+  window.debugDocxExportState = function () {
+    var pkg = buildSelectedDocumentPackage();
+    var model = buildDocxExportModelFromPackage(pkg);
+    return {
+      hasDocxLibrary: !!(window.docx && window.docx.Document && window.docx.Packer),
+      selected: model.selected,
+      hasResume: !!model.resume,
+      hasCoverLetter: !!model.coverLetter,
+      hasRolePlan: !!model.rolePlan,
+      resumeName: model.resume && model.resume.name,
+      resumeExperienceCount: model.resume && model.resume.experience ? model.resume.experience.length : 0,
+      rolePlanPhaseCount: model.rolePlan && model.rolePlan.phases ? model.rolePlan.phases.length : 0
     };
   };
 
