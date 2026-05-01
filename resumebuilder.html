@@ -3002,19 +3002,163 @@
       var panel = document.getElementById(id);
       if (panel) panel.hidden = (id !== stepId);
     });
-    // Update chevrons
-    var idx = STEP_ORDER.indexOf(stepId);
+    try { updateStepperState(stepId); } catch (_) {}
+    if (stepId === 'step-export') {
+      try {
+        if (typeof maybeRefreshPreview === 'function') maybeRefreshPreview();
+        else if (typeof schedulePreviewRefresh === 'function') schedulePreviewRefresh();
+        else if (typeof renderPreview === 'function') renderPreview();
+      } catch (_) {}
+    }
+  }
+
+  // ---- Stepper completion helpers ----
+  function safeTextValue(id) {
+    var el = document.getElementById(id);
+    return String((el && el.value) || '').trim();
+  }
+
+  function hasMeaningfulObjectForStep(value) {
+    if (!value) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'object') {
+      return Object.keys(value).some(function (k) {
+        var v = value[k];
+        if (v == null) return false;
+        if (typeof v === 'string') return v.trim().length > 0;
+        if (Array.isArray(v)) return v.length > 0;
+        if (typeof v === 'object') return Object.keys(v).length > 0;
+        return true;
+      });
+    }
+    return false;
+  }
+
+  function hasResumeReadyForStepper() {
+    try {
+      if (typeof hasUsableResumeDocument === 'function' && hasUsableResumeDocument()) return true;
+    } catch (_) {}
+    var rd =
+      (window.RB_STATE && RB_STATE.resumeData) ||
+      (window.RB_STATE && RB_STATE.documentPackage && RB_STATE.documentPackage.documents && RB_STATE.documentPackage.documents.resume) ||
+      null;
+    if (hasMeaningfulObjectForStep(rd)) return true;
+    var rawResume = safeTextValue('resume-text');
+    if (rawResume.length >= 80) return true;
+    return false;
+  }
+
+  function hasTargetRoleReadyForStepper() {
+    var title = safeTextValue('job-title');
+    var company = safeTextValue('company');
+    var jd = safeTextValue('job-desc');
+    try {
+      if (window.RB_STATE) {
+        var tr = RB_STATE.targetRole || {};
+        title   = title   || String(RB_STATE.jobTitle       || tr.job_title       || tr.title       || '').trim();
+        company = company || String(RB_STATE.company        || tr.company         || '').trim();
+        jd      = jd      || String(RB_STATE.jobDescription || tr.job_description || tr.description || '').trim();
+      }
+    } catch (_) {}
+    if (jd.length >= 30) return true;
+    if (title.length >= 3 && (company.length >= 2 || jd.length >= 12)) return true;
+    return false;
+  }
+
+  function hasApplicationDetailsCompleteForStepper() {
+    return hasResumeReadyForStepper() && hasTargetRoleReadyForStepper();
+  }
+
+  function hasOptimizationCompleteForStepper() {
+    var opt = null;
+    try { opt = window.RB_STATE && RB_STATE.optimization; } catch (_) {}
+    if (!opt || typeof opt !== 'object') return false;
+    var hasScore =
+      opt.projectedScore != null ||
+      opt.baselineScore != null ||
+      opt.scoreDelta != null ||
+      opt.matchScore != null;
+    var hasInsights =
+      hasMeaningfulObjectForStep(opt.resumeInsights) ||
+      hasMeaningfulObjectForStep(opt.suggestions) ||
+      hasMeaningfulObjectForStep(opt.coverLetterInsights) ||
+      hasMeaningfulObjectForStep(opt.rolePlanInsights);
+    var hasCompletedStamp =
+      !!(opt.completedAt || opt.completedAtISO || opt.optimizedAt || opt.createdAt);
+    var hasAppliedStamp =
+      !!(window.RB_STATE && RB_STATE.optimizationAppliedAt);
+    return !!(hasCompletedStamp || hasAppliedStamp || hasScore || hasInsights);
+  }
+
+  function hasExportReadyOrCompleteForStepper() {
+    try {
+      if (window.RB_STATE && (
+        RB_STATE.exportCompletedAt ||
+        RB_STATE.lastDownloadedAt ||
+        RB_STATE.lastPublishedAt ||
+        RB_STATE.publishedUrl ||
+        RB_STATE.shareUrl ||
+        RB_STATE.lastManualSaveAt
+      )) {
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function getStepCompletionState() {
+    return {
+      'step-application': hasApplicationDetailsCompleteForStepper(),
+      'step-optimize':    hasOptimizationCompleteForStepper(),
+      'step-export':      hasExportReadyOrCompleteForStepper()
+    };
+  }
+
+  function updateStepperState(activeStepId) {
+    activeStepId = activeStepId || getActiveStep();
+    var completion = getStepCompletionState();
     document.querySelectorAll('.chev').forEach(function (btn) {
       var target = btn.getAttribute('data-step-target');
-      var tIdx   = STEP_ORDER.indexOf(target);
-      btn.classList.remove('active', 'completed');
+      btn.classList.remove('active', 'completed', 'ready-but-not-active');
       btn.setAttribute('aria-selected', 'false');
-      if (tIdx < idx)        btn.classList.add('completed');
-      else if (tIdx === idx) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+      var isActive = target === activeStepId;
+      var isComplete = !!completion[target];
+      if (isActive) {
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+      }
+      if (isComplete) {
+        btn.classList.add('completed');
+        btn.setAttribute('data-complete', 'true');
+      } else {
+        btn.setAttribute('data-complete', 'false');
+      }
+      if (target === 'step-application') {
+        btn.title = isComplete
+          ? 'Application details ready'
+          : 'Add resume details and target role information';
+      } else if (target === 'step-optimize') {
+        btn.title = isComplete
+          ? 'Optimization completed'
+          : 'Run optimization to complete this step';
+      } else if (target === 'step-export') {
+        btn.title = isComplete
+          ? 'Export/share step completed'
+          : 'Download, save, or publish to complete this step';
+      }
     });
-    if (stepId === 'step-export') {
-      try { maybeRefreshPreview(); } catch (_) {}
+    try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
+  }
+
+  function simpleStringHash(value) {
+    var str = String(value || '');
+    var hash = 0;
+    for (var i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
     }
+    return String(hash);
   }
 
   function initAccordions() {
@@ -5486,6 +5630,66 @@
     showToast('Optimization changes undone.', 'info');
   }
 
+  function restoreOptimizationOutputFromState() {
+    var opt = null;
+    try { opt = RB_STATE && RB_STATE.optimization; } catch (_) {}
+    var output   = document.getElementById('optimize-output');
+    var statusEl = document.getElementById('optimize-status');
+    if (!opt || typeof opt !== 'object') {
+      if (statusEl) statusEl.textContent = 'Idle';
+      return false;
+    }
+    try {
+      renderOptimizationOutput(opt);
+      if (output) output.hidden = false;
+      if (statusEl) {
+        var when = opt.completedAtISO || opt.completedAt || '';
+        statusEl.textContent = when ? 'Optimization complete \u2014 saved.' : 'Optimization complete.';
+      }
+      return true;
+    } catch (err) {
+      console.warn('[optimize] restore failed:', err);
+      return false;
+    }
+  }
+
+  function plainCloneForPersistence(value) {
+    if (value == null) return null;
+    try {
+      return JSON.parse(JSON.stringify(value, function (key, val) {
+        if (typeof val === 'undefined') return null;
+        if (typeof val === 'function') return undefined;
+        return val;
+      }));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function cloneOptimizationForPersistence(opt) {
+    if (!opt || typeof opt !== 'object') return null;
+    var cloned = plainCloneForPersistence(opt) || null;
+    if (!cloned) return null;
+    delete cloned.rawResumeText;
+    delete cloned.rawJobDescription;
+    delete cloned.fullPrompt;
+    delete cloned.prompt;
+    delete cloned.messages;
+    delete cloned.debug;
+    delete cloned.trace;
+    return cloned;
+  }
+
+  function cloneOptimizationSnapshotForPersistence(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    var cloned = plainCloneForPersistence(snapshot);
+    if (!cloned) return null;
+    if (typeof cloned.rawResumeText === 'string' && cloned.rawResumeText.length > 50000) {
+      cloned.rawResumeText = cloned.rawResumeText.slice(0, 50000);
+    }
+    return cloned;
+  }
+
   async function runOptimize() {
     if (!requireAuth()) return;
     if (!requireAIUseOrTrial('Optimization', 'freeOptimizeUsed')) return;
@@ -5528,11 +5732,49 @@
       }
       var opt = data.optimization || data;
       RB_STATE.optimization = normalizeOptimizationResponse(opt, payload.baselineScore);
+      try {
+        RB_STATE.optimization.completedAtISO = new Date().toISOString();
+        var optModeEl = document.getElementById('optimize-mode');
+        RB_STATE.optimization.mode = (optModeEl && optModeEl.value) || 'balanced';
+        RB_STATE.optimization.targetSnapshot = {
+          jobTitle: safeTextValue('job-title'),
+          company:  safeTextValue('company'),
+          jobDescriptionHash: typeof simpleStringHash === 'function'
+            ? simpleStringHash(safeTextValue('job-desc'))
+            : String(safeTextValue('job-desc').length)
+        };
+        RB_STATE.optimization.resumeVersionId =
+          RB_STATE.currentPlanId ||
+          window.currentPlanId ||
+          null;
+        RB_STATE.optimizationStatus = 'complete';
+      } catch (_) {}
       renderOptimizationOutput(RB_STATE.optimization);
+      try { restoreOptimizationOutputFromState(); } catch (_) {}
+      try { updateStepperState(getActiveStep()); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Optimization complete.';
       if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
       showToast('Optimization insights ready.', 'success');
       try { markBuilderDirty('optimize-result'); } catch (_) {}
+      try {
+        if (typeof flushLazyAutosaveNow === 'function') {
+          flushLazyAutosaveNow('optimize-complete');
+        } else if (typeof flushAutosaveNow === 'function') {
+          flushAutosaveNow('optimize-complete');
+        } else if (typeof flushLazySave === 'function') {
+          flushLazySave('optimize-complete');
+        } else if (typeof scheduleLazyAutosave === 'function') {
+          scheduleLazyAutosave('optimize-complete');
+        } else if (typeof scheduleLazySave === 'function') {
+          scheduleLazySave('optimize-complete');
+        } else if (typeof scheduleAutosave === 'function') {
+          scheduleAutosave();
+        } else if (typeof saveDraft === 'function') {
+          saveDraft({ silent: true, source: 'optimize-complete', skipButtonSpinner: true, isAutosave: true });
+        }
+      } catch (saveErr) {
+        console.warn('[optimize] save scheduling failed:', saveErr);
+      }
     } catch (err) {
       console.error('[runOptimize] failed', err);
       if (statusEl) statusEl.textContent = 'Optimization failed.';
@@ -9993,6 +10235,13 @@
           try { markFreeUseConsumed('freeExportUsed'); } catch (_) {}
         }
 
+        try {
+          RB_STATE.lastDownloadedAt = new Date().toISOString();
+          RB_STATE.exportCompletedAt = RB_STATE.lastDownloadedAt;
+          if (typeof updateStepperState === 'function') updateStepperState(getActiveStep());
+          if (typeof markBuilderDirty === 'function') markBuilderDirty('export-complete');
+        } catch (_) {}
+
         closeDownloadPackageModal();
 
         var successMsg;
@@ -10109,6 +10358,43 @@
         typeof buildSelectedDocumentPackage === 'function'
           ? buildSelectedDocumentPackage().selected
           : null
+    };
+  };
+
+  window.debugStepperCompletionState = function () {
+    return {
+      activeStep: getActiveStep(),
+      completion: getStepCompletionState(),
+      application: {
+        resumeReady:     hasResumeReadyForStepper(),
+        targetRoleReady: hasTargetRoleReadyForStepper()
+      },
+      optimize: {
+        hasOptimization:       !!(window.RB_STATE && RB_STATE.optimization),
+        optimizationStatus:    window.RB_STATE && RB_STATE.optimizationStatus,
+        optimizationAppliedAt: window.RB_STATE && RB_STATE.optimizationAppliedAt,
+        completedAtISO:        window.RB_STATE && RB_STATE.optimization && RB_STATE.optimization.completedAtISO
+      },
+      "export": {
+        lastManualSaveAt:   window.RB_STATE && RB_STATE.lastManualSaveAt,
+        lastDownloadedAt:   window.RB_STATE && RB_STATE.lastDownloadedAt,
+        exportCompletedAt:  window.RB_STATE && RB_STATE.exportCompletedAt,
+        lastPublishedAt:    window.RB_STATE && RB_STATE.lastPublishedAt
+      }
+    };
+  };
+
+  window.debugOptimizationPersistenceState = function () {
+    return {
+      currentPlanId:    window.RB_STATE && (RB_STATE.currentPlanId || window.currentPlanId),
+      hasOptimization:  !!(window.RB_STATE && RB_STATE.optimization),
+      optimizationStatus: window.RB_STATE && RB_STATE.optimizationStatus,
+      optimizationKeys: window.RB_STATE && RB_STATE.optimization ? Object.keys(RB_STATE.optimization) : [],
+      completedAtISO:   window.RB_STATE && RB_STATE.optimization && RB_STATE.optimization.completedAtISO,
+      baselineScore:    window.RB_STATE && RB_STATE.optimization && RB_STATE.optimization.baselineScore,
+      projectedScore:   window.RB_STATE && RB_STATE.optimization && RB_STATE.optimization.projectedScore,
+      scoreDelta:       window.RB_STATE && RB_STATE.optimization && RB_STATE.optimization.scoreDelta,
+      hasPreOptimizationSnapshot: !!(window.RB_STATE && RB_STATE.preOptimizationSnapshot)
     };
   };
 
@@ -10439,6 +10725,13 @@
       RB_STATE.currentPlanId = ref.id;
 
       var url = location.origin + '/view.html?p=' + encodeURIComponent(slug);
+      try {
+        RB_STATE.lastPublishedAt = new Date().toISOString();
+        RB_STATE.publishedUrl    = url;
+        RB_STATE.shareUrl        = url;
+        if (typeof updateStepperState === 'function') updateStepperState(getActiveStep());
+        if (typeof markBuilderDirty === 'function') markBuilderDirty('publish-complete');
+      } catch (_) {}
       showPublishedShareResult(url);
       showToast('Published share link created.', 'success');
       return url;
@@ -10585,6 +10878,14 @@
       rawResumeText: RB_STATE.rawResumeText || (rawTextEl && rawTextEl.value) || '',
       profilePhotoUrl:  RB_STATE.profilePhotoUrl  || (safeResumeData && safeResumeData.photo_url) || '',
       profilePhotoPath: RB_STATE.profilePhotoPath || '',
+      optimization:               cloneOptimizationForPersistence(RB_STATE.optimization),
+      optimizationStatus:         RB_STATE.optimizationStatus || null,
+      optimizationAppliedAt:      RB_STATE.optimizationAppliedAt || null,
+      preOptimizationSnapshot:    cloneOptimizationSnapshotForPersistence(RB_STATE.preOptimizationSnapshot),
+      lastManualSaveAt:           RB_STATE.lastManualSaveAt || null,
+      lastDownloadedAt:           RB_STATE.lastDownloadedAt || null,
+      exportCompletedAt:          RB_STATE.exportCompletedAt || null,
+      lastPublishedAt:            RB_STATE.lastPublishedAt || null,
       updatedAtClient: new Date().toISOString()
     };
   }
@@ -10975,6 +11276,14 @@
       RB_STATE._lastSaveSource = source;
       RB_STATE._lastSaveError = null;
       lazySaveBlockedForPlan = false;
+      // Stepper Step 3 completion is reserved for an actual MANUAL save action.
+      // Silent autosaves (silent === true) must NOT mark Step 3 complete.
+      if (!silent) {
+        try {
+          RB_STATE.lastManualSaveAt = new Date().toISOString();
+          if (typeof updateStepperState === 'function') updateStepperState(getActiveStep());
+        } catch (_) {}
+      }
       try { await syncBuilderProfileFromCurrentState(); }
       catch (profileErr) { console.debug('[saveDraft] profile sync skipped/failed', profileErr); }
       if (!silent) showToast('Saved draft.', 'success');
@@ -11071,6 +11380,29 @@
         swatch.classList.toggle('selected', swatch.getAttribute('data-color') === color);
       });
     }
+    // Restore optimization slice silently. No markBuilderDirty / no autosave.
+    // hydrateBuilderFromSavedDraft already runs with lazySavePaused = true and
+    // resets _hasUnsavedChanges = false in its finally block.
+    try {
+      if (data && data.optimization && !RB_STATE.optimization) {
+        RB_STATE.optimization = data.optimization;
+      }
+      if (data && data.optimizationStatus) {
+        RB_STATE.optimizationStatus = data.optimizationStatus;
+      }
+      if (data && data.optimizationAppliedAt) {
+        RB_STATE.optimizationAppliedAt = data.optimizationAppliedAt;
+      }
+      if (data && data.preOptimizationSnapshot) {
+        RB_STATE.preOptimizationSnapshot = data.preOptimizationSnapshot;
+      }
+      if (data && data.lastManualSaveAt)   RB_STATE.lastManualSaveAt   = data.lastManualSaveAt;
+      if (data && data.lastDownloadedAt)   RB_STATE.lastDownloadedAt   = data.lastDownloadedAt;
+      if (data && data.exportCompletedAt)  RB_STATE.exportCompletedAt  = data.exportCompletedAt;
+      if (data && data.lastPublishedAt)    RB_STATE.lastPublishedAt    = data.lastPublishedAt;
+    } catch (_) {}
+    try { restoreOptimizationOutputFromState(); } catch (_) {}
+    try { updateStepperState(getActiveStep()); } catch (_) {}
     if (typeof updateAIReadinessUI === 'function') { try { updateAIReadinessUI(); } catch (_) {} }
     if (typeof renderRoleResearchSummary === 'function') { try { renderRoleResearchSummary(); } catch (_) {} }
     if (typeof renderRoleResearchReview === 'function')  { try { renderRoleResearchReview(); }  catch (_) {} }
@@ -12183,7 +12515,20 @@
       RB_STATE.optimization            = null;
       RB_STATE.preOptimizationSnapshot = null;
       RB_STATE.optimizationAppliedAt   = null;
+      RB_STATE.optimizationStatus      = null;
+      var _optOutput   = document.getElementById('optimize-output');
+      var _optStatusEl = document.getElementById('optimize-status');
+      if (_optOutput)   _optOutput.hidden = true;
+      if (_optStatusEl) _optStatusEl.textContent = 'Idle';
     }
+    // New version starts with no save/export/publish history of its own.
+    RB_STATE.lastManualSaveAt  = null;
+    RB_STATE.lastDownloadedAt  = null;
+    RB_STATE.exportCompletedAt = null;
+    RB_STATE.lastPublishedAt   = null;
+    RB_STATE.publishedUrl      = null;
+    RB_STATE.shareUrl          = null;
+    try { if (typeof updateStepperState === 'function') updateStepperState(getActiveStep()); } catch (_) {}
     // `style` controls whether we leave document selection / style settings
     // (which live in the DOM via initDocumentSelection / style swatches)
     // alone. If unchecked, reset RB_STATE.documentPackage; the existing UI
@@ -12424,6 +12769,9 @@
       try { window.lucide.createIcons(); } catch (_) {}
     }
 
+    // Initial stepper paint based on real readiness (not navigation history).
+    try { updateStepperState(getActiveStep()); } catch (_) {}
+
     // Default auth UI state until onAuthStateChanged fires
     applyAuthState(null);
   }
@@ -12564,6 +12912,8 @@
     debugOutputStyleSupport: window.debugOutputStyleSupport,
     debugPreviewFormatState: window.debugPreviewFormatState,
     debugSelectedDocumentsState: window.debugSelectedDocumentsState,
+    debugStepperCompletionState: window.debugStepperCompletionState,
+    debugOptimizationPersistenceState: window.debugOptimizationPersistenceState,
     saveDraft: saveDraft,
     loadDraft: loadDraft,
     resetBuilder: resetBuilder,
