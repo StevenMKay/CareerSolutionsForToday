@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -893,6 +892,56 @@
 
   /* Predicted Interview Questions */
   .opt-interview-prep { margin-top: 1rem; }
+  .opt-interview-prep-controls {
+    display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  }
+  .opt-interview-prep-focus-label {
+    font-size: .8rem; color: #475569; font-weight: 600;
+  }
+  .opt-interview-prep-focus {
+    border: 1px solid #CBD5E1; border-radius: 8px; padding: .35rem .55rem;
+    font-size: .85rem; background: #FFFFFF; color: #0F172A;
+  }
+  #refresh-interview-prep-btn[disabled] { opacity: .55; cursor: not-allowed; }
+  .opt-interview-prep-summary {
+    display: none;
+    margin-bottom: .85rem;
+    padding: .85rem 1rem;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #EEF2FF, #F0FDF4);
+    border: 1px solid #C7D2FE;
+    color: #1E1B4B;
+    font-size: .9rem;
+    line-height: 1.5;
+  }
+  .opt-interview-prep-summary.has-content { display: block; }
+  .opt-interview-prep-summary h4 {
+    margin: 0 0 .35rem; font-size: .82rem; font-weight: 800; letter-spacing: .04em;
+    text-transform: uppercase; color: #4338CA;
+  }
+  .opt-interview-prep-summary ul { margin: .25rem 0 .35rem 1.1rem; padding: 0; }
+  .opt-interview-prep-summary li { margin: .15rem 0; }
+  .opt-interview-prep-summary .ip-summary-row { margin-top: .35rem; }
+  .opt-interview-prep-summary .ip-summary-row strong { color: #312E81; }
+  .opt-interview-prep-meta {
+    margin-top: .55rem; font-size: .75rem; color: #64748B;
+    display: flex; gap: .75rem; flex-wrap: wrap;
+  }
+
+  /* Resources Used */
+  .opt-resources { margin-top: 1rem; }
+  .opt-resources-list { display: grid; gap: .5rem; }
+  .opt-resources-item {
+    display: flex; align-items: flex-start; gap: .55rem;
+    padding: .55rem .75rem; border-radius: 10px;
+    background: #F8FAFC; border: 1px solid #E2E8F0;
+    font-size: .85rem; color: #1F2937;
+  }
+  .opt-resources-item a { color: #2563EB; word-break: break-all; }
+  .opt-resources-empty {
+    padding: .75rem; border: 1px dashed #CBD5E1; border-radius: 10px;
+    background: #F8FAFC; color: #64748B; font-size: .85rem;
+  }
   .opt-section-head {
     display: flex; align-items: flex-start; justify-content: space-between;
     gap: .9rem; margin-bottom: .85rem;
@@ -2968,12 +3017,35 @@
                       Role-specific questions and answer guidance based on your resume and the target job.
                     </p>
                   </div>
-                  <button id="refresh-interview-prep-btn" class="btn btn-secondary" type="button" hidden>
-                    <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i>
-                    Refresh Questions
-                  </button>
+                  <div class="opt-interview-prep-controls">
+                    <label for="interview-prep-focus" class="opt-interview-prep-focus-label">Focus</label>
+                    <select id="interview-prep-focus" class="opt-interview-prep-focus">
+                      <option value="general">General mix</option>
+                      <option value="behavioral">Behavioral / STAR</option>
+                      <option value="technical">Technical depth</option>
+                      <option value="strategic">Strategic / leadership</option>
+                      <option value="role-specific">Role-specific scenarios</option>
+                      <option value="culture-fit">Culture fit</option>
+                    </select>
+                    <button id="refresh-interview-prep-btn" class="btn btn-secondary" type="button" disabled>
+                      <i data-lucide="refresh-cw" style="width:16px;height:16px;"></i>
+                      <span class="refresh-interview-prep-label">New Questions</span>
+                    </button>
+                  </div>
                 </div>
+                <div id="opt-interview-prep-summary" class="opt-interview-prep-summary"></div>
                 <div id="opt-interview-prep-body"></div>
+              </div>
+
+              <!-- ===== Resources Used ===== -->
+              <div id="opt-resources" class="opt-card-surface opt-resources" hidden>
+                <div class="opt-section-head">
+                  <div>
+                    <h3>Resources Used</h3>
+                    <p class="opt-section-sub">External references the optimizer consulted while preparing this analysis.</p>
+                  </div>
+                </div>
+                <div id="opt-resources-body"></div>
               </div>
 
               <!-- ===== Apply controls ===== -->
@@ -6033,42 +6105,72 @@
   function normalizeInterviewPrepQuestion(q) {
     q = q || {};
     var answer = q.answer || {};
+    var structured = q.structured_answer || q.structuredAnswer || {};
     var answerFormat = String(q.answer_format || q.answerFormat || '').trim();
     if (!answerFormat) {
       if (answer && (answer.situation || answer.task || answer.result)) answerFormat = 'STAR';
       else answerFormat = 'structured';
     }
+    var ALLOWED_TYPES = ['behavioral','technical','strategic','role-specific','culture-fit','leadership'];
+    var typeNorm = String(q.type || 'behavioral').trim().toLowerCase();
+    if (ALLOWED_TYPES.indexOf(typeNorm) < 0) typeNorm = 'behavioral';
+    var importance = String(q.importance || 'medium').trim().toLowerCase();
+    if (['high','medium','low'].indexOf(importance) < 0) importance = 'medium';
+    var risk = String(q.risk_level || q.riskLevel || 'medium').trim().toLowerCase();
+    if (['high','medium','low'].indexOf(risk) < 0) risk = 'medium';
+    var confidence = String(q.confidence || 'medium').trim().toLowerCase();
+    if (['high','medium','low'].indexOf(confidence) < 0) confidence = 'medium';
+    function listify(v) {
+      if (Array.isArray(v)) return v.map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+      if (typeof v === 'string') return v.split(/\n|;/).map(function (x) { return x.trim(); }).filter(Boolean);
+      return [];
+    }
     var normalized = {
       question:       String(q.question || q.prompt || '').trim(),
-      type:           String(q.type || 'behavioral').trim().toLowerCase(),
-      importance:     String(q.importance || 'medium').trim().toLowerCase(),
-      risk_level:     String(q.risk_level || q.riskLevel || 'medium').trim().toLowerCase(),
+      type:           typeNorm,
+      importance:     importance,
+      risk_level:     risk,
       answer_format:  answerFormat,
-      answer:         answer || {},
+      answer:         {},
+      structured_answer: {},
+      why_likely:     String(q.why_likely || q.whyLikely || '').trim(),
       why_this_works: String(q.why_this_works || q.whyThisWorks || q.why || '').trim(),
-      risk_if_weak:   String(q.risk_if_weak || q.riskIfWeak || q.watchout || '').trim()
+      risk_if_weak:   String(q.risk_if_weak || q.riskIfWeak || q.watchout || '').trim(),
+      resume_evidence:        listify(q.resume_evidence || q.resumeEvidence),
+      job_description_signal: listify(q.job_description_signal || q.jobDescriptionSignal),
+      follow_up_questions:    listify(q.follow_up_questions || q.followUpQuestions),
+      what_to_avoid:          listify(q.what_to_avoid || q.whatToAvoid),
+      confidence:             confidence
     };
     if (!normalized.question) return null;
-    if (normalized.type !== 'behavioral' && normalized.type !== 'technical' && normalized.type !== 'strategic') normalized.type = 'behavioral';
-    if (normalized.importance !== 'high' && normalized.importance !== 'medium' && normalized.importance !== 'low') normalized.importance = 'medium';
-    if (normalized.risk_level !== 'high' && normalized.risk_level !== 'medium' && normalized.risk_level !== 'low') normalized.risk_level = 'medium';
+
     if (normalized.answer_format.toUpperCase() === 'STAR') {
       normalized.answer_format = 'STAR';
       normalized.answer = {
         situation: String(answer.situation || '').trim(),
         task:      String(answer.task || '').trim(),
-        action: Array.isArray(answer.action)
-          ? answer.action.map(function (x) { return String(x || '').trim(); }).filter(Boolean)
-          : String(answer.action || '').split(/\n|;/).map(function (x) { return x.trim(); }).filter(Boolean),
+        action:    listify(answer.action),
         result:    String(answer.result || '').trim()
+      };
+      normalized.structured_answer = {
+        opening: String(structured.opening || '').trim(),
+        key_points: listify(structured.key_points || structured.keyPoints),
+        closing: String(structured.closing || '').trim()
       };
     } else {
       normalized.answer_format = 'structured';
-      var pts = Array.isArray(answer.key_points) ? answer.key_points
-              : Array.isArray(answer.keyPoints)  ? answer.keyPoints
-              : String(answer.key_points || answer.keyPoints || answer.text || '').split(/\n|;/);
+      var pts = listify(structured.key_points || structured.keyPoints || answer.key_points || answer.keyPoints || answer.text);
+      normalized.structured_answer = {
+        opening: String(structured.opening || '').trim(),
+        key_points: pts,
+        closing: String(structured.closing || '').trim()
+      };
       normalized.answer = {
-        key_points: pts.map(function (x) { return String(x || '').trim(); }).filter(Boolean)
+        situation: String(answer.situation || '').trim(),
+        task:      String(answer.task || '').trim(),
+        action:    listify(answer.action),
+        result:    String(answer.result || '').trim(),
+        key_points: pts
       };
     }
     return normalized;
@@ -6077,29 +6179,245 @@
   function normalizeInterviewPrep(raw) {
     raw = raw || {};
     var source = raw.interview_prep || raw.interviewPrep || raw;
+    if (raw.optimization && (raw.optimization.interview_prep || raw.optimization.interviewPrep)) {
+      source = raw.optimization.interview_prep || raw.optimization.interviewPrep;
+    }
     if (raw.analysis && raw.analysis.interviewPrep) source = raw.analysis.interviewPrep;
-    var likely     = source.likely_questions      || source.likelyQuestions      || [];
-    var highRisk   = source.high_risk_questions   || source.highRiskQuestions    || [];
-    var highImpact = source.high_impact_questions || source.highImpactQuestions  || source.storiesToPrepare || [];
+    source = source || {};
     function cleanList(list) {
       if (!Array.isArray(list)) return [];
       return list.map(normalizeInterviewPrepQuestion).filter(Boolean);
     }
+    function strList(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map(function (x) { return String(x || '').trim(); }).filter(Boolean);
+    }
+    var ps = (source.personalization_summary && typeof source.personalization_summary === 'object') ? source.personalization_summary : {};
     return {
-      likely_questions:      cleanList(likely).slice(0, 6),
-      high_risk_questions:   cleanList(highRisk).slice(0, 4),
-      high_impact_questions: cleanList(highImpact).slice(0, 4)
+      personalization_summary: {
+        candidate_profile: String(ps.candidate_profile || '').trim(),
+        target_role_focus: String(ps.target_role_focus || '').trim(),
+        main_interview_risks: strList(ps.main_interview_risks),
+        strongest_talking_points: strList(ps.strongest_talking_points)
+      },
+      likely_questions:            cleanList(source.likely_questions      || source.likelyQuestions),
+      high_risk_questions:         cleanList(source.high_risk_questions   || source.highRiskQuestions),
+      high_impact_questions:       cleanList(source.high_impact_questions || source.highImpactQuestions || source.storiesToPrepare),
+      behavioral_questions:        cleanList(source.behavioral_questions || source.behavioralQuestions),
+      technical_or_role_questions: cleanList(source.technical_or_role_questions || source.technicalOrRoleQuestions),
+      questions_to_ask_employer:   strList(source.questions_to_ask_employer || source.questionsToAskEmployer),
+      generatedAtISO:              String(source.generatedAtISO || source.generated_at_iso || '').trim() || null,
+      refreshVersion:              Number(source.refreshVersion || source.refresh_version) || 1,
+      selectedFocus:               String(source.selectedFocus || source.selected_focus || '').trim() || null
     };
   }
 
   function hasInterviewPrepData(prep) {
     prep = prep || {};
-    return !!(
-      (Array.isArray(prep.likely_questions)      && prep.likely_questions.length) ||
-      (Array.isArray(prep.high_risk_questions)   && prep.high_risk_questions.length) ||
-      (Array.isArray(prep.high_impact_questions) && prep.high_impact_questions.length)
-    );
+    var buckets = ['likely_questions','high_risk_questions','high_impact_questions','behavioral_questions','technical_or_role_questions'];
+    for (var i = 0; i < buckets.length; i++) {
+      if (Array.isArray(prep[buckets[i]]) && prep[buckets[i]].length) return true;
+    }
+    if (Array.isArray(prep.questions_to_ask_employer) && prep.questions_to_ask_employer.length) return true;
+    return false;
   }
+
+  function renderInterviewPrepSummary(prep) {
+    var el = document.getElementById('opt-interview-prep-summary');
+    if (!el) return;
+    var ps = (prep && prep.personalization_summary) || {};
+    var hasContent = !!(
+      (ps.candidate_profile && ps.candidate_profile.trim()) ||
+      (ps.target_role_focus && ps.target_role_focus.trim()) ||
+      (Array.isArray(ps.main_interview_risks) && ps.main_interview_risks.length) ||
+      (Array.isArray(ps.strongest_talking_points) && ps.strongest_talking_points.length)
+    );
+    if (!hasContent) {
+      el.classList.remove('has-content');
+      el.innerHTML = '';
+      return;
+    }
+    var html = ['<h4>Why these questions</h4>'];
+    if (ps.candidate_profile)  html.push('<div class="ip-summary-row"><strong>Candidate:</strong> ' + _ipEsc(ps.candidate_profile) + '</div>');
+    if (ps.target_role_focus)  html.push('<div class="ip-summary-row"><strong>Role focus:</strong> ' + _ipEsc(ps.target_role_focus) + '</div>');
+    if (Array.isArray(ps.main_interview_risks) && ps.main_interview_risks.length) {
+      html.push('<div class="ip-summary-row"><strong>Main risks:</strong><ul>' + ps.main_interview_risks.map(function (r) { return '<li>' + _ipEsc(r) + '</li>'; }).join('') + '</ul></div>');
+    }
+    if (Array.isArray(ps.strongest_talking_points) && ps.strongest_talking_points.length) {
+      html.push('<div class="ip-summary-row"><strong>Strongest talking points:</strong><ul>' + ps.strongest_talking_points.map(function (r) { return '<li>' + _ipEsc(r) + '</li>'; }).join('') + '</ul></div>');
+    }
+    var meta = [];
+    if (prep && prep.generatedAtISO) {
+      try { meta.push('Generated ' + new Date(prep.generatedAtISO).toLocaleString()); } catch (_) {}
+    }
+    if (prep && prep.refreshVersion && prep.refreshVersion > 1) meta.push('Refresh #' + prep.refreshVersion);
+    if (prep && prep.selectedFocus && prep.selectedFocus !== 'general') meta.push('Focus: ' + prep.selectedFocus);
+    if (meta.length) html.push('<div class="opt-interview-prep-meta">' + meta.map(_ipEsc).join(' \u00B7 ') + '</div>');
+    el.innerHTML = html.join('');
+    el.classList.add('has-content');
+  }
+
+  function normalizeOptimizationResourcesUsed(opt) {
+    var raw = (opt && (opt.resources_used || opt.resourcesUsed)) || [];
+    if (!Array.isArray(raw)) return [];
+    var out = [];
+    raw.forEach(function (item) {
+      if (!item) return;
+      if (typeof item === 'string') {
+        var s = item.trim();
+        if (s) out.push({ label: s, url: '', type: 'reference' });
+        return;
+      }
+      if (typeof item === 'object') {
+        var label = String(item.label || item.name || item.title || '').trim();
+        var url = String(item.url || item.href || '').trim();
+        if (!label && !url) return;
+        out.push({ label: label || url, url: url, type: String(item.type || 'reference') });
+      }
+    });
+    return out;
+  }
+
+  function renderOptimizationResourcesUsed(opt) {
+    var wrap = document.getElementById('opt-resources');
+    var body = document.getElementById('opt-resources-body');
+    if (!wrap || !body) return false;
+    var list = normalizeOptimizationResourcesUsed(opt);
+    if (!list.length) {
+      wrap.hidden = true;
+      body.innerHTML = '';
+      return false;
+    }
+    var safeUrl = function (u) {
+      var s = String(u || '').trim();
+      if (!/^https?:\/\//i.test(s)) return '';
+      return s;
+    };
+    body.innerHTML = '<div class="opt-resources-list">' + list.map(function (r) {
+      var url = safeUrl(r.url);
+      var labelHtml = url
+        ? '<a href="' + _ipEsc(url) + '" target="_blank" rel="noopener noreferrer">' + _ipEsc(r.label) + '</a>'
+        : _ipEsc(r.label);
+      return '<div class="opt-resources-item"><div>' + labelHtml + (r.type ? ' <span style="color:#64748B;font-size:.75rem">(' + _ipEsc(r.type) + ')</span>' : '') + '</div></div>';
+    }).join('') + '</div>';
+    wrap.hidden = false;
+    return true;
+  }
+
+  // Shared cooldown state for the interview-prep refresh button.
+  var INTERVIEW_PREP_COOLDOWN_MS = 25000;
+  var _interviewPrepCooldownTimer = null;
+
+  function getInterviewPrepRefreshPayload() {
+    var resumeData = (typeof buildResumeDataFromForm === 'function')
+      ? buildResumeDataFromForm()
+      : (window.RB_STATE && RB_STATE.resumeData) || {};
+    var jobTitle = (typeof safeTextValue === 'function') ? safeTextValue('job-title') : '';
+    var company  = (typeof safeTextValue === 'function') ? safeTextValue('company')  : '';
+    var jobDesc  = (typeof safeTextValue === 'function') ? safeTextValue('job-desc') : '';
+    var focusEl = document.getElementById('interview-prep-focus');
+    var selectedFocus = (focusEl && focusEl.value) || 'general';
+    var existing = (window.RB_STATE && RB_STATE.optimization) || null;
+    var prevPrep = existing && (existing.interview_prep || existing.interviewPrep);
+    return {
+      resume_data: resumeData,
+      targetRole: { job_title: jobTitle, company: company, job_description: jobDesc },
+      optimization: existing ? {
+        baselineScore: existing.baselineScore,
+        projectedScore: existing.projectedScore,
+        resumeInsights: existing.resumeInsights,
+        scoreGate: existing.scoreGate
+      } : null,
+      previous_interview_prep: prevPrep || null,
+      selectedFocus: selectedFocus,
+      seed: Math.random().toString(36).slice(2, 10)
+    };
+  }
+
+  function _setRefreshInterviewPrepCooldown(ms) {
+    var btn = document.getElementById('refresh-interview-prep-btn');
+    if (!btn) return;
+    var labelEl = btn.querySelector('.refresh-interview-prep-label');
+    var origLabel = (labelEl && labelEl.dataset.origLabel) || (labelEl && labelEl.textContent) || 'New Questions';
+    if (labelEl && !labelEl.dataset.origLabel) labelEl.dataset.origLabel = origLabel;
+    btn.disabled = true;
+    if (_interviewPrepCooldownTimer) { clearInterval(_interviewPrepCooldownTimer); _interviewPrepCooldownTimer = null; }
+    var endsAt = Date.now() + Math.max(0, ms || 0);
+    function tick() {
+      var remaining = Math.max(0, endsAt - Date.now());
+      if (remaining <= 0) {
+        if (_interviewPrepCooldownTimer) { clearInterval(_interviewPrepCooldownTimer); _interviewPrepCooldownTimer = null; }
+        btn.disabled = false;
+        if (labelEl) labelEl.textContent = labelEl.dataset.origLabel || 'New Questions';
+        return;
+      }
+      if (labelEl) labelEl.textContent = 'Wait ' + Math.ceil(remaining / 1000) + 's';
+    }
+    tick();
+    _interviewPrepCooldownTimer = setInterval(tick, 250);
+  }
+
+  async function refreshInterviewPrepQuestions() {
+    if (typeof requireAuth === 'function' && !requireAuth()) return;
+    var existing = (window.RB_STATE && RB_STATE.optimization) || null;
+    if (!existing || (!existing.matchScore && existing.baselineScore == null && existing.projectedScore == null)) {
+      if (typeof showToast === 'function') showToast('Run Optimize before refreshing interview questions.', 'warning');
+      return;
+    }
+    var payload = getInterviewPrepRefreshPayload();
+    if (!payload.resume_data || !Object.keys(payload.resume_data).length) {
+      if (typeof showToast === 'function') showToast('Add resume data before refreshing.', 'warning');
+      return;
+    }
+    if (!payload.targetRole.job_description || payload.targetRole.job_description.trim().length < 30) {
+      if (typeof showToast === 'function') showToast('Job description must be at least 30 characters.', 'warning');
+      return;
+    }
+    var btn = document.getElementById('refresh-interview-prep-btn');
+    var labelEl = btn && btn.querySelector('.refresh-interview-prep-label');
+    var origLabel = (labelEl && labelEl.textContent) || 'New Questions';
+    if (labelEl && !labelEl.dataset.origLabel) labelEl.dataset.origLabel = origLabel;
+    if (btn) btn.disabled = true;
+    if (labelEl) labelEl.textContent = 'Refreshing\u2026';
+    try {
+      var headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
+      if (!headers || !headers['Content-Type']) {
+        headers = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
+      }
+      var res = await fetch(BUILDER_API_BASE + '/builder/interview-prep-refresh', {
+        method: 'POST', headers: headers, body: JSON.stringify(payload)
+      });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok || data.error) {
+        throw new Error(data.error || ('Refresh failed (' + res.status + ').'));
+      }
+      var prep = normalizeInterviewPrep({ interview_prep: data.interview_prep });
+      if (!hasInterviewPrepData(prep)) throw new Error('No new questions returned.');
+      if (!RB_STATE.optimization) RB_STATE.optimization = {};
+      RB_STATE.optimization.interview_prep = prep;
+      RB_STATE.optimization.interviewPrep  = prep;
+      if (Array.isArray(data.resources_used) && data.resources_used.length) {
+        RB_STATE.optimization.resources_used = data.resources_used;
+      }
+      renderOptimizationInterviewPrep(RB_STATE.optimization);
+      renderOptimizationResourcesUsed(RB_STATE.optimization);
+      if (typeof showToast === 'function') showToast('Interview questions refreshed.', 'success');
+      try { if (typeof markBuilderDirty === 'function') markBuilderDirty('interview-prep-refresh'); } catch (_) {}
+      try {
+        if (typeof scheduleLazyAutosave === 'function') scheduleLazyAutosave('interview-prep-refresh');
+        else if (typeof scheduleAutosave === 'function') scheduleAutosave();
+      } catch (_) {}
+    } catch (err) {
+      console.error('[interview-prep-refresh] failed', err);
+      if (typeof showToast === 'function') showToast('Refresh failed: ' + ((err && err.message) || err), 'error');
+      if (btn) btn.disabled = false;
+      if (labelEl) labelEl.textContent = labelEl.dataset.origLabel || 'New Questions';
+      return;
+    }
+    _setRefreshInterviewPrepCooldown(INTERVIEW_PREP_COOLDOWN_MS);
+  }
+
+  window.refreshInterviewPrepQuestions = refreshInterviewPrepQuestions;
 
   function renderInterviewPrepAnswer(q) {
     q = q || {};
@@ -6190,11 +6508,30 @@
       return '<div class="interview-prep-empty"><strong>No predicted interview questions yet.</strong><br>Run Optimize to generate tailored interview questions based on the resume and target job.</div>';
     }
     var groups = [
-      { key: 'likely_questions',      title: 'Likely Questions',       tone: '#3B82F6' },
-      { key: 'high_risk_questions',   title: 'High-Risk Questions',    tone: '#EF4444' },
-      { key: 'high_impact_questions', title: 'High-Impact Questions',  tone: '#10B981' }
+      { key: 'likely_questions',            title: 'Likely Questions',           tone: '#3B82F6' },
+      { key: 'high_risk_questions',         title: 'High-Risk Questions',        tone: '#EF4444' },
+      { key: 'high_impact_questions',       title: 'High-Impact Questions',      tone: '#10B981' },
+      { key: 'behavioral_questions',        title: 'Behavioral / STAR',          tone: '#8B5CF6' },
+      { key: 'technical_or_role_questions', title: 'Technical / Role-Specific',  tone: '#0EA5E9' }
     ];
-    return '<div class="interview-prep-groups">' + groups.map(function (g) { return renderInterviewPrepGroup(g, prep); }).join('') + '</div>';
+    var html = groups.map(function (g) { return renderInterviewPrepGroup(g, prep); }).join('');
+    if (Array.isArray(prep.questions_to_ask_employer) && prep.questions_to_ask_employer.length) {
+      html += [
+        '<section class="interview-prep-group" style="--group-tone:#F59E0B">',
+          '<div class="interview-prep-group-head">',
+            '<div class="interview-prep-group-title">',
+              '<span class="interview-prep-group-dot"></span>',
+              '<span>Questions To Ask The Employer</span>',
+            '</div>',
+            '<div class="interview-prep-count">' + prep.questions_to_ask_employer.length + ' question' + (prep.questions_to_ask_employer.length === 1 ? '' : 's') + '</div>',
+          '</div>',
+          '<div style="padding:.75rem .9rem;"><ul style="margin:0;padding-left:1.1rem;color:#1F2937;font-size:.9rem;line-height:1.55;">' +
+            prep.questions_to_ask_employer.map(function (q) { return '<li style="margin:.25rem 0;">' + _ipEsc(q) + '</li>'; }).join('') +
+          '</ul></div>',
+        '</section>'
+      ].join('');
+    }
+    return '<div class="interview-prep-groups">' + html + '</div>';
   }
 
   function renderOptimizationInterviewPrep(opt) {
@@ -6207,7 +6544,27 @@
       {}
     );
     body.innerHTML = renderInterviewPrepHTML(prep);
+    renderInterviewPrepSummary(prep);
     wrap.hidden = false;
+
+    // Enable refresh button only when there is an existing optimization to refresh from.
+    var btn = document.getElementById('refresh-interview-prep-btn');
+    if (btn) {
+      var hasOpt = !!(window.RB_STATE && RB_STATE.optimization && (
+        RB_STATE.optimization.matchScore ||
+        RB_STATE.optimization.baselineScore != null ||
+        RB_STATE.optimization.projectedScore != null
+      ));
+      if (hasOpt) btn.disabled = false; else btn.disabled = true;
+      if (!btn.dataset.wired) {
+        btn.dataset.wired = '1';
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (btn.disabled) return;
+          refreshInterviewPrepQuestions();
+        });
+      }
+    }
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
     return hasInterviewPrepData(prep);
   }
@@ -6498,6 +6855,13 @@
       renderOptimizationInterviewPrep(opt);
     } catch (err) {
       console.warn('[optimize] interview prep render failed:', err);
+    }
+
+    // ----- Resources Used (audit / transparency) -----
+    try {
+      renderOptimizationResourcesUsed(opt);
+    } catch (err) {
+      console.warn('[optimize] resources used render failed:', err);
     }
   }
 
@@ -11496,16 +11860,46 @@
     var opt = window.RB_STATE && RB_STATE.optimization;
     var prep = normalizeInterviewPrep(opt && (opt.interview_prep || opt.interviewPrep));
     var container = document.getElementById('opt-interview-prep');
+    var body = document.getElementById('opt-interview-prep-body');
+    var summary = document.getElementById('opt-interview-prep-summary');
+    var btn = document.getElementById('refresh-interview-prep-btn');
+    var focusEl = document.getElementById('interview-prep-focus');
+    var resWrap = document.getElementById('opt-resources');
+    var hasOpt = !!(opt && (opt.matchScore || opt.baselineScore != null || opt.projectedScore != null));
     return {
-      hasOptimization:    !!opt,
-      hasInterviewPrep:   hasInterviewPrepData(prep),
-      likelyCount:        prep.likely_questions.length,
-      highRiskCount:      prep.high_risk_questions.length,
-      highImpactCount:    prep.high_impact_questions.length,
-      sampleLikelyQuestion: prep.likely_questions[0] || null,
-      containerExists:    !!container,
-      bodyExists:         !!document.getElementById('opt-interview-prep-body'),
-      visible:            !!(container && !container.hidden)
+      hasOptimization:        !!opt,
+      hasOptimizationScores:  hasOpt,
+      shouldApply:            !!(opt && opt.shouldApply),
+      scoreGate:              (opt && opt.scoreGate) || null,
+      hasInterviewPrep:       hasInterviewPrepData(prep),
+      generatedAtISO:         prep && prep.generatedAtISO,
+      refreshVersion:         prep && prep.refreshVersion,
+      selectedFocus:          prep && prep.selectedFocus,
+      counts: {
+        likely:        (prep.likely_questions || []).length,
+        high_risk:     (prep.high_risk_questions || []).length,
+        high_impact:   (prep.high_impact_questions || []).length,
+        behavioral:    (prep.behavioral_questions || []).length,
+        technical:     (prep.technical_or_role_questions || []).length,
+        ask_employer:  (prep.questions_to_ask_employer || []).length
+      },
+      personalization_summary: prep && prep.personalization_summary,
+      sampleLikelyQuestion:   (prep.likely_questions || [])[0] || null,
+      sampleBehavioral:       (prep.behavioral_questions || [])[0] || null,
+      resourcesUsed:          normalizeOptimizationResourcesUsed(opt),
+      dom: {
+        containerExists: !!container,
+        containerVisible: !!(container && !container.hidden),
+        bodyExists: !!body,
+        summaryExists: !!summary,
+        summaryVisible: !!(summary && summary.classList.contains('has-content')),
+        refreshBtnExists: !!btn,
+        refreshBtnDisabled: !!(btn && btn.disabled),
+        refreshBtnWired: !!(btn && btn.dataset && btn.dataset.wired),
+        focusSelectExists: !!focusEl,
+        focusSelectValue: focusEl && focusEl.value,
+        resourcesCardVisible: !!(resWrap && !resWrap.hidden)
+      }
     };
   };
 
