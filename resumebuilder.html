@@ -2061,6 +2061,24 @@
     transform: none;
   }
 
+  /* Desktop: horizontally center PDF / Word document previews inside the
+     preview card. The scaled page wrapper is a fixed pixel width, so the
+     container needs to lay it out as a flex column with center alignment.
+     Mobile rules below override this with their own scale + centering. */
+  #preview-container-export.preview-format-document {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  #preview-container-export.preview-format-document #preview-device-wrap,
+  #preview-container-export.preview-format-document .preview-device,
+  #preview-container-export.preview-format-document #preview-frame,
+  #preview-container-export.preview-format-document iframe {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
   @media (max-width: 640px) {
     #preview-container-export.preview-format-document {
       /* Auto-scale Letter width (816px) to viewport, capped at 1.0. */
@@ -2103,19 +2121,6 @@
       display: block;
       position: absolute;
       top: 0; left: 0;
-    }
-
-    /* 100% zoom mode: full-size page, allow panning/scrolling inside the wrapper. */
-    #preview-container-export.preview-format-document[data-doc-zoom="100"] {
-      --preview-doc-scale: 1;
-    }
-    #preview-container-export.preview-format-document[data-doc-zoom="100"] #preview-device-wrap,
-    #preview-container-export.preview-format-document[data-doc-zoom="100"] .preview-device {
-      width: 100%;
-      max-width: 100%;
-      height: auto;
-      max-height: 80dvh;
-      overflow: auto;
     }
   }
 
@@ -3324,15 +3329,7 @@
                 <button type="button"                data-preview-device="app">App</button>
               </div>
             </div>
-            <!-- Fit / 100% zoom toggle. Only shown on mobile (≤640px) AND only for
-                 PDF / DOCX preview formats. JS adds .is-doc-mobile when both are true. -->
-            <div id="preview-doc-zoom-row" style="display:none" aria-hidden="true">
-              <label class="field-label">View</label>
-              <div class="preview-toggle" role="tablist" aria-label="Preview zoom">
-                <button type="button" class="active" data-preview-zoom="fit"  title="Fit page to screen">Fit</button>
-                <button type="button"                data-preview-zoom="100" title="View at 100% (allows panning)">100%</button>
-              </div>
-            </div>
+            <!-- Fit / 100% zoom toggle removed (was confusing on mobile). PDF/DOCX previews are always Fit. -->
             <div id="preview-container-export">
               <div id="preview-empty-state" class="preview-empty">
                 <i data-lucide="file" style="width:28px;height:28px;color:#94A3B8;"></i>
@@ -8298,6 +8295,22 @@
   }
 
   // ---------- Sanitizer ----------
+  // Lightweight, regex-only script + inline-handler stripper used as a
+  // belt-and-braces pass before assigning to iframe.srcdoc on the live
+  // preview. Prevents "Blocked script execution in 'about:srcdoc'" warnings
+  // when the iframe is sandboxed without allow-scripts (we intentionally
+  // do NOT add allow-scripts because preview HTML may include
+  // AI-generated or user-provided content).
+  // Use ONLY for preview iframe srcdoc — never for exported PDF/DOCX.
+  function stripScriptsFromPreviewHTML(html) {
+    return String(html || '')
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
+      .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+      .replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
+  }
+
   // DOMParser-based scrub; falls back to regex if parser is unavailable.
   function sanitizePreviewHTML(html) {
     var raw = String(html || '');
@@ -10133,7 +10146,7 @@
         !doesOutputStyleSupportFormat(_selectedTemplate, 'docx')
       ) {
         var _unavailableHtml = renderWordPreviewUnavailableHTML(_selectedTemplate);
-        frame.srcdoc = [
+        frame.srcdoc = stripScriptsFromPreviewHTML([
           '<!doctype html><html><head><meta charset="utf-8">',
           '<style>',
           'body{margin:0;background:#F1F5F9;font-family:Manrope,Arial,sans-serif;}',
@@ -10150,7 +10163,7 @@
           '</style></head><body>',
           _unavailableHtml,
           '</body></html>'
-        ].join('');
+        ].join(''));
         _lastRenderCounts = { rawScriptTagCount: 0, cleanScriptTagCount: 0 };
         return;
       }
@@ -10168,7 +10181,7 @@
       if (isDocumentPreviewFormat(_previewFormat)) {
         cleanHtml = injectMobileDocumentPreviewFitCSS(cleanHtml);
       }
-      frame.srcdoc = cleanHtml;
+      frame.srcdoc = stripScriptsFromPreviewHTML(cleanHtml);
       // Reset iframe + container scroll on every render so the user sees the top of the new preview.
       frame.addEventListener('load', function () {
         try {
@@ -11096,6 +11109,103 @@
     return [];
   }
 
+  // ---------- Shared resume section extractors (preview + PDF + DOCX) ----------
+  // These are the SINGLE SOURCE OF TRUTH for "what does this resume contain
+  // for Certifications / Achievements?" so preview and downloads can never
+  // disagree. Every DOCX / PDF / preview path that needs these sections
+  // should call these helpers instead of reading raw resume fields directly.
+  // Object entries are flattened into a readable single-line string; never
+  // returns "[object Object]".
+  function normalizeExportList(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.map(function (item) {
+        if (item == null) return '';
+        if (typeof item === 'string') return item.trim();
+        if (typeof item === 'object') {
+          var name = String(
+            item.name || item.title || item.certification ||
+            item.credential || item.award || item.achievement || ''
+          ).trim();
+          var issuer = String(item.issuer || item.organization || item.org || item.authority || '').trim();
+          var date = String(item.year || item.date || item.completed || item.issued || '').trim();
+          var desc = String(item.description || item.details || item.note || '').trim();
+          var parts = [name, issuer, date, desc].filter(Boolean);
+          return parts.join(' \u2022 ');
+        }
+        return String(item).trim();
+      }).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value.split(/\n|;|\u2022/g).map(function (x) { return x.trim(); }).filter(Boolean);
+    }
+    return [];
+  }
+
+  function getResumeCertificationsForExport(resumeData) {
+    var r = resumeData || {};
+    return normalizeExportList(
+      r.certifications ||
+      r.certification ||
+      r.certificates ||
+      r.licenses ||
+      r.training ||
+      []
+    );
+  }
+
+  function getResumeAchievementsForExport(resumeData) {
+    var r = resumeData || {};
+    return normalizeExportList(
+      (Array.isArray(r.achievements) && r.achievements.length && r.achievements) ||
+      (Array.isArray(r.awards)       && r.awards.length       && r.awards) ||
+      (Array.isArray(r.honors)       && r.honors.length       && r.honors) ||
+      (Array.isArray(r.accomplishments) && r.accomplishments.length && r.accomplishments) ||
+      []
+    );
+  }
+
+  function getResumeSkillsForExport(resumeData) {
+    var r = resumeData || {};
+    return normalizeExportList(r.skills || r.coreSkills || r.core_skills || []);
+  }
+
+  function getResumeEducationForExport(resumeData) {
+    var r = resumeData || {};
+    var list = Array.isArray(r.education) ? r.education : [];
+    return list.map(function (ed) {
+      if (!ed) return '';
+      if (typeof ed === 'string') return ed.trim();
+      var line = [ed.degree, ed.school || ed.institution, ed.year || ed.date]
+        .map(function (s) { return String(s == null ? '' : s).trim(); })
+        .filter(Boolean)
+        .join(' | ');
+      return line;
+    }).filter(Boolean);
+  }
+
+  // Debug helper: lets the user (or QA) verify that the export pipeline
+  // sees the same Certifications / Achievements as the live preview.
+  // Run `debugExportSections()` in the browser console.
+  window.debugExportSections = function () {
+    var resume = null;
+    try {
+      var pkg = (typeof buildSelectedDocumentPackage === 'function') ? buildSelectedDocumentPackage() : null;
+      resume = (pkg && pkg.documents && pkg.documents.resume) || null;
+    } catch (_) {}
+    if (!resume) {
+      try { resume = (window.RB_STATE && RB_STATE.resume) || null; } catch (_) {}
+    }
+    return {
+      certifications: getResumeCertificationsForExport(resume),
+      achievements:   getResumeAchievementsForExport(resume),
+      skills:         getResumeSkillsForExport(resume),
+      education:      getResumeEducationForExport(resume),
+      selectedTemplate: (window.RB_STATE && (RB_STATE.selectedTemplate || RB_STATE.exportStyle)) || null,
+      selectedDocuments: (window.RB_STATE && (RB_STATE.selectedDocuments || RB_STATE.selected)) || null
+    };
+  };
+
   // ---- DOCX style metadata + resolver ----
   var DOCX_STYLE_META = {
     'classic': {
@@ -11266,61 +11376,10 @@
       el.classList.toggle('preview-format-word', isWord);
       el.classList.toggle('preview-format-pdf', isPdf);
     });
-    // Document preview defaults to Fit zoom unless the user has chosen 100%.
-    if (container) {
-      if (isDoc && !container.getAttribute('data-doc-zoom')) {
-        container.setAttribute('data-doc-zoom', 'fit');
-      } else if (!isDoc) {
-        container.removeAttribute('data-doc-zoom');
-      }
-    }
-    try { updateDocumentZoomToggleVisibility(); } catch (_) {}
     setTimeout(function () {
       try { updateDocumentPreviewScale(); } catch (_) {}
     }, 0);
   }
-
-  // Show the Fit / 100% toggle row only when:
-  //   - viewport width is mobile (<= 640px), AND
-  //   - the active preview format is PDF or DOCX (document format).
-  // On desktop, the row stays hidden so desktop preview behavior is unchanged.
-  function updateDocumentZoomToggleVisibility() {
-    var row = document.getElementById('preview-doc-zoom-row');
-    if (!row) return;
-    var container = document.getElementById('preview-container-export');
-    var isDoc = !!(container && container.classList.contains('preview-format-document'));
-    var isMobile = (window.innerWidth || document.documentElement.clientWidth || 0) <= 640;
-    var show = isDoc && isMobile;
-    row.style.display = show ? 'flex' : 'none';
-    row.setAttribute('aria-hidden', show ? 'false' : 'true');
-    // Reflect current zoom on the buttons.
-    var current = (container && container.getAttribute('data-doc-zoom')) || 'fit';
-    Array.prototype.forEach.call(row.querySelectorAll('[data-preview-zoom]'), function (btn) {
-      btn.classList.toggle('active', btn.getAttribute('data-preview-zoom') === current);
-    });
-  }
-
-  // Wire the zoom toggle clicks once. The buttons live inside the Live
-  // Preview accordion HTML and share the .preview-toggle styling.
-  (function initDocPreviewZoomToggle() {
-    document.addEventListener('click', function (e) {
-      var btn = e.target && e.target.closest && e.target.closest('#preview-doc-zoom-row [data-preview-zoom]');
-      if (!btn) return;
-      var zoom = btn.getAttribute('data-preview-zoom') === '100' ? '100' : 'fit';
-      var container = document.getElementById('preview-container-export');
-      if (container) container.setAttribute('data-doc-zoom', zoom);
-      try { updateDocumentZoomToggleVisibility(); } catch (_) {}
-      try { updateDocumentPreviewScale(); } catch (_) {}
-    });
-    // Re-evaluate visibility on resize so desktop \u2192 mobile transitions work live.
-    var t = null;
-    window.addEventListener('resize', function () {
-      if (t) clearTimeout(t);
-      t = setTimeout(function () {
-        try { updateDocumentZoomToggleVisibility(); } catch (_) {}
-      }, 80);
-    }, { passive: true });
-  })();
 
   function injectMobileDocumentPreviewFitCSS(html) {
     html = String(html || '');
@@ -11431,7 +11490,11 @@
       skills:       _docxArray(resume.skills),
       experience:   Array.isArray(resume.experience) ? resume.experience : [],
       education:    Array.isArray(resume.education)  ? resume.education  : [],
-      achievements: _docxArray(resume.achievements)
+      // Use the shared extractors so DOCX, PDF, and preview always see the
+      // same Certifications / Achievements set, regardless of where the
+      // resume data was sourced from (saved record, AI extraction, paste).
+      certifications: getResumeCertificationsForExport(resume),
+      achievements:   getResumeAchievementsForExport(resume)
     };
   }
 
@@ -11479,12 +11542,18 @@
     var key = raw.toLowerCase();
 
     var map = {
-      blue:   '#2563EB',
-      slate:  '#475569',
-      green:  '#047857',
-      purple: '#7C3AED',
-      navy:   '#0B487A',
-      default:'#0B487A'
+      blue:     '#2563EB',
+      navy:     '#0B487A',
+      purple:   '#7C3AED',
+      emerald:  '#059669',
+      teal:     '#0F766E',
+      slate:    '#475569',
+      charcoal: '#111827',
+      amber:    '#D97706',
+      rose:     '#E11D48',
+      burgundy: '#7F1D1D',
+      green:    '#047857',
+      default:  '#0B487A'
     };
 
     return map[key] || '#0B487A';
@@ -11791,6 +11860,11 @@
       });
     }
 
+    if (r.certifications && r.certifications.length) {
+      children.push(kit.heading('Certifications', { level: 2 }));
+      r.certifications.forEach(function (c) { children.push(kit.bullet(c)); });
+    }
+
     if (r.achievements && r.achievements.length) {
       children.push(kit.heading('Achievements', { level: 2 }));
       r.achievements.forEach(function (a) { children.push(kit.bullet(a)); });
@@ -11908,6 +11982,15 @@
         });
       }
 
+      // Certifications live in the sidebar for Modern Sidebar so the rail
+      // reads contact / skills / certifications in one column.
+      if (r.certifications && r.certifications.length) {
+        left.push(kit.para('CERTIFICATIONS', { bold: true, size: 18, color: 'FFFFFF', after: 50, before: 160 }));
+        r.certifications.forEach(function (c) {
+          left.push(kit.para('\u2022 ' + c, { size: 17, color: 'E2E8F0', after: 28 }));
+        });
+      }
+
       if (r.summary) {
         right.push(kit.heading('Professional Summary', { level: 2 }));
         right.push(kit.para(r.summary));
@@ -11935,6 +12018,12 @@
           var line = [ed.degree, ed.school || ed.institution, ed.year].filter(Boolean).join(' | ');
           if (line) right.push(kit.para(line));
         });
+      }
+
+      // Achievements in the main column to keep the sidebar clean.
+      if (r.achievements && r.achievements.length) {
+        right.push(kit.heading('Achievements', { level: 2 }));
+        r.achievements.forEach(function (a) { right.push(kit.bullet(a)); });
       }
 
       children.push(new kit.Table({
