@@ -8295,37 +8295,78 @@
   }
 
   // ---------- Sanitizer ----------
-  // Lightweight, regex-only script + inline-handler stripper used as a
-  // belt-and-braces pass before assigning to iframe.srcdoc on the live
-  // preview. Prevents "Blocked script execution in 'about:srcdoc'" warnings
-  // when the iframe is sandboxed without allow-scripts (we intentionally
+  // `stripScriptsFromPreviewHTML` is the ONLY function callers should use
+  // before assigning to a sandboxed iframe.srcdoc. It delegates to the
+  // hardened DOMParser-based `sanitizePreviewHTML` defined below, then
+  // applies a final regex pass for anything the parser missed. Prevents
+  // "Blocked script execution in 'about:srcdoc'" warnings when the
+  // preview iframe is sandboxed without allow-scripts (we intentionally
   // do NOT add allow-scripts because preview HTML may include
   // AI-generated or user-provided content).
   // Use ONLY for preview iframe srcdoc — never for exported PDF/DOCX.
   function stripScriptsFromPreviewHTML(html) {
-    return String(html || '')
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
-      .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-      .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-      .replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
+    return sanitizePreviewHTML(html);
   }
 
   // DOMParser-based scrub; falls back to regex if parser is unavailable.
+  // Hardened to remove every common path that could trigger the
+  // "Blocked script execution in 'about:srcdoc'" warning when the iframe
+  // is sandboxed without allow-scripts:
+  //   - <script>, <noscript>
+  //   - <iframe srcdoc=...> and <iframe src="javascript:..."> nested in preview
+  //   - <object>, <embed>, <applet>
+  //   - inline on* handlers (incl. SVG onload)
+  //   - href/src/action="javascript:..."
+  //   - <meta http-equiv="refresh">
+  //   - <link rel="import"> / <link rel="prefetch"> with javascript:
+  //   - srcdoc attribute on ANY element
+  // After DOMParser cleanup, a final regex pass strips any residue.
   function sanitizePreviewHTML(html) {
     var raw = String(html || '');
+    var cleaned = raw;
     try {
       var doc = new DOMParser().parseFromString(raw, 'text/html');
-      doc.querySelectorAll('script').forEach(function (el) { el.remove(); });
+
+      // Remove script-bearing / nav-hijacking elements outright.
+      doc.querySelectorAll(
+        'script, noscript, object, embed, applet, base, ' +
+        'link[rel~="import" i], link[rel~="prefetch" i], link[rel~="preload" i]'
+      ).forEach(function (el) { el.remove(); });
+
+      // Remove meta refresh redirects.
+      doc.querySelectorAll('meta[http-equiv]').forEach(function (el) {
+        var v = String(el.getAttribute('http-equiv') || '').toLowerCase();
+        if (v === 'refresh' || v === 'set-cookie') el.remove();
+      });
+
+      // Remove nested iframes with srcdoc or javascript: src — they would
+      // try to execute scripts under the parent sandbox and emit the
+      // about:srcdoc warning even after we strip the outer scripts.
+      doc.querySelectorAll('iframe').forEach(function (el) {
+        var src = String(el.getAttribute('src') || '');
+        if (el.hasAttribute('srcdoc') || /^\s*javascript:/i.test(src)) {
+          el.remove();
+        }
+      });
+
+      // Per-element attribute cleanup.
       doc.querySelectorAll('*').forEach(function (el) {
         var tag = (el.tagName || '').toLowerCase();
         Array.from(el.attributes || []).forEach(function (attr) {
-          var name = attr.name || '';
+          var name  = attr.name  || '';
           var value = attr.value || '';
-          if (/^on/i.test(name)) el.removeAttribute(name);
-          if (name === 'formaction') el.removeAttribute(name);
-          if ((name === 'href' || name === 'src' || name === 'action') && /^\s*javascript:/i.test(value)) {
-            if (name === 'href') el.setAttribute(name, '#'); else el.removeAttribute(name);
+          // Strip every inline event handler (onclick, onload, onerror, ...).
+          if (/^on/i.test(name)) { el.removeAttribute(name); return; }
+          // Strip srcdoc on ANY element (defense in depth, even non-iframe).
+          if (name === 'srcdoc') { el.removeAttribute(name); return; }
+          // Strip form-action overrides used to redirect submissions.
+          if (name === 'formaction') { el.removeAttribute(name); return; }
+          // Neutralize javascript: URLs everywhere.
+          if ((name === 'href' || name === 'src' || name === 'action' || name === 'xlink:href') &&
+              /^\s*javascript:/i.test(value)) {
+            if (name === 'href' || name === 'xlink:href') el.setAttribute(name, '#');
+            else el.removeAttribute(name);
+            return;
           }
           // Disallow data: URLs on iframe[src] (defense in depth).
           if (tag === 'iframe' && name === 'src' && /^\s*data:/i.test(value)) {
@@ -8333,19 +8374,31 @@
           }
         });
       });
-      return '<!doctype html>\n' + doc.documentElement.outerHTML;
+
+      cleaned = '<!doctype html>\n' + doc.documentElement.outerHTML;
     } catch (_) {
-      return raw
-        .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-        .replace(/\son\w+="[^"]*"/gi, '')
-        .replace(/\son\w+='[^']*'/gi, '')
-        .replace(/\sformaction="[^"]*"/gi, '')
-        .replace(/\sformaction='[^']*'/gi, '')
-        .replace(/\shref=["']javascript:[^"']*["']/gi, ' href="#"');
+      cleaned = raw;
     }
+
+    // Belt-and-braces final regex pass — catches anything DOMParser missed
+    // (e.g., HTML fragments where parsing inserted implicit elements).
+    return cleaned
+      .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/<script\b[^>]*>/gi, '')
+      .replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, '')
+      .replace(/<iframe\b[^>]*\bsrcdoc\s*=[\s\S]*?<\/iframe\s*>/gi, '')
+      .replace(/<object\b[\s\S]*?<\/object\s*>/gi, '')
+      .replace(/<embed\b[^>]*>/gi, '')
+      .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+      .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+      .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+      .replace(/\ssrcdoc\s*=\s*"[^"]*"/gi, '')
+      .replace(/\ssrcdoc\s*=\s*'[^']*'/gi, '')
+      .replace(/\sformaction\s*=\s*"[^"]*"/gi, '')
+      .replace(/\sformaction\s*=\s*'[^']*'/gi, '')
+      .replace(/\s(href|src|action|xlink:href)\s*=\s*"\s*javascript:[^"]*"/gi, ' $1="#"')
+      .replace(/\s(href|src|action|xlink:href)\s*=\s*'\s*javascript:[^']*'/gi, " $1='#'");
   }
-  // Backward-compat alias for any external callers.
-  function stripScriptsFromPreviewHTML(html) { return sanitizePreviewHTML(html); }
   function getRolePlanPhaseCount(plan, type) {
     if (!plan) return 0;
     var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
