@@ -2577,6 +2577,7 @@
     gap: 1rem;
   }
   .resume-version-card {
+    position: relative;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(148,163,184,0.18);
     border-radius: 14px;
@@ -2584,6 +2585,12 @@
     display: flex; flex-direction: column; gap: .5rem;
     transition: transform .15s ease, border-color .15s ease;
   }
+  .version-delete:hover {
+    background: rgba(248,113,113,0.22) !important;
+    color: #FECACA !important;
+    border-color: rgba(248,113,113,0.6) !important;
+  }
+  .version-score { letter-spacing: .02em; }
   .resume-version-card:hover { transform: translateY(-1px); border-color: rgba(124,58,237,0.55); }
   .resume-version-card h3 {
     margin: .15rem 0 0; color: var(--c-text, #E2E8F0);
@@ -16340,13 +16347,43 @@
           null;
         var updatedText = ts ? ts.toLocaleString() : 'Recently updated';
         var subtitle = [jobTitle, company].filter(Boolean).join(' at ') || 'Saved resume version';
+        // Optimization score badge — only render when a numeric score exists.
+        var rawScore = (d.optimization && d.optimization.matchScore && d.optimization.matchScore.score);
+        var score = (typeof rawScore === 'number' && Number.isFinite(rawScore)) ? Math.round(rawScore) : null;
+        var scoreBadge = '';
+        if (score != null) {
+          var sBg = '#FEE2E2', sFg = '#991B1B';
+          if (score >= 80)      { sBg = '#DCFCE7'; sFg = '#166534'; }
+          else if (score >= 60) { sBg = '#FEF3C7'; sFg = '#92400E'; }
+          scoreBadge =
+            '<span class="version-score" title="Optimization match score" ' +
+              'style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;' +
+              'background:' + sBg + ';color:' + sFg + ';font-size:11px;font-weight:800;letter-spacing:.02em;">' +
+              'Score ' + score + '%' +
+            '</span>';
+        }
+        var trashSvg =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<polyline points="3 6 5 6 21 6"></polyline>' +
+            '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>' +
+            '<path d="M10 11v6"></path><path d="M14 11v6"></path>' +
+            '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>' +
+          '</svg>';
         return '' +
           '<article class="resume-version-card" data-plan-id="' + _esc(row.id) + '">' +
+            '<button type="button" class="version-delete" ' +
+              'data-dashboard-delete="' + _esc(row.id) + '" ' +
+              'data-dashboard-delete-title="' + _esc(title) + '" ' +
+              'aria-label="Delete resume version" title="Delete resume version" ' +
+              'style="position:absolute;top:.65rem;right:.65rem;width:30px;height:30px;border-radius:8px;border:1px solid rgba(248,113,113,0.4);background:rgba(248,113,113,0.12);color:#FCA5A5;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;z-index:2;">' +
+              trashSvg +
+            '</button>' +
             '<div class="version-top">' +
               '<span class="version-status ' + (d.published ? 'published' : 'draft') + '">' + _esc(status) + '</span>' +
+              scoreBadge +
               '<span class="version-date">' + _esc(updatedText) + '</span>' +
             '</div>' +
-            '<h3>' + _esc(title) + '</h3>' +
+            '<h3 style="padding-right:34px;">' + _esc(title) + '</h3>' +
             '<p>' + _esc(subtitle) + '</p>' +
             '<div class="version-actions">' +
               '<button type="button" class="btn btn-primary" data-dashboard-load="' + _esc(row.id) + '">Open</button>' +
@@ -16375,6 +16412,38 @@
       if (btn._dashboardNewAttached) return;
       btn._dashboardNewAttached = true;
       btn.addEventListener('click', function () { openNewVersionModal(); });
+    });
+    document.querySelectorAll('[data-dashboard-delete]').forEach(function (btn) {
+      if (btn._dashboardDeleteAttached) return;
+      btn._dashboardDeleteAttached = true;
+      btn.addEventListener('click', async function (ev) {
+        ev.stopPropagation();
+        var id    = btn.getAttribute('data-dashboard-delete');
+        var label = btn.getAttribute('data-dashboard-delete-title') || 'this resume';
+        if (!id || !db) return;
+        var ok = window.confirm('Delete "' + label + '"? This cannot be undone.');
+        if (!ok) return;
+        var orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span style="width:12px;height:12px;border:2px solid rgba(252,165,165,0.3);border-top-color:#FCA5A5;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;"></span>';
+        try {
+          await db.collection('plans').doc(id).delete();
+          try {
+            if (typeof currentPlanId !== 'undefined' && currentPlanId === id) {
+              currentPlanId = null;
+              window.currentPlanId = null;
+              if (typeof RB_STATE !== 'undefined' && RB_STATE) RB_STATE.currentPlanId = null;
+            }
+          } catch (_) {}
+          try { showToast('Resume deleted.', 'success'); } catch (_) {}
+          try { renderResumeDashboard(); } catch (_) {}
+        } catch (err) {
+          console.error('[dashboard] delete failed', err);
+          btn.disabled = false;
+          btn.innerHTML = orig;
+          try { showToast('Delete failed: ' + ((err && err.message) || err), 'error'); } catch (_) {}
+        }
+      });
     });
     var topBtn = document.getElementById('dashboard-new-resume-btn');
     if (topBtn && !topBtn._dashboardNewAttached) {
