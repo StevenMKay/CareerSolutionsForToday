@@ -6111,17 +6111,18 @@
         type: 'strategic',
         importance: 'medium',
         risk_level: 'low',
-        answer_format: 'structured',
+        answer_format: 'employer-question',
         answer: { situation: '', task: '', action: [], result: '', key_points: [] },
         structured_answer: { opening: '', key_points: [], closing: '' },
-        why_likely: 'Useful question for evaluating the role, team, expectations, and success measures.',
+        why_likely: 'This question helps evaluate role expectations, team priorities, and success measures.',
         why_this_works: '',
         risk_if_weak: '',
         resume_evidence: [],
         job_description_signal: [],
         follow_up_questions: [],
         what_to_avoid: [],
-        confidence: 'medium'
+        confidence: 'medium',
+        isEmployerQuestion: true
       };
     }
     q = q || {};
@@ -6220,12 +6221,20 @@
         if (!item) return;
         if (typeof item === 'string') {
           var s = item.trim();
-          if (s) out.push(s);
+          if (!s) return;
+          var norm = normalizeInterviewPrepQuestion(s);
+          if (norm) out.push(norm);
           return;
         }
         if (typeof item === 'object') {
-          var q = String(item.question || item.text || item.prompt || '').trim();
-          if (q) out.push(q);
+          var qtext = String(item.question || item.text || item.prompt || '').trim();
+          if (!qtext) return;
+          var normObj = normalizeInterviewPrepQuestion(item);
+          if (normObj) {
+            normObj.isEmployerQuestion = true;
+            normObj.answer_format = 'employer-question';
+            out.push(normObj);
+          }
         }
       });
       return out;
@@ -6496,6 +6505,21 @@
 
   function renderInterviewQuestionCard(q, index, groupTone) {
     q = q || {};
+    if (q.isEmployerQuestion) {
+      return [
+        '<article class="interview-question-card" style="--group-tone:' + _ipEsc(groupTone || '#F59E0B') + '">',
+          '<div class="interview-question-top">',
+            '<div class="interview-question-num">' + _ipEsc(String(index + 1)) + '</div>',
+            '<div class="interview-question-main">',
+              '<p class="interview-question-text">' + _ipEsc(q.question || '') + '</p>',
+              '<div class="interview-chip-row">',
+                '<span class="interview-chip type">Question for employer</span>',
+              '</div>',
+            '</div>',
+          '</div>',
+        '</article>'
+      ].join('');
+    }
     var type = q.type || 'behavioral';
     var importance = q.importance || '';
     var risk = q.risk_level || '';
@@ -6595,8 +6619,9 @@
     ];
     var html = groups.map(function (g) { return renderInterviewPrepGroup(g, prep); }).join('');
     if (Array.isArray(prep.questions_to_ask_employer) && prep.questions_to_ask_employer.length) {
+      var employerTone = '#F59E0B';
       html += [
-        '<section class="interview-prep-group" style="--group-tone:#F59E0B">',
+        '<section class="interview-prep-group" style="--group-tone:' + employerTone + '">',
           '<div class="interview-prep-group-head">',
             '<div class="interview-prep-group-title">',
               '<span class="interview-prep-group-dot"></span>',
@@ -6604,9 +6629,15 @@
             '</div>',
             '<div class="interview-prep-count">' + prep.questions_to_ask_employer.length + ' question' + (prep.questions_to_ask_employer.length === 1 ? '' : 's') + '</div>',
           '</div>',
-          '<div style="padding:.75rem .9rem;"><ul style="margin:0;padding-left:1.1rem;color:#1F2937;font-size:.9rem;line-height:1.55;">' +
-            prep.questions_to_ask_employer.map(function (q) { return '<li style="margin:.25rem 0;">' + _ipEsc(q) + '</li>'; }).join('') +
-          '</ul></div>',
+          '<div class="interview-question-list">',
+            prep.questions_to_ask_employer.map(function (q, idx) {
+              // Tolerate any items still left as raw strings (legacy persisted state).
+              if (typeof q === 'string') q = normalizeInterviewPrepQuestion(q);
+              if (!q) return '';
+              if (!q.isEmployerQuestion) q.isEmployerQuestion = true;
+              return renderInterviewQuestionCard(q, idx, employerTone);
+            }).join(''),
+          '</div>',
         '</section>'
       ].join('');
     }
