@@ -1140,6 +1140,7 @@
   .opt-rewrite-col-text {
     font-size: .87rem; line-height: 1.5; color: #1F2937;
     overflow-wrap: break-word; word-break: break-word;
+    white-space: pre-line;
   }
   .opt-rewrite-col.is-suggested .opt-rewrite-col-text { color: #0F172A; font-weight: 500; }
   .opt-rewrite-reason {
@@ -6429,6 +6430,7 @@
     if (labelEl && !labelEl.dataset.origLabel) labelEl.dataset.origLabel = origLabel;
     if (btn) btn.disabled = true;
     if (labelEl) labelEl.textContent = 'Refreshing\u2026';
+    var refreshSucceeded = false;
     try {
       var headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       if (!headers || !headers['Content-Type']) {
@@ -6437,10 +6439,22 @@
       var res = await fetch(BUILDER_API_BASE + '/builder/interview-prep-refresh', {
         method: 'POST', headers: headers, body: JSON.stringify(payload)
       });
-      var data = await res.json().catch(function () { return {}; });
-      if (!res.ok || data.error) {
-        throw new Error(data.error || ('Refresh failed (' + res.status + ').'));
+      // Safe non-JSON parse — Railway 502 returns an HTML body.
+      var raw = '';
+      try { raw = await res.text(); } catch (_) { raw = ''; }
+      var data = null;
+      if (raw) { try { data = JSON.parse(raw); } catch (_) { data = null; } }
+      if (!res.ok) {
+        // Log full server response for diagnostics. Backend returns
+        // { error: <code>, message: <human reason> } on failures —
+        // surface the human message in the toast, not the bare code.
+        try { console.warn('[interview-prep-refresh] server', res.status, data || raw); } catch (_) {}
+        var msg = (data && (data.message || data.error))
+          || ('Interview prep refresh failed (HTTP ' + res.status + ').');
+        throw new Error(msg);
       }
+      if (!data) throw new Error('Interview prep refresh returned an unreadable response.');
+      if (data.error) throw new Error(data.message || data.error);
       var prep = normalizeInterviewPrep({ interview_prep: data.interview_prep });
       if (!hasInterviewPrepData(prep)) throw new Error('No new questions returned.');
       if (!RB_STATE.optimization) RB_STATE.optimization = {};
@@ -6457,14 +6471,23 @@
         if (typeof scheduleLazyAutosave === 'function') scheduleLazyAutosave('interview-prep-refresh');
         else if (typeof scheduleAutosave === 'function') scheduleAutosave();
       } catch (_) {}
+      refreshSucceeded = true;
     } catch (err) {
       console.error('[interview-prep-refresh] failed', err);
-      if (typeof showToast === 'function') showToast('Refresh failed: ' + ((err && err.message) || err), 'error');
+      // Do NOT clear existing interview prep on failure — leave the prior
+      // questions visible so the user can keep working.
+      if (typeof showToast === 'function') {
+        showToast('Interview question refresh failed. Please try again in a moment.', 'error');
+      }
+    } finally {
+      // Always reset the button — even on 502 / network failure.
       if (btn) btn.disabled = false;
       if (labelEl) labelEl.textContent = labelEl.dataset.origLabel || 'New Questions';
-      return;
+      try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
     }
-    _setRefreshInterviewPrepCooldown(INTERVIEW_PREP_COOLDOWN_MS);
+    if (refreshSucceeded) {
+      _setRefreshInterviewPrepCooldown(INTERVIEW_PREP_COOLDOWN_MS);
+    }
   }
 
   window.refreshInterviewPrepQuestions = refreshInterviewPrepQuestions;
@@ -6902,11 +6925,16 @@
           // Direct rewrite shape
           planBody += rewriteCard('Phase ' + (i + 1) + (p.timeframe ? ' \u2014 ' + p.timeframe : ''), p.original || '', p.suggested || '', p.reason || '', _hasPlaceholderTokens(p.suggested));
         } else {
-          // Enhancement shape (suggestedActions / suggestedMetrics / suggestedRisks)
-          var bits = '';
-          if (p.suggestedActions && p.suggestedActions.length) bits += '<div><strong>Actions:</strong> ' + p.suggestedActions.map(_esc).join('; ') + '</div>';
-          if (p.suggestedMetrics && p.suggestedMetrics.length) bits += '<div><strong>Metrics:</strong> ' + p.suggestedMetrics.map(_esc).join('; ') + '</div>';
-          if (p.suggestedRisks   && p.suggestedRisks.length)   bits += '<div><strong>Risks:</strong> '   + p.suggestedRisks.map(_esc).join('; ')   + '</div>';
+          // Enhancement shape (suggestedActions / suggestedMetrics / suggestedRisks).
+          // Build a PLAIN-TEXT block; rewriteCard's _esc() will escape it and the
+          // .opt-rewrite-col-text { white-space: pre-line } rule renders newlines.
+          // Previously this branch emitted raw HTML (<div><strong>Actions:</strong>)
+          // which got escaped to visible markup in the Suggested Updates card.
+          var lines = [];
+          if (p.suggestedActions && p.suggestedActions.length) lines.push('Actions: ' + p.suggestedActions.join('; '));
+          if (p.suggestedMetrics && p.suggestedMetrics.length) lines.push('Metrics: ' + p.suggestedMetrics.join('; '));
+          if (p.suggestedRisks   && p.suggestedRisks.length)   lines.push('Risks: '   + p.suggestedRisks.join('; '));
+          var bits = lines.join('\n');
           if (bits) {
             planBody += rewriteCard('Phase ' + (Number(p.phaseIndex || i) + 1) + (p.phaseTitle ? ' \u2014 ' + p.phaseTitle : ''), '', bits, p.reason || '', false);
           }
@@ -7281,10 +7309,20 @@
         headers: headers,
         body: JSON.stringify(payload)
       });
-      var data = await res.json().catch(function () { return {}; });
-      if (!res.ok || data.error) {
-        throw new Error(data.error || ('Optimization failed (' + res.status + ').'));
+      // Safe non-JSON parse — Railway 502 returns an HTML body.
+      var raw = '';
+      try { raw = await res.text(); } catch (_) { raw = ''; }
+      var data = null;
+      if (raw) { try { data = JSON.parse(raw); } catch (_) { data = null; } }
+      if (!res.ok) {
+        var msg = (data && (data.message || data.error))
+          || (res.status === 502
+              ? 'Optimization service is temporarily unavailable. Please try again.'
+              : 'Optimization failed (HTTP ' + res.status + ').');
+        throw new Error(msg);
       }
+      if (!data) throw new Error('Optimization returned an unreadable response.');
+      if (data.error) throw new Error(data.message || data.error);
       var opt = data.optimization || data;
       RB_STATE.optimization = normalizeOptimizationResponse(opt, payload.baselineScore);
       // Predicted Interview Questions \u2014 sync into state from any supported shape.
