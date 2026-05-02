@@ -2914,8 +2914,8 @@
   @keyframes rbTourFade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes rbTourPop  { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
   @keyframes rbTourPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 240, .55), 0 0 0 8px rgba(124, 92, 240, .12); }
-    50%      { box-shadow: 0 0 0 6px rgba(124, 92, 240, .25), 0 0 0 18px rgba(124, 92, 240, 0); }
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(167, 139, 250, 0)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(167, 139, 250, .6)); }
   }
 
   #rb-tour-overlay {
@@ -2924,19 +2924,24 @@
     animation: rbTourFade .25s ease-out;
   }
   #rb-tour-overlay[hidden] { display: none; }
+  /* Click-catcher only — no tint, no blur. The spotlight's giant
+     box-shadow is the single source of dimming, so the cutout area
+     stays crisp and visible. */
   #rb-tour-backdrop {
     position: absolute; inset: 0;
-    background: rgba(8, 12, 28, .55);
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    background: transparent;
     pointer-events: auto;
   }
   #rb-tour-spotlight {
     position: absolute;
     border-radius: 14px;
+    /* The first shadow (huge spread) is the dim layer; the inner two
+       create the bright violet ring that the user can clearly see. */
     box-shadow:
-      0 0 0 9999px rgba(8, 12, 28, .55),
-      0 0 0 3px rgba(124, 92, 240, .85),
-      0 0 0 8px rgba(124, 92, 240, .25);
+      0 0 0 9999px rgba(8, 12, 28, .72),
+      0 0 0 4px rgba(167, 139, 250, .95),
+      0 0 0 10px rgba(124, 92, 240, .35),
+      0 0 24px 6px rgba(167, 139, 250, .55);
     pointer-events: none;
     transition: top .35s ease, left .35s ease, width .35s ease, height .35s ease;
     animation: rbTourPulse 2s ease-in-out infinite;
@@ -4549,6 +4554,9 @@
       } catch (_) {}
     }
   }
+  // Exposed so the walkthrough (RB_TOUR) can navigate steps before
+  // measuring anchors that live inside hidden step panels.
+  try { window.goToStep = goToStep; } catch (_) {}
 
   // ---- Stepper completion helpers ----
   function safeTextValue(id) {
@@ -16506,7 +16514,7 @@
       {
         id: 'welcome',
         anchor: '#main-nav',
-        align: 'center',
+        align: 'below',
         title: 'Welcome to the Resume Builder',
         body: 'A quick 30-second tour so you know exactly where everything is. You can replay this anytime from the account menu.'
       },
@@ -16519,21 +16527,24 @@
       },
       {
         id: 'application',
-        anchor: '#step-application .acc-header, #step-application',
+        gotoStep: 'step-application',
+        anchor: '#step-application .acc-header, #acc-import .acc-header, #step-application',
         align: 'below',
         title: 'Step 1 — Application Details',
         body: 'Import your resume, paste a target job description, then generate a cover letter and role plan. Each accordion shows a green check when it has content.'
       },
       {
         id: 'optimize',
-        anchor: '#optimize-btn',
+        gotoStep: 'step-optimize',
+        anchor: '#optimize-btn, #optimize-run-section',
         align: 'below',
         title: 'Step 2 — Optimize',
         body: 'Run AI optimization to score your resume against the target role. You will see a match score, suggestions, and an Apply Safe Updates button right at the top.'
       },
       {
         id: 'export',
-        anchor: '#acc-style-export-share .acc-header, #acc-style-export-share',
+        gotoStep: 'step-export',
+        anchor: '#acc-style-export-share .acc-header, #acc-style-export-share, #step-export',
         align: 'below',
         title: 'Step 3 — Preview & Export',
         body: 'Pick a style and color, preview the live document, then download as PDF / DOCX or publish a shareable web link. You are all set!'
@@ -16561,17 +16572,23 @@
       if (!spot || !card) return;
       var rect = target ? target.getBoundingClientRect() : null;
       var pad = 6;
+      var vw = window.innerWidth, vh = window.innerHeight;
       if (rect && rect.width > 0 && rect.height > 0) {
+        // Clamp the spotlight to the viewport so the bright ring never
+        // shoots off-screen on full-width elements like the navbar.
+        var sLeft = Math.max(8, rect.left - pad);
+        var sTop  = Math.max(8, rect.top  - pad);
+        var sRight  = Math.min(vw - 8, rect.right  + pad);
+        var sBottom = Math.min(vh - 8, rect.bottom + pad);
         spot.style.display = 'block';
-        spot.style.top    = (rect.top - pad) + 'px';
-        spot.style.left   = (rect.left - pad) + 'px';
-        spot.style.width  = (rect.width + pad * 2) + 'px';
-        spot.style.height = (rect.height + pad * 2) + 'px';
+        spot.style.top    = sTop  + 'px';
+        spot.style.left   = sLeft + 'px';
+        spot.style.width  = Math.max(20, sRight  - sLeft) + 'px';
+        spot.style.height = Math.max(20, sBottom - sTop)  + 'px';
       } else {
         spot.style.display = 'none';
       }
       // Position card near the target
-      var vw = window.innerWidth, vh = window.innerHeight;
       var cardW = Math.min(360, vw - 32);
       card.style.width = cardW + 'px';
       // Render once to measure
@@ -16625,12 +16642,21 @@
       if (backBtn)   backBtn.disabled      = (idx === 0);
       if (nextBtn)   nextBtn.textContent   = (idx === STEPS.length - 1) ? 'Finish' : 'Next';
       renderDots();
-      var anchor = findAnchor(step.anchor);
-      if (anchor && typeof anchor.scrollIntoView === 'function') {
-        try { anchor.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+      // If this step targets a specific step-panel that is currently
+      // hidden, navigate the builder to it first so the anchor exists
+      // in the layout when we measure for the spotlight.
+      if (step.gotoStep && typeof window.goToStep === 'function') {
+        try { window.goToStep(step.gotoStep); } catch (_) {}
       }
-      // Position after a short delay to let the scroll settle.
-      setTimeout(function () { setSpotlight(anchor, step.align); }, 320);
+      var delay = step.gotoStep ? 480 : 320;
+      setTimeout(function () {
+        var anchor = findAnchor(step.anchor);
+        if (anchor && typeof anchor.scrollIntoView === 'function') {
+          try { anchor.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+        }
+        // Re-measure after the scroll lands.
+        setTimeout(function () { setSpotlight(findAnchor(step.anchor), step.align); }, 380);
+      }, delay);
     }
 
     function next() { idx++; if (idx >= STEPS.length) end(false); else renderStep(); }
@@ -16672,6 +16698,8 @@
       window.removeEventListener('scroll',  _reposition, true);
       document.removeEventListener('keydown', _onKeyDown, true);
       try { localStorage.setItem('rb_tour_completed', '1'); } catch (_) {}
+      // Return the user to the first step so they start in the right place.
+      try { if (typeof window.goToStep === 'function') window.goToStep('step-application'); } catch (_) {}
       openedNow = false;
     }
 
