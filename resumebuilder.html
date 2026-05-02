@@ -6103,6 +6103,27 @@
   }
 
   function normalizeInterviewPrepQuestion(q) {
+    if (typeof q === 'string') {
+      var text = q.trim();
+      if (!text) return null;
+      return {
+        question: text,
+        type: 'strategic',
+        importance: 'medium',
+        risk_level: 'low',
+        answer_format: 'structured',
+        answer: { situation: '', task: '', action: [], result: '', key_points: [] },
+        structured_answer: { opening: '', key_points: [], closing: '' },
+        why_likely: 'Useful question for evaluating the role, team, expectations, and success measures.',
+        why_this_works: '',
+        risk_if_weak: '',
+        resume_evidence: [],
+        job_description_signal: [],
+        follow_up_questions: [],
+        what_to_avoid: [],
+        confidence: 'medium'
+      };
+    }
     q = q || {};
     var answer = q.answer || {};
     var structured = q.structured_answer || q.structuredAnswer || {};
@@ -6192,6 +6213,23 @@
       if (!Array.isArray(list)) return [];
       return list.map(function (x) { return String(x || '').trim(); }).filter(Boolean);
     }
+    function employerQList(list) {
+      if (!Array.isArray(list)) return [];
+      var out = [];
+      list.forEach(function (item) {
+        if (!item) return;
+        if (typeof item === 'string') {
+          var s = item.trim();
+          if (s) out.push(s);
+          return;
+        }
+        if (typeof item === 'object') {
+          var q = String(item.question || item.text || item.prompt || '').trim();
+          if (q) out.push(q);
+        }
+      });
+      return out;
+    }
     var ps = (source.personalization_summary && typeof source.personalization_summary === 'object') ? source.personalization_summary : {};
     return {
       personalization_summary: {
@@ -6205,7 +6243,7 @@
       high_impact_questions:       cleanList(source.high_impact_questions || source.highImpactQuestions || source.storiesToPrepare),
       behavioral_questions:        cleanList(source.behavioral_questions || source.behavioralQuestions),
       technical_or_role_questions: cleanList(source.technical_or_role_questions || source.technicalOrRoleQuestions),
-      questions_to_ask_employer:   strList(source.questions_to_ask_employer || source.questionsToAskEmployer),
+      questions_to_ask_employer:   employerQList(source.questions_to_ask_employer || source.questionsToAskEmployer),
       generatedAtISO:              String(source.generatedAtISO || source.generated_at_iso || '').trim() || null,
       refreshVersion:              Number(source.refreshVersion || source.refresh_version) || 1,
       selectedFocus:               String(source.selectedFocus || source.selected_focus || '').trim() || null
@@ -6425,9 +6463,12 @@
   function renderInterviewPrepAnswer(q) {
     q = q || {};
     var answer = q.answer || {};
+    var structured = q.structured_answer || {};
     var isStar = String(q.answer_format || '').toUpperCase() === 'STAR';
     if (isStar) {
       var action = Array.isArray(answer.action) ? answer.action : [];
+      var hasAny = !!(answer.situation || answer.task || action.length || answer.result);
+      if (!hasAny) return '';
       return [
         '<div class="interview-answer">',
           answer.situation ? '<div class="interview-answer-block"><span class="interview-answer-label">Situation</span><p>' + _ipEsc(answer.situation) + '</p></div>' : '',
@@ -6437,48 +6478,83 @@
         '</div>'
       ].join('');
     }
-    var points = Array.isArray(answer.key_points) ? answer.key_points : [];
+    var points = Array.isArray(structured.key_points) ? structured.key_points
+               : Array.isArray(answer.key_points)     ? answer.key_points
+               : [];
     if (!points.length && answer.text) points = [answer.text];
-    if (!points.length) {
-      return '<div class="interview-answer"><div class="interview-answer-block"><span class="interview-answer-label">Suggested approach</span><p>Prepare a concise answer tied to your resume experience and the target role.</p></div></div>';
-    }
+    var opening = String(structured.opening || '').trim();
+    var closing = String(structured.closing || '').trim();
+    if (!points.length && !opening && !closing) return '';
     return [
-      '<div class="interview-answer"><div class="interview-answer-block">',
-        '<span class="interview-answer-label">Suggested answer points</span>',
-        '<ul class="interview-answer-list">',
-          points.map(function (x) { return '<li>' + _ipEsc(x) + '</li>'; }).join(''),
-        '</ul>',
-      '</div></div>'
+      '<div class="interview-answer">',
+        opening ? '<div class="interview-answer-block"><span class="interview-answer-label">Opening</span><p>' + _ipEsc(opening) + '</p></div>' : '',
+        points.length ? '<div class="interview-answer-block"><span class="interview-answer-label">Suggested answer points</span><ul class="interview-answer-list">' + points.map(function (x) { return '<li>' + _ipEsc(x) + '</li>'; }).join('') + '</ul></div>' : '',
+        closing ? '<div class="interview-answer-block"><span class="interview-answer-label">Closing</span><p>' + _ipEsc(closing) + '</p></div>' : '',
+      '</div>'
     ].join('');
   }
 
   function renderInterviewQuestionCard(q, index, groupTone) {
     q = q || {};
     var type = q.type || 'behavioral';
-    var importance = q.importance || 'medium';
-    var risk = q.risk_level || 'medium';
-    var notes = '';
-    if (q.why_this_works || q.risk_if_weak) {
-      notes = [
-        '<div class="interview-note-grid">',
-          q.why_this_works ? '<div class="interview-note works"><strong>Why this works</strong>' + _ipEsc(q.why_this_works) + '</div>' : '',
-          q.risk_if_weak   ? '<div class="interview-note risk"><strong>Risk if weak</strong>'   + _ipEsc(q.risk_if_weak)   + '</div>' : '',
+    var importance = q.importance || '';
+    var risk = q.risk_level || '';
+    var fmt = q.answer_format || '';
+    var confidence = q.confidence || '';
+
+    var chips = [];
+    if (type)       chips.push('<span class="interview-chip type">' + _ipEsc(type) + '</span>');
+    if (importance) chips.push('<span class="interview-chip importance-' + _ipEsc(importance) + '">Importance: ' + _ipEsc(importance) + '</span>');
+    if (risk)       chips.push('<span class="interview-chip risk-' + _ipEsc(risk) + '">Risk: ' + _ipEsc(risk) + '</span>');
+    if (fmt)        chips.push('<span class="interview-chip">Format: ' + _ipEsc(fmt) + '</span>');
+    if (confidence) chips.push('<span class="interview-chip">Confidence: ' + _ipEsc(confidence) + '</span>');
+
+    var evidence = Array.isArray(q.resume_evidence) ? q.resume_evidence.filter(Boolean) : [];
+    var signals  = Array.isArray(q.job_description_signal) ? q.job_description_signal.filter(Boolean) : [];
+    var followUps = Array.isArray(q.follow_up_questions) ? q.follow_up_questions.filter(Boolean) : [];
+    var avoid    = Array.isArray(q.what_to_avoid) ? q.what_to_avoid.filter(Boolean) : [];
+
+    var evidenceRows = '';
+    if (evidence.length || signals.length) {
+      evidenceRows = [
+        '<div class="interview-evidence-grid">',
+          evidence.length ? '<div class="interview-evidence-block"><strong>From your resume</strong><ul>' + evidence.map(function (x) { return '<li>' + _ipEsc(x) + '</li>'; }).join('') + '</ul></div>' : '',
+          signals.length  ? '<div class="interview-evidence-block"><strong>From the job</strong><ul>'    + signals.map(function (x) { return '<li>' + _ipEsc(x) + '</li>'; }).join('')  + '</ul></div>' : '',
         '</div>'
       ].join('');
     }
+
+    var followUpHTML = followUps.length
+      ? '<div class="interview-followups"><strong>Follow-ups they may ask</strong><ul>' + followUps.map(function (x) { return '<li>' + _ipEsc(x) + '</li>'; }).join('') + '</ul></div>'
+      : '';
+    var avoidHTML = avoid.length
+      ? '<div class="interview-avoid"><strong>Avoid</strong><ul>' + avoid.map(function (x) { return '<li>' + _ipEsc(x) + '</li>'; }).join('') + '</ul></div>'
+      : '';
+
+    var why = q.why_likely || q.why_this_works || '';
+    var notes = '';
+    if (why || q.risk_if_weak) {
+      notes = [
+        '<div class="interview-note-grid">',
+          why            ? '<div class="interview-note works"><strong>Why this comes up</strong>' + _ipEsc(why) + '</div>' : '',
+          q.risk_if_weak ? '<div class="interview-note risk"><strong>Risk if weak</strong>'      + _ipEsc(q.risk_if_weak) + '</div>' : '',
+        '</div>'
+      ].join('');
+    }
+
+    var answerHTML = renderInterviewPrepAnswer(q);
+
     return [
       '<article class="interview-question-card" style="--group-tone:' + _ipEsc(groupTone || '#3B82F6') + '">',
         '<div class="interview-question-top">',
           '<div class="interview-question-num">' + _ipEsc(String(index + 1)) + '</div>',
           '<div class="interview-question-main">',
             '<p class="interview-question-text">' + _ipEsc(q.question || '') + '</p>',
-            '<div class="interview-chip-row">',
-              '<span class="interview-chip type">'                                + _ipEsc(type)                       + '</span>',
-              '<span class="interview-chip importance-' + _ipEsc(importance) + '">Importance: ' + _ipEsc(importance) + '</span>',
-              '<span class="interview-chip risk-'       + _ipEsc(risk)       + '">Risk: '       + _ipEsc(risk)       + '</span>',
-              '<span class="interview-chip">Format: '                              + _ipEsc(q.answer_format || 'structured') + '</span>',
-            '</div>',
-            renderInterviewPrepAnswer(q),
+            chips.length ? '<div class="interview-chip-row">' + chips.join('') + '</div>' : '',
+            evidenceRows,
+            answerHTML,
+            followUpHTML,
+            avoidHTML,
             notes,
           '</div>',
         '</div>',
