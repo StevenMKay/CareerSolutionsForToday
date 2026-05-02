@@ -15419,13 +15419,39 @@
                : (d.createdAt && typeof d.createdAt.toDate === 'function') ? d.createdAt.toDate()
                : null;
         var when = ts ? ts.toLocaleString() : '';
+        // Optimization score badge (mirrors legacy My Resumes UI).
+        var rawScore = (d.optimization && d.optimization.matchScore && d.optimization.matchScore.score);
+        var score = (typeof rawScore === 'number' && Number.isFinite(rawScore)) ? Math.round(rawScore) : null;
+        var scoreBadge = '';
+        if (score != null) {
+          var sBg = '#FEE2E2', sFg = '#991B1B'; // <60 red
+          if (score >= 80)      { sBg = '#DCFCE7'; sFg = '#166534'; }
+          else if (score >= 60) { sBg = '#FEF3C7'; sFg = '#92400E'; }
+          scoreBadge =
+            '<span title="Optimization match score" ' +
+              'style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;' +
+              'background:' + sBg + ';color:' + sFg + ';font-size:11px;font-weight:800;letter-spacing:.02em;">' +
+              'Score ' + score + '%' +
+            '</span>';
+        }
         return '<div class="saved-resume-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #e2e8f0;">' +
-            '<div style="min-width:0;">' +
-              '<div style="font-weight:800;color:#0f172a;">' + _esc(title) + '</div>' +
+            '<div style="min-width:0;flex:1;">' +
+              '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<div style="font-weight:800;color:#0f172a;">' + _esc(title) + '</div>' +
+                scoreBadge +
+              '</div>' +
               '<div style="font-size:13px;color:#64748b;">' + _esc(meta || 'Draft') + '</div>' +
               '<div style="font-size:12px;color:#94a3b8;">' + _esc(when) + '</div>' +
             '</div>' +
-            '<button type="button" class="btn btn-primary" data-load-plan-id="' + _esc(entry.id) + '">Load</button>' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
+              '<button type="button" class="btn btn-primary" data-load-plan-id="' + _esc(entry.id) + '">Load</button>' +
+              '<button type="button" data-delete-plan-id="' + _esc(entry.id) + '" ' +
+                'data-delete-plan-title="' + _esc(title) + '" ' +
+                'aria-label="Delete resume" title="Delete resume" ' +
+                'style="width:36px;height:36px;border-radius:8px;border:1px solid #FECACA;background:#FEF2F2;color:#B91C1C;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>' +
+              '</button>' +
+            '</div>' +
           '</div>';
       });
       host.innerHTML = rows.join('');
@@ -15434,6 +15460,37 @@
           var id = btn.getAttribute('data-load-plan-id');
           closeMyResumesModal();
           loadDraft(id);
+        });
+      });
+      host.querySelectorAll('[data-delete-plan-id]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var id    = btn.getAttribute('data-delete-plan-id');
+          var label = btn.getAttribute('data-delete-plan-title') || 'this resume';
+          if (!id) return;
+          var ok = window.confirm('Delete "' + label + '"? This cannot be undone.');
+          if (!ok) return;
+          var origHTML = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = '<span style="width:14px;height:14px;border:2px solid rgba(185,28,28,0.3);border-top-color:#B91C1C;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;"></span>';
+          try {
+            await db.collection('plans').doc(id).delete();
+            // If the deleted plan is the one currently loaded, clear the in-memory id
+            // so subsequent saves create a fresh doc instead of resurrecting it.
+            try {
+              if (typeof currentPlanId !== 'undefined' && currentPlanId === id) {
+                currentPlanId = null;
+                window.currentPlanId = null;
+                if (typeof RB_STATE !== 'undefined' && RB_STATE) RB_STATE.currentPlanId = null;
+              }
+            } catch (_) {}
+            try { showToast('Resume deleted.', 'success'); } catch (_) {}
+            renderMyResumesList();
+          } catch (err) {
+            console.error('[myResumes] delete failed', err);
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+            try { showToast('Delete failed: ' + ((err && err.message) || err), 'error'); } catch (_) {}
+          }
         });
       });
     } catch (err) {
