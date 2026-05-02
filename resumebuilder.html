@@ -1616,6 +1616,48 @@
     .bullet-row .bullet-remove   { grid-row: 1; grid-column: 1; justify-self: start; }
   }
 
+  /* Structured section row editor (Certifications, Achievements, Education,
+     Leadership, Volunteer, Projects). Mirrors .bullet-row visual language. */
+  .section-rows { display: flex; flex-direction: column; gap: .35rem; }
+  .section-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: .4rem;
+    align-items: start;
+    padding: .45rem;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    background: #FFFFFF;
+  }
+  .section-row .section-row-handles {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .section-row .section-row-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: .35rem;
+  }
+  .section-row .section-row-input {
+    width: 100%;
+    background: #FFFFFF; color: #0F172A;
+    border: 1px solid #CBD5E1; border-radius: 6px;
+    padding: .4rem .55rem; font: inherit; font-size: .88rem;
+    box-sizing: border-box;
+  }
+  .section-row .section-row-input:focus {
+    outline: none; border-color: #1D4ED8;
+    box-shadow: 0 0 0 3px rgba(29,78,216,0.18);
+  }
+  .section-row .section-row-input-textarea {
+    grid-column: 1 / -1; min-height: 44px; resize: vertical;
+  }
+  @media (max-width: 640px) {
+    .section-row { grid-template-columns: 1fr auto; }
+    .section-row .section-row-handles { grid-row: 1; grid-column: 2; flex-direction: row; }
+    .section-row .section-row-fields  { grid-row: 2; grid-column: 1 / span 2; }
+    .section-row .bullet-remove       { grid-row: 1; grid-column: 1; justify-self: start; }
+  }
+
   /* Skills pill editor */
   .skills-pill-editor {
     position: relative;
@@ -5087,18 +5129,274 @@
   function editableTextToSectionItems(text) {
     return String(text || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean);
   }
+
+  // ============================================================
+  // Structured row editors for known schemas
+  // (Certifications, Achievements, Education, Leadership, Volunteer, Projects)
+  // ------------------------------------------------------------
+  // - Each schema declares the canonical fields shown in the row editor and
+  //   the legacy aliases used to normalize incoming data.
+  // - Items are stored on RB_STATE.resumeData[sectionKey] as objects with the
+  //   canonical field keys. Extra/unknown keys on existing items are
+  //   preserved (round-tripped) so we never silently drop saved data.
+  // - String items (legacy) are normalized into the schema's primary field.
+  // ============================================================
+  var STRUCTURED_SECTION_SCHEMAS = {
+    certifications: {
+      primary: 'name',
+      fields: [
+        { key: 'name',   label: 'Name',   placeholder: 'Certification name' },
+        { key: 'issuer', label: 'Issuer', placeholder: 'Issuing organization' },
+        { key: 'year',   label: 'Year',   placeholder: 'e.g. 2024' }
+      ],
+      aliases: {
+        name:   ['name', 'title', 'certification', 'credential'],
+        issuer: ['issuer', 'publisher', 'organization', 'authority', 'provider'],
+        year:   ['year', 'date', 'dates', 'completed', 'awarded']
+      }
+    },
+    achievements: {
+      primary: 'title',
+      fields: [
+        { key: 'title',       label: 'Title',       placeholder: 'Achievement' },
+        { key: 'description', label: 'Description', placeholder: 'Optional details', textarea: true }
+      ],
+      aliases: {
+        title:       ['title', 'name', 'achievement', 'award', 'headline'],
+        description: ['description', 'detail', 'summary', 'notes']
+      }
+    },
+    education: {
+      primary: 'degree',
+      fields: [
+        { key: 'degree',   label: 'Degree',   placeholder: 'B.S. Computer Science' },
+        { key: 'school',   label: 'School',   placeholder: 'University name' },
+        { key: 'year',     label: 'Year',     placeholder: '2020' },
+        { key: 'location', label: 'Location', placeholder: 'Optional' }
+      ],
+      aliases: {
+        degree:   ['degree', 'name', 'title', 'program'],
+        school:   ['school', 'institution', 'organization', 'university', 'college'],
+        year:     ['year', 'dates', 'date_range', 'graduation_year', 'graduated', 'completed'],
+        location: ['location', 'city', 'place']
+      }
+    },
+    leadership_engagement: {
+      primary: 'role',
+      fields: [
+        { key: 'role',         label: 'Role',         placeholder: 'Chair, Member, Lead\u2026' },
+        { key: 'organization', label: 'Organization', placeholder: 'Group or org' },
+        { key: 'dates',        label: 'Dates',        placeholder: '2022\u2013Present' },
+        { key: 'description',  label: 'Description',  placeholder: 'Optional details', textarea: true }
+      ],
+      aliases: {
+        role:         ['role', 'title', 'position'],
+        organization: ['organization', 'company', 'group', 'org'],
+        dates:        ['dates', 'date_range', 'year', 'years'],
+        description:  ['description', 'detail', 'summary', 'notes']
+      }
+    },
+    volunteer_experience: {
+      primary: 'role',
+      fields: [
+        { key: 'role',         label: 'Role',         placeholder: 'Volunteer role' },
+        { key: 'organization', label: 'Organization', placeholder: 'Group or org' },
+        { key: 'dates',        label: 'Dates',        placeholder: '2022\u20132023' },
+        { key: 'description',  label: 'Description',  placeholder: 'Optional details', textarea: true }
+      ],
+      aliases: {
+        role:         ['role', 'title', 'position'],
+        organization: ['organization', 'company', 'group', 'org'],
+        dates:        ['dates', 'date_range', 'year', 'years'],
+        description:  ['description', 'detail', 'summary', 'notes']
+      }
+    },
+    projects: {
+      primary: 'name',
+      fields: [
+        { key: 'name',        label: 'Project',     placeholder: 'Project name' },
+        { key: 'dates',       label: 'Dates',       placeholder: 'Optional' },
+        { key: 'description', label: 'Description', placeholder: 'Optional details', textarea: true }
+      ],
+      aliases: {
+        name:        ['name', 'title', 'project'],
+        dates:       ['dates', 'date_range', 'year'],
+        description: ['description', 'detail', 'summary', 'notes']
+      }
+    }
+  };
+  function _readAliasValue(raw, aliasList) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(aliasList)) return '';
+    for (var i = 0; i < aliasList.length; i++) {
+      var v = raw[aliasList[i]];
+      if (v != null && (typeof v === 'string' || typeof v === 'number') && String(v).trim()) {
+        return String(v).trim();
+      }
+    }
+    return '';
+  }
+  // Normalize one structured-section item to canonical field keys, preserving
+  // any unknown keys (round-trip-safe). String items become { <primary>: str }.
+  function _normalizeStructuredSectionItem(sectionKey, raw) {
+    var schema = STRUCTURED_SECTION_SCHEMAS[sectionKey];
+    if (!schema) return raw;
+    var canonical = {};
+    if (raw == null) {
+      schema.fields.forEach(function (f) { canonical[f.key] = ''; });
+      return canonical;
+    }
+    if (typeof raw === 'string') {
+      schema.fields.forEach(function (f) { canonical[f.key] = ''; });
+      canonical[schema.primary] = raw.trim();
+      return canonical;
+    }
+    if (typeof raw !== 'object') {
+      schema.fields.forEach(function (f) { canonical[f.key] = ''; });
+      canonical[schema.primary] = String(raw);
+      return canonical;
+    }
+    var canonicalFieldKeys = {};
+    schema.fields.forEach(function (f) {
+      canonicalFieldKeys[f.key] = true;
+      var aliases = (schema.aliases && schema.aliases[f.key]) || [f.key];
+      if (raw[f.key] != null && (typeof raw[f.key] === 'string' || typeof raw[f.key] === 'number') && String(raw[f.key]).trim()) {
+        canonical[f.key] = String(raw[f.key]).trim();
+      } else {
+        canonical[f.key] = _readAliasValue(raw, aliases);
+      }
+    });
+    // Preserve any unknown keys not consumed by aliases above (round-trip).
+    var consumed = {};
+    Object.keys(canonicalFieldKeys).forEach(function (ck) {
+      consumed[ck] = true;
+      var aliases = (schema.aliases && schema.aliases[ck]) || [];
+      aliases.forEach(function (a) { consumed[a] = true; });
+    });
+    Object.keys(raw).forEach(function (k) {
+      if (consumed[k]) return;
+      var v = raw[k];
+      if (v == null) return;
+      canonical[k] = v;
+    });
+    return canonical;
+  }
+  function _normalizeStructuredSectionItems(sectionKey, items) {
+    if (!Array.isArray(items)) return [];
+    return items.map(function (it) { return _normalizeStructuredSectionItem(sectionKey, it); });
+  }
+  function _renderStructuredSectionRow(sectionKey, schema, item, idx) {
+    var fieldsHtml = schema.fields.map(function (f) {
+      var v = (item && item[f.key] != null) ? String(item[f.key]) : '';
+      var attrs =
+        ' data-section-key="' + _esc(sectionKey) + '"' +
+        ' data-section-index="' + idx + '"' +
+        ' data-section-field="' + _esc(f.key) + '"' +
+        ' placeholder="' + _esc(f.placeholder || f.label) + '"' +
+        ' aria-label="' + _esc(f.label) + '"';
+      if (f.textarea) {
+        return '<textarea class="textarea section-row-input section-row-input-textarea" rows="2"' + attrs + '>' + _esc(v) + '</textarea>';
+      }
+      return '<input class="input section-row-input"' + attrs + ' value="' + _esc(v) + '">';
+    }).join('');
+    return (
+      '<div class="section-row" data-section-row data-section-key="' + _esc(sectionKey) + '" data-section-index="' + idx + '">' +
+        '<div class="section-row-handles">' +
+          '<button type="button" class="bullet-handle" data-section-action="row-up"   data-section-key="' + _esc(sectionKey) + '" data-section-index="' + idx + '" title="Move up"   aria-label="Move up">\u25B2</button>' +
+          '<button type="button" class="bullet-handle" data-section-action="row-down" data-section-key="' + _esc(sectionKey) + '" data-section-index="' + idx + '" title="Move down" aria-label="Move down">\u25BC</button>' +
+        '</div>' +
+        '<div class="section-row-fields">' + fieldsHtml + '</div>' +
+        '<button type="button" class="bullet-remove" data-section-action="row-remove" data-section-key="' + _esc(sectionKey) + '" data-section-index="' + idx + '" title="Remove" aria-label="Remove">\u00D7</button>' +
+      '</div>'
+    );
+  }
+  function _newEmptyStructuredItem(sectionKey) {
+    var schema = STRUCTURED_SECTION_SCHEMAS[sectionKey];
+    if (!schema) return {};
+    var item = {};
+    schema.fields.forEach(function (f) { item[f.key] = ''; });
+    return item;
+  }
+  function _ensureSectionArray(sectionKey) {
+    if (!RB_STATE.resumeData) RB_STATE.resumeData = normalizeExtractedResumeData({});
+    if (!Array.isArray(RB_STATE.resumeData[sectionKey])) RB_STATE.resumeData[sectionKey] = [];
+    return RB_STATE.resumeData[sectionKey];
+  }
+  // Re-render only one structured-section card without rebuilding the whole
+  // extra-sections list (preserves open/closed state of other sections).
+  function _rerenderStructuredSectionCard(sectionKey) {
+    var hostList = document.getElementById('extra-sections-list');
+    if (!hostList) return;
+    var card = hostList.querySelector('[data-section-card="' + sectionKey + '"]');
+    var items = (RB_STATE.resumeData && RB_STATE.resumeData[sectionKey]) || [];
+    var found = STANDARD_SECTIONS.filter(function (s) { return s.key === sectionKey; })[0];
+    var label = found ? found.label : _labelizeKey(sectionKey);
+    if (!card) {
+      try { renderExtraSections(RB_STATE.resumeData); } catch (_) {}
+      return;
+    }
+    var wasOpen = card.open;
+    var rebuilt = _buildSectionCard(sectionKey, label, items);
+    rebuilt.open = wasOpen;
+    card.replaceWith(rebuilt);
+    try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
+  }
+  function _updateSectionCardCountBadge(sectionKey) {
+    var hostList = document.getElementById('extra-sections-list');
+    if (!hostList) return;
+    var card = hostList.querySelector('[data-section-card="' + sectionKey + '"]');
+    if (!card) return;
+    var badge = card.querySelector('.extra-section-count');
+    if (!badge) return;
+    var items = (RB_STATE.resumeData && RB_STATE.resumeData[sectionKey]) || [];
+    var n = Array.isArray(items) ? items.length : 0;
+    badge.textContent = n + ' ' + (n === 1 ? 'item' : 'items');
+  }
+  function _markSectionDirty(reason) {
+    try { if (typeof markBuilderDirty === 'function') markBuilderDirty(reason || 'extra-section-edit'); } catch (_) {}
+  }
+
   function _buildSectionCard(sectionKey, label, items) {
     var details = document.createElement('details');
     details.className = 'extra-section-card';
     details.setAttribute('data-section-card', sectionKey);
+
+    // Structured row editor for known schemas (Certifications, Achievements,
+    // Education, Leadership, Volunteer, Projects). Other sections (Languages,
+    // Publications, Awards, Affiliations, additional:*) keep the simple
+    // "one item per line" textarea \u2014 they don't have a stable sub-schema.
+    var schema = STRUCTURED_SECTION_SCHEMAS[sectionKey];
+    if (schema) {
+      var normItems = _normalizeStructuredSectionItems(sectionKey, items);
+      var count = normItems.length;
+      details.innerHTML =
+        '<summary><span>' + _esc(label) + '</span>' +
+          '<span class="extra-section-count">' + count + ' ' + (count === 1 ? 'item' : 'items') + '</span>' +
+        '</summary>' +
+        '<div class="extra-section-body" data-structured-section="' + _esc(sectionKey) + '">' +
+          '<div class="section-rows" data-section-rows>' +
+            (count
+              ? normItems.map(function (it, i) { return _renderStructuredSectionRow(sectionKey, schema, it, i); }).join('')
+              : '<div class="bullets-empty" data-rows-empty>No items yet. Add your first.</div>'
+            ) +
+          '</div>' +
+          '<div class="bullets-actions">' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-section-action="row-add" data-section-key="' + _esc(sectionKey) + '">' +
+              '<i data-lucide="plus" style="width:14px;height:14px;"></i> Add' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+      return details;
+    }
+
+    // Fallback: simple textarea (one item per line).
     var text = sectionItemsToEditableText(items);
-    var count = Array.isArray(items) ? items.length : (text ? text.split(/\r?\n/).filter(Boolean).length : 0);
+    var rawCount = Array.isArray(items) ? items.length : (text ? text.split(/\r?\n/).filter(Boolean).length : 0);
     details.innerHTML =
       '<summary><span>' + _esc(label) + '</span>' +
-        '<span class="extra-section-count">' + count + ' ' + (count === 1 ? 'item' : 'items') + '</span>' +
+        '<span class="extra-section-count">' + rawCount + ' ' + (rawCount === 1 ? 'item' : 'items') + '</span>' +
       '</summary>' +
       '<div class="extra-section-body">' +
-        '<textarea data-section-key="' + _esc(sectionKey) + '" placeholder="One item per line…">' + _esc(text) + '</textarea>' +
+        '<textarea data-section-key="' + _esc(sectionKey) + '" placeholder="One item per line\u2026">' + _esc(text) + '</textarea>' +
       '</div>';
     return details;
   }
@@ -5107,7 +5405,10 @@
     if (!host) return;
     host.innerHTML = '';
     if (!resumeData) return;
+    var seen = {};
     STANDARD_SECTIONS.forEach(function (sec) {
+      if (seen[sec.key]) return;
+      seen[sec.key] = true;
       var items = resumeData[sec.key];
       if (!items || (Array.isArray(items) && !items.length)) return;
       host.appendChild(_buildSectionCard(sec.key, sec.label, items));
@@ -5116,10 +5417,14 @@
     if (Array.isArray(addl) && addl.length) {
       addl.forEach(function (entry) {
         if (!entry || !entry.key) return;
+        var addlKey = 'additional:' + entry.key;
+        if (seen[addlKey]) return;
+        seen[addlKey] = true;
         var label = entry.label || _labelizeKey(entry.key);
-        host.appendChild(_buildSectionCard('additional:' + entry.key, label, entry.items));
+        host.appendChild(_buildSectionCard(addlKey, label, entry.items));
       });
     }
+    try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
   }
 
   // ============================================================
@@ -5286,8 +5591,29 @@
       var pi = t.getAttribute && t.getAttribute('data-pi-field');
       if (pi) { rd[pi] = t.value; return; }
 
+      // Structured row field edit (Certifications/Achievements/Education/
+      // Leadership/Volunteer/Projects). Must be checked BEFORE the textarea
+      // section-key fallback so we don't overwrite the array with a single
+      // newline-split string.
+      var structuredField = t.getAttribute && t.getAttribute('data-section-field');
+      if (structuredField) {
+        var sKey = t.getAttribute('data-section-key');
+        var sIdx = parseInt(t.getAttribute('data-section-index'), 10);
+        if (sKey && STRUCTURED_SECTION_SCHEMAS[sKey] && isFinite(sIdx)) {
+          var arrS = _ensureSectionArray(sKey);
+          if (!arrS[sIdx] || typeof arrS[sIdx] !== 'object') {
+            arrS[sIdx] = _newEmptyStructuredItem(sKey);
+          }
+          arrS[sIdx][structuredField] = t.value;
+          _markSectionDirty('extra-section-edit');
+          return;
+        }
+      }
+
       var sectionKey = t.getAttribute && t.getAttribute('data-section-key');
       if (sectionKey) {
+        // Skip structured rows defensively (already handled above).
+        if (STRUCTURED_SECTION_SCHEMAS[sectionKey]) return;
         var items = editableTextToSectionItems(t.value);
         if (sectionKey.indexOf('additional:') === 0) {
           var subKey = sectionKey.slice('additional:'.length);
@@ -5331,6 +5657,64 @@
 
     // ---- Click handler (position/bullet structural actions) ----
     shell.addEventListener('click', function (ev) {
+      // Structured-section row actions (Certifications, Achievements, etc.)
+      var sectionActionEl = ev.target && ev.target.closest && ev.target.closest('[data-section-action]');
+      if (sectionActionEl) {
+        var sAction = sectionActionEl.getAttribute('data-section-action');
+        var sKey    = sectionActionEl.getAttribute('data-section-key');
+        if (!sKey || !STRUCTURED_SECTION_SCHEMAS[sKey]) {
+          // Not one of our structured sections - leave for other handlers.
+        } else {
+          ev.preventDefault();
+          var arrSec = _ensureSectionArray(sKey);
+          if (sAction === 'row-add') {
+            arrSec.push(_newEmptyStructuredItem(sKey));
+            _markSectionDirty('extra-section-row-add');
+            _rerenderStructuredSectionCard(sKey);
+            // Focus first input of the newly-added row.
+            setTimeout(function () {
+              try {
+                var hostList = document.getElementById('extra-sections-list');
+                var card = hostList && hostList.querySelector('[data-section-card="' + sKey + '"]');
+                var rows = card ? card.querySelectorAll('[data-section-row]') : [];
+                var last = rows[rows.length - 1];
+                var firstInput = last && last.querySelector('input,textarea');
+                if (firstInput && typeof firstInput.focus === 'function') firstInput.focus();
+              } catch (_) {}
+            }, 0);
+            return;
+          }
+          var sIdxStr = sectionActionEl.getAttribute('data-section-index');
+          var sIdx = parseInt(sIdxStr, 10);
+          if (!isFinite(sIdx) || !arrSec[sIdx]) return;
+          if (sAction === 'row-remove') {
+            var item = arrSec[sIdx] || {};
+            var hasContent = Object.keys(item).some(function (k) {
+              var v = item[k];
+              return v != null && (typeof v === 'string' || typeof v === 'number') && String(v).trim();
+            });
+            if (hasContent && !window.confirm('Remove this entry?')) return;
+            arrSec.splice(sIdx, 1);
+            _markSectionDirty('extra-section-row-remove');
+            _rerenderStructuredSectionCard(sKey);
+            return;
+          }
+          if (sAction === 'row-up' && sIdx > 0) {
+            var swapU = arrSec[sIdx - 1]; arrSec[sIdx - 1] = arrSec[sIdx]; arrSec[sIdx] = swapU;
+            _markSectionDirty('extra-section-row-up');
+            _rerenderStructuredSectionCard(sKey);
+            return;
+          }
+          if (sAction === 'row-down' && sIdx < arrSec.length - 1) {
+            var swapD = arrSec[sIdx + 1]; arrSec[sIdx + 1] = arrSec[sIdx]; arrSec[sIdx] = swapD;
+            _markSectionDirty('extra-section-row-down');
+            _rerenderStructuredSectionCard(sKey);
+            return;
+          }
+          return;
+        }
+      }
+
       var actionEl = ev.target && ev.target.closest && ev.target.closest('[data-exp-action],[data-bullet-action]');
       if (!actionEl) return;
 
@@ -8474,23 +8858,36 @@
     row.setAttribute('aria-hidden', 'true');
   }
 
+  // ============================================================
+  // Centralized accent-color palette (single source of truth).
+  // Consumed by:
+  //   - applyStyleCardPreviewColor (style-card retint)
+  //   - getPreviewStyleConfig (preview/PDF/DOCX render config)
+  //   - publishShareLink (Firestore plans/{id}.color hex written for view.html)
+  // Hex values are byte-identical to the previously-inlined palettes.
+  // Includes backward-compat 'green' for legacy saved resumes.
+  // ============================================================
+  var RB_COLOR_PALETTE = {
+    blue:     { a:'#2563EB', d:'#1D4ED8' },
+    navy:     { a:'#0B487A', d:'#083560' },
+    purple:   { a:'#7C3AED', d:'#5B21B6' },
+    emerald:  { a:'#059669', d:'#047857' },
+    teal:     { a:'#0F766E', d:'#0B5A55' },
+    slate:    { a:'#475569', d:'#334155' },
+    charcoal: { a:'#111827', d:'#0B1220' },
+    amber:    { a:'#D97706', d:'#B45309' },
+    rose:     { a:'#E11D48', d:'#BE123C' },
+    burgundy: { a:'#7F1D1D', d:'#601313' },
+    green:    { a:'#047857', d:'#065F46' }
+  };
+  function getColorAccent(colorKey) {
+    return RB_COLOR_PALETTE[colorKey] || RB_COLOR_PALETTE.blue;
+  }
+  try { window.RB_COLOR_PALETTE = RB_COLOR_PALETTE; } catch (_) {}
+
   // Retint the .style-card mini-previews when the swatch changes.
   function applyStyleCardPreviewColor(color) {
-    var palette = {
-      blue:     { a:'#2563EB', d:'#1D4ED8' },
-      navy:     { a:'#0B487A', d:'#083560' },
-      purple:   { a:'#7C3AED', d:'#5B21B6' },
-      emerald:  { a:'#059669', d:'#047857' },
-      teal:     { a:'#0F766E', d:'#0B5A55' },
-      slate:    { a:'#475569', d:'#334155' },
-      charcoal: { a:'#111827', d:'#0B1220' },
-      amber:    { a:'#D97706', d:'#B45309' },
-      rose:     { a:'#E11D48', d:'#BE123C' },
-      burgundy: { a:'#7F1D1D', d:'#601313' },
-      // Backward-compat: existing saved resumes may use color="green".
-      green:    { a:'#047857', d:'#065F46' }
-    };
-    var p = palette[color] || palette.blue;
+    var p = getColorAccent(color);
     document.querySelectorAll('.style-card').forEach(function (card) {
       card.style.setProperty('--scAccent', p.a);
       card.style.setProperty('--scAccentDark', p.d);
@@ -8506,21 +8903,7 @@
     style = style || 'modern-sidebar';
     color = color || 'blue';
     format = format || 'web';
-    var palette = {
-      blue:     { a:'#2563EB', d:'#1D4ED8' },
-      navy:     { a:'#0B487A', d:'#083560' },
-      purple:   { a:'#7C3AED', d:'#5B21B6' },
-      emerald:  { a:'#059669', d:'#047857' },
-      teal:     { a:'#0F766E', d:'#0B5A55' },
-      slate:    { a:'#475569', d:'#334155' },
-      charcoal: { a:'#111827', d:'#0B1220' },
-      amber:    { a:'#D97706', d:'#B45309' },
-      rose:     { a:'#E11D48', d:'#BE123C' },
-      burgundy: { a:'#7F1D1D', d:'#601313' },
-      // Backward-compat: existing saved resumes may use color="green".
-      green:    { a:'#047857', d:'#065F46' }
-    };
-    var p = palette[color] || palette.blue;
+    var p = getColorAccent(color);
     // ARCHITECTURE: every web style shares the same `published-profile`
     // body layout. Styles only differ on color, typography, accent and
     // section treatment for the public web page. Document layouts
@@ -13356,20 +13739,10 @@
             color: (document.querySelector('.swatch.selected') && document.querySelector('.swatch.selected').getAttribute('data-color')) || 'blue'
           };
 
-      var colorMap = {
-        blue:     '#2563EB',
-        navy:     '#0B487A',
-        purple:   '#7C3AED',
-        emerald:  '#059669',
-        teal:     '#0F766E',
-        slate:    '#475569',
-        charcoal: '#111827',
-        amber:    '#D97706',
-        rose:     '#E11D48',
-        burgundy: '#7F1D1D',
-        // Backward-compat: legacy saved resumes may use color="green".
-        green:    '#047857'
-      };
+      var colorMap = {};
+      Object.keys(RB_COLOR_PALETTE).forEach(function (k) {
+        colorMap[k] = RB_COLOR_PALETTE[k].a;
+      });
       var styleToken = styleSettings.style || 'modern-sidebar';
       var rawColor = styleSettings.color || 'blue';
       var color;
