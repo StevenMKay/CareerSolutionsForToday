@@ -10139,6 +10139,34 @@
       .replace(/\s(href|src|action|xlink:href)\s*=\s*"\s*javascript:[^"]*"/gi, ' $1="#"')
       .replace(/\s(href|src|action|xlink:href)\s*=\s*'\s*javascript:[^']*'/gi, " $1='#'");
   }
+
+  // Single-source helper for assigning HTML to a sandboxed preview iframe.
+  // - Routes through stripScriptsFromPreviewHTML / sanitizePreviewHTML so the
+  //   iframe never sees executable script tags (the sandbox does NOT include
+  //   allow-scripts, by design).
+  // - If anything still looks script-like after sanitize, log a warning with
+  //   a short snippet so the offending template can be tracked down.
+  // - Use this for EVERY preview iframe srcdoc assignment. Do not use it for
+  //   real PDF/DOCX export — those go through the export pipeline (separate).
+  function assignPreviewSrcdoc(frame, html) {
+    if (!frame) return '';
+    var clean = '';
+    try { clean = stripScriptsFromPreviewHTML(String(html || '')); }
+    catch (_) { clean = String(html || ''); }
+    var residual = clean.match(/<script\b[^>]*>/i);
+    if (residual) {
+      try {
+        console.warn('[preview] residual <script> after sanitize — sandbox will block it. Snippet:',
+          clean.substr(Math.max(0, residual.index), 200));
+      } catch (_) {}
+    }
+    try { frame.srcdoc = clean; } catch (e) {
+      console.error('[preview] frame.srcdoc assignment failed', e);
+    }
+    return clean;
+  }
+  try { window.assignPreviewSrcdoc = assignPreviewSrcdoc; } catch (_) {}
+
   function getRolePlanPhaseCount(plan, type) {
     if (!plan) return 0;
     var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
@@ -11971,7 +11999,7 @@
         !doesOutputStyleSupportFormat(_selectedTemplate, 'docx')
       ) {
         var _unavailableHtml = renderWordPreviewUnavailableHTML(_selectedTemplate);
-        frame.srcdoc = stripScriptsFromPreviewHTML([
+        assignPreviewSrcdoc(frame, [
           '<!doctype html><html><head><meta charset="utf-8">',
           '<style>',
           'body{margin:0;background:#F1F5F9;font-family:Manrope,Arial,sans-serif;}',
@@ -12006,7 +12034,7 @@
       if (isDocumentPreviewFormat(_previewFormat)) {
         cleanHtml = injectMobileDocumentPreviewFitCSS(cleanHtml);
       }
-      frame.srcdoc = stripScriptsFromPreviewHTML(cleanHtml);
+      assignPreviewSrcdoc(frame, cleanHtml);
       // Reset iframe + container scroll on every render so the user sees the top of the new preview.
       frame.addEventListener('load', function () {
         try {
@@ -12858,7 +12886,13 @@
     document.body.appendChild(iframe);
 
     try {
-      iframe.srcdoc = docHtml;
+      // Defensive sanitize. This iframe is the print-dialog fallback (NOT
+      // sandboxed and NOT used for real PDF/DOCX export — the export pipeline
+      // is separate). Sanitizing here only removes inline <script>/event
+      // handlers; rendered visual output is unchanged because the print
+      // template never contained executable scripts to begin with.
+      try { iframe.srcdoc = sanitizePreviewHTML(docHtml); }
+      catch (_) { iframe.srcdoc = docHtml; }
 
       await new Promise(function (resolve) {
         var done = false;
@@ -14745,6 +14779,25 @@
         if (typeof updateStepperState === 'function') updateStepperState(getActiveStep());
         if (typeof markBuilderDirty === 'function') markBuilderDirty('publish-complete');
       } catch (_) {}
+      // Diagnostics: show what we wrote so the published page contract is
+      // easy to verify without opening Firestore console. See
+      // window.debugPublishViewContract for the full async check.
+      try {
+        console.log('[publishShareLink] wrote plans/' + ref.id, {
+          slug: slug,
+          published: true,
+          schemaVersion: payload.schemaVersion,
+          style: styleToken,
+          color: color,
+          hasGenerated: !!payload.generated,
+          hasGeneratedHero: !!(payload.generated && payload.generated.hero),
+          hasDocumentPackage: !!payload.documentPackage,
+          hasResumeData: !!payload.resumeData,
+          hasCoverLetter: !!payload.coverLetter,
+          hasRolePlan: !!payload.rolePlan,
+          viewUrl: url
+        });
+      } catch (_) {}
       showPublishedShareResult(url);
       showToast('Published share link created.', 'success');
       return url;
@@ -14764,35 +14817,82 @@
 
   window.debugPublishViewContract = async function () {
     var id = window.currentPlanId || (window.RB_STATE && RB_STATE.currentPlanId) || currentPlanId;
-    if (!id) return { ok: false, reason: 'no currentPlanId' };
+    if (!id) return { ok: false, reason: 'no currentPlanId — publish or save first' };
     if (!db) return { ok: false, reason: 'no db' };
-    var snap = await db.collection('plans').doc(id).get();
+    var snap;
+    try {
+      snap = await db.collection('plans').doc(id).get();
+    } catch (err) {
+      return { ok: false, reason: 'firestore read failed', code: (err && err.code) || '', message: (err && err.message) || String(err) };
+    }
     if (!snap.exists) return { ok: false, reason: 'plan doc not found', id: id };
     var d = snap.data() || {};
     var viewUrl = d.slug ? (location.origin + '/view.html?p=' + encodeURIComponent(d.slug)) : '';
-    return {
-      ok: !!(d.slug && d.published === true && d.generated && d.generated.hero),
-      id: id,
+    var topKeys = Object.keys(d);
+    var resumeData = d.resumeData || (d.documentPackage && d.documentPackage.documents && d.documentPackage.documents.resume) || null;
+    // view.html STYLE_CONFIG keys (kept in sync). Builder tokens like
+    // 'modern-sidebar' / 'portfolio' rely on view.html's alias map.
+    var VIEW_STYLE_KEYS = ['executive', 'modern', 'classic', 'bold', 'tech'];
+    var VIEW_STYLE_ALIAS = {
+      'modern-sidebar': 'executive',
+      'portfolio':      'bold',
+      'classic-serif':  'classic',
+      'minimal':        'modern'
+    };
+    var rawStyle = String(d.style || '').toLowerCase();
+    var viewStyleSupported = VIEW_STYLE_KEYS.indexOf(rawStyle) !== -1 || !!VIEW_STYLE_ALIAS[rawStyle];
+
+    var missing = [];
+    if (!d.slug) missing.push('slug');
+    if (d.published !== true) missing.push('published:true');
+    var hasUsableContent =
+      (d.generated && d.generated.hero && d.generated.hero.name) ||
+      (d.documentPackage && d.documentPackage.documents) ||
+      d.resumeData;
+    if (!hasUsableContent) missing.push('generated.hero or documentPackage or resumeData');
+    if (!d.style) missing.push('style');
+
+    var result = {
+      ok: missing.length === 0,
+      currentPlanId: id,
       slug: d.slug || '',
+      viewUrl: viewUrl,
+      docExists: true,
       published: d.published === true,
-      hasGenerated: !!d.generated,
-      hasHero: !!(d.generated && d.generated.hero),
-      hasResumeData: !!d.resumeData,
+      schemaVersion: d.schemaVersion || '(none)',
+      topLevelKeys: topKeys,
       hasDocumentPackage: !!d.documentPackage,
+      hasResumeData: !!resumeData,
+      hasGenerated: !!d.generated,
+      hasGeneratedHero: !!(d.generated && d.generated.hero),
       hasCoverLetter: !!d.coverLetter,
       hasRolePlan: !!d.rolePlan,
       style: d.style || '',
       color: d.color || '',
+      hasStyleSettings: !!d.styleSettings,
+      viewStyleSupported: viewStyleSupported,
       jobTitle: d.jobTitle || '',
       company: d.company || '',
-      viewUrl: viewUrl,
-      missing: [
-        !d.slug && 'slug',
-        d.published !== true && 'published:true',
-        !d.generated && 'generated',
-        !(d.generated && d.generated.hero) && 'generated.hero'
-      ].filter(Boolean)
+      missing: missing
     };
+    if (!result.ok) {
+      console.warn('[debugPublishViewContract] contract incomplete:', result);
+    } else {
+      console.log('[debugPublishViewContract] OK', result);
+    }
+    return result;
+  };
+
+  // One-shot helper: open the most recently published URL in a new tab.
+  // Returns the URL (or null) so it works as a console probe too.
+  window.debugOpenPublishedLink = function () {
+    var url = (window.RB_STATE && (RB_STATE.publishedUrl || RB_STATE.shareUrl)) || null;
+    if (url) {
+      try { window.open(url, '_blank'); } catch (_) {}
+    } else {
+      console.warn('[debugOpenPublishedLink] no published URL on RB_STATE — publish first');
+    }
+    return url;
   };
 
   // ============================================================
