@@ -317,7 +317,12 @@
     background: linear-gradient(135deg, #2563EB, #7C3AED);
     color: #fff; font-weight: 700; font-size: .72rem;
     flex: 0 0 26px;
+    overflow: hidden;
   }
+  #account-menu-btn .acct-avatar img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  #account-menu-btn .acct-avatar.has-photo { background: #FFFFFF; }
   #account-menu-btn .acct-name { white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
   #account-menu-btn .acct-caret { width: 14px; height: 14px; opacity: .7; }
 
@@ -4465,6 +4470,47 @@
     }
   }
 
+  // ---- Navbar avatar photo helpers ----
+  // Render a profile photo (or fallback initial) inside the #account-menu-btn
+  // .acct-avatar circle. Called from applyAuthState() and from
+  // setProfilePhotoUrl() so any change to the resume photo is mirrored here.
+  function updateNavAvatarPhoto(url) {
+    var btn = document.getElementById('account-menu-btn');
+    if (!btn) return;
+    var avatarEl = btn.querySelector('.acct-avatar');
+    if (!avatarEl) return;
+    // Determine the initial we want to keep as a fallback if the image fails.
+    var nameEl = btn.querySelector('.acct-name');
+    var label  = (nameEl && nameEl.textContent) || '';
+    var initial = String(label || '?').charAt(0).toUpperCase() || 'U';
+    if (url && typeof url === 'string') {
+      // Avoid persisting raw data:/blob: URLs in the avatar; only render http(s) or data:.
+      avatarEl.classList.add('has-photo');
+      avatarEl.innerHTML =
+        '<img alt="" src="' + _esc(url) + '" ' +
+          'onerror="this.parentNode.classList.remove(\'has-photo\');this.parentNode.textContent=\'' + _esc(initial) + '\';">';
+    } else {
+      avatarEl.classList.remove('has-photo');
+      avatarEl.textContent = initial;
+    }
+  }
+
+  // Try to read a previously-saved profile photo URL out of builderProfiles/{uid}
+  // and apply it to the navbar avatar. Best-effort; silent on failure.
+  function hydrateNavAvatarFromProfile(uid) {
+    if (!uid || typeof db === 'undefined' || !db) return;
+    db.collection('builderProfiles').doc(uid).get()
+      .then(function (snap) {
+        if (!snap || !snap.exists) return;
+        var d = snap.data() || {};
+        var url = d.photoUrl ||
+                  (d.resumeData && (d.resumeData.photo_url || d.resumeData.photo)) ||
+                  '';
+        if (url) updateNavAvatarPhoto(url);
+      })
+      .catch(function () { /* silent */ });
+  }
+
   function applyAuthState(user) {
     var html   = document.documentElement;
     var status = document.getElementById('auth-status');
@@ -4489,8 +4535,14 @@
           if (avatarEl) avatarEl.textContent = initial;
           if (nameEl)   nameEl.textContent   = label;
         }
+        // If the signed-in account has a photoURL (Google) use it immediately.
+        // The resume-builder profile photo (if saved) will overwrite this below
+        // once builderProfiles loads. Both go through updateNavAvatarPhoto().
+        try { updateNavAvatarPhoto(user.photoURL || ''); } catch (_) {}
+        try { hydrateNavAvatarFromProfile(user.uid); } catch (_) {}
       } else {
         status.innerHTML = '<span class="auth-status-text">Signed out</span>';
+        try { updateNavAvatarPhoto(''); } catch (_) {}
       }
     }
     var saveBtn   = document.getElementById('nav-save');
@@ -8771,6 +8823,14 @@
       // Find a title from the first <h3>; fall back to the def label.
       var h3 = section.querySelector('h3');
       var titleText = (h3 && h3.textContent || def.fallback).trim();
+      // The toggle header already shows an icon + this title, so hide the
+      // original header row inside the body to avoid a duplicate "Suggested
+      // Updates" (etc.) when the section is expanded.
+      if (h3) {
+        var headerRow = h3.parentElement;
+        if (headerRow && headerRow !== section) headerRow.hidden = true;
+        else h3.hidden = true;
+      }
 
       // Move all current children into a new body wrapper.
       var body = document.createElement('div');
@@ -9296,6 +9356,15 @@
   function previewOptimizationUpdates() {
     var sec = document.getElementById('opt-suggestions');
     if (!sec) return;
+    // Expand the collapsible if it isn't already open, so the suggestions
+    // are visible the moment we scroll to them.
+    try {
+      if (sec.classList.contains('opt-collapsible') && !sec.classList.contains('is-open')) {
+        sec.classList.add('is-open');
+        var toggle = sec.querySelector(':scope > .opt-collapse-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', 'true');
+      }
+    } catch (_) {}
     try { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     catch (_) { try { sec.scrollIntoView(); } catch (__) {} }
     try {
@@ -10143,6 +10212,7 @@
     RB_STATE.resumeData.photo_url = url || '';
     RB_STATE.resumeData.photo = url || '';
     updateProfilePhotoPreview();
+    try { updateNavAvatarPhoto(url || ''); } catch (_) {}
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
     try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
     try { markBuilderDirty('profile-photo'); } catch (_) {}
