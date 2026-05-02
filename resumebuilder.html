@@ -16520,6 +16520,7 @@
       },
       {
         id: 'stepper',
+        gotoView: 'builder',
         anchor: '#builder-stepper',
         align: 'below',
         title: 'Three guided steps',
@@ -16527,6 +16528,7 @@
       },
       {
         id: 'application',
+        gotoView: 'builder',
         gotoStep: 'step-application',
         anchor: '#step-application .acc-header, #acc-import .acc-header, #step-application',
         align: 'below',
@@ -16535,6 +16537,7 @@
       },
       {
         id: 'optimize',
+        gotoView: 'builder',
         gotoStep: 'step-optimize',
         anchor: '#optimize-btn, #optimize-run-section',
         align: 'below',
@@ -16543,6 +16546,7 @@
       },
       {
         id: 'export',
+        gotoView: 'builder',
         gotoStep: 'step-export',
         anchor: '#acc-style-export-share .acc-header, #acc-style-export-share, #step-export',
         align: 'below',
@@ -16553,6 +16557,8 @@
 
     var idx = 0;
     var openedNow = false;
+    var _startedFromView = null;   // 'dashboard' | 'login' | 'builder' | null
+    var _startedFromStep = null;   // step-id active when tour started
 
     function $(sel) { try { return document.querySelector(sel); } catch (_) { return null; } }
     function findAnchor(spec) {
@@ -16564,6 +16570,22 @@
       }
       // fallback to first match even if not visible
       return $(parts[0].trim());
+    }
+    function _detectCurrentView() {
+      var build = document.getElementById('builder-wrapper');
+      var dash  = document.getElementById('resume-dashboard');
+      var login = document.getElementById('login-landing');
+      if (build && !build.classList.contains('hidden')) return 'builder';
+      if (dash  && !dash.classList.contains('hidden'))  return 'dashboard';
+      if (login && !login.classList.contains('hidden')) return 'login';
+      return null;
+    }
+    function _ensureView(view) {
+      if (view === 'builder' && typeof window.showBuilderWorkspace === 'function') {
+        try { window.showBuilderWorkspace(); } catch (_) {}
+      } else if (view === 'dashboard' && typeof window.showResumeDashboard === 'function') {
+        try { window.showResumeDashboard(); } catch (_) {}
+      }
     }
 
     function setSpotlight(target, align) {
@@ -16642,13 +16664,19 @@
       if (backBtn)   backBtn.disabled      = (idx === 0);
       if (nextBtn)   nextBtn.textContent   = (idx === STEPS.length - 1) ? 'Finish' : 'Next';
       renderDots();
-      // If this step targets a specific step-panel that is currently
-      // hidden, navigate the builder to it first so the anchor exists
-      // in the layout when we measure for the spotlight.
-      if (step.gotoStep && typeof window.goToStep === 'function') {
-        try { window.goToStep(step.gotoStep); } catch (_) {}
+      // Some steps require a specific view (e.g., builder workspace) and a
+      // specific step-panel to be active for their anchor to exist. Switch
+      // those on first so the anchor mounts before we measure.
+      var viewSwitched = false, stepSwitched = false;
+      if (step.gotoView && _detectCurrentView() !== step.gotoView) {
+        _ensureView(step.gotoView);
+        viewSwitched = true;
       }
-      var delay = step.gotoStep ? 480 : 320;
+      if (step.gotoStep && typeof window.goToStep === 'function') {
+        try { window.goToStep(step.gotoStep); stepSwitched = true; } catch (_) {}
+      }
+      var delay = (viewSwitched ? 600 : 0) + (stepSwitched ? 300 : 0);
+      if (delay === 0) delay = 320;
       setTimeout(function () {
         var anchor = findAnchor(step.anchor);
         if (anchor && typeof anchor.scrollIntoView === 'function') {
@@ -16670,6 +16698,9 @@
       if (!opts.force) {
         try { if (localStorage.getItem('rb_tour_completed') === '1') return; } catch (_) {}
       }
+      // Capture where the user started from so we can restore it on end().
+      _startedFromView = _detectCurrentView();
+      _startedFromStep = (typeof window.__activeStep === 'string') ? window.__activeStep : null;
       idx = 0;
       overlay.hidden = false;
       openedNow = true;
@@ -16698,8 +16729,21 @@
       window.removeEventListener('scroll',  _reposition, true);
       document.removeEventListener('keydown', _onKeyDown, true);
       try { localStorage.setItem('rb_tour_completed', '1'); } catch (_) {}
-      // Return the user to the first step so they start in the right place.
-      try { if (typeof window.goToStep === 'function') window.goToStep('step-application'); } catch (_) {}
+      // Restore the user to the view they were on when they launched the tour.
+      try {
+        if (_startedFromView && _startedFromView !== _detectCurrentView()) {
+          _ensureView(_startedFromView);
+        }
+        // If the tour navigated through builder step panels but the user
+        // was on the dashboard / login originally, just leave them on the
+        // restored view. If they were already in the builder, return them
+        // to whichever step they had open.
+        if (_startedFromView === 'builder' && _startedFromStep && typeof window.goToStep === 'function') {
+          window.goToStep(_startedFromStep);
+        }
+      } catch (_) {}
+      _startedFromView = null;
+      _startedFromStep = null;
       openedNow = false;
     }
 
