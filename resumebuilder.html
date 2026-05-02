@@ -1394,6 +1394,35 @@
   .style-card[data-style="editorial"] .sc-mini::after { content:""; position:absolute; left:8%; top:14px; width:42%; height:6px; background:#202020; box-shadow:0 10px 0 #202020, 0 22px 0 #94A3B8; }
   .style-card.selected { border-color: var(--c-primary); box-shadow: 0 0 0 3px rgba(29,78,216,0.2); }
   .style-card.selected .sc-mini { border-color: var(--c-primary); }
+
+  /* Output Target toggle (Page Style → "Optimize style for") */
+  .output-target-row { margin: -.25rem 0 .55rem; display: flex; flex-direction: column; gap: .35rem; }
+  .output-target-label { margin: 0; }
+  .output-target-toggle { display: inline-flex; gap: 0; border: 1px solid #CBD5E1; border-radius: 999px; background: #F8FAFC; padding: 3px; align-self: flex-start; }
+  .output-target-toggle button {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    padding: .35rem .85rem; font-size: .82rem; font-weight: 700; color: #475569;
+    border-radius: 999px; line-height: 1;
+  }
+  .output-target-toggle button.active { background: var(--c-primary, #1D4ED8); color: #fff; }
+  .output-target-hint { margin: 0; color: #475569; font-size: .78rem; line-height: 1.35; }
+
+  /* Recommended-for-target badges on style cards. Cards stay clickable
+     either way; the badge is purely advisory. */
+  .style-card { position: relative; }
+  .style-card .sc-badge {
+    position: absolute; top: 6px; right: 6px;
+    font-size: .58rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 999px;
+    background: #DCFCE7; color: #14532D; border: 1px solid #86EFAC;
+    display: none;
+  }
+  .style-card[data-recommended="true"] .sc-badge { display: inline-block; }
+  .style-card .sc-note {
+    display: none;
+    margin-top: .15rem; font-size: .65rem; color: #92400E; line-height: 1.2;
+  }
+  .style-card[data-style-note]:not([data-style-note=""]) .sc-note { display: block; }
   .swatch-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
   .swatch {
     width: 28px; height: 28px; border-radius: 50%;
@@ -3234,36 +3263,60 @@
           </button>
           <div class="acc-body stack">
             <input id="export-style" type="hidden" value="modern-sidebar">
+            <!-- Output Target toggle: guides which styles are recommended for
+                 PDF vs Word/DOCX. Does NOT change export logic, selected
+                 documents, or which styles are available. Only sets recommended
+                 badge visibility and (optionally) syncs the Live Preview tab. -->
+            <div class="output-target-row" role="group" aria-label="Optimize style for">
+              <label class="field-label output-target-label">Optimize style for</label>
+              <div class="output-target-toggle" role="tablist">
+                <button type="button" class="active" data-output-target="pdf" aria-pressed="true">PDF</button>
+                <button type="button"                data-output-target="docx" aria-pressed="false">Word / DOCX</button>
+              </div>
+              <p class="output-target-hint" id="output-target-hint">Best for polished visual layout and final presentation.</p>
+            </div>
             <div class="style-grid">
               <div class="style-card selected" data-style="modern-sidebar" title="Structured sidebar layout">
+                <span class="sc-badge" aria-hidden="true"></span>
                 <span class="sc-mini" aria-hidden="true"></span>
                 <span class="sc-name">Modern Sidebar</span>
                 <span class="sc-desc">Structured sidebar layout</span>
+                <span class="sc-note" aria-hidden="true"></span>
               </div>
               <div class="style-card" data-style="executive" title="Formal corporate profile">
+                <span class="sc-badge" aria-hidden="true"></span>
                 <span class="sc-mini" aria-hidden="true"></span>
                 <span class="sc-name">Executive</span>
                 <span class="sc-desc">Formal corporate profile</span>
+                <span class="sc-note" aria-hidden="true"></span>
               </div>
               <div class="style-card" data-style="classic" title="Clean ATS-friendly document">
+                <span class="sc-badge" aria-hidden="true"></span>
                 <span class="sc-mini" aria-hidden="true"></span>
                 <span class="sc-name">Classic</span>
                 <span class="sc-desc">Clean ATS-friendly document</span>
+                <span class="sc-note" aria-hidden="true"></span>
               </div>
               <div class="style-card" data-style="modern" title="Modern public web profile">
+                <span class="sc-badge" aria-hidden="true"></span>
                 <span class="sc-mini" aria-hidden="true"></span>
                 <span class="sc-name">Portfolio</span>
                 <span class="sc-desc">Modern public web profile</span>
+                <span class="sc-note" aria-hidden="true"></span>
               </div>
               <div class="style-card" data-style="corporate" title="Bold corporate profile with deep navy rail and stacked name">
+                <span class="sc-badge" aria-hidden="true"></span>
                 <span class="sc-mini" aria-hidden="true"></span>
                 <span class="sc-name">Corporate</span>
                 <span class="sc-desc">Stacked name &amp; deep accent rail</span>
+                <span class="sc-note" aria-hidden="true"></span>
               </div>
               <div class="style-card" data-style="editorial" title="Editorial layout with oversized condensed headline">
+                <span class="sc-badge" aria-hidden="true"></span>
                 <span class="sc-mini" aria-hidden="true"></span>
                 <span class="sc-name">Editorial</span>
                 <span class="sc-desc">Display-type, cream &amp; ink palette</span>
+                <span class="sc-note" aria-hidden="true"></span>
               </div>
             </div>
             <div>
@@ -4407,6 +4460,86 @@
     // Initial state: tint mockups to current swatch + apply control visibility.
     try { applyStyleCardPreviewColor(getSelectedExportColor()); } catch (_) {}
     try { updatePreviewControlsVisibility(); } catch (_) {}
+    try { initOutputTargetToggle(); } catch (_) {}
+  }
+
+  // Output Target toggle: PDF vs Word/DOCX. Advisory only — does not change
+  // export logic, selected documents, or hide any styles. It (a) updates
+  // recommended-for-target badges on style cards, (b) updates the helper
+  // hint copy, and (c) softly syncs the Live Preview tab between PDF and
+  // DOCX when the user is already on one of those tabs (never when on
+  // Public Web Page). Stored on RB_STATE.outputTarget for downstream use.
+  function initOutputTargetToggle() {
+    var btns = document.querySelectorAll('[data-output-target]');
+    if (!btns.length) return;
+
+    // Default: PDF, unless current preview is already DOCX.
+    var defaultTarget = 'pdf';
+    try {
+      if (typeof getSelectedPreviewFormat === 'function' && getSelectedPreviewFormat() === 'docx') {
+        defaultTarget = 'docx';
+      }
+    } catch (_) {}
+    try { window.RB_STATE = window.RB_STATE || {}; RB_STATE.outputTarget = defaultTarget; } catch (_) {}
+
+    btns.forEach(function (b) {
+      var isDefault = b.getAttribute('data-output-target') === defaultTarget;
+      b.classList.toggle('active', isDefault);
+      b.setAttribute('aria-pressed', isDefault ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        var target = b.getAttribute('data-output-target') || 'pdf';
+        btns.forEach(function (x) {
+          var on = x === b;
+          x.classList.toggle('active', on);
+          x.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        try { window.RB_STATE = window.RB_STATE || {}; RB_STATE.outputTarget = target; } catch (_) {}
+        applyOutputTargetRecommendations(target);
+        // Soft preview sync: only between pdf <-> docx; never touch web.
+        try {
+          var fmt = (typeof getSelectedPreviewFormat === 'function') ? getSelectedPreviewFormat() : 'web';
+          if (fmt === 'pdf' || fmt === 'docx') {
+            if (target !== fmt) {
+              var nextBtn = document.querySelector('[data-preview-format="' + target + '"]');
+              if (nextBtn && !nextBtn.disabled) nextBtn.click();
+            }
+          }
+        } catch (_) {}
+      });
+    });
+
+    applyOutputTargetRecommendations(defaultTarget);
+  }
+
+  function applyOutputTargetRecommendations(target) {
+    target = target === 'docx' ? 'docx' : 'pdf';
+    var hint = document.getElementById('output-target-hint');
+    if (hint) {
+      hint.textContent = (target === 'docx')
+        ? 'Best for editable documents. Some visual layouts may vary in Microsoft Word.'
+        : 'Best for polished visual layout and final presentation.';
+    }
+    // Recommended sets — every style stays selectable; this only badges them.
+    var recPdf  = { 'modern-sidebar':1, 'executive':1, 'corporate':1, 'editorial':1, 'modern':1 };
+    var recDocx = { 'executive':1, 'classic':1, 'corporate':1, 'editorial':1 };
+    var rec = (target === 'docx') ? recDocx : recPdf;
+    var badgeText = (target === 'docx') ? 'Best for Word' : 'Best for PDF';
+
+    document.querySelectorAll('.style-card').forEach(function (card) {
+      var key = card.getAttribute('data-style') || '';
+      var isRec = !!rec[key];
+      card.setAttribute('data-recommended', isRec ? 'true' : 'false');
+      var badge = card.querySelector('.sc-badge');
+      if (badge) badge.textContent = isRec ? badgeText : '';
+      // Note for Modern Sidebar when DOCX is target — visual layout caveat.
+      var note = card.querySelector('.sc-note');
+      var noteText = '';
+      if (target === 'docx' && key === 'modern-sidebar') {
+        noteText = 'Visual style — may vary in Word.';
+      }
+      if (note) note.textContent = noteText;
+      card.setAttribute('data-style-note', noteText);
+    });
   }
 
   // ============================================================
@@ -8811,6 +8944,11 @@
     // Sidebar rail handles contact/skills/certifications/achievements for
     // Modern Sidebar PDF/DOCX. The main column should not duplicate them.
     var sidebarLayout = (cfg.docLayout === 'sidebar-rail' || cfg.docLayout === 'editorial-split') && isDocument;
+    // PDF + sidebar-rail (Modern Sidebar PDF): move Achievements to the
+    // main column so they don't get awkwardly split or orphaned at the
+    // bottom of the colored sidebar. Certifications stay in the sidebar.
+    // DOCX behavior is unchanged (achievements remain in sidebar there).
+    var achInMainForPdfRail = (cfg.docLayout === 'sidebar-rail' && format === 'pdf');
 
     var contactHtml = sidebarLayout ? '' : [
       email && '<span>' + _esc(email) + '</span>',
@@ -8871,7 +9009,7 @@
       '</article>';
     }).join('');
 
-    var achHtml = (sidebarLayout || !achievements.length) ? '' : _bullets(achievements.map(function (a) {
+    var achHtml = ((sidebarLayout && !achInMainForPdfRail) || !achievements.length) ? '' : _bullets(achievements.map(function (a) {
       if (typeof a === 'string') return a;
       var t = a.title || a.name || '';
       var d = a.description || '';
@@ -9377,6 +9515,11 @@
     var certs = Array.isArray(rd.certifications) ? rd.certifications : [];
     var achievements = Array.isArray(rd.achievements) ? rd.achievements
       : (Array.isArray(rd.awards) ? rd.awards : []);
+    // For Modern Sidebar PDF only, Achievements move to the main column to
+    // avoid awkward splits at the bottom of the colored sidebar. The main
+    // column path (_renderResumeSection) re-adds the section in that case.
+    // DOCX still shows Achievements in the sidebar.
+    var showAchievementsInRail = !(format === 'pdf');
     var skillsHtml = renderDocumentSkills(rd, cfg);
     var safePhoto = _safePhotoUrl(photoUrl);
     var splitNameHtml = _splitNameHtml(name);
@@ -9392,7 +9535,7 @@
       '</div>' +
       (skillsHtml ? '<div class="rail-block"><h4>Skills</h4>' + skillsHtml + '</div>' : '') +
       (certs.length ? '<div class="rail-block"><h4>Certifications</h4><ul class="sk-list">' + certs.map(function (c) { return '<li>' + _esc(_safeStr(c && (c.name || c.title || c))) + '</li>'; }).join('') + '</ul></div>' : '') +
-      (achievements.length ? '<div class="rail-block"><h4>Achievements</h4><ul class="sk-list">' + achievements.map(function (a) { return '<li>' + _esc(_safeStr(a && (a.title || a.name || a.description || a))) + '</li>'; }).join('') + '</ul></div>' : '') +
+      ((showAchievementsInRail && achievements.length) ? '<div class="rail-block"><h4>Achievements</h4><ul class="sk-list">' + achievements.map(function (a) { return '<li>' + _esc(_safeStr(a && (a.title || a.name || a.description || a))) + '</li>'; }).join('') + '</ul></div>' : '') +
     '</aside>';
     // Corporate: Big stacked first/LAST name + uppercase tagline lives in the main column header.
     var mainHeader = '';
@@ -9685,6 +9828,14 @@
       'body.format-pdf .exp-row-1 .exp-dates{font-size:.83rem;}',
       'body.format-pdf .exp-row-2 .exp-company{font-size:.92rem;}',
       'body.format-pdf .exp-item ul li,body.format-pdf .edu-item ul li{font-size:.9rem;line-height:1.4;}',
+      // PDF page-break polish: targeted small-block protection only.
+      // Do NOT add break-inside:avoid to .doc-section, .resume-modern-sidebar,
+      // or .sub — large containers cause giant blank pages. Keep headings
+      // with the first item that follows them, and avoid orphaned bullets.
+      'body.format-pdf .exp-item,body.format-pdf .edu-item,body.format-pdf .proj-item,body.format-pdf .phase-card,body.format-pdf .rail-block{break-inside:avoid;page-break-inside:avoid;}',
+      'body.format-pdf .doc-section h2,body.format-pdf .rail-block h4{break-after:avoid;page-break-after:avoid;}',
+      'body.format-pdf .doc-section .sub > h2 + *{break-before:avoid;page-break-before:avoid;}',
+      'body.format-pdf li{break-inside:avoid;page-break-inside:avoid;}',
       // DOCX: Word-style — Times-style serif, generous letter margins, 11pt baseline.
       'body.format-docx{background:#EEF2F7;font-size:11pt;}',
       'body.format-docx .document-package{font-family:"Calibri",Georgia,"Times New Roman",serif;padding:1in .9in;border:1px solid #CBD5E1;box-shadow:0 4px 14px rgba(15,23,42,.08);max-width:8.5in;}',
@@ -11270,6 +11421,27 @@
       selectedTemplate: (window.RB_STATE && (RB_STATE.selectedTemplate || RB_STATE.exportStyle)) || null,
       selectedDocuments: (window.RB_STATE && (RB_STATE.selectedDocuments || RB_STATE.selected)) || null
     };
+  };
+
+  // Debug helper: lists every page-break-protected block in the live preview
+  // iframe (or, if not found, the parent doc) so QA can verify the intended
+  // small blocks exist before exporting a PDF. Use in browser console.
+  window.debugPdfBreakBlocks = function () {
+    var root = document;
+    try {
+      var frame = document.querySelector('#preview-frame');
+      if (frame && frame.contentDocument) root = frame.contentDocument;
+    } catch (_) {}
+    return Array.from(root.querySelectorAll(
+      '.exp-item, .edu-item, .proj-item, .phase-card, .rail-block, .sub > article'
+    )).map(function (el) {
+      var rect = el.getBoundingClientRect ? el.getBoundingClientRect() : { height: 0 };
+      return {
+        className: el.className,
+        text: (el.innerText || el.textContent || '').slice(0, 80),
+        height: Math.round(rect.height || 0)
+      };
+    });
   };
 
   // ---- DOCX style metadata + resolver ----
