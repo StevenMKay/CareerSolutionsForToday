@@ -14233,15 +14233,17 @@
     return out;
   };
 
-  // Phase D++ -- real layout validator. Loads the finalized HTML into the
-  // measurement iframe and reports actually-blank pages and clipped regions
-  // (DOMParser alone cannot detect overflow because it doesn't lay out).
+  // Phase E -- real layout validator. Loads the finalized HTML into the
+  // measurement iframe and reports actually-blank pages, clipped regions,
+  // and bottom-reserve violations (DOMParser alone cannot detect overflow
+  // because it doesn't lay out).
   window.validateFixedPdfLayout = async function (html) {
     var result = {
       ok: true,
       pageCount: 0,
       overflowPages: [],
       blankPages: [],
+      bottomReserveViolations: [],
       hasAchievements: false,
       hasEducation: false,
       hasCertifications: false,
@@ -14271,6 +14273,7 @@
     result.bodyClass = doc.body.className || '';
     var pages = Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page'));
     result.pageCount = pages.length;
+    var bottomReserve = Number(window.RB_DOC_BOTTOM_RESERVE_PX || 60);
     pages.forEach(function (page, index) {
       var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
       if (!text) result.blankPages.push(index + 1);
@@ -14295,8 +14298,32 @@
           });
         }
       });
+      // Phase E -- bottom-reserve violation: any rb-doc-section whose bottom
+      // sits inside the reserved bottom strip indicates content jammed
+      // against the page divider. Skip the LAST section of the LAST page
+      // (acceptable trailing content).
+      try {
+        var pageRect = page.getBoundingClientRect();
+        var allowedBottom = pageRect.bottom - bottomReserve;
+        var sections = page.querySelectorAll('.rb-doc-section');
+        sections.forEach(function (sec, secIdx) {
+          var r = sec.getBoundingClientRect();
+          var isLastSectionOfLastPage = (index === pages.length - 1) && (secIdx === sections.length - 1);
+          if (isLastSectionOfLastPage) return;
+          if (r.bottom > allowedBottom) {
+            result.bottomReserveViolations.push({
+              page: index + 1,
+              dataBlock: sec.getAttribute('data-block') || '',
+              sectionBottom: Math.round(r.bottom),
+              allowedBottom: Math.round(allowedBottom)
+            });
+          }
+        });
+      } catch (_) {}
     });
-    result.ok = !result.blankPages.length && !result.overflowPages.length;
+    result.ok = !result.blankPages.length &&
+                !result.overflowPages.length &&
+                !result.bottomReserveViolations.length;
     return result;
   };
 
@@ -14366,6 +14393,7 @@
     var doc = null;
     try { doc = frame && frame.contentDocument; } catch (_) {}
     var pages = doc ? Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page')) : [];
+    var bottomReserve = Number(window.RB_DOC_BOTTOM_RESERVE_PX || 60);
     return {
       enabled:   window.RB_USE_FIXED_DOCUMENT_RENDERER !== false,
       format:    typeof getSelectedPreviewFormat === 'function' ? getSelectedPreviewFormat() : null,
@@ -14394,6 +14422,31 @@
         });
         var regionOverflow = regions.some(function (r) { return r.hasOverflow; });
         var pageOverflow   = page.scrollHeight > page.clientHeight + 2;
+        // Bottom-reserve check: agree with validator.
+        var bottomReserveViolations = [];
+        try {
+          var allowedBottom = rect.bottom - bottomReserve;
+          var sections = page.querySelectorAll('.rb-doc-section');
+          var isLastPage = (index === pages.length - 1);
+          sections.forEach(function (sec, secIdx) {
+            var srect = sec.getBoundingClientRect();
+            var isLastSectionOfLastPage = isLastPage && (secIdx === sections.length - 1);
+            if (isLastSectionOfLastPage) return;
+            if (srect.bottom > allowedBottom) {
+              bottomReserveViolations.push({
+                dataBlock: sec.getAttribute('data-block') || '',
+                sectionBottom: Math.round(srect.bottom),
+                allowedBottom: Math.round(allowedBottom)
+              });
+            }
+          });
+        } catch (_) {}
+        var sidebarBackground = null;
+        try {
+          if (aside && frame && frame.contentWindow) {
+            sidebarBackground = frame.contentWindow.getComputedStyle(aside).backgroundColor || null;
+          }
+        } catch (_) {}
         return {
           index:        index + 1,
           docType:      page.getAttribute('data-doc-type'),
@@ -14406,10 +14459,51 @@
           innerClientHeight: inner ? inner.clientHeight : 0,
           innerScrollHeight: inner ? inner.scrollHeight : 0,
           regions: regions,
-          hasOverflow: regionOverflow || pageOverflow
+          sidebarBackground: sidebarBackground,
+          bottomReserveViolations: bottomReserveViolations,
+          hasOverflow: regionOverflow || pageOverflow || bottomReserveViolations.length > 0
         };
       }),
       iframe: frame ? { width: frame.clientWidth, height: frame.clientHeight } : null,
+      timestamp: new Date().toISOString()
+    };
+  };
+
+  // Phase E -- conflict diagnostic. Reports whether any old sidebar code
+  // path has snuck back in: full-width continuation pages on a sidebar
+  // template, or a main-column "Additional Skills" section.
+  window.debugSidebarRendererConflicts = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    var bodyClass = doc && doc.body ? doc.body.className : '';
+    var pages = doc ? Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page')) : [];
+    var isSidebarDoc = /template-modern-sidebar|template-corporate|template-editorial|layout-sidebar|layout-sidebar-rail|layout-rail/.test(bodyClass);
+    var win = frame && frame.contentWindow;
+    return {
+      bodyClass: bodyClass,
+      isSidebarDoc: isSidebarDoc,
+      pageCount: pages.length,
+      sidebarPages: pages.filter(function (p) { return p.classList.contains('rb-doc-page--sidebar'); }).length,
+      continuationPages: pages.filter(function (p) { return p.classList.contains('rb-doc-page--continuation'); }).length,
+      fullWidthContinuationPagesWithSidebarTemplate: pages.filter(function (p) {
+        return isSidebarDoc &&
+               p.classList.contains('rb-doc-page--continuation') &&
+               !p.querySelector('.rb-sidebar-aside');
+      }).length,
+      additionalSkillsTextFound: doc ? /Additional Skills/i.test(doc.body.textContent || '') : false,
+      additionalSkillsSections: doc ? doc.querySelectorAll('[data-block="additionalSkills"]').length : 0,
+      sidebarBackgrounds: pages.map(function (p, i) {
+        var aside = p.querySelector('.rb-sidebar-aside');
+        var bg = null;
+        try { if (aside && win) bg = win.getComputedStyle(aside).backgroundColor || null; } catch (_) {}
+        return {
+          page: i + 1,
+          hasAside: !!aside,
+          bg: bg,
+          skillCount: aside ? aside.querySelectorAll('.rb-sidebar-list-item').length : 0
+        };
+      }),
       timestamp: new Date().toISOString()
     };
   };
@@ -14465,6 +14559,22 @@
     return grid ? _decodeSidebarOverflowSkills(grid.getAttribute('data-overflow-skills')) : [];
   }
 
+  // Phase E -- read full skill list from data-sidebar-skills (set by
+  // renderFixedResumeSidebarHTML). Page 1's skill list is rendered empty
+  // and the paginator decides how many fit by measurement.
+  function _getSidebarAllSkillsFromPage(pageEl) {
+    var grid = pageEl && pageEl.querySelector ? pageEl.querySelector('.rb-sidebar-grid') : null;
+    if (!grid) return [];
+    try {
+      var raw = grid.getAttribute('data-sidebar-skills') || '';
+      return JSON.parse(decodeURIComponent(raw)) || [];
+    } catch (_) { return []; }
+  }
+  function _encodeSidebarAllSkills(skills) {
+    try { return encodeURIComponent(JSON.stringify(skills || [])); }
+    catch (_) { return ''; }
+  }
+
   function _getSidebarContactLengthClass(value) {
     value = String(value || '').trim();
     if (!value) return '';
@@ -14473,93 +14583,101 @@
     return '';
   }
 
-  // Render a continuation-page aside: compact identity + "Resume continued"
-  // + any remaining skills that should appear on this page's rail.
-  function renderSidebarContinuationAside(model, remainingSkills, settings, pageNumber) {
-    model = model || {};
-    remainingSkills = Array.isArray(remainingSkills) ? remainingSkills : [];
-    var html = '';
-    html += '<div class="rb-sidebar-id rb-sidebar-id--continued">';
-    if (model.name) {
-      html += '<h1 class="rb-sidebar-name rb-sidebar-name--continued">' + rbDocEscape(model.name) + '</h1>';
+  // ---------- Phase E unified sidebar renderers ----------
+  // Page 1 and continuation pages both call renderSidebarAsideHTML so the
+  // rail is one component. Continuation calls pass {continued:true} which
+  // swaps to compact identity and skips contact.
+  function renderSidebarIdentityHTML(model, settings, options) {
+    options = options || {};
+    var continued = !!options.continued;
+    var html = '<div class="rb-sidebar-id' + (continued ? ' rb-sidebar-id--continued' : '') + '" data-block="sidebarIdentity">';
+    if (model && model.name) {
+      html += '<h1 class="rb-sidebar-name' + (continued ? ' rb-sidebar-name--continued' : '') + '">' + rbDocEscape(model.name) + '</h1>';
     }
-    html += '<p class="rb-sidebar-headline rb-sidebar-headline--continued">Resume continued</p>';
+    if (continued) {
+      html += '<p class="rb-sidebar-headline rb-sidebar-headline--continued">Resume continued</p>';
+    } else if (model && model.headline) {
+      html += '<p class="rb-sidebar-headline">' + rbDocEscape(model.headline) + '</p>';
+    }
     html += '</div>';
-    if (remainingSkills.length) {
-      html += '<section class="rb-sidebar-section rb-sidebar-section--continued" data-block="sidebarSkillsContinued">';
-      html += '<h2 class="rb-sidebar-title">Skills</h2>';
-      html += '<ul class="rb-sidebar-list">';
-      remainingSkills.forEach(function (skill) {
-        html += '<li class="rb-sidebar-list-item">' + rbDocEscape(skill) + '</li>';
-      });
-      html += '</ul>';
-      html += '</section>';
-    }
     return html;
   }
-  try { window.renderSidebarContinuationAside = renderSidebarContinuationAside; } catch (_) {}
 
-  // Sidebar holds at most this many skills on Page 1. Overflow stays in
-  // the sidebar system: it is encoded on the page's grid and then placed
-  // into the continuation rail at pagination time. It is NOT rendered as
-  // an "Additional Skills" section in the main column anymore.
-  var MAX_SIDEBAR_SKILLS = 12;
+  function renderSidebarContactHTML(model, settings, options) {
+    var c = (model && model.contact) || {};
+    var rows = [];
+    [['email', c.email], ['phone', c.phone], ['location', c.location],
+     ['linkedin', c.linkedin], ['website', c.website], ['github', c.github]].forEach(function (pair) {
+      if (pair[1]) {
+        rows.push(
+          '<li class="rb-sidebar-contact-row' + _getSidebarContactLengthClass(pair[1]) +
+          '" data-kind="' + pair[0] + '">' + rbDocEscape(pair[1]) + '</li>'
+        );
+      }
+    });
+    if (!rows.length) return '';
+    return '<section class="rb-sidebar-section" data-block="sidebarContact">' +
+      '<h2 class="rb-sidebar-title">Contact</h2>' +
+      '<ul class="rb-sidebar-list">' + rows.join('') + '</ul>' +
+    '</section>';
+  }
+
+  function renderSidebarSkillsHTML(skills, settings, options) {
+    options = options || {};
+    skills = Array.isArray(skills) ? skills : [];
+    var continued = !!options.continued;
+    var blockKey = continued ? 'sidebarSkillsContinued' : 'sidebarSkills';
+    var html = '<section class="rb-sidebar-section' + (continued ? ' rb-sidebar-section--continued' : '') +
+      '" data-block="' + blockKey + '"' + (skills.length ? '' : ' hidden') + '>';
+    html += '<h2 class="rb-sidebar-title">Skills</h2>';
+    html += '<ul class="rb-sidebar-list" data-sidebar-skill-list>';
+    skills.forEach(function (s) {
+      html += '<li class="rb-sidebar-list-item">' + rbDocEscape(s) + '</li>';
+    });
+    html += '</ul>';
+    html += '</section>';
+    return html;
+  }
+
+  function renderSidebarAsideHTML(model, skills, settings, options) {
+    options = options || {};
+    var continued = !!options.continued;
+    var html = renderSidebarIdentityHTML(model, settings, options);
+    if (!continued) html += renderSidebarContactHTML(model, settings, options);
+    html += renderSidebarSkillsHTML(skills || [], settings, options);
+    return html;
+  }
+  // Backwards-compat alias for any older callers.
+  function renderSidebarContinuationAside(model, remainingSkills, settings, pageNumber) {
+    return renderSidebarAsideHTML(model, remainingSkills, settings, { continued: true, pageNumber: pageNumber });
+  }
+  try {
+    window.renderSidebarIdentityHTML       = renderSidebarIdentityHTML;
+    window.renderSidebarContactHTML        = renderSidebarContactHTML;
+    window.renderSidebarSkillsHTML         = renderSidebarSkillsHTML;
+    window.renderSidebarAsideHTML          = renderSidebarAsideHTML;
+    window.renderSidebarContinuationAside  = renderSidebarContinuationAside;
+  } catch (_) {}
+
+  // Phase E -- emergency hard cap only. The primary skill split rule is
+  // measurement (see _measureSidebarSkillSplit). MAX_SIDEBAR_SKILLS is no
+  // longer used to slice page 1 vs page 2.
+  var MAX_SIDEBAR_SKILLS = 999;
 
   function renderFixedResumeSidebarHTML(model, settings, pkg) {
     if (!model) return '';
 
-    // Phase D+ fix: sidebar (left) holds ONLY identity + contact + top-N
-    // skills. Education, certifications, and overflow skills move to the
-    // main column so the paginator can split them across continuation
-    // pages without clipping (the aside has overflow:hidden by design).
-    var asideParts = [];
-    asideParts.push(
-      '<div class="rb-sidebar-id" data-block="sidebarIdentity">' +
-        (model.name ? '<h1 class="rb-sidebar-name">' + rbDocEscape(model.name) + '</h1>' : '') +
-        (model.headline ? '<p class="rb-sidebar-headline">' + rbDocEscape(model.headline) + '</p>' : '') +
-      '</div>'
-    );
-
-    var c = model.contact || {};
-    var contactRows = [];
-    [['email', c.email], ['phone', c.phone], ['location', c.location],
-     ['linkedin', c.linkedin], ['website', c.website], ['github', c.github]].forEach(function (pair) {
-      if (pair[1]) {
-        contactRows.push(
-          '<li class="rb-sidebar-contact-row' + _getSidebarContactLengthClass(pair[1]) +
-          '" data-kind="' + pair[0] + '">' +
-          rbDocEscape(pair[1]) + '</li>'
-        );
-      }
-    });
-    if (contactRows.length) {
-      asideParts.push(
-        '<section class="rb-sidebar-section" data-block="sidebarContact">' +
-          '<h2 class="rb-sidebar-title">Contact</h2>' +
-          '<ul class="rb-sidebar-list">' + contactRows.join('') + '</ul>' +
-        '</section>'
-      );
-    }
-
-    var topSkills = [];
-    var overflowSkills = [];
-    if (model.skills && model.skills.length) {
-      topSkills = model.skills.slice(0, MAX_SIDEBAR_SKILLS);
-      overflowSkills = model.skills.slice(MAX_SIDEBAR_SKILLS);
-      asideParts.push(
-        '<section class="rb-sidebar-section" data-block="sidebarSkills">' +
-          '<h2 class="rb-sidebar-title">Skills</h2>' +
-          '<ul class="rb-sidebar-list">' +
-            topSkills.map(function (s) {
-              return '<li class="rb-sidebar-list-item">' + rbDocEscape(s) + '</li>';
-            }).join('') +
-          '</ul>' +
-        '</section>'
-      );
-    }
+    // Phase E -- the sidebar (left) holds identity + contact + Skills.
+    // Page 1 is rendered with NO skills filled in; the full list is
+    // attached to the grid as data-sidebar-skills. The paginator measures
+    // available rail space and fills page 1 + any continuation rails so
+    // skills are never split by an arbitrary fixed count.
+    var allSkills = (model.skills && model.skills.length) ? model.skills.slice() : [];
+    var asideHTML = renderSidebarAsideHTML(model, [], settings, { continued: false });
 
     // Main column: summary + experience + projects + achievements + volunteer
-    // + education + certifications + (optional) Additional Skills overflow.
+    // + education + certifications. Skills NEVER go in the main column for
+    // sidebar templates -- there is no "Additional Skills" section.
     var mainParts = [];
     if (model.summary) {
       mainParts.push(
@@ -14675,14 +14793,12 @@
         '</section>'
       );
     }
-    // Phase D+++ -- overflow skills stay in the sidebar system. They are
-    // encoded on the grid and re-emitted in the continuation rail at
-    // pagination time. Do NOT render an "Additional Skills" section in the
-    // main column for sidebar templates.
-
-    return '<div class="rb-sidebar-grid" data-overflow-skills="' +
-        rbDocEscape(_encodeSidebarOverflowSkills(overflowSkills)) + '">' +
-      '<aside class="rb-sidebar-aside" data-block="sidebar">' + asideParts.join('') + '</aside>' +
+    // Phase E -- skills live in the sidebar system. The full skill list is
+    // attached to the grid; pagination measures and fills page 1 / rails.
+    return '<div class="rb-sidebar-grid"' +
+        ' data-sidebar-skills="' + rbDocEscape(_encodeSidebarAllSkills(allSkills)) + '"' +
+        ' data-overflow-skills="' + rbDocEscape(_encodeSidebarOverflowSkills([])) + '">' +
+      '<aside class="rb-sidebar-aside" data-block="sidebar">' + asideHTML + '</aside>' +
       '<main class="rb-sidebar-main" data-block="sidebarMain">' + mainParts.join('') + '</main>' +
     '</div>';
   }
@@ -14695,13 +14811,17 @@
   function _getSidebarDocumentCss(settings) {
     settings = settings || getDocumentLayoutSettings();
     return [
-      '/* Phase D+++ — sidebar layout. Continuation pages repeat the rail. */',
+      '/* Phase E -- sidebar/rail layout. The colored rail repeats on every */',
+      '/* page for sidebar templates. Page 1 and continuation pages share */',
+      '/* the same renderer and the same --rb-sidebar-bg so the rail color */',
+      '/* is visually identical across all pages.                          */',
       ':root {',
       '  --rb-sidebar-width: 2.55in;',
       '  --rb-sidebar-pad-y: 0.40in;',
       '  --rb-sidebar-pad-x: 0.28in;',
       '  --rb-sidebar-main-pad-y: 0.42in;',
       '  --rb-sidebar-main-pad-x: 0.48in;',
+      '  --rb-sidebar-bg: var(--rb-doc-accent);',
       '}',
       '.rb-doc-page.rb-doc-page--sidebar .rb-doc-page-inner { inset: 0; padding: 0; }',
       '.rb-doc-page.rb-doc-page--sidebar .rb-sidebar-grid {',
@@ -14710,9 +14830,10 @@
       '  width: 100%;',
       '  height: 100%;',
       '}',
-      '.rb-sidebar-aside {',
-      '  background: var(--rb-doc-accent);',
-      '  color: #fff;',
+      '.rb-sidebar-aside,',
+      '.rb-sidebar-aside--continuation {',
+      '  background: var(--rb-sidebar-bg) !important;',
+      '  color: #ffffff;',
       '  padding: var(--rb-sidebar-pad-y) var(--rb-sidebar-pad-x);',
       '  overflow: hidden;',
       '}',
@@ -14766,7 +14887,10 @@
       '.rb-sidebar-edu-degree, .rb-sidebar-cert-name { font-weight: 700; color: #fff; font-size: 9pt; }',
       '.rb-sidebar-edu-school, .rb-sidebar-cert-issuer { color: rgba(255,255,255,.86); font-size: 8.7pt; }',
       '.rb-sidebar-edu-dates, .rb-sidebar-cert-dates, .rb-sidebar-edu-location { color: rgba(255,255,255,.72); font-size: 8.4pt; }',
-      // Phase D+++ -- continuation pages KEEP the rail for sidebar templates.
+      // Phase E -- continuation pages keep the rail for sidebar templates.
+      // No display:none on the aside; no different background; the rail is
+      // visually identical to page 1 because both pages use the same
+      // --rb-sidebar-bg variable.
       '.rb-doc-page.rb-doc-page--sidebar.rb-doc-page--continuation .rb-doc-page-inner {',
       '  inset: 0;',
       '  padding: 0;',
@@ -14779,10 +14903,6 @@
       '}',
       '.rb-doc-page.rb-doc-page--sidebar.rb-doc-page--continuation .rb-sidebar-aside {',
       '  display: block;',
-      '  background: var(--rb-doc-accent);',
-      '}',
-      '.rb-sidebar-aside--continuation {',
-      '  background: var(--rb-doc-accent);',
       '}',
       '.rb-sidebar-id--continued { margin: 0 0 8pt; }',
       '.rb-sidebar-name--continued {',
@@ -14800,9 +14920,13 @@
       '.rb-doc-page.rb-doc-page--continuation:not(.rb-doc-page--sidebar) .rb-sidebar-grid { display: block; }',
       '.rb-doc-page.rb-doc-page--continuation:not(.rb-doc-page--sidebar) .rb-sidebar-aside { display: none; }',
       '.rb-doc-page.rb-doc-page--continuation:not(.rb-doc-page--sidebar) .rb-sidebar-main { padding: 0; }',
-      '/* Editorial template tweaks. */',
-      '.rb-fixed-document.template-editorial .rb-sidebar-name { font-family: "Archivo Black","Bebas Neue","Oswald",sans-serif; letter-spacing: .015em; text-transform: uppercase; }',
-      '.rb-fixed-document.template-editorial .rb-sidebar-aside { background: linear-gradient(180deg, var(--rb-doc-accent), color-mix(in srgb, var(--rb-doc-accent) 78%, #000 22%)); }'
+      '/* Phase E -- preview/printing page divider belongs OUTSIDE the page. */',
+      '.rb-doc-viewer { gap: 18px; }',
+      'body.target-preview .rb-doc-page { box-shadow: 0 6px 18px rgba(15,23,42,.14); }',
+      '/* Editorial / Corporate -- override --rb-sidebar-bg ONCE so every */',
+      '/* page gets the same alternate rail (no per-page differences).   */',
+      '.rb-fixed-document.template-corporate { --rb-sidebar-bg: var(--rb-doc-accent-dark, var(--rb-doc-accent)); }',
+      '.rb-fixed-document.template-editorial .rb-sidebar-name { font-family: "Archivo Black","Bebas Neue","Oswald",sans-serif; letter-spacing: .015em; text-transform: uppercase; }'
     ].join('\n');
   }
 
@@ -15059,8 +15183,135 @@
   // are willing to start a new section there. If the leftover space is
   // below this threshold, the section is moved to the next page so the
   // heading + first item are not stranded against the bottom edge.
-  var RB_DOC_MIN_SECTION_START_PX = Number(window.RB_DOC_MIN_SECTION_START_PX || 150);
+  var RB_DOC_MIN_SECTION_START_PX = Number(window.RB_DOC_MIN_SECTION_START_PX || 170);
   try { window.RB_DOC_MIN_SECTION_START_PX = RB_DOC_MIN_SECTION_START_PX; } catch (_) {}
+
+  // Phase E -- bottom reserve for "polish" gap. Sections cannot end inside
+  // this strip; they get moved to the next page. Used by validator too.
+  var RB_DOC_BOTTOM_RESERVE_PX = Number(window.RB_DOC_BOTTOM_RESERVE_PX || 60);
+  try { window.RB_DOC_BOTTOM_RESERVE_PX = RB_DOC_BOTTOM_RESERVE_PX; } catch (_) {}
+
+  // Sidebar bottom reserve (smaller than main; the rail is naturally narrow).
+  var RB_SIDEBAR_BOTTOM_RESERVE_PX = Number(window.RB_SIDEBAR_BOTTOM_RESERVE_PX || 56);
+  try { window.RB_SIDEBAR_BOTTOM_RESERVE_PX = RB_SIDEBAR_BOTTOM_RESERVE_PX; } catch (_) {}
+
+  // Phase E -- keep-together helper. Education / Certifications / Achievements
+  // either fit on the current page in full or move to the next page; they
+  // are never split across pages.
+  function _getBlockKey(block) {
+    if (!block) return '';
+    if (block.getAttribute) return String(block.getAttribute('data-block') || '').toLowerCase();
+    if (block.__html) {
+      var m = String(block.__html).match(/data-block=["']([^"']+)["']/i);
+      return m ? String(m[1]).toLowerCase() : '';
+    }
+    return '';
+  }
+  function _isKeepTogetherSection(block) {
+    var key = _getBlockKey(block);
+    return key === 'education' || key === 'certifications' || key === 'achievements';
+  }
+  try {
+    window._getBlockKey = _getBlockKey;
+    window._isKeepTogetherSection = _isKeepTogetherSection;
+  } catch (_) {}
+
+  // Phase E -- shared sidebar measurement host. Lives in the measurement
+  // iframe so the same CSS / fonts / variables apply.
+  function _getOrCreateSidebarMeasureHost(mDoc) {
+    if (!mDoc) return null;
+    var host = mDoc.getElementById('rb-sidebar-measure-host');
+    if (!host) {
+      host = mDoc.createElement('aside');
+      host.id = 'rb-sidebar-measure-host';
+      host.className = 'rb-sidebar-aside rb-sidebar-aside--measure';
+      host.style.position = 'absolute';
+      host.style.left = '-9999px';
+      host.style.top = '0';
+      // Width matches the actual rail so wrapping decisions match.
+      host.style.width = 'var(--rb-sidebar-width)';
+      host.style.visibility = 'hidden';
+      host.style.pointerEvents = 'none';
+      mDoc.body.appendChild(host);
+    }
+    return host;
+  }
+
+  function _getSidebarAvailableHeight(asideEl, options) {
+    options = options || {};
+    var reserve = Number(options.sidebarReservePx || RB_SIDEBAR_BOTTOM_RESERVE_PX);
+    var raw = (asideEl && asideEl.clientHeight) ? asideEl.clientHeight : 1056;
+    return Math.max(200, raw - reserve);
+  }
+
+  // Phase E -- measure how many leading skills fit in the page-1 rail.
+  function _measureSidebarSkillSplit(model, allSkills, asideEl, mDoc, options) {
+    options = options || {};
+    var skills = Array.isArray(allSkills) ? allSkills.slice() : [];
+    var result = { page1Skills: [], overflowSkills: [] };
+    if (!skills.length) return result;
+    var host = _getOrCreateSidebarMeasureHost(mDoc);
+    if (!host) {
+      // Fall back: keep all skills on page 1 if measurement is impossible.
+      result.page1Skills = skills;
+      return result;
+    }
+    var availableHeight = _getSidebarAvailableHeight(asideEl, options);
+    var taken = [];
+    for (var i = 0; i < skills.length; i++) {
+      var test = taken.concat([skills[i]]);
+      host.innerHTML = renderSidebarAsideHTML(model, test, options.settings || null, { continued: false });
+      var h;
+      try {
+        var rect = host.getBoundingClientRect();
+        h = Math.ceil((rect && rect.height) ? rect.height : host.scrollHeight);
+      } catch (_) { h = Math.ceil(host.scrollHeight); }
+      if (h <= availableHeight || !taken.length) {
+        taken.push(skills[i]);
+      } else {
+        result.page1Skills = taken;
+        result.overflowSkills = skills.slice(i);
+        host.innerHTML = '';
+        return result;
+      }
+    }
+    host.innerHTML = '';
+    result.page1Skills = taken;
+    return result;
+  }
+
+  // Phase E -- pull as many remaining skills as fit in a continuation rail.
+  function _takeSkillsThatFitContinuationSidebar(model, skillQueue, settings, asideEl, mDoc, options) {
+    var taken = [];
+    if (!skillQueue || !skillQueue.length) return taken;
+    var host = _getOrCreateSidebarMeasureHost(mDoc);
+    if (!host) {
+      var copy = skillQueue.slice();
+      skillQueue.length = 0;
+      return copy;
+    }
+    var availableHeight = _getSidebarAvailableHeight(asideEl, Object.assign({}, options || {}, { continued: true }));
+    while (skillQueue.length) {
+      var test = taken.concat([skillQueue[0]]);
+      host.innerHTML = renderSidebarAsideHTML(model, test, settings || null, { continued: true });
+      var h;
+      try {
+        var rect = host.getBoundingClientRect();
+        h = Math.ceil((rect && rect.height) ? rect.height : host.scrollHeight);
+      } catch (_) { h = Math.ceil(host.scrollHeight); }
+      if (h <= availableHeight || !taken.length) {
+        taken.push(skillQueue.shift());
+      } else {
+        break;
+      }
+    }
+    host.innerHTML = '';
+    return taken;
+  }
+  try {
+    window._measureSidebarSkillSplit = _measureSidebarSkillSplit;
+    window._takeSkillsThatFitContinuationSidebar = _takeSkillsThatFitContinuationSidebar;
+  } catch (_) {}
 
   function _getPdfSafeBudget(rawBudget, options) {
     options = options || {};
@@ -15172,6 +15423,18 @@
     blocks.forEach(function (block) {
       var html = block.outerHTML;
       var h = blockHeight(html);
+      // Phase E -- keep-together small sections (Education / Certifications /
+      // Achievements) never split. If the whole section does not fit in the
+      // remaining space and would fit cleanly on the next page, push it.
+      if (current.length && _isKeepTogetherSection(block)) {
+        var remainingKT = budget - currentH;
+        if (h <= budget && (h > remainingKT || remainingKT < RB_DOC_MIN_SECTION_START_PX)) {
+          pushPage(pageHTMLs.length > 0);
+          current.push(html);
+          currentH = h;
+          return;
+        }
+      }
       if (currentH + h <= budget || !current.length) {
         current.push(html);
         currentH += h;
@@ -15235,38 +15498,77 @@
     return pageHTMLs.length ? pageHTMLs : [pageEl.outerHTML];
   }
 
-  // Sidebar pages: paginate only the .rb-sidebar-main overflow into
-  // continuation pages (full-width). The aside stays on Page 1.
+  // Phase E -- sidebar/rail pagination. Every page of a sidebar template
+  // carries the colored rail; skills are placed by measurement, not by an
+  // arbitrary fixed count; small sections (Education / Certifications /
+  // Achievements) are kept together. Legacy full-width continuation for
+  // sidebar templates is gated behind window.RB_LEGACY_DOCUMENT_RENDERER.
   function _paginateSidebarPage(pageEl, mDoc, options) {
     options = options || {};
     var grid = pageEl.querySelector('.rb-sidebar-grid');
     var main = grid && grid.querySelector('.rb-sidebar-main');
     var aside = grid && grid.querySelector('.rb-sidebar-aside');
-    if (!grid || !main) return _paginateFullWidthPage(pageEl, mDoc, options);
+    if (!grid || !main) return _paginateFixedDocumentLegacyOrFull(pageEl, mDoc, options);
 
-    // Phase D+ defensive sidebar overflow guard. The renderer caps skills at
-    // MAX_SIDEBAR_SKILLS=12, but a long custom skill string or a narrow
-    // page-margin preset can still overflow the aside (which is
-    // overflow:hidden by design). Trim Skills list items off the bottom
-    // until the aside fits.
+    var template = pageEl.getAttribute('data-template') || (options && options.template) || '';
+    var docType  = pageEl.getAttribute('data-doc-type')  || 'document';
+    var cfg      = (options && options.cfg) || null;
+    var settings = (options && options.settings) || null;
+
+    // Phase E -- discover the model. Prefer options.model, fall back to
+    // text inside the rendered identity block.
+    var nameEl = pageEl.querySelector('.rb-sidebar-name');
+    var headlineEl = pageEl.querySelector('.rb-sidebar-headline');
+    var model = (options && options.model) || {
+      name: nameEl ? (nameEl.textContent || '').trim() : '',
+      headline: headlineEl ? (headlineEl.textContent || '').trim() : ''
+    };
+
+    // Phase E -- measurement-based page-1 skill split. Page 1 aside is
+    // initially rendered with an empty skill list (data-sidebar-skill-list).
+    // Fill that list with as many skills as actually fit the rail.
+    var allSkills = _getSidebarAllSkillsFromPage(pageEl);
+    var page1Skills = allSkills.slice();
+    var skillQueue = [];
+    if (allSkills.length && aside) {
+      var split = _measureSidebarSkillSplit(model, allSkills, aside, mDoc, {
+        settings: settings,
+        sidebarReservePx: options.sidebarReservePx
+      });
+      page1Skills = split.page1Skills;
+      skillQueue  = split.overflowSkills;
+      // Write page-1 skill list into the live aside so the main column
+      // measurement reflects the actual rail height.
+      var skillList = aside.querySelector('[data-sidebar-skill-list]');
+      var skillSection = aside.querySelector('section[data-block="sidebarSkills"]');
+      if (skillList) {
+        skillList.innerHTML = page1Skills.map(function (s) {
+          return '<li class="rb-sidebar-list-item">' + rbDocEscape(s) + '</li>';
+        }).join('');
+      }
+      if (skillSection) {
+        if (page1Skills.length) skillSection.removeAttribute('hidden');
+        else skillSection.setAttribute('hidden', '');
+      }
+    }
+
+    // Defensive trim if something still overflows the aside (overflow:hidden).
     if (aside && aside.scrollHeight > aside.clientHeight + 2) {
-      var skillsList = aside.querySelector('section[data-block="sidebarSkills"] .rb-sidebar-list');
+      var trimList = aside.querySelector('section[data-block="sidebarSkills"] .rb-sidebar-list');
       var safety = 0;
-      while (skillsList && skillsList.children.length > 1 &&
-             aside.scrollHeight > aside.clientHeight + 2 && safety++ < 30) {
-        skillsList.removeChild(skillsList.lastElementChild);
+      while (trimList && trimList.children.length > 0 &&
+             aside.scrollHeight > aside.clientHeight + 2 && safety++ < 60) {
+        var trimmed = trimList.lastElementChild;
+        // Move trimmed item to the front of the continuation queue.
+        if (trimmed) {
+          skillQueue.unshift(trimmed.textContent || '');
+          trimList.removeChild(trimmed);
+        } else { break; }
       }
     }
 
     var rawBudgetMain = main.clientHeight;
     var budgetMain = _getPdfSafeBudget(rawBudgetMain, options);
-    if (Math.ceil(main.scrollHeight) <= budgetMain) {
-      return [pageEl.outerHTML]; // no overflow
-    }
-
-    var pageOpenMatch = pageEl.outerHTML.match(/^<[^>]+>/);
-    var pageOpen = pageOpenMatch ? pageOpenMatch[0] : '<section class="rb-doc-page">';
-    var pageClose = '</' + pageEl.tagName.toLowerCase() + '>';
 
     // Scratch measurement host sized to main column width.
     var hostId = 'rb-doc-measure-main';
@@ -15277,6 +15579,8 @@
       host.style.cssText =
         'position:absolute;left:-99999px;top:0;width:' + main.clientWidth + 'px;visibility:hidden;';
       mDoc.body.appendChild(host);
+    } else {
+      host.style.width = main.clientWidth + 'px';
     }
     function measure(html) {
       host.innerHTML = html;
@@ -15289,93 +15593,86 @@
       return h;
     }
 
+    var mainOverflows = Math.ceil(main.scrollHeight) > budgetMain;
+
+    // Build page-1 main column.
     var blocks = Array.prototype.slice.call(main.children);
     var page1Blocks = [];
     var overflowBlocks = [];
-    var accH = 0;
-    blocks.forEach(function (block) {
-      var html = block.outerHTML;
-      var h = measure(html);
-      if (overflowBlocks.length) {
-        overflowBlocks.push(block);
-      } else if (accH + h <= budgetMain || !page1Blocks.length) {
-        page1Blocks.push(html);
-        accH += h;
-      } else if (block.classList && block.classList.contains('rb-doc-section')) {
-        var remaining = budgetMain - accH;
-        // Phase D+++ -- if leftover space is small, do not even try to squeeze
-        // a fragment in. Push the whole section to continuation pages.
-        if (remaining < RB_DOC_MIN_SECTION_START_PX) {
-          overflowBlocks.push(block);
-          return;
+    if (mainOverflows) {
+      var accH = 0;
+      blocks.forEach(function (block) {
+        if (overflowBlocks.length) { overflowBlocks.push(block); return; }
+        var html = block.outerHTML;
+        var h = measure(html);
+        // Phase E keep-together: small sections never split.
+        if (page1Blocks.length && _isKeepTogetherSection(block)) {
+          var remainingKT = budgetMain - accH;
+          if (h <= budgetMain && (h > remainingKT || remainingKT < RB_DOC_MIN_SECTION_START_PX)) {
+            overflowBlocks.push(block);
+            return;
+          }
         }
-        var fragments = _splitSectionByItems(block, budgetMain, mDoc, remaining);
-        if (fragments.length >= 1) {
-          var firstFragment = fragments[0];
-          var firstH = measure(firstFragment);
-          if (firstH > 0 && accH + firstH <= budgetMain) {
-            page1Blocks.push(firstFragment);
-            accH += firstH;
-            for (var i = 1; i < fragments.length; i++) {
-              overflowBlocks.push({ __html: fragments[i] });
+        if (accH + h <= budgetMain || !page1Blocks.length) {
+          page1Blocks.push(html);
+          accH += h;
+        } else if (block.classList && block.classList.contains('rb-doc-section') && !_isKeepTogetherSection(block)) {
+          var remaining = budgetMain - accH;
+          if (remaining < RB_DOC_MIN_SECTION_START_PX) {
+            overflowBlocks.push(block);
+            return;
+          }
+          var fragments = _splitSectionByItems(block, budgetMain, mDoc, remaining);
+          if (fragments.length >= 1) {
+            var firstFragment = fragments[0];
+            var firstH = measure(firstFragment);
+            if (firstH > 0 && accH + firstH <= budgetMain) {
+              page1Blocks.push(firstFragment);
+              accH += firstH;
+              for (var i = 1; i < fragments.length; i++) {
+                overflowBlocks.push({ __html: fragments[i] });
+              }
+            } else {
+              for (var j = 0; j < fragments.length; j++) {
+                overflowBlocks.push({ __html: fragments[j] });
+              }
             }
           } else {
-            // Safer: move the entire split section to continuation pages.
-            for (var j = 0; j < fragments.length; j++) {
-              overflowBlocks.push({ __html: fragments[j] });
-            }
+            overflowBlocks.push(block);
           }
         } else {
           overflowBlocks.push(block);
         }
-      } else {
-        overflowBlocks.push(block);
-      }
-    });
-
-    // Rebuild Page 1: replace .rb-sidebar-main innerHTML with page1Blocks.
-    var p1Clone = pageEl.cloneNode(true);
-    var p1Main = p1Clone.querySelector('.rb-sidebar-main');
-    if (p1Main) p1Main.innerHTML = page1Blocks.join('');
-    var pages = [p1Clone.outerHTML];
-
-    if (!overflowBlocks.length) return pages;
-
-    // Phase D+++ -- decide whether continuation pages should also carry
-    // the colored rail. For sidebar/rail templates this is now the default
-    // (RB_REPEAT_SIDEBAR_ON_CONTINUATION = true).
-    var template = pageEl.getAttribute('data-template') || (options && options.template) || '';
-    var docType  = pageEl.getAttribute('data-doc-type')  || 'document';
-    var cfg      = (options && options.cfg) || null;
-    var settings = (options && options.settings) || null;
-    var repeatSidebar = _shouldRepeatSidebarOnContinuation(template, cfg);
-    var overflowSkills = _getSidebarOverflowSkillsFromPage(pageEl);
-
-    var nameEl = pageEl.querySelector('.rb-sidebar-name');
-    var headlineEl = pageEl.querySelector('.rb-sidebar-headline');
-    var model = (options && options.model) || {
-      name: nameEl ? (nameEl.textContent || '').trim() : '',
-      headline: headlineEl ? (headlineEl.textContent || '').trim() : ''
-    };
-
-    var overflowHTML = overflowBlocks.map(function (b) {
-      return b.__html != null ? b.__html : b.outerHTML;
-    }).join('');
-
-    // Phase D+++ -- skip making a continuation page if the overflow is
-    // structurally non-empty but visually blank (no meaningful text).
-    if (!_hasMeaningfulPageHtml(overflowHTML)) {
-      return pages;
+      });
+      // Replace .rb-sidebar-main innerHTML on the live page so its rendered
+      // height now reflects what page 1 will actually show.
+      main.innerHTML = page1Blocks.join('');
+    } else {
+      // No main overflow -- but skills may still overflow into continuation.
+      page1Blocks = blocks.map(function (b) { return b.outerHTML; });
     }
 
-    if (!repeatSidebar) {
-      // Legacy non-sidebar fallback: full-width continuation page.
+    var pages = [pageEl.outerHTML];
+
+    // No more main overflow AND no more skill overflow -> single page.
+    if (!overflowBlocks.length && !skillQueue.length) return pages;
+
+    // Phase E -- decide whether continuation should keep the rail.
+    var repeatSidebar = _shouldRepeatSidebarOnContinuation(template, cfg);
+
+    // Legacy full-width continuation for sidebar templates is gated.
+    if (!repeatSidebar || window.RB_LEGACY_DOCUMENT_RENDERER === true) {
+      if (!overflowBlocks.length) return pages;
+      var overflowHTMLLegacy = overflowBlocks.map(function (b) {
+        return b.__html != null ? b.__html : b.outerHTML;
+      }).join('');
+      if (!_hasMeaningfulPageHtml(overflowHTMLLegacy)) return pages;
       var tmp = mDoc.createElement('section');
       tmp.className = 'rb-doc-page rb-doc-page--continuation';
       tmp.setAttribute('data-doc-type', docType);
       tmp.setAttribute('data-template', template);
       tmp.setAttribute('data-page-number', '2');
-      tmp.innerHTML = '<div class="rb-doc-page-inner">' + overflowHTML + '</div>';
+      tmp.innerHTML = '<div class="rb-doc-page-inner">' + overflowHTMLLegacy + '</div>';
       mDoc.body.appendChild(tmp);
       try {
         var moreHTMLs = _paginateFullWidthPage(tmp, mDoc, options);
@@ -15386,24 +15683,24 @@
       return pages;
     }
 
-    // ---- Sidebar continuation pagination ----
-    // Build a real sidebar-continuation page in the measurement DOM, then
-    // walk the overflow blocks one at a time, flushing a continuation page
-    // whenever the main column would exceed its safe budget.
-    function buildContinuationPage(blocksHtml, asideHtml, pageNumber) {
+    // ---- Phase E sidebar continuation loop ----
+    function _buildSidebarContinuationPageHTML(args) {
+      args = args || {};
+      var pn = args.pageNumber || 2;
       return '<section class="rb-doc-page rb-doc-page--sidebar rb-doc-page--continuation"' +
-        ' data-doc-type="' + rbDocEscape(docType) + '"' +
-        ' data-template="' + rbDocEscape(template) + '"' +
-        ' data-page-number="' + rbDocEscape(String(pageNumber)) + '">' +
-        '<div class="rb-doc-page-inner">' +
-          '<div class="rb-sidebar-grid">' +
-            '<aside class="rb-sidebar-aside rb-sidebar-aside--continuation">' + asideHtml + '</aside>' +
-            '<main class="rb-sidebar-main">' + blocksHtml + '</main>' +
+        ' data-doc-type="' + rbDocEscape(args.docType || 'document') + '"' +
+        ' data-template="' + rbDocEscape(args.template || '') + '"' +
+        ' data-page-number="' + rbDocEscape(String(pn)) + '">' +
+          '<div class="rb-doc-page-inner">' +
+            '<div class="rb-sidebar-grid">' +
+              '<aside class="rb-sidebar-aside rb-sidebar-aside--continuation">' + (args.asideHtml || '') + '</aside>' +
+              '<main class="rb-sidebar-main">' + (args.mainHtml || '') + '</main>' +
+            '</div>' +
           '</div>' +
-        '</div>' +
-      '</section>';
+        '</section>';
     }
 
+    // Build a measurement template page for continuation main-column budget.
     var tmpCont = mDoc.createElement('section');
     tmpCont.className = 'rb-doc-page rb-doc-page--sidebar rb-doc-page--continuation';
     tmpCont.setAttribute('data-doc-type', docType);
@@ -15422,13 +15719,11 @@
     try {
       var tmpMain = tmpCont.querySelector('.rb-sidebar-main');
       var tmpAside = tmpCont.querySelector('.rb-sidebar-aside');
-      // Render full continuation aside up front so the main column's
-      // measurement reflects the actual page geometry.
-      tmpAside.innerHTML = renderSidebarContinuationAside(model, overflowSkills, settings, 2);
-
       var rawContBudget = tmpMain.clientHeight;
       var contBudget = _getPdfSafeBudget(rawContBudget, options);
       if (!rawContBudget || rawContBudget < 50) contBudget = 50;
+      // Resize the main-column scratch host to the continuation main width.
+      try { host.style.width = tmpMain.clientWidth + 'px'; } catch (_) {}
 
       function measureContMain(html) {
         tmpMain.innerHTML = html;
@@ -15440,34 +15735,70 @@
         return h;
       }
 
-      var blockHtmls = overflowBlocks.map(function (b) {
-        return b.__html != null ? b.__html : b.outerHTML;
-      });
-      var pageNum = 2;
-      var current = [];
-      var skillsAssigned = false;
+      var mainQueue = overflowBlocks.slice();
+      var pageNumber = 2;
+      var safetyLoop = 0;
+      while ((skillQueue.length || mainQueue.length) && safetyLoop++ < 50) {
+        // Decide skills first so the aside height is known when measuring.
+        var skillsForPage = _takeSkillsThatFitContinuationSidebar(
+          model, skillQueue, settings, tmpAside, mDoc,
+          { sidebarReservePx: options.sidebarReservePx }
+        );
+        var asideHtml = renderSidebarAsideHTML(model, skillsForPage, settings, { continued: true });
+        tmpAside.innerHTML = asideHtml;
 
-      function flushCont() {
-        if (!current.length) return;
-        var skillsForThisPage = skillsAssigned ? [] : overflowSkills;
-        skillsAssigned = true;
-        var asideHtml = renderSidebarContinuationAside(model, skillsForThisPage, settings, pageNum);
-        contPages.push(buildContinuationPage(current.join(''), asideHtml, pageNum));
-        pageNum++;
-        current = [];
-      }
-
-      for (var bi = 0; bi < blockHtmls.length; bi++) {
-        var bh = blockHtmls[bi];
-        current.push(bh);
-        var measured = measureContMain(current.join(''));
-        if (measured > contBudget && current.length > 1) {
-          current.pop();
-          flushCont();
-          current.push(bh);
+        // Now fill main column up to budget, keep-together aware.
+        var mainBuffer = [];
+        var mainBufferHeight = 0;
+        while (mainQueue.length) {
+          var block = mainQueue[0];
+          var bh = block.__html != null ? block.__html : block.outerHTML;
+          // Keep-together small section: try whole; if doesn't fit, defer.
+          if (mainBuffer.length && _isKeepTogetherSection(block)) {
+            var remainKT = contBudget - mainBufferHeight;
+            var wholeH = measureContMain(mainBuffer.join('') + bh);
+            if (wholeH > contBudget || remainKT < RB_DOC_MIN_SECTION_START_PX) {
+              break; // flush and start a new page with this block
+            }
+            mainBuffer.push(bh);
+            mainBufferHeight = wholeH;
+            mainQueue.shift();
+            continue;
+          }
+          var probeH = measureContMain(mainBuffer.join('') + bh);
+          if (probeH <= contBudget || !mainBuffer.length) {
+            mainBuffer.push(bh);
+            mainBufferHeight = probeH;
+            mainQueue.shift();
+          } else {
+            break;
+          }
         }
+
+        // Safety valve: never produce a 0-content continuation page.
+        if (!mainBuffer.length && !skillsForPage.length) {
+          if (mainQueue.length) {
+            var forced = mainQueue.shift();
+            mainBuffer.push(forced.__html != null ? forced.__html : forced.outerHTML);
+          } else if (skillQueue.length) {
+            // Force at least one skill if the aside truly cannot hold it.
+            skillsForPage.push(skillQueue.shift());
+            tmpAside.innerHTML = renderSidebarAsideHTML(model, skillsForPage, settings, { continued: true });
+          } else {
+            break;
+          }
+        }
+
+        contPages.push(_buildSidebarContinuationPageHTML({
+          template: template,
+          docType: docType,
+          pageNumber: pageNumber,
+          asideHtml: tmpAside.innerHTML,
+          mainHtml: mainBuffer.join('')
+        }));
+        pageNumber++;
       }
-      flushCont();
+
       tmpMain.innerHTML = '';
     } finally {
       try { mDoc.body.removeChild(tmpCont); } catch (_) {}
@@ -15475,6 +15806,10 @@
 
     pages = pages.concat(contPages);
     return pages;
+  }
+  // Phase E -- alias used as fallback when grid/main are missing.
+  function _paginateFixedDocumentLegacyOrFull(pageEl, mDoc, options) {
+    return _paginateFullWidthPage(pageEl, mDoc, options);
   }
 
   function paginateFixedDocument(html, options) {
