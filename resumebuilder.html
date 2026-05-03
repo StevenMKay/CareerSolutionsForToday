@@ -10579,7 +10579,13 @@
     var isDocument = format === 'pdf' || format === 'docx';
     // Sidebar rail handles contact/skills/certifications/achievements for
     // Modern Sidebar PDF/DOCX. The main column should not duplicate them.
-    var sidebarLayout = (cfg.docLayout === 'sidebar-rail' || cfg.docLayout === 'editorial-split') && isDocument;
+    // Public Web Page also suppresses the resume document header — the
+    // hero already renders name/headline/contact, so leaving the inner
+    // resume <h1>name</h1> in place produced a duplicate top-level
+    // heading. PDF/DOCX behaviour is unchanged.
+    var sidebarLayout =
+      ((cfg.docLayout === 'sidebar-rail' || cfg.docLayout === 'editorial-split') && isDocument) ||
+      format === 'web';
     // PDF + sidebar-rail (Modern Sidebar PDF): move Achievements to the
     // main column so they don't get awkwardly split or orphaned at the
     // bottom of the colored sidebar. Certifications stay in the sidebar.
@@ -10872,6 +10878,10 @@
   }
   function _renderWebRolePlanSection(plan, type) {
     if (!plan) return '';
+    // Hide the section entirely if the plan has no meaningful body.
+    // Otherwise we'd render an orphan "Strategic Roadmap" heading with
+    // nothing under it on the public web page.
+    if (!hasMeaningfulRolePlanForWeb(plan, type)) return '';
     var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
     var bucket = plan[key] || {};
     var phases = Array.isArray(bucket.phases) ? bucket.phases : (Array.isArray(bucket.quarters) ? bucket.quarters : []);
@@ -10945,10 +10955,53 @@
     '</section>';
   }
 
+  // Detects whether a role plan has rendered content beyond the
+  // "Strategic Roadmap" header. Used to gate web/published rendering so
+  // an empty/legacy plan never shows up as an orphan section.
+  function hasMeaningfulRolePlanForWeb(plan, type) {
+    if (!plan || typeof plan !== 'object') return false;
+    function bucketHasContent(b) {
+      if (!b || typeof b !== 'object') return false;
+      var phases = Array.isArray(b.phases) ? b.phases : (Array.isArray(b.quarters) ? b.quarters : []);
+      for (var i = 0; i < phases.length; i++) {
+        var p = phases[i] || {};
+        if (
+          (p.title && String(p.title).trim()) ||
+          (p.phase_summary && String(p.phase_summary).trim()) ||
+          (p.summary && String(p.summary).trim()) ||
+          (p.primary_objective && String(p.primary_objective).trim()) ||
+          (p.executive_value && String(p.executive_value).trim()) ||
+          (Array.isArray(p.actions) && p.actions.length) ||
+          (Array.isArray(p.milestones) && p.milestones.length) ||
+          (Array.isArray(p.tools_and_resources) && p.tools_and_resources.length)
+        ) return true;
+      }
+      if (b.executiveSummary && String(b.executiveSummary).trim()) return true;
+      if (b.executive_summary && String(b.executive_summary).trim()) return true;
+      if (b.strategic_theme && String(b.strategic_theme).trim()) return true;
+      if (Array.isArray(b.what_success_looks_like) && b.what_success_looks_like.length) return true;
+      if (Array.isArray(b.suggested_kpis) && b.suggested_kpis.length) return true;
+      if (Array.isArray(b.success_criteria) && b.success_criteria.length) return true;
+      return false;
+    }
+    var preferredKey = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
+    if (bucketHasContent(plan[preferredKey])) return true;
+    if (bucketHasContent(plan.days90) || bucketHasContent(plan.months12) || bucketHasContent(plan.years2)) return true;
+    if (Array.isArray(plan.plan_phases) && plan.plan_phases.length) {
+      for (var j = 0; j < plan.plan_phases.length; j++) {
+        var pp = plan.plan_phases[j] || {};
+        if (pp.title || pp.summary || (Array.isArray(pp.actions) && pp.actions.length)) return true;
+      }
+    }
+    return false;
+  }
+  try { window.hasMeaningfulRolePlanForWeb = hasMeaningfulRolePlanForWeb; } catch (_) {}
+
   // ----- Format dispatchers -----
   // ---------- Package order + section dispatch (reusable) ----------
   // Documents (PDF/DOCX) always render: Cover Letter -> Career Plan -> Resume.
-  // Public Web Page renders Resume-first to keep the profile feel.
+  // Public Web Page is a portfolio, NOT a literal package concatenation —
+  // it has its own section rules in getPublicWebSectionsInOrder().
   var DOC_LABELS = { coverLetter: 'Cover Letter', rolePlan: 'Career Plan', resume: 'Resume' };
   function getSelectedPackageSectionsInOrder(pkg, format) {
     pkg = pkg || {};
@@ -10961,12 +11014,37 @@
       if (s.resume      && d.resume)      docs.push('resume');
       return docs;
     }
-    // Web (and any non-document format): resume-first profile.
-    if (s.resume      && d.resume)      docs.push('resume');
-    if (s.coverLetter && d.coverLetter) docs.push('coverLetter');
-    if (s.rolePlan    && d.rolePlan)    docs.push('rolePlan');
+    // Web format (preview + published) uses portfolio rules. Cover Letter
+    // is excluded by default; Role Plan is dropped if empty.
+    return getPublicWebSectionsInOrder(pkg);
+  }
+
+  // Public Web Page section logic. Independent of the download package
+  // selection. Cover Letter is excluded by default (it is a private
+  // recruiter-facing document, not portfolio content). Career Plan only
+  // renders when meaningful plan data exists.
+  //
+  // Override knobs (read from pkg.publicWeb if present):
+  //   - includeCoverLetter (boolean, default false)
+  //   - includeRolePlan    (boolean, default true; still gated by
+  //                         hasMeaningfulRolePlanForWeb)
+  function getPublicWebSectionsInOrder(pkg) {
+    pkg = pkg || {};
+    var s = pkg.selected  || {};
+    var d = pkg.documents || {};
+    var pw = pkg.publicWeb || {};
+    var includeCoverLetter = pw.includeCoverLetter === true; // default OFF
+    var includeRolePlan    = pw.includeRolePlan !== false;   // default ON, gated below
+    var docs = [];
+    if (s.resume && d.resume) docs.push('resume');
+    if (includeCoverLetter && s.coverLetter && d.coverLetter) docs.push('coverLetter');
+    if (includeRolePlan && s.rolePlan && d.rolePlan &&
+        hasMeaningfulRolePlanForWeb(d.rolePlan, d.rolePlanType)) {
+      docs.push('rolePlan');
+    }
     return docs;
   }
+  try { window.getPublicWebSectionsInOrder = getPublicWebSectionsInOrder; } catch (_) {}
   function _renderDocSectionByKey(key, pkg, cfg, format) {
     var d = pkg.documents || {};
     var role = d.targetRole || {};
@@ -14559,6 +14637,19 @@
     var heroTagline = summary || executiveSummary || '';
     var heroSubtitle = (company && jobTitle) ? (jobTitle + ' at ' + company) : (jobTitle || currentTitle || '');
 
+    // Public Web Page rules (mirrored in view.html and the live preview):
+    //   - Cover letter is NOT included on the public page by default.
+    //   - Role Plan only renders when meaningful — clear plan fields when
+    //     there's no real content so view.html doesn't draw an orphan
+    //     "Strategic Roadmap" heading.
+    var rolePlanIsMeaningful = (typeof hasMeaningfulRolePlanForWeb === 'function')
+      ? hasMeaningfulRolePlanForWeb(rolePlan, activePlanType)
+      : !!(Array.isArray(phases) && phases.length);
+    var publicPhases       = rolePlanIsMeaningful ? (Array.isArray(phases) ? phases : []) : [];
+    var publicSuccess      = rolePlanIsMeaningful ? (Array.isArray(successCriteria) ? successCriteria : []) : [];
+    var publicKpis         = rolePlanIsMeaningful ? (Array.isArray(kpis) ? kpis : []) : [];
+    var publicExecSummary  = rolePlanIsMeaningful ? executiveSummary : '';
+
     return {
       hero: {
         name: name,
@@ -14583,15 +14674,17 @@
           return u;
         })()
       },
-      executive_summary: executiveSummary,
+      executive_summary: publicExecSummary,
       summary: summary,
-      cover_letter: coverLetter || null,
+      // Cover letter is intentionally NOT published on the public web
+      // page (private recruiter document). Downloads still include it.
+      cover_letter: null,
       plan_type: activePlanType,
       plan_title: activePlanBucket.title || 'Career Plan',
       plan_timeframe: activePlanBucket.timeframe || activePlanType || '',
-      plan_phases: Array.isArray(phases) ? phases : [],
-      success_criteria: Array.isArray(successCriteria) ? successCriteria : [],
-      kpis: Array.isArray(kpis) ? kpis : [],
+      plan_phases: publicPhases,
+      success_criteria: publicSuccess,
+      kpis: publicKpis,
       resume: resume,
       experience: Array.isArray(resume.experience) ? resume.experience : [],
       skills: Array.isArray(resume.skills) ? resume.skills : [],
@@ -14893,6 +14986,107 @@
       console.warn('[debugOpenPublishedLink] no published URL on RB_STATE — publish first');
     }
     return url;
+  };
+
+  // Inspect the actual public-web preview structure: which sections are
+  // selected for download vs. rendered on the public web page, whether
+  // cover letter / role plan are visible, and whether the rendered DOM
+  // has duplicate top-level name headings.
+  window.debugPublicWebStructure = function () {
+    var pkg = null;
+    try { pkg = (typeof buildSelectedDocumentPackage === 'function') ? buildSelectedDocumentPackage() : null; } catch (_) {}
+    pkg = pkg || (RB_STATE && RB_STATE.documentPackage) || {};
+    var s = pkg.selected || {};
+    var d = pkg.documents || {};
+    var pw = pkg.publicWeb || {};
+
+    var publicOrder = [];
+    try { publicOrder = (typeof getPublicWebSectionsInOrder === 'function') ? getPublicWebSectionsInOrder(pkg) : []; } catch (_) {}
+
+    var rolePlanMeaningful = false;
+    var rolePlanReason = 'no rolePlan loaded';
+    if (d.rolePlan) {
+      try {
+        rolePlanMeaningful = (typeof hasMeaningfulRolePlanForWeb === 'function')
+          ? hasMeaningfulRolePlanForWeb(d.rolePlan, d.rolePlanType)
+          : false;
+      } catch (_) {}
+      rolePlanReason = rolePlanMeaningful
+        ? 'meaningful phases/exec-summary/KPIs/success criteria found'
+        : 'rolePlan present but empty (no phases / actions / summary)';
+    }
+    var coverLetterIncludedOnWeb = publicOrder.indexOf('coverLetter') !== -1;
+    var rolePlanIncludedOnWeb    = publicOrder.indexOf('rolePlan')    !== -1;
+    var resumeIncludedOnWeb      = publicOrder.indexOf('resume')      !== -1;
+
+    var headingList = [];
+    var navItems = [];
+    var duplicateNameHeading = false;
+    var emptySectionWarnings = [];
+    try {
+      var frame = document.getElementById('preview-frame');
+      var doc = frame && frame.contentDocument;
+      if (doc) {
+        var heads = doc.querySelectorAll('h1, h2, h3');
+        heads.forEach(function (h) {
+          var t = (h.textContent || '').replace(/\s+/g, ' ').trim();
+          if (t) headingList.push(h.tagName + ': ' + t);
+        });
+        // duplicate H1 with the same name text
+        var h1s = doc.querySelectorAll('h1');
+        var seen = {};
+        for (var i = 0; i < h1s.length; i++) {
+          var key = (h1s[i].textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          if (!key) continue;
+          if (seen[key]) { duplicateNameHeading = true; break; }
+          seen[key] = true;
+        }
+        var navSpans = doc.querySelectorAll('.web-sidebar [data-target], .web-sidebar a, .site-nav a');
+        navSpans.forEach(function (n) {
+          var t = (n.textContent || '').replace(/\s+/g, ' ').trim();
+          if (t) navItems.push(t);
+        });
+        // Empty section detection: section header but no content children.
+        doc.querySelectorAll('section.doc-section, section.web-section-shell').forEach(function (sec) {
+          var hdr = sec.querySelector('h1,h2,h3');
+          var bodyText = (sec.textContent || '').replace(/\s+/g, ' ').trim();
+          var hdrText  = hdr ? (hdr.textContent || '').replace(/\s+/g, ' ').trim() : '';
+          if (hdrText && bodyText.length <= hdrText.length + 2) {
+            emptySectionWarnings.push('Empty section under heading: ' + hdrText);
+          }
+        });
+      }
+    } catch (_) {}
+
+    var resumeHeaderSuppressed = true; // _renderResumeSection now suppresses for format==='web'
+    var result = {
+      selectedPackageDocs: {
+        resume: !!s.resume,
+        coverLetter: !!s.coverLetter,
+        rolePlan: !!s.rolePlan
+      },
+      publicWebOrder: publicOrder,
+      coverLetterIncludedOnWeb: coverLetterIncludedOnWeb,
+      coverLetterIncludedOnWebReason: coverLetterIncludedOnWeb
+        ? 'pkg.publicWeb.includeCoverLetter === true override is set'
+        : 'default OFF — cover letter is private recruiter document',
+      rolePlanIncludedOnWeb: rolePlanIncludedOnWeb,
+      rolePlanIncludedOnWebReason: rolePlanIncludedOnWeb
+        ? 'role plan has meaningful content'
+        : rolePlanReason,
+      resumeIncludedOnWeb: resumeIncludedOnWeb,
+      resumeHeaderSuppressed: resumeHeaderSuppressed,
+      navItems: navItems,
+      headingList: headingList,
+      duplicateNameHeading: duplicateNameHeading,
+      emptySectionWarnings: emptySectionWarnings,
+      publicWebOverrides: {
+        includeCoverLetter: pw.includeCoverLetter === true,
+        includeRolePlan:    pw.includeRolePlan !== false
+      }
+    };
+    console.log('[debugPublicWebStructure]', result);
+    return result;
   };
 
   // ============================================================
