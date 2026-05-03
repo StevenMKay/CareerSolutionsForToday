@@ -12405,10 +12405,54 @@
       if (isDocumentPreviewFormat(_previewFormat)) {
         cleanHtml = injectMobileDocumentPreviewFitCSS(cleanHtml);
       }
-      assignPreviewSrcdoc(frame, cleanHtml);
-      // Phase D: after the unpaginated fixed-document HTML lands, run the
-      // measurement-based paginator and replace the iframe content.
-      try { _maybePaginatePreviewAfterRender(frame, _previewFormat); } catch (_) {}
+      // Phase D++ -- for fixed-document PDF/DOCX preview, finalize HTML
+      // BEFORE assigning srcdoc so the user never sees raw unpaginated
+      // content that later disappears in export. The same finalize path is
+      // used for downloadPackagePdf, so preview and export are guaranteed
+      // to use identical paginated HTML.
+      var _isFixedDocPreview = (
+        window.RB_USE_FIXED_DOCUMENT_RENDERER !== false &&
+        isDocumentPreviewFormat(_previewFormat) &&
+        cleanHtml && cleanHtml.indexOf('rb-fixed-document') !== -1 &&
+        typeof finalizeFixedDocumentHtml === 'function'
+      );
+      if (_isFixedDocPreview) {
+        // Lightweight loading placeholder so the iframe is never empty.
+        try {
+          frame.srcdoc = '<!doctype html><html><head><meta charset="utf-8">' +
+            '<style>html,body{margin:0;background:#e5e7eb;font:14px/1.4 -apple-system,Segoe UI,Roboto,sans-serif;color:#475569;}' +
+            '.rb-prev-load{display:flex;align-items:center;justify-content:center;height:100vh;}' +
+            '.rb-prev-spin{width:18px;height:18px;border:2px solid #cbd5e1;border-top-color:#1d4ed8;border-radius:50%;animation:rbspn .8s linear infinite;margin-right:10px;}' +
+            '@keyframes rbspn{to{transform:rotate(360deg);}}</style></head>' +
+            '<body><div class="rb-prev-load"><span class="rb-prev-spin"></span>Preparing document preview…</div></body></html>';
+        } catch (_) {}
+        var _previewToken = ++_RB_PAGINATE_TOKEN;
+        finalizeFixedDocumentHtml(cleanHtml, {
+          target: 'preview',
+          format: _previewFormat
+        }).then(function (finalHtml) {
+          if (_previewToken !== _RB_PAGINATE_TOKEN) return; // stale render
+          try {
+            var liveFrame = document.getElementById('preview-frame');
+            if (!liveFrame) return;
+            assignPreviewSrcdoc(liveFrame, finalHtml || cleanHtml);
+            try { liveFrame.dataset.paginated = 'true'; } catch (_) {}
+          } catch (e) {
+            try { console.error('[preview-finalize] assign failed', e); } catch (_) {}
+          }
+        }).catch(function (e) {
+          try { console.warn('[preview-finalize] failed; assigning raw HTML.', e); } catch (_) {}
+          try {
+            var liveFrame2 = document.getElementById('preview-frame');
+            if (liveFrame2) assignPreviewSrcdoc(liveFrame2, cleanHtml);
+          } catch (_) {}
+        });
+      } else {
+        assignPreviewSrcdoc(frame, cleanHtml);
+        // Phase D: legacy fallback only -- run the paginator after the
+        // iframe has the raw HTML. Skipped above for fixed-document PDF/DOCX.
+        try { _maybePaginatePreviewAfterRender(frame, _previewFormat); } catch (_) {}
+      }
       // Reset iframe + container scroll on every render so the user sees the top of the new preview.
       frame.addEventListener('load', function () {
         try {
@@ -13587,7 +13631,14 @@
       '  min-height: var(--rb-doc-page-height);',
       '  background: #fff; color: var(--rb-doc-text);',
       '  position: relative; overflow: hidden;',
-      '  break-after: page; page-break-after: always;',
+      '}',
+      '.rb-doc-page:not(:last-child) {',
+      '  break-after: page;',
+      '  page-break-after: always;',
+      '}',
+      '.rb-doc-page:last-child {',
+      '  break-after: auto;',
+      '  page-break-after: auto;',
       '}',
       'body.target-preview .rb-doc-page { box-shadow: 0 8px 28px rgba(15, 23, 42, .18); }',
       'body.target-export .rb-doc-page {',
@@ -13661,7 +13712,14 @@
       '  .rb-doc-page {',
       '    width: 8.5in; height: 11in; min-height: 11in; margin: 0;',
       '    box-shadow: none !important; overflow: hidden;',
-      '    break-after: page; page-break-after: always;',
+      '  }',
+      '  .rb-doc-page:not(:last-child) {',
+      '    break-after: page;',
+      '    page-break-after: always;',
+      '  }',
+      '  .rb-doc-page:last-child {',
+      '    break-after: auto;',
+      '    page-break-after: auto;',
       '  }',
       '}',
       '@media screen and (max-width: 900px) {',
@@ -14173,6 +14231,134 @@
       out.error = String(e && e.message || e);
     }
     return out;
+  };
+
+  // Phase D++ -- real layout validator. Loads the finalized HTML into the
+  // measurement iframe and reports actually-blank pages and clipped regions
+  // (DOMParser alone cannot detect overflow because it doesn't lay out).
+  window.validateFixedPdfLayout = async function (html) {
+    var result = {
+      ok: true,
+      pageCount: 0,
+      overflowPages: [],
+      blankPages: [],
+      hasAchievements: false,
+      hasEducation: false,
+      hasCertifications: false,
+      bodyClass: ''
+    };
+    if (!html || typeof html !== 'string') {
+      result.ok = false;
+      result.error = 'No HTML supplied.';
+      return result;
+    }
+    var frame;
+    try { frame = _rbGetMeasurementIframe(); }
+    catch (e) { result.ok = false; result.error = 'Measurement iframe unavailable.'; return result; }
+    try { frame.srcdoc = html; }
+    catch (_) { result.ok = false; result.error = 'srcdoc assignment failed.'; return result; }
+    await _rbWaitForFrameLoad(frame);
+    await new Promise(function (resolve) {
+      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+    });
+    var doc;
+    try { doc = frame.contentDocument; } catch (_) { doc = null; }
+    if (!doc || !doc.body) {
+      result.ok = false;
+      result.error = 'Measurement iframe did not load.';
+      return result;
+    }
+    result.bodyClass = doc.body.className || '';
+    var pages = Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page'));
+    result.pageCount = pages.length;
+    pages.forEach(function (page, index) {
+      var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!text) result.blankPages.push(index + 1);
+      if (/ACHIEVEMENTS/i.test(text)) result.hasAchievements = true;
+      if (/EDUCATION/i.test(text))    result.hasEducation = true;
+      if (/CERTIFICATIONS/i.test(text)) result.hasCertifications = true;
+      var inner = page.querySelector('.rb-doc-page-inner');
+      var main  = page.querySelector('.rb-sidebar-main');
+      var aside = page.querySelector('.rb-sidebar-aside');
+      [
+        { name: 'page-inner',    el: inner },
+        { name: 'sidebar-main',  el: main  },
+        { name: 'sidebar-aside', el: aside }
+      ].forEach(function (item) {
+        if (!item.el) return;
+        if (item.el.scrollHeight > item.el.clientHeight + 2) {
+          result.overflowPages.push({
+            page: index + 1,
+            region: item.name,
+            scrollHeight: item.el.scrollHeight,
+            clientHeight: item.el.clientHeight
+          });
+        }
+      });
+    });
+    result.ok = !result.blankPages.length && !result.overflowPages.length;
+    return result;
+  };
+
+  // Phase D++ -- one-shot diagnostic: confirms the raw and finalized HTML
+  // for the current export, plus runs the layout validator.
+  window.debugCurrentPdfExportHtml = async function () {
+    var pkg;
+    try {
+      pkg = (typeof buildSingleDocumentPackage === 'function')
+        ? buildSingleDocumentPackage('resume')
+        : buildSelectedDocumentPackage();
+    } catch (_) {
+      try { pkg = buildSelectedDocumentPackage(); } catch (e) { pkg = null; }
+    }
+    if (!pkg) return { error: 'No package available.' };
+
+    var raw = renderPackageHTML(pkg, { target: 'export', format: 'pdf' });
+    var finalized = raw;
+    if (typeof finalizeFixedDocumentHtml === 'function') {
+      try { finalized = await finalizeFixedDocumentHtml(raw, { target: 'export', format: 'pdf' }); }
+      catch (e) { finalized = raw; }
+    }
+
+    function parse(html) {
+      var doc = new DOMParser().parseFromString(html, 'text/html');
+      var pages = Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page'));
+      return {
+        bodyClass: doc.body ? doc.body.className : '',
+        pageCount: pages.length,
+        pages: pages.map(function (page, i) {
+          var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
+          return {
+            index: i + 1,
+            docType: page.getAttribute('data-doc-type'),
+            template: page.getAttribute('data-template'),
+            pageNumber: page.getAttribute('data-page-number'),
+            charCount: text.length,
+            hasAchievements:   /ACHIEVEMENTS/i.test(text),
+            hasEducation:      /EDUCATION/i.test(text),
+            hasCertifications: /CERTIFICATIONS/i.test(text),
+            tail: text.slice(-260)
+          };
+        })
+      };
+    }
+
+    var layout = null;
+    try {
+      if (typeof window.validateFixedPdfLayout === 'function') {
+        layout = await window.validateFixedPdfLayout(finalized);
+      }
+    } catch (e) {
+      layout = { ok: false, error: String(e && e.message || e) };
+    }
+
+    return {
+      raw:          parse(raw),
+      finalized:    parse(finalized),
+      layout:       layout,
+      lastFinalized: window.RB_LAST_FINALIZED_FIXED_DOC || null,
+      lastRendered: window.RB_LAST_FIXED_DOC || null
+    };
   };
 
   window.debugFixedDocumentLayout = function () {
@@ -14724,12 +14910,60 @@
     return pages;
   }
 
+  // Phase D++ -- conservative pagination budget. Browser preview measurement
+  // and Puppeteer/print PDF rendering can disagree by a few px due to font
+  // metrics rounding. Reserve a safety strip at the bottom of every page so
+  // borderline content moves to the next page instead of being clipped at
+  // export time. ~36px ~= ~9pt of safety at 96dpi.
+  var RB_DOC_PAGE_SAFETY_PX = 36;
+  try { window.RB_DOC_PAGE_SAFETY_PX = RB_DOC_PAGE_SAFETY_PX; } catch (_) {}
+
+  function _getPdfSafeBudget(rawBudget, options) {
+    options = options || {};
+    var safety = Number(options.safetyPx);
+    if (!isFinite(safety) || safety < 0) safety = RB_DOC_PAGE_SAFETY_PX;
+    var budget = Math.floor((Number(rawBudget) || 0) - safety);
+    return budget < 50 ? 50 : budget;
+  }
+
+  // Returns false for HTML that has no visible text (purely structural
+  // wrappers). Used to skip pushing blank pages.
+  function _hasMeaningfulPageHtml(html) {
+    if (!html) return false;
+    try {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = String(html);
+      var text = (tmp.textContent || '').replace(/\s+/g, ' ').trim();
+      return text.length > 0;
+    } catch (_) { return true; }
+  }
+
+  // Renumber retained pages 1..N and ensure index>0 carries the
+  // continuation class. Used after blank-page filtering.
+  function _renumberFixedPages(pageHtmls) {
+    return (pageHtmls || []).map(function (html, index) {
+      try {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = String(html);
+        var page = tmp.querySelector('.rb-doc-page');
+        if (!page) return html;
+        page.setAttribute('data-page-number', String(index + 1));
+        if (index > 0 && !page.classList.contains('rb-doc-page--continuation')) {
+          page.classList.add('rb-doc-page--continuation');
+        }
+        return page.outerHTML;
+      } catch (_) { return html; }
+    });
+  }
+
   // Paginate one page element (full-width) into N page HTML strings.
-  function _paginateFullWidthPage(pageEl, mDoc) {
+  function _paginateFullWidthPage(pageEl, mDoc, options) {
+    options = options || {};
     var inner = pageEl.querySelector('.rb-doc-page-inner');
     if (!inner) return [pageEl.outerHTML];
-    var budget = inner.clientHeight;
-    if (!budget || budget < 50) return [pageEl.outerHTML];
+    var rawBudget = inner.clientHeight;
+    if (!rawBudget || rawBudget < 50) return [pageEl.outerHTML];
+    var budget = _getPdfSafeBudget(rawBudget, options);
 
     var pageOpenMatch = pageEl.outerHTML.match(/^<[^>]+>/);
     var pageOpen = pageOpenMatch ? pageOpenMatch[0] : '<section class="rb-doc-page">';
@@ -14742,7 +14976,7 @@
     if (!blocks.length) return [pageEl.outerHTML];
 
     // First fast path: if everything already fits, no work needed.
-    if (inner.scrollHeight <= budget + 2) {
+    if (Math.ceil(inner.scrollHeight) <= budget) {
       return [pageEl.outerHTML];
     }
 
@@ -14782,7 +15016,11 @@
         mDoc.body.appendChild(host);
       }
       host.innerHTML = html;
-      var h = host.scrollHeight;
+      var h;
+      try {
+        var rect = host.getBoundingClientRect();
+        h = Math.ceil((rect && rect.height) ? rect.height : host.scrollHeight);
+      } catch (_) { h = Math.ceil(host.scrollHeight); }
       host.innerHTML = '';
       return h;
     }
@@ -14796,12 +15034,32 @@
       } else if (block.classList && block.classList.contains('rb-doc-section')) {
         // Try to split this section across pages.
         var remaining = budget - currentH;
-        var fragments = _splitSectionByItems(block, budget, mDoc, remaining > 80 ? remaining : budget);
+        // Phase D++ -- if the leftover space is too small to host a useful
+        // section fragment, push the entire section to the next page instead.
+        if (remaining < 140) {
+          pushPage(pageHTMLs.length > 0);
+          var split2 = _splitSectionByItems(block, budget, mDoc, budget);
+          if (split2 && split2.length) {
+            current = [split2[0]];
+            currentH = blockHeight(split2[0]);
+            for (var k = 1; k < split2.length; k++) {
+              pushPage(pageHTMLs.length > 0);
+              current = [split2[k]];
+              currentH = blockHeight(split2[k]);
+            }
+          } else {
+            current.push(html);
+            currentH = h;
+          }
+          return;
+        }
+        var fragments = _splitSectionByItems(block, budget, mDoc, remaining);
         if (fragments.length) {
-          // First fragment fits the remaining current page (we hope).
+          // First fragment must measurably fit the remaining budget --
+          // no +tolerance, since the safety margin is already baked in.
           var firstFrag = fragments[0];
           var firstH = blockHeight(firstFrag);
-          if (firstH <= budget - currentH + 4) {
+          if (firstH > 0 && currentH + firstH <= budget) {
             current.push(firstFrag);
             pushPage(pageHTMLs.length > 0);
             for (var i = 1; i < fragments.length; i++) {
@@ -14835,11 +15093,12 @@
 
   // Sidebar pages: paginate only the .rb-sidebar-main overflow into
   // continuation pages (full-width). The aside stays on Page 1.
-  function _paginateSidebarPage(pageEl, mDoc) {
+  function _paginateSidebarPage(pageEl, mDoc, options) {
+    options = options || {};
     var grid = pageEl.querySelector('.rb-sidebar-grid');
     var main = grid && grid.querySelector('.rb-sidebar-main');
     var aside = grid && grid.querySelector('.rb-sidebar-aside');
-    if (!grid || !main) return _paginateFullWidthPage(pageEl, mDoc);
+    if (!grid || !main) return _paginateFullWidthPage(pageEl, mDoc, options);
 
     // Phase D+ defensive sidebar overflow guard. The renderer caps skills at
     // MAX_SIDEBAR_SKILLS=12, but a long custom skill string or a narrow
@@ -14855,8 +15114,9 @@
       }
     }
 
-    var budgetMain = main.clientHeight;
-    if (main.scrollHeight <= budgetMain + 2) {
+    var rawBudgetMain = main.clientHeight;
+    var budgetMain = _getPdfSafeBudget(rawBudgetMain, options);
+    if (Math.ceil(main.scrollHeight) <= budgetMain) {
       return [pageEl.outerHTML]; // no overflow
     }
 
@@ -14874,7 +15134,16 @@
         'position:absolute;left:-99999px;top:0;width:' + main.clientWidth + 'px;visibility:hidden;';
       mDoc.body.appendChild(host);
     }
-    function measure(html) { host.innerHTML = html; var h = host.scrollHeight; host.innerHTML = ''; return h; }
+    function measure(html) {
+      host.innerHTML = html;
+      var h;
+      try {
+        var rect = host.getBoundingClientRect();
+        h = Math.ceil((rect && rect.height) ? rect.height : host.scrollHeight);
+      } catch (_) { h = Math.ceil(host.scrollHeight); }
+      host.innerHTML = '';
+      return h;
+    }
 
     var blocks = Array.prototype.slice.call(main.children);
     var page1Blocks = [];
@@ -14889,14 +15158,28 @@
         page1Blocks.push(html);
         accH += h;
       } else if (block.classList && block.classList.contains('rb-doc-section')) {
-        // Try to split this section: keep some on page 1, push rest to overflow.
         var remaining = budgetMain - accH;
-        var fragments = _splitSectionByItems(block, budgetMain, mDoc, remaining > 80 ? remaining : budgetMain);
+        // Phase D++ -- if leftover space is small, do not even try to squeeze
+        // a fragment in. Push the whole section to continuation pages.
+        if (remaining < 140) {
+          overflowBlocks.push(block);
+          return;
+        }
+        var fragments = _splitSectionByItems(block, budgetMain, mDoc, remaining);
         if (fragments.length >= 1) {
-          page1Blocks.push(fragments[0]);
-          for (var i = 1; i < fragments.length; i++) {
-            // Stash as raw HTML strings; we'll wrap later.
-            overflowBlocks.push({ __html: fragments[i] });
+          var firstFragment = fragments[0];
+          var firstH = measure(firstFragment);
+          if (firstH > 0 && accH + firstH <= budgetMain) {
+            page1Blocks.push(firstFragment);
+            accH += firstH;
+            for (var i = 1; i < fragments.length; i++) {
+              overflowBlocks.push({ __html: fragments[i] });
+            }
+          } else {
+            // Safer: move the entire split section to continuation pages.
+            for (var j = 0; j < fragments.length; j++) {
+              overflowBlocks.push({ __html: fragments[j] });
+            }
           }
         } else {
           overflowBlocks.push(block);
@@ -14920,6 +15203,12 @@
       return b.__html != null ? b.__html : b.outerHTML;
     }).join('');
 
+    // Phase D++ -- skip making a continuation page if the overflow is
+    // structurally non-empty but visually blank (no meaningful text).
+    if (!_hasMeaningfulPageHtml(overflowHTML)) {
+      return pages;
+    }
+
     // Create a temporary page in the live measurement DOM so the full-width
     // paginator can measure correctly.
     var tmp = mDoc.createElement('section');
@@ -14930,7 +15219,7 @@
     tmp.innerHTML = '<div class="rb-doc-page-inner">' + overflowHTML + '</div>';
     mDoc.body.appendChild(tmp);
     try {
-      var moreHTMLs = _paginateFullWidthPage(tmp, mDoc);
+      var moreHTMLs = _paginateFullWidthPage(tmp, mDoc, options);
       pages = pages.concat(moreHTMLs);
     } finally {
       try { mDoc.body.removeChild(tmp); } catch (_) {}
@@ -14980,11 +15269,17 @@
               var rebuilt = [];
               pages.forEach(function (pageEl) {
                 if (pageEl.classList.contains('rb-doc-page--sidebar')) {
-                  rebuilt = rebuilt.concat(_paginateSidebarPage(pageEl, mDoc));
+                  rebuilt = rebuilt.concat(_paginateSidebarPage(pageEl, mDoc, options));
                 } else {
-                  rebuilt = rebuilt.concat(_paginateFullWidthPage(pageEl, mDoc));
+                  rebuilt = rebuilt.concat(_paginateFullWidthPage(pageEl, mDoc, options));
                 }
               });
+
+              // Phase D++ -- drop visually blank pages and renumber retained
+              // pages so the final HTML matches what the PDF will show.
+              try { rebuilt = rebuilt.filter(_hasMeaningfulPageHtml); } catch (_) {}
+              try { rebuilt = _renumberFixedPages(rebuilt); } catch (_) {}
+              if (!rebuilt.length) { finish(html); return; }
 
               // Replace all pages in place. We reconstruct the full HTML by
               // replacing the .rb-doc-viewer's innerHTML.
@@ -15012,6 +15307,63 @@
     });
   }
   try { window.paginateFixedDocument = paginateFixedDocument; } catch (_) {}
+
+  // ============================================================
+  // Phase D++ -- Canonical fixed-document finalization helper.
+  //
+  // Both PDF preview and PDF export must call this so they share one
+  // pre-paginated, sanitized HTML payload. Direct calls to
+  // paginateFixedDocument from product code should be avoided; this
+  // helper is the single source of truth.
+  // ============================================================
+  async function finalizeFixedDocumentHtml(html, options) {
+    options = options || {};
+    var target = options.target || 'preview';
+    var format = options.format || 'pdf';
+
+    if (!html || typeof html !== 'string') return html || '';
+
+    try {
+      if (typeof sanitizePreviewHTML === 'function') {
+        html = sanitizePreviewHTML(html);
+      }
+    } catch (_) {}
+
+    if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false ||
+        html.indexOf('rb-fixed-document') === -1 ||
+        typeof paginateFixedDocument !== 'function') {
+      return html;
+    }
+
+    var paginated = html;
+    try {
+      paginated = await paginateFixedDocument(html, {
+        target: target,
+        format: format,
+        conservative: true
+      });
+    } catch (err) {
+      try { console.warn('[finalizeFixedDocumentHtml] pagination failed; using raw fixed HTML.', err); } catch (_) {}
+      paginated = html;
+    }
+
+    if (!paginated || typeof paginated !== 'string') paginated = html;
+
+    try {
+      window.RB_LAST_FINALIZED_FIXED_DOC = {
+        target: target,
+        format: format,
+        rawLength: html.length,
+        finalLength: paginated.length,
+        changed: paginated !== html,
+        pageCount: (paginated.match(/class="[^"]*rb-doc-page\b/g) || []).length,
+        finalizedAt: new Date().toISOString()
+      };
+    } catch (_) {}
+
+    return paginated;
+  }
+  try { window.finalizeFixedDocumentHtml = finalizeFixedDocumentHtml; } catch (_) {}
 
   // ============================================================
   // Phase D — Adjust Layout panel wiring.
@@ -15165,14 +15517,24 @@
     if (!frame) return;
     if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false) return;
     if (format !== 'pdf' && format !== 'docx' && format !== 'doc') return;
+    // Phase D++ -- defensive fallback only. The primary preview path now
+    // calls finalizeFixedDocumentHtml() before srcdoc assignment and sets
+    // dataset.paginated = 'true'. Skip if it already ran.
+    try { if (frame.dataset && frame.dataset.paginated === 'true') return; } catch (_) {}
     var token = ++_RB_PAGINATE_TOKEN;
     var raw = '';
     try { raw = frame.srcdoc || ''; } catch (_) {}
     if (!raw || raw.indexOf('rb-fixed-document') === -1) return;
-    paginateFixedDocument(raw).then(function (paginated) {
+    var finalizer = (typeof finalizeFixedDocumentHtml === 'function')
+      ? finalizeFixedDocumentHtml(raw, { target: 'preview', format: format })
+      : paginateFixedDocument(raw);
+    Promise.resolve(finalizer).then(function (paginated) {
       if (token !== _RB_PAGINATE_TOKEN) return; // stale
       if (!paginated || paginated === raw) return;
-      try { frame.srcdoc = paginated; } catch (err) {
+      try {
+        frame.srcdoc = paginated;
+        try { frame.dataset.paginated = 'true'; } catch (_) {}
+      } catch (err) {
         try { console.error('[paginate-preview] srcdoc reassignment failed', err); } catch (_) {}
       }
     });
@@ -15357,27 +15719,40 @@
       format: 'pdf'
     });
 
-    html = sanitizePreviewHTML(html);
-
-    // Phase D: route fixed-document export HTML through the measurement
-    // paginator so PDF output and print fallback share the same pre-paginated
-    // page set (same source as preview).
+    // Phase D++ -- single canonical finalization path. Preview and export
+    // both go through finalizeFixedDocumentHtml() so what the user saw in
+    // the iframe is what the server / print fallback receive.
     if (window.RB_USE_FIXED_DOCUMENT_RENDERER !== false &&
-        typeof paginateFixedDocument === 'function' &&
-        html && html.indexOf('rb-fixed-document') !== -1) {
+        html && html.indexOf('rb-fixed-document') !== -1 &&
+        typeof finalizeFixedDocumentHtml === 'function') {
       try {
-        var paginated = await paginateFixedDocument(html);
-        if (paginated && typeof paginated === 'string') html = paginated;
-        try {
-          if (typeof window.validateFixedPdfHtml === 'function') {
-            console.log('[pdf validation]', window.validateFixedPdfHtml(html));
-          }
-        } catch (_) {}
-      } catch (paginateErr) {
-        try { console.warn('[downloadPackagePdf] pagination failed; exporting unpaginated.', paginateErr); } catch (_) {}
+        html = await finalizeFixedDocumentHtml(html, { target: 'export', format: 'pdf' });
+      } catch (finalizeErr) {
+        try { console.warn('[downloadPackagePdf] finalization failed; using raw HTML.', finalizeErr); } catch (_) {}
       }
+    } else {
+      html = sanitizePreviewHTML(html);
     }
 
+    try {
+      if (typeof window.validateFixedPdfHtml === 'function') {
+        console.log('[pdf validation]', window.validateFixedPdfHtml(html));
+      }
+    } catch (_) {}
+    try {
+      if (typeof window.validateFixedPdfLayout === 'function') {
+        window.validateFixedPdfLayout(html).then(function (report) {
+          try { console.log('[pdf layout validation]', report); } catch (_) {}
+        }).catch(function () {});
+      }
+    } catch (_) {}
+
+    // Server PDF requirements (Puppeteer):
+    //   await page.setContent(html, { waitUntil: ['load','networkidle0'] });
+    //   await page.evaluateHandle('document.fonts.ready');
+    //   await page.pdf({ printBackground:true, preferCSSPageSize:true,
+    //     scale:1, format:'Letter', margin:{top:'0in',right:'0in',bottom:'0in',left:'0in'} });
+    // Do NOT inject extra margins, do NOT wrap the HTML, do NOT strip <style>.
     // Try the server-side renderer first (real PDF, no user dialog).
     // Fall back to the client print dialog if the endpoint is unavailable
     // (404/501) or the network call fails. Genuine HTTP errors (400/413/500)
