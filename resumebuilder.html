@@ -10577,27 +10577,37 @@
       : (Array.isArray(rd.additional) ? rd.additional : []);
 
     var isDocument = format === 'pdf' || format === 'docx';
-    // Sidebar rail handles contact/skills/certifications/achievements for
-    // Modern Sidebar PDF/DOCX. The main column should not duplicate them.
-    // Public Web Page also suppresses the resume document header — the
-    // hero already renders name/headline/contact, so leaving the inner
-    // resume <h1>name</h1> in place produced a duplicate top-level
-    // heading. PDF/DOCX behaviour is unchanged.
-    var sidebarLayout =
-      ((cfg.docLayout === 'sidebar-rail' || cfg.docLayout === 'editorial-split') && isDocument) ||
-      format === 'web';
+    // Split sidebar suppression into independent flags so Public Web
+    // Page can hide the duplicate document header WITHOUT also losing
+    // Skills / Certifications / Achievements (those still belong in
+    // the main column on the web).
+    //
+    //  - isDocumentSidebarLayout: PDF/DOCX with Modern Sidebar /
+    //    Editorial Split — sidebar rail owns contact + skills +
+    //    certs + achievements, so the main column suppresses them.
+    //  - suppressResumeHeader: skip the inner <h1>name</h1> + contact
+    //    block. True for sidebar PDF/DOCX (rail shows it) AND for
+    //    Public Web Page (hero already shows name/contact).
+    //  - suppressMainSidebarOwnedSections: only true when the document
+    //    sidebar rail owns those sections. The web page leaves Skills,
+    //    Certs, Achievements in the main column.
+    var isDocumentSidebarLayout =
+      (cfg.docLayout === 'sidebar-rail' || cfg.docLayout === 'editorial-split') && isDocument;
+    var suppressResumeHeader = isDocumentSidebarLayout || format === 'web';
+    var suppressResumeContactBlock = suppressResumeHeader;
+    var suppressMainSidebarOwnedSections = isDocumentSidebarLayout;
     // PDF + sidebar-rail (Modern Sidebar PDF): move Achievements to the
     // main column so they don't get awkwardly split or orphaned at the
     // bottom of the colored sidebar. Certifications stay in the sidebar.
     // DOCX behavior is unchanged (achievements remain in sidebar there).
     var achInMainForPdfRail = (cfg.docLayout === 'sidebar-rail' && format === 'pdf');
 
-    var contactHtml = sidebarLayout ? '' : [
+    var contactHtml = suppressResumeContactBlock ? '' : [
       email && '<span>' + _esc(email) + '</span>',
       phone && '<span>' + _esc(phone) + '</span>',
       location && '<span>' + _esc(location) + '</span>'
     ].filter(Boolean).join(' &middot; ');
-    var linksHtml = (sidebarLayout || !links.length) ? '' : '<div class="links">' + links.map(function (l) {
+    var linksHtml = (suppressResumeContactBlock || !links.length) ? '' : '<div class="links">' + links.map(function (l) {
       var label = _linkLabel(l);
       return label ? '<span class="link">' + _esc(label) + '</span>' : '';
     }).join('') + '</div>';
@@ -10637,9 +10647,9 @@
     }).join('');
 
     // Skills rendering varies by style.
-    var skillsHtml = sidebarLayout ? '' : renderSkillsBlock(rd, cfg, format);
+    var skillsHtml = suppressMainSidebarOwnedSections ? '' : renderSkillsBlock(rd, cfg, format);
 
-    var certsHtml = (sidebarLayout || !certs.length) ? '' : certs.map(function (c) {
+    var certsHtml = (suppressMainSidebarOwnedSections || !certs.length) ? '' : certs.map(function (c) {
       if (typeof c === 'string') return '<article class="edu-item"><div class="exp-row exp-row-1"><strong class="exp-role">' + _esc(c) + '</strong></div></article>';
       var nm = _esc(_safeStr(c && (c.name || c.title) || ''));
       var iss = _esc(_safeStr(c && (c.issuer || c.org || c.organization) || ''));
@@ -10651,7 +10661,7 @@
       '</article>';
     }).join('');
 
-    var achHtml = ((sidebarLayout && !achInMainForPdfRail) || !achievements.length) ? '' : _bullets(achievements.map(function (a) {
+    var achHtml = ((suppressMainSidebarOwnedSections && !achInMainForPdfRail) || !achievements.length) ? '' : _bullets(achievements.map(function (a) {
       if (typeof a === 'string') return a;
       var t = a.title || a.name || '';
       var d = a.description || '';
@@ -10685,7 +10695,7 @@
     }).join('');
 
     return '<section id="sec-resume" class="doc-section section-' + cfg.sectionStyle + '">' +
-      (sidebarLayout ? '' :
+      (suppressResumeHeader ? '' :
         '<header class="doc-header resume-header">' +
           (name ? '<h1>' + _splitNameHtml(name) + '</h1>' : '<h1>Resume</h1>') +
           (headline ? '<p class="headline">' + _esc(headline) + '</p>' : '') +
