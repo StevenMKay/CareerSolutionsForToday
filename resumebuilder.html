@@ -2338,6 +2338,26 @@
   .preview-device.device-mobile > iframe { height:760px; }
   .preview-device.device-app    > iframe { height:700px; }
 
+  /* Phase B: fixed-document mode uses a capped viewer height with internal
+     scroll instead of unbounded iframe stretching. Public Web Page preview
+     is unaffected because it never gets the .preview-format-document class. */
+  #preview-container-export.preview-format-document #preview-frame,
+  #preview-container-export.preview-format-document .preview-device > iframe {
+    height: min(78vh, 980px);
+    min-height: 720px;
+    background: #e5e7eb;
+  }
+  #preview-container-export.preview-format-document .preview-device {
+    max-width: 100%;
+    background: #e5e7eb;
+    overflow: auto;
+  }
+  /* Scope the legacy device-specific iframe heights to non-document mode so
+     they don't fight the capped fixed-document viewer above. */
+  #preview-container-export:not(.preview-format-document) .preview-device.device-tablet > iframe { height:840px; }
+  #preview-container-export:not(.preview-format-document) .preview-device.device-mobile > iframe { height:760px; }
+  #preview-container-export:not(.preview-format-document) .preview-device.device-app    > iframe { height:700px; }
+
   /* Word/DOCX preview unavailable card (used in-page if ever rendered outside the iframe) */
   .preview-unavailable-card {
     max-width: 680px; margin: 2rem auto; padding: 1.35rem;
@@ -4134,6 +4154,67 @@
             </div>
             <!-- E. Published link host (populated by showPublishedShareResult / hydratePublishedShareLinkUI) -->
             <div id="publish-share-result-host"></div>
+
+            <!-- F. Adjust Layout (Phase D) — only affects PDF / Word / Print output. -->
+            <div id="adjust-layout-panel" class="adjust-layout-panel"
+                 style="margin-top:14px;border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;background:#F8FAFC;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                <label class="field-label" style="margin:0;">Adjust Layout
+                  <span style="font-weight:400;color:#64748B;font-size:.78rem;"> &mdash; PDF &amp; Word only</span>
+                </label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button type="button" class="btn btn-secondary" id="adjust-fit-one-page-btn"
+                          style="padding:4px 10px;font-size:.82rem;"
+                          title="Iteratively reduce font size and spacing until the resume fits on a single page.">
+                    <i data-lucide="minimize-2" style="width:13px;height:13px;"></i>
+                    Fit to 1 Page
+                  </button>
+                  <button type="button" class="btn btn-secondary" id="adjust-reset-btn"
+                          style="padding:4px 10px;font-size:.82rem;"
+                          title="Reset all layout overrides to defaults.">
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px;">
+                <label style="font-size:.78rem;color:#475569;display:flex;flex-direction:column;gap:3px;">
+                  Font size
+                  <select id="adjust-font-size" data-adjust-key="fontSize" style="padding:5px;border:1px solid #CBD5E1;border-radius:6px;font-size:.85rem;">
+                    <option value="compact">Compact</option>
+                    <option value="standard" selected>Standard</option>
+                    <option value="spacious">Spacious</option>
+                  </select>
+                </label>
+                <label style="font-size:.78rem;color:#475569;display:flex;flex-direction:column;gap:3px;">
+                  Line height
+                  <select id="adjust-line-height" data-adjust-key="lineHeight" style="padding:5px;border:1px solid #CBD5E1;border-radius:6px;font-size:.85rem;">
+                    <option value="tight">Tight</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="open">Open</option>
+                  </select>
+                </label>
+                <label style="font-size:.78rem;color:#475569;display:flex;flex-direction:column;gap:3px;">
+                  Section spacing
+                  <select id="adjust-section-spacing" data-adjust-key="sectionSpacing" style="padding:5px;border:1px solid #CBD5E1;border-radius:6px;font-size:.85rem;">
+                    <option value="tight">Tight</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="open">Open</option>
+                  </select>
+                </label>
+                <label style="font-size:.78rem;color:#475569;display:flex;flex-direction:column;gap:3px;">
+                  Page margin
+                  <select id="adjust-page-margin" data-adjust-key="pageMargin" style="padding:5px;border:1px solid #CBD5E1;border-radius:6px;font-size:.85rem;">
+                    <option value="narrow">Narrow</option>
+                    <option value="standard" selected>Standard</option>
+                    <option value="wide">Wide</option>
+                  </select>
+                </label>
+              </div>
+              <p id="adjust-layout-status" aria-live="polite"
+                 style="margin:8px 0 0;font-size:.76rem;color:#64748B;line-height:1.4;">
+                Defaults applied. These settings only affect document output — Public Web Page is unchanged.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -11378,6 +11459,9 @@
   // Emits markup on .resume-modern-sidebar/.resume-sidebar/.resume-main so
   // CSS can grid only the resume subdoc, never the whole package.
   function _renderResumeWithRail(rd, cfg, format, photoUrl) {
+    if (window.RB_USE_FIXED_DOCUMENT_RENDERER !== false && (format === 'pdf' || format === 'docx' || format === 'doc')) {
+      try { console.warn('[fixed-doc] _renderResumeWithRail (legacy) invoked for document format while fixed-document renderer is enabled.'); } catch (_) {}
+    }
     var contact = rd.contact || rd.basics || {};
     var name = _safeStr(rd.full_name || contact.name || rd.name || '');
     var headline = _safeStr(rd.headline || rd.title || (contact && contact.headline) || '');
@@ -11430,6 +11514,9 @@
   }
 
   function _renderDocumentPackage(pkg, format, cfg) {
+    if (window.RB_USE_FIXED_DOCUMENT_RENDERER !== false) {
+      try { console.warn('[fixed-doc] _renderDocumentPackage (legacy) invoked while fixed-document renderer is enabled. This call should normally be intercepted in renderPackageHTML.'); } catch (_) {}
+    }
     format = format || 'pdf';
     cfg = cfg || getPreviewStyleConfig((pkg.style && pkg.style.template) || 'modern-sidebar', (pkg.style && pkg.style.color) || 'blue', format);
     var d = pkg.documents || {};
@@ -12183,7 +12270,25 @@
         'For now, please use <strong>PDF Document</strong> or <strong>Word / DOCX</strong> for your package preview.</p>' +
         '</section></main>';
     }
-    else if (format === 'pdf' || format === 'docx') inner = _renderDocumentPackage(pkg, format, cfg);
+    else if (format === 'pdf' || format === 'docx' || format === 'doc') {
+      // Phase B: route document formats through the fixed-document renderer
+      // when the safety flag is enabled. Set window.RB_USE_FIXED_DOCUMENT_RENDERER
+      // = false in console to fall back to the legacy package layout.
+      if (window.RB_USE_FIXED_DOCUMENT_RENDERER !== false &&
+          typeof renderFixedDocumentPackageHTML === 'function') {
+        try {
+          return renderFixedDocumentPackageHTML(pkg, {
+            target: target,
+            format: format === 'doc' ? 'docx' : format
+          });
+        } catch (fixedErr) {
+          try { console.error('[fixed-doc] renderFixedDocumentPackageHTML failed, falling back to legacy:', fixedErr); } catch (_) {}
+        }
+      } else {
+        try { console.warn('[fixed-doc] legacy package renderer in use (RB_USE_FIXED_DOCUMENT_RENDERER=' + window.RB_USE_FIXED_DOCUMENT_RENDERER + ').'); } catch (_) {}
+      }
+      inner = _renderDocumentPackage(pkg, format === 'doc' ? 'docx' : format, cfg);
+    }
     else inner = _renderWebPortfolio(pkg, cfg);
 
     var styleVars = ':root{--accent:' + cfg.accent + ';--accent-dark:' + cfg.accentDark + ';--font-head:' + cfg.fontHead + ';--font-body:' + cfg.fontBody + ';}';
@@ -12301,6 +12406,9 @@
         cleanHtml = injectMobileDocumentPreviewFitCSS(cleanHtml);
       }
       assignPreviewSrcdoc(frame, cleanHtml);
+      // Phase D: after the unpaginated fixed-document HTML lands, run the
+      // measurement-based paginator and replace the iframe content.
+      try { _maybePaginatePreviewAfterRender(frame, _previewFormat); } catch (_) {}
       // Reset iframe + container scroll on every render so the user sees the top of the new preview.
       frame.addEventListener('load', function () {
         try {
@@ -13099,6 +13207,1718 @@
   try { window.downloadSingleDocument = downloadSingleDocument; } catch (_) {}
   try { window.updateDirectDownloadButtonsState = updateDirectDownloadButtonsState; } catch (_) {}
 
+  // ============================================================
+  // Phase B — Fixed-document rendering engine.
+  //
+  // Single source of truth for PDF preview, DOCX preview, server PDF
+  // export HTML, and client print-fallback HTML. The Public Web Page
+  // path (renderPublicViewPreviewHTML) is intentionally untouched.
+  //
+  //   getDocumentLayoutSettings()  — page tokens / spacing / accent.
+  //   normalize*ForDocument(pkg)   — produce stable shapes from a package.
+  //   getFixedDocumentCss(s)       — self-contained CSS shell, .rb-doc-*.
+  //   renderFixed*DocumentHTML     — per-doc inner markup.
+  //   renderFixedDocumentPage      — wraps inner markup in .rb-doc-page.
+  //   renderFixedDocumentPackageHTML(pkg, opts) — full <!doctype html>.
+  //
+  // Phase B limitation:
+  //   Each selected document renders into ONE fixed page. If content
+  //   overflows, debugFixedDocumentLayout() reports it. Phase D will
+  //   add measured pagination + bullet splitting + orphan prevention.
+  //
+  // Safety flag (set just below) — flip to false in console to fall
+  // back to the legacy package renderer immediately:
+  //   window.RB_USE_FIXED_DOCUMENT_RENDERER = false;
+  // ============================================================
+  try {
+    if (typeof window.RB_USE_FIXED_DOCUMENT_RENDERER === 'undefined') {
+      window.RB_USE_FIXED_DOCUMENT_RENDERER = true;
+    }
+  } catch (_) {}
+
+  function getDocumentLayoutSettings() {
+    var state = window.RB_STATE || {};
+    var saved = state.documentLayoutOverrides || state.documentLayout || {};
+
+    var fontSize       = saved.fontSize       || 'standard';
+    var lineHeight     = saved.lineHeight     || 'normal';
+    var sectionSpacing = saved.sectionSpacing || 'normal';
+    var pageMargin     = saved.pageMargin     || 'standard';
+
+    var fontSizeMap   = { compact: '9.8pt', standard: '10.5pt', spacious: '11pt' };
+    var lineHeightMap = { tight: '1.18', normal: '1.28', open: '1.38' };
+    var sectionGapMap = { tight: '6pt', normal: '9pt', open: '12pt' };
+    var itemGapMap    = { tight: '3pt', normal: '5pt', open: '7pt' };
+    var marginMap     = { narrow: '0.4in', standard: '0.5in', wide: '0.6in' };
+
+    var accent = '#0b487a';
+    try {
+      if (typeof getSelectedExportColor === 'function') {
+        var c = getSelectedExportColor();
+        if (c && /^#?[0-9a-f]{3,8}$/i.test(String(c).replace(/^#/, ''))) {
+          accent = String(c).charAt(0) === '#' ? c : ('#' + c);
+        }
+      }
+    } catch (_) {}
+
+    return {
+      pageWidth:         '8.5in',
+      pageHeight:        '11in',
+      margin:            marginMap[pageMargin]       || marginMap.standard,
+      bodyFontSize:      fontSizeMap[fontSize]       || fontSizeMap.standard,
+      lineHeight:        lineHeightMap[lineHeight]   || lineHeightMap.normal,
+      sectionGap:        sectionGapMap[sectionSpacing] || sectionGapMap.normal,
+      itemGap:           itemGapMap[sectionSpacing]  || itemGapMap.normal,
+      accent:            accent,
+      fontSizeKey:       fontSize,
+      lineHeightKey:     lineHeight,
+      sectionSpacingKey: sectionSpacing,
+      pageMarginKey:     pageMargin
+    };
+  }
+
+  // Defensive escape used by the fixed renderer. Decodes HTML entities once
+  // (mirrors _esc) so already-escaped values from upstream parsers do not
+  // double-encode.
+  function rbDocEscape(value) {
+    if (value == null) return '';
+    var text = String(value);
+    if (text.indexOf('&') !== -1) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.innerHTML = text;
+        text = ta.value;
+      } catch (_) {}
+    }
+    return text.replace(/[&<>"']/g, function (c) {
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+
+  function rbDocArray(value) {
+    if (!value) return [];
+    return Array.isArray(value) ? value : [value];
+  }
+
+  function _rbDocStr(value) {
+    if (value == null) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (typeof value === 'object') {
+      // Common single-field wrappers from upstream parsers.
+      if (typeof value.text === 'string')        return value.text;
+      if (typeof value.value === 'string')       return value.value;
+      if (typeof value.description === 'string') return value.description;
+      if (typeof value.summary === 'string')     return value.summary;
+      if (typeof value.title === 'string')       return value.title;
+    }
+    return '';
+  }
+
+  function _rbDocPick(obj, keys) {
+    if (!obj) return '';
+    for (var i = 0; i < keys.length; i++) {
+      var v = obj[keys[i]];
+      if (v != null && _rbDocStr(v).length) return _rbDocStr(v);
+    }
+    return '';
+  }
+
+  function normalizeResumeForDocument(pkg) {
+    pkg = pkg || {};
+    var resume = (pkg.documents && pkg.documents.resume) || {};
+    var contact = resume.contact || resume.basics || {};
+    var name = _rbDocPick(resume, ['full_name', 'name']) || _rbDocPick(contact, ['name', 'full_name']);
+    var headline = _rbDocPick(resume, ['headline', 'current_title', 'title']);
+    var contactBits = {
+      email:    _rbDocPick(contact, ['email'])    || _rbDocPick(resume, ['email']),
+      phone:    _rbDocPick(contact, ['phone'])    || _rbDocPick(resume, ['phone']),
+      location: _rbDocPick(contact, ['location']) || _rbDocPick(resume, ['location']),
+      linkedin: _rbDocPick(contact, ['linkedin', 'linkedin_url']) || _rbDocPick(resume, ['linkedin', 'linkedin_url']),
+      website:  _rbDocPick(contact, ['website', 'site', 'portfolio']) || _rbDocPick(resume, ['website', 'site', 'portfolio']),
+      github:   _rbDocPick(contact, ['github']) || _rbDocPick(resume, ['github'])
+    };
+    var summary = _rbDocPick(resume, ['summary', 'objective', 'profile']);
+
+    function _expItem(e) {
+      e = e || {};
+      return {
+        role:     _rbDocPick(e, ['role', 'title', 'position', 'job_title']),
+        company:  _rbDocPick(e, ['company', 'organization', 'employer']),
+        location: _rbDocPick(e, ['location', 'city']),
+        dates:    _rbDocPick(e, ['dates', 'date_range', 'period', 'duration']),
+        summary:  _rbDocPick(e, ['summary', 'role_summary', 'description']),
+        bullets:  rbDocArray(e.bullets || e.highlights || e.responsibilities || []).map(_rbDocStr).filter(Boolean)
+      };
+    }
+    function _eduItem(e) {
+      e = e || {};
+      return {
+        degree:  _rbDocPick(e, ['degree', 'qualification', 'program']),
+        school:  _rbDocPick(e, ['school', 'institution', 'university', 'college']),
+        location:_rbDocPick(e, ['location', 'city']),
+        dates:   _rbDocPick(e, ['dates', 'date_range', 'period', 'year']),
+        details: _rbDocPick(e, ['details', 'notes', 'description'])
+      };
+    }
+    function _certItem(c) {
+      c = c || {};
+      return {
+        name:    _rbDocPick(c, ['name', 'title', 'certification']),
+        issuer:  _rbDocPick(c, ['issuer', 'organization', 'authority']),
+        dates:   _rbDocPick(c, ['dates', 'date', 'year', 'issued'])
+      };
+    }
+    function _projItem(p) {
+      p = p || {};
+      return {
+        title:       _rbDocPick(p, ['title', 'name']),
+        description: _rbDocPick(p, ['description', 'summary', 'body']),
+        bullets:     rbDocArray(p.bullets || p.highlights || []).map(_rbDocStr).filter(Boolean)
+      };
+    }
+    function _volItem(v) {
+      v = v || {};
+      return {
+        role:        _rbDocPick(v, ['role', 'title', 'position']),
+        organization:_rbDocPick(v, ['organization', 'company', 'org']),
+        location:    _rbDocPick(v, ['location', 'city']),
+        dates:       _rbDocPick(v, ['dates', 'date_range', 'period', 'year']),
+        description: _rbDocPick(v, ['description', 'summary'])
+      };
+    }
+    function _achItem(a) { return _rbDocStr(a); }
+
+    // Skills: support flat array or grouped [{label, items: []}].
+    var skills = [];
+    var skillsRaw = resume.skills || resume.key_skills || [];
+    if (Array.isArray(skillsRaw)) {
+      skillsRaw.forEach(function (s) {
+        if (s && typeof s === 'object' && Array.isArray(s.items)) {
+          s.items.forEach(function (x) { var v = _rbDocStr(x); if (v) skills.push(v); });
+        } else {
+          var v = _rbDocStr(s); if (v) skills.push(v);
+        }
+      });
+    }
+
+    return {
+      name:       name,
+      headline:   headline,
+      contact:    contactBits,
+      summary:    summary,
+      experience: rbDocArray(resume.experience).map(_expItem)
+                    .filter(function (e) { return e.role || e.company || e.bullets.length || e.summary; }),
+      education:  rbDocArray(resume.education).map(_eduItem)
+                    .filter(function (e) { return e.degree || e.school; }),
+      certifications: rbDocArray(resume.certifications).map(_certItem)
+                    .filter(function (c) { return c.name || c.issuer; }),
+      projects:   rbDocArray(resume.projects).map(_projItem)
+                    .filter(function (p) { return p.title || p.description; }),
+      volunteer:  rbDocArray(resume.volunteer_experience || resume.volunteer).map(_volItem)
+                    .filter(function (v) { return v.role || v.organization; }),
+      achievements: rbDocArray(resume.achievements).map(_achItem).filter(Boolean),
+      skills:     skills
+    };
+  }
+
+  function normalizeCoverLetterForDocument(pkg) {
+    pkg = pkg || {};
+    var docs = pkg.documents || {};
+    var cv = docs.coverLetter || null;
+    if (!cv) return null;
+    var resume = docs.resume || {};
+    var contact = resume.contact || resume.basics || {};
+    var target = docs.targetRole || {};
+    var senderName = _rbDocPick(resume, ['full_name', 'name']) || _rbDocPick(contact, ['name']);
+    var today = '';
+    try {
+      today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch (_) {}
+    var body = Array.isArray(cv.body)
+      ? cv.body.map(_rbDocStr).filter(Boolean)
+      : (cv.body ? [_rbDocStr(cv.body)] : []);
+    return {
+      heading:       _rbDocPick(cv, ['heading']),
+      opening:       _rbDocPick(cv, ['opening']),
+      body:          body,
+      closing:       _rbDocPick(cv, ['closing']),
+      senderName:    senderName,
+      senderEmail:   _rbDocPick(contact, ['email']) || _rbDocPick(resume, ['email']),
+      senderPhone:   _rbDocPick(contact, ['phone']) || _rbDocPick(resume, ['phone']),
+      senderLocation:_rbDocPick(contact, ['location']) || _rbDocPick(resume, ['location']),
+      date:          today,
+      hiringManager: _rbDocPick(target, ['hiring_manager', 'recipient']),
+      company:       _rbDocPick(target, ['company']),
+      role:          _rbDocPick(target, ['job_title', 'title'])
+    };
+  }
+
+  function normalizeRolePlanForDocument(pkg) {
+    pkg = pkg || {};
+    var docs = pkg.documents || {};
+    var plan = docs.rolePlan;
+    if (!plan) return null;
+    var type = docs.rolePlanType || RB_STATE.rolePlanType || '';
+    var key = type === '12-month' ? 'months12' : type === '2-year' ? 'years2' : 'days90';
+    var bucket = plan[key] || plan.days90 || plan.months12 || plan.years2 || plan;
+    var phasesRaw = Array.isArray(bucket.phases) ? bucket.phases
+                  : (Array.isArray(bucket.quarters) ? bucket.quarters : []);
+    function _strList(v) { return rbDocArray(v).map(_rbDocStr).filter(Boolean); }
+    var phases = phasesRaw.map(function (p, i) {
+      p = p || {};
+      return {
+        timeframe: _rbDocPick(p, ['timeframe']) || ('Phase ' + (i + 1)),
+        title:     _rbDocPick(p, ['title']),
+        summary:   _rbDocPick(p, ['phase_summary', 'summary']),
+        primary:   _rbDocPick(p, ['primary_objective']),
+        execValue: _rbDocPick(p, ['executive_value']),
+        actions:      _strList(p.actions),
+        milestones:   _strList(p.milestones),
+        deliverables: _strList(p.deliverables),
+        quickWins:    _strList(p.quick_wins)
+      };
+    });
+    return {
+      title:    _rbDocPick(bucket, ['title']) || (type ? type + ' Plan' : 'Role Plan'),
+      subtitle: _rbDocPick(bucket, ['subtitle', 'portfolio_headline']),
+      execSummary: _rbDocPick(bucket, ['executiveSummary', 'executive_summary']),
+      success:  _strList(bucket.what_success_looks_like),
+      kpis:     _strList(bucket.suggested_kpis),
+      phases:   phases
+    };
+  }
+
+  function normalizeDocumentData(pkg) {
+    pkg = pkg || {};
+    var selected = pkg.selected || {};
+    return {
+      selected: {
+        resume:      !!selected.resume,
+        coverLetter: !!selected.coverLetter,
+        rolePlan:    !!selected.rolePlan
+      },
+      style:    pkg.style || {},
+      resume:      selected.resume      ? normalizeResumeForDocument(pkg)      : null,
+      coverLetter: selected.coverLetter ? normalizeCoverLetterForDocument(pkg) : null,
+      rolePlan:    selected.rolePlan    ? normalizeRolePlanForDocument(pkg)    : null
+    };
+  }
+
+  function getFixedDocumentCss(settings) {
+    settings = settings || getDocumentLayoutSettings();
+    return [
+      ':root {',
+      '  --rb-doc-page-width: ' + settings.pageWidth + ';',
+      '  --rb-doc-page-height: ' + settings.pageHeight + ';',
+      '  --rb-doc-margin: ' + settings.margin + ';',
+      '  --rb-doc-font-body: Arial, Calibri, "Helvetica Neue", sans-serif;',
+      '  --rb-doc-font-heading: Arial, Calibri, "Helvetica Neue", sans-serif;',
+      '  --rb-doc-font-size: ' + settings.bodyFontSize + ';',
+      '  --rb-doc-line-height: ' + settings.lineHeight + ';',
+      '  --rb-doc-section-gap: ' + settings.sectionGap + ';',
+      '  --rb-doc-item-gap: ' + settings.itemGap + ';',
+      '  --rb-doc-accent: ' + settings.accent + ';',
+      '  --rb-doc-text: #111827;',
+      '  --rb-doc-muted: #4b5563;',
+      '  --rb-doc-rule: #d1d5db;',
+      '}',
+      '* { box-sizing: border-box; }',
+      'html, body {',
+      '  margin: 0; padding: 0; background: #e5e7eb;',
+      '  color: var(--rb-doc-text);',
+      '  font-family: var(--rb-doc-font-body);',
+      '  font-size: var(--rb-doc-font-size);',
+      '  line-height: var(--rb-doc-line-height);',
+      '  -webkit-print-color-adjust: exact; print-color-adjust: exact;',
+      '}',
+      '.rb-doc-viewer {',
+      '  width: 100%; min-height: 100vh; background: #e5e7eb;',
+      '  padding: 24px; display: flex; flex-direction: column;',
+      '  align-items: center; gap: 18px;',
+      '}',
+      '.rb-doc-page {',
+      '  width: var(--rb-doc-page-width);',
+      '  height: var(--rb-doc-page-height);',
+      '  min-height: var(--rb-doc-page-height);',
+      '  background: #fff; color: var(--rb-doc-text);',
+      '  position: relative; overflow: hidden;',
+      '  break-after: page; page-break-after: always;',
+      '}',
+      'body.target-preview .rb-doc-page { box-shadow: 0 8px 28px rgba(15, 23, 42, .18); }',
+      'body.target-export .rb-doc-page {',
+      '  box-shadow: none !important; border: 0 !important; outline: 0 !important;',
+      '}',
+      '.rb-doc-page-inner {',
+      '  position: absolute; inset: var(--rb-doc-margin); overflow: hidden;',
+      '}',
+      '.rb-doc-header {',
+      '  text-align: center;',
+      '  border-bottom: 1.25pt solid var(--rb-doc-accent);',
+      '  padding-bottom: 6pt; margin-bottom: 8pt;',
+      '  break-inside: avoid; page-break-inside: avoid;',
+      '}',
+      '.rb-doc-name { margin: 0; font-family: var(--rb-doc-font-heading); font-size: 18pt; line-height: 1.05; font-weight: 700; color: #111827; }',
+      '.rb-doc-headline { margin: 3pt 0 0; font-size: 10.5pt; font-weight: 600; color: var(--rb-doc-muted); }',
+      '.rb-doc-contact {',
+      '  margin-top: 4pt; display: flex; justify-content: center; flex-wrap: wrap;',
+      '  gap: 2pt 10pt; font-size: 8.8pt; color: var(--rb-doc-muted);',
+      '}',
+      '.rb-doc-section { margin: 0 0 var(--rb-doc-section-gap); }',
+      '.rb-doc-section-title {',
+      '  margin: 0 0 4pt; padding-bottom: 2pt;',
+      '  border-bottom: .75pt solid var(--rb-doc-rule);',
+      '  font-family: var(--rb-doc-font-heading);',
+      '  font-size: 10pt; line-height: 1.15; font-weight: 700;',
+      '  text-transform: uppercase; letter-spacing: .075em;',
+      '  color: var(--rb-doc-accent);',
+      '  break-after: avoid; page-break-after: avoid;',
+      '}',
+      '.rb-doc-item {',
+      '  margin: 0 0 var(--rb-doc-item-gap);',
+      '  break-inside: avoid; page-break-inside: avoid;',
+      '}',
+      '.rb-doc-row { display: flex; justify-content: space-between; gap: 12pt; align-items: baseline; }',
+      '.rb-doc-role { font-weight: 700; color: #111827; }',
+      '.rb-doc-org  { font-weight: 600; color: #374151; }',
+      '.rb-doc-date { flex: 0 0 auto; font-size: 8.8pt; color: var(--rb-doc-muted); white-space: nowrap; text-align: right; }',
+      '.rb-doc-meta { margin-top: 1pt; color: var(--rb-doc-muted); font-size: 9pt; }',
+      '.rb-doc-summary { margin: 1pt 0 3pt; }',
+      '.rb-doc-list { margin: 2pt 0 0 14pt; padding: 0; }',
+      '.rb-doc-list li { margin: 0 0 2pt; padding-left: 1pt; }',
+      '.rb-doc-skills { display: flex; flex-wrap: wrap; gap: 3pt 5pt; margin: 0; padding: 0; list-style: none; }',
+      '.rb-doc-skill {',
+      '  border: .6pt solid #cbd5e1; border-radius: 999px;',
+      '  padding: 1.5pt 6pt; font-size: 8.7pt; color: #1f2937; background: #f8fafc;',
+      '}',
+      '.rb-cv-block { margin: 0 0 6pt; }',
+      '.rb-cv-block strong { color: #111827; }',
+      '.rb-cv-date { color: var(--rb-doc-muted); margin: 0 0 8pt; }',
+      '.rb-cv-salutation { margin: 8pt 0 6pt; }',
+      '.rb-cv-paragraph { margin: 0 0 6pt; }',
+      '.rb-cv-signoff { margin: 10pt 0 2pt; }',
+      '.rb-cv-signature { margin: 0; font-weight: 700; color: #111827; }',
+      '.rb-plan-title { font-size: 18pt; font-weight: 800; margin: 0 0 6pt; color: #111827; }',
+      '.rb-plan-subtitle { font-size: 10pt; color: var(--rb-doc-muted); margin: 0 0 14pt; }',
+      '.rb-plan-card {',
+      '  border: 1px solid #e5e7eb; border-radius: 10pt;',
+      '  padding: 9pt 10pt; margin: 0 0 9pt;',
+      '  break-inside: avoid; page-break-inside: avoid;',
+      '}',
+      '.rb-plan-card h3 { margin: 0 0 4pt; font-size: 11pt; color: var(--rb-doc-accent); }',
+      '.rb-plan-card p { margin: 0 0 5pt; }',
+      '.rb-plan-card ul { margin: 4pt 0 0 14pt; padding: 0; }',
+      '.rb-plan-card li { margin: 0 0 2pt; }',
+      '.rb-plan-card-label { display:inline-block; font-weight:700; color:#111827; margin:4pt 0 2pt; font-size:9.5pt; text-transform:uppercase; letter-spacing:.06em; }',
+      '@page { size: Letter; margin: 0; }',
+      '@media print {',
+      '  html, body { background: #fff; }',
+      '  .rb-doc-viewer { display: block; padding: 0; background: #fff; }',
+      '  .rb-doc-page {',
+      '    width: 8.5in; height: 11in; min-height: 11in; margin: 0;',
+      '    box-shadow: none !important; overflow: hidden;',
+      '    break-after: page; page-break-after: always;',
+      '  }',
+      '}',
+      '@media screen and (max-width: 900px) {',
+      '  .rb-doc-viewer { padding: 16px; align-items: flex-start; overflow-x: auto; }',
+      '}'
+    ].join('\n');
+  }
+
+  function _rbDocContactHtml(c) {
+    if (!c) return '';
+    var bits = [];
+    if (c.email)    bits.push(rbDocEscape(c.email));
+    if (c.phone)    bits.push(rbDocEscape(c.phone));
+    if (c.location) bits.push(rbDocEscape(c.location));
+    if (c.linkedin) bits.push(rbDocEscape(c.linkedin));
+    if (c.website)  bits.push(rbDocEscape(c.website));
+    if (c.github)   bits.push(rbDocEscape(c.github));
+    if (!bits.length) return '';
+    return '<div class="rb-doc-contact">' +
+      bits.map(function (b) { return '<span>' + b + '</span>'; }).join('') +
+      '</div>';
+  }
+
+  function _rbDocBullets(items) {
+    items = items || [];
+    if (!items.length) return '';
+    return '<ul class="rb-doc-list">' +
+      items.map(function (b) { return '<li>' + rbDocEscape(b) + '</li>'; }).join('') +
+      '</ul>';
+  }
+
+  function renderFixedResumeDocumentHTML(model, settings, pkg) {
+    if (!model) return '';
+    var parts = [];
+
+    parts.push(
+      '<header class="rb-doc-header" data-block="header">' +
+        (model.name ? '<h1 class="rb-doc-name">' + rbDocEscape(model.name) + '</h1>' : '') +
+        (model.headline ? '<p class="rb-doc-headline">' + rbDocEscape(model.headline) + '</p>' : '') +
+        _rbDocContactHtml(model.contact) +
+      '</header>'
+    );
+
+    if (model.summary) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="summary">' +
+          '<h2 class="rb-doc-section-title">Summary</h2>' +
+          '<p class="rb-doc-summary">' + rbDocEscape(model.summary) + '</p>' +
+        '</section>'
+      );
+    }
+
+    if (model.skills && model.skills.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="skills">' +
+          '<h2 class="rb-doc-section-title">Key Skills</h2>' +
+          '<ul class="rb-doc-skills">' +
+            model.skills.map(function (s) { return '<li class="rb-doc-skill">' + rbDocEscape(s) + '</li>'; }).join('') +
+          '</ul>' +
+        '</section>'
+      );
+    }
+
+    if (model.experience && model.experience.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="experience">' +
+          '<h2 class="rb-doc-section-title">Professional Experience</h2>' +
+          model.experience.map(function (e) {
+            return '<article class="rb-doc-item" data-block="experienceItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(e.role || '') + '</span>' +
+                (e.dates ? '<span class="rb-doc-date">' + rbDocEscape(e.dates) + '</span>' : '') +
+              '</div>' +
+              ((e.company || e.location)
+                ? '<div class="rb-doc-row rb-doc-meta">' +
+                    '<span class="rb-doc-org">' + rbDocEscape(e.company || '') + '</span>' +
+                    (e.location ? '<span>' + rbDocEscape(e.location) + '</span>' : '') +
+                  '</div>'
+                : '') +
+              (e.summary ? '<p class="rb-doc-summary">' + rbDocEscape(e.summary) + '</p>' : '') +
+              _rbDocBullets(e.bullets) +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    if (model.education && model.education.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="education">' +
+          '<h2 class="rb-doc-section-title">Education</h2>' +
+          model.education.map(function (e) {
+            return '<article class="rb-doc-item" data-block="educationItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(e.degree || '') + '</span>' +
+                (e.dates ? '<span class="rb-doc-date">' + rbDocEscape(e.dates) + '</span>' : '') +
+              '</div>' +
+              ((e.school || e.location)
+                ? '<div class="rb-doc-row rb-doc-meta">' +
+                    '<span class="rb-doc-org">' + rbDocEscape(e.school || '') + '</span>' +
+                    (e.location ? '<span>' + rbDocEscape(e.location) + '</span>' : '') +
+                  '</div>'
+                : '') +
+              (e.details ? '<p class="rb-doc-summary">' + rbDocEscape(e.details) + '</p>' : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    if (model.certifications && model.certifications.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="certifications">' +
+          '<h2 class="rb-doc-section-title">Certifications</h2>' +
+          model.certifications.map(function (c) {
+            return '<article class="rb-doc-item" data-block="certificationItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(c.name || '') + '</span>' +
+                (c.dates ? '<span class="rb-doc-date">' + rbDocEscape(c.dates) + '</span>' : '') +
+              '</div>' +
+              (c.issuer ? '<div class="rb-doc-meta"><span class="rb-doc-org">' + rbDocEscape(c.issuer) + '</span></div>' : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    if (model.achievements && model.achievements.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="achievements">' +
+          '<h2 class="rb-doc-section-title">Achievements</h2>' +
+          _rbDocBullets(model.achievements) +
+        '</section>'
+      );
+    }
+
+    if (model.projects && model.projects.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="projects">' +
+          '<h2 class="rb-doc-section-title">Projects</h2>' +
+          model.projects.map(function (p) {
+            return '<article class="rb-doc-item" data-block="projectItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(p.title || '') + '</span>' +
+              '</div>' +
+              (p.description ? '<p class="rb-doc-summary">' + rbDocEscape(p.description) + '</p>' : '') +
+              _rbDocBullets(p.bullets) +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    if (model.volunteer && model.volunteer.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="volunteer">' +
+          '<h2 class="rb-doc-section-title">Volunteer Experience</h2>' +
+          model.volunteer.map(function (v) {
+            return '<article class="rb-doc-item" data-block="volunteerItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(v.role || '') + '</span>' +
+                (v.dates ? '<span class="rb-doc-date">' + rbDocEscape(v.dates) + '</span>' : '') +
+              '</div>' +
+              ((v.organization || v.location)
+                ? '<div class="rb-doc-row rb-doc-meta">' +
+                    '<span class="rb-doc-org">' + rbDocEscape(v.organization || '') + '</span>' +
+                    (v.location ? '<span>' + rbDocEscape(v.location) + '</span>' : '') +
+                  '</div>'
+                : '') +
+              (v.description ? '<p class="rb-doc-summary">' + rbDocEscape(v.description) + '</p>' : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    return parts.join('');
+  }
+
+  function renderFixedCoverLetterDocumentHTML(model, settings, pkg) {
+    if (!model) return '';
+    var senderBits = [];
+    if (model.senderName)     senderBits.push('<strong>' + rbDocEscape(model.senderName) + '</strong>');
+    if (model.senderEmail)    senderBits.push(rbDocEscape(model.senderEmail));
+    if (model.senderPhone)    senderBits.push(rbDocEscape(model.senderPhone));
+    if (model.senderLocation) senderBits.push(rbDocEscape(model.senderLocation));
+
+    var recipientBits = [];
+    if (model.hiringManager) recipientBits.push(rbDocEscape(model.hiringManager));
+    if (model.company)       recipientBits.push(rbDocEscape(model.company));
+
+    var subtitle = (model.role || model.company)
+      ? (rbDocEscape(model.role || '') + (model.company ? ' &mdash; ' + rbDocEscape(model.company) : ''))
+      : '';
+
+    var salutation = model.hiringManager
+      ? ('Dear ' + rbDocEscape(model.hiringManager) + ',')
+      : 'Dear Hiring Manager,';
+
+    var parts = [];
+    if (senderBits.length) parts.push('<div class="rb-cv-block">' + senderBits.join('<br>') + '</div>');
+    if (model.date)        parts.push('<div class="rb-cv-block rb-cv-date">' + rbDocEscape(model.date) + '</div>');
+    if (recipientBits.length) parts.push('<div class="rb-cv-block">' + recipientBits.join('<br>') + '</div>');
+    if (model.heading || subtitle) {
+      parts.push(
+        '<header class="rb-doc-header" data-block="cvHeader" style="text-align:left;border:0;padding:0;margin:6pt 0 4pt;">' +
+          (model.heading ? '<h2 class="rb-doc-section-title" style="border:0;padding:0;color:var(--rb-doc-text);">' + rbDocEscape(model.heading) + '</h2>' : '') +
+          (subtitle ? '<p class="rb-doc-headline" style="text-align:left;">' + subtitle + '</p>' : '') +
+        '</header>'
+      );
+    }
+    parts.push('<p class="rb-cv-salutation">' + salutation + '</p>');
+    if (model.opening) parts.push('<p class="rb-cv-paragraph">' + rbDocEscape(model.opening) + '</p>');
+    parts.push(model.body.map(function (p) {
+      return '<p class="rb-cv-paragraph">' + rbDocEscape(p) + '</p>';
+    }).join(''));
+    if (model.closing) parts.push('<p class="rb-cv-paragraph">' + rbDocEscape(model.closing) + '</p>');
+    parts.push('<p class="rb-cv-signoff">Sincerely,</p>');
+    if (model.senderName) parts.push('<p class="rb-cv-signature">' + rbDocEscape(model.senderName) + '</p>');
+
+    return parts.join('');
+  }
+
+  function renderFixedRolePlanDocumentHTML(model, settings, pkg) {
+    if (!model) return '';
+    var parts = [];
+    parts.push(
+      '<header class="rb-doc-header" data-block="planHeader" style="text-align:left;">' +
+        '<h1 class="rb-plan-title">' + rbDocEscape(model.title || 'Role Plan') + '</h1>' +
+        (model.subtitle ? '<p class="rb-plan-subtitle">' + rbDocEscape(model.subtitle) + '</p>' : '') +
+      '</header>'
+    );
+
+    if (model.execSummary) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="planExecSummary">' +
+          '<h2 class="rb-doc-section-title">Executive Summary</h2>' +
+          '<p class="rb-doc-summary">' + rbDocEscape(model.execSummary) + '</p>' +
+        '</section>'
+      );
+    }
+
+    if (model.success && model.success.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="planSuccess">' +
+          '<h2 class="rb-doc-section-title">What Success Looks Like</h2>' +
+          _rbDocBullets(model.success) +
+        '</section>'
+      );
+    }
+
+    if (model.kpis && model.kpis.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="planKpis">' +
+          '<h2 class="rb-doc-section-title">Suggested KPIs</h2>' +
+          _rbDocBullets(model.kpis) +
+        '</section>'
+      );
+    }
+
+    if (model.phases && model.phases.length) {
+      parts.push(
+        '<section class="rb-doc-section" data-block="planPhases">' +
+          '<h2 class="rb-doc-section-title">Phases</h2>' +
+          model.phases.map(function (p) {
+            var listBlock = function (label, arr) {
+              return (arr && arr.length)
+                ? '<span class="rb-plan-card-label">' + rbDocEscape(label) + '</span>' + _rbDocBullets(arr)
+                : '';
+            };
+            return '<article class="rb-plan-card" data-block="planPhaseCard">' +
+              '<h3>' + rbDocEscape(p.timeframe) + (p.title ? ' &mdash; ' + rbDocEscape(p.title) : '') + '</h3>' +
+              (p.summary ? '<p>' + rbDocEscape(p.summary) + '</p>' : '') +
+              (p.primary ? '<p><em>Primary objective:</em> ' + rbDocEscape(p.primary) + '</p>' : '') +
+              listBlock('Actions', p.actions) +
+              listBlock('Quick Wins', p.quickWins) +
+              listBlock('Deliverables', p.deliverables) +
+              listBlock('Milestones', p.milestones) +
+              (p.execValue ? '<p><em>Executive value:</em> ' + rbDocEscape(p.execValue) + '</p>' : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    return parts.join('');
+  }
+
+  function renderFixedDocumentPage(innerHtml, meta) {
+    meta = meta || {};
+    var classes = ['rb-doc-page'];
+    if (meta.sidebar) classes.push('rb-doc-page--sidebar');
+    if (meta.continuation) classes.push('rb-doc-page--continuation');
+    return '<section class="' + classes.join(' ') + '"' +
+      ' data-doc-type="'    + rbDocEscape(meta.type || 'document') + '"' +
+      ' data-template="'    + rbDocEscape(meta.template || '') + '"' +
+      ' data-page-number="' + rbDocEscape(meta.pageNumber || 1) + '">' +
+        '<div class="rb-doc-page-inner">' +
+          (innerHtml || '') +
+        '</div>' +
+      '</section>';
+  }
+
+  function renderFixedDocumentPackageHTML(pkg, options) {
+    options = options || {};
+    var target = options.target || 'preview';
+    var format = options.format || 'pdf';
+    if (format === 'doc') format = 'docx';
+
+    var settings = getDocumentLayoutSettings();
+    var data = normalizeDocumentData(pkg);
+    var template = (pkg && pkg.style && pkg.style.template) || 'modern-sidebar';
+
+    var pages = [];
+    if (data.selected.resume && data.resume) {
+      if (_isSidebarTemplate(template) && typeof renderFixedResumeSidebarHTML === 'function') {
+        pages.push(renderFixedDocumentPage(
+          renderFixedResumeSidebarHTML(data.resume, settings, pkg),
+          { type: 'resume', template: template, pageNumber: 1, sidebar: true }
+        ));
+      } else {
+        pages.push(renderFixedDocumentPage(
+          renderFixedResumeDocumentHTML(data.resume, settings, pkg),
+          { type: 'resume', template: template, pageNumber: 1 }
+        ));
+      }
+    }
+    if (data.selected.coverLetter && data.coverLetter) {
+      pages.push(renderFixedDocumentPage(
+        renderFixedCoverLetterDocumentHTML(data.coverLetter, settings, pkg),
+        { type: 'cover-letter', template: template, pageNumber: 1 }
+      ));
+    }
+    if (data.selected.rolePlan && data.rolePlan) {
+      pages.push(renderFixedDocumentPage(
+        renderFixedRolePlanDocumentHTML(data.rolePlan, settings, pkg),
+        { type: 'role-plan', template: template, pageNumber: 1 }
+      ));
+    }
+
+    if (!pages.length) {
+      pages.push(renderFixedDocumentPage(
+        '<header class="rb-doc-header"><h1 class="rb-doc-name">No documents selected</h1>' +
+          '<p class="rb-doc-headline">Select Resume, Cover Letter, or Role Plan in Step 3 to preview.</p>' +
+        '</header>',
+        { type: 'empty', template: template, pageNumber: 1 }
+      ));
+    }
+
+    var bodyClass = [
+      'rb-fixed-document',
+      'format-' + (format === 'docx' ? 'docx' : 'pdf'),
+      'target-' + (target === 'export' ? 'export' : 'preview'),
+      'template-' + template
+    ].join(' ');
+
+    var css = getFixedDocumentCss(settings);
+    try {
+      if (typeof _getSidebarDocumentCss === 'function') {
+        css += '\n' + _getSidebarDocumentCss(settings);
+      }
+    } catch (_) {}
+
+    return '<!doctype html><html lang="en"><head>' +
+      '<meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>Document</title>' +
+      '<style>' + css + '</style>' +
+      '</head><body class="' + bodyClass + '">' +
+        '<div class="rb-doc-viewer" data-doc-pages="' + pages.length + '">' +
+          pages.join('') +
+        '</div>' +
+      '</body></html>';
+  }
+
+  try { window.getDocumentLayoutSettings        = getDocumentLayoutSettings; } catch (_) {}
+  try { window.normalizeResumeForDocument       = normalizeResumeForDocument; } catch (_) {}
+  try { window.normalizeCoverLetterForDocument  = normalizeCoverLetterForDocument; } catch (_) {}
+  try { window.normalizeRolePlanForDocument     = normalizeRolePlanForDocument; } catch (_) {}
+  try { window.normalizeDocumentData            = normalizeDocumentData; } catch (_) {}
+  try { window.renderFixedDocumentPackageHTML   = renderFixedDocumentPackageHTML; } catch (_) {}
+  try { window.getFixedDocumentCss              = getFixedDocumentCss; } catch (_) {}
+
+  window.debugFixedDocumentLayout = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    var pages = doc ? Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page')) : [];
+    return {
+      enabled:   window.RB_USE_FIXED_DOCUMENT_RENDERER !== false,
+      format:    typeof getSelectedPreviewFormat === 'function' ? getSelectedPreviewFormat() : null,
+      settings:  typeof getDocumentLayoutSettings === 'function' ? getDocumentLayoutSettings() : null,
+      pageCount: pages.length,
+      pages: pages.map(function (page, index) {
+        var rect = page.getBoundingClientRect();
+        var inner = page.querySelector('.rb-doc-page-inner');
+        var innerScrollH = inner ? inner.scrollHeight : 0;
+        var innerClientH = inner ? inner.clientHeight : 0;
+        return {
+          index:        index + 1,
+          docType:      page.getAttribute('data-doc-type'),
+          template:     page.getAttribute('data-template'),
+          pageNumber:   page.getAttribute('data-page-number'),
+          width:        Math.round(rect.width),
+          height:       Math.round(rect.height),
+          clientHeight: page.clientHeight,
+          scrollHeight: page.scrollHeight,
+          innerClientHeight: innerClientH,
+          innerScrollHeight: innerScrollH,
+          hasOverflow:  (innerScrollH > innerClientH + 2) || (page.scrollHeight > page.clientHeight + 2)
+        };
+      }),
+      iframe: frame ? { width: frame.clientWidth, height: frame.clientHeight } : null,
+      timestamp: new Date().toISOString()
+    };
+  };
+
+  // ============================================================
+  // Phase C — Sidebar-aware resume rendering for fixed-document.
+  //
+  // Templates listed in SIDEBAR_DOCUMENT_TEMPLATES render the resume's
+  // Page 1 as a two-column grid (accent sidebar + main content). Phase D
+  // pagination handles continuation pages as full-width single-column.
+  // Cover Letter and Role Plan always use the simple full-width layout.
+  // Public Web Page rendering is untouched.
+  // ============================================================
+  var SIDEBAR_DOCUMENT_TEMPLATES = new Set([
+    'modern-sidebar',
+    'corporate',
+    'editorial'
+  ]);
+  try { window.SIDEBAR_DOCUMENT_TEMPLATES = SIDEBAR_DOCUMENT_TEMPLATES; } catch (_) {}
+
+  function _isSidebarTemplate(template) {
+    return SIDEBAR_DOCUMENT_TEMPLATES.has(String(template || '').toLowerCase());
+  }
+
+  function renderFixedResumeSidebarHTML(model, settings, pkg) {
+    if (!model) return '';
+
+    // Sidebar (left): identity + contact + skills + education + certifications.
+    var asideParts = [];
+    asideParts.push(
+      '<div class="rb-sidebar-id" data-block="sidebarIdentity">' +
+        (model.name ? '<h1 class="rb-sidebar-name">' + rbDocEscape(model.name) + '</h1>' : '') +
+        (model.headline ? '<p class="rb-sidebar-headline">' + rbDocEscape(model.headline) + '</p>' : '') +
+      '</div>'
+    );
+
+    var c = model.contact || {};
+    var contactRows = [];
+    [['email', c.email], ['phone', c.phone], ['location', c.location],
+     ['linkedin', c.linkedin], ['website', c.website], ['github', c.github]].forEach(function (pair) {
+      if (pair[1]) {
+        contactRows.push('<li class="rb-sidebar-contact-row" data-kind="' + pair[0] + '">' +
+          rbDocEscape(pair[1]) + '</li>');
+      }
+    });
+    if (contactRows.length) {
+      asideParts.push(
+        '<section class="rb-sidebar-section" data-block="sidebarContact">' +
+          '<h2 class="rb-sidebar-title">Contact</h2>' +
+          '<ul class="rb-sidebar-list">' + contactRows.join('') + '</ul>' +
+        '</section>'
+      );
+    }
+
+    if (model.skills && model.skills.length) {
+      asideParts.push(
+        '<section class="rb-sidebar-section" data-block="sidebarSkills">' +
+          '<h2 class="rb-sidebar-title">Skills</h2>' +
+          '<ul class="rb-sidebar-list">' +
+            model.skills.map(function (s) {
+              return '<li class="rb-sidebar-list-item">' + rbDocEscape(s) + '</li>';
+            }).join('') +
+          '</ul>' +
+        '</section>'
+      );
+    }
+
+    if (model.education && model.education.length) {
+      asideParts.push(
+        '<section class="rb-sidebar-section" data-block="sidebarEducation">' +
+          '<h2 class="rb-sidebar-title">Education</h2>' +
+          model.education.map(function (e) {
+            return '<div class="rb-sidebar-edu-item" data-block="sidebarEducationItem">' +
+              (e.degree   ? '<div class="rb-sidebar-edu-degree">' + rbDocEscape(e.degree) + '</div>' : '') +
+              (e.school   ? '<div class="rb-sidebar-edu-school">' + rbDocEscape(e.school) + '</div>' : '') +
+              (e.dates    ? '<div class="rb-sidebar-edu-dates">' + rbDocEscape(e.dates) + '</div>' : '') +
+              (e.location ? '<div class="rb-sidebar-edu-location">' + rbDocEscape(e.location) + '</div>' : '') +
+            '</div>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    if (model.certifications && model.certifications.length) {
+      asideParts.push(
+        '<section class="rb-sidebar-section" data-block="sidebarCertifications">' +
+          '<h2 class="rb-sidebar-title">Certifications</h2>' +
+          model.certifications.map(function (cert) {
+            return '<div class="rb-sidebar-cert-item" data-block="sidebarCertificationItem">' +
+              (cert.name   ? '<div class="rb-sidebar-cert-name">' + rbDocEscape(cert.name) + '</div>' : '') +
+              (cert.issuer ? '<div class="rb-sidebar-cert-issuer">' + rbDocEscape(cert.issuer) + '</div>' : '') +
+              (cert.dates  ? '<div class="rb-sidebar-cert-dates">' + rbDocEscape(cert.dates) + '</div>' : '') +
+            '</div>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    // Main column: summary + experience + projects + achievements + volunteer.
+    var mainParts = [];
+    if (model.summary) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="summary">' +
+          '<h2 class="rb-doc-section-title">Summary</h2>' +
+          '<p class="rb-doc-summary">' + rbDocEscape(model.summary) + '</p>' +
+        '</section>'
+      );
+    }
+    if (model.experience && model.experience.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="experience">' +
+          '<h2 class="rb-doc-section-title">Professional Experience</h2>' +
+          model.experience.map(function (e) {
+            return '<article class="rb-doc-item" data-block="experienceItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(e.role || '') + '</span>' +
+                (e.dates ? '<span class="rb-doc-date">' + rbDocEscape(e.dates) + '</span>' : '') +
+              '</div>' +
+              ((e.company || e.location)
+                ? '<div class="rb-doc-row rb-doc-meta">' +
+                    '<span class="rb-doc-org">' + rbDocEscape(e.company || '') + '</span>' +
+                    (e.location ? '<span>' + rbDocEscape(e.location) + '</span>' : '') +
+                  '</div>'
+                : '') +
+              (e.summary ? '<p class="rb-doc-summary">' + rbDocEscape(e.summary) + '</p>' : '') +
+              _rbDocBullets(e.bullets) +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+    if (model.projects && model.projects.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="projects">' +
+          '<h2 class="rb-doc-section-title">Projects</h2>' +
+          model.projects.map(function (p) {
+            return '<article class="rb-doc-item" data-block="projectItem">' +
+              '<div class="rb-doc-row"><span class="rb-doc-role">' + rbDocEscape(p.title || '') + '</span></div>' +
+              (p.description ? '<p class="rb-doc-summary">' + rbDocEscape(p.description) + '</p>' : '') +
+              _rbDocBullets(p.bullets) +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+    if (model.achievements && model.achievements.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="achievements">' +
+          '<h2 class="rb-doc-section-title">Achievements</h2>' +
+          _rbDocBullets(model.achievements) +
+        '</section>'
+      );
+    }
+    if (model.volunteer && model.volunteer.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="volunteer">' +
+          '<h2 class="rb-doc-section-title">Volunteer Experience</h2>' +
+          model.volunteer.map(function (v) {
+            return '<article class="rb-doc-item" data-block="volunteerItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(v.role || '') + '</span>' +
+                (v.dates ? '<span class="rb-doc-date">' + rbDocEscape(v.dates) + '</span>' : '') +
+              '</div>' +
+              ((v.organization || v.location)
+                ? '<div class="rb-doc-row rb-doc-meta">' +
+                    '<span class="rb-doc-org">' + rbDocEscape(v.organization || '') + '</span>' +
+                    (v.location ? '<span>' + rbDocEscape(v.location) + '</span>' : '') +
+                  '</div>'
+                : '') +
+              (v.description ? '<p class="rb-doc-summary">' + rbDocEscape(v.description) + '</p>' : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+
+    return '<div class="rb-sidebar-grid">' +
+      '<aside class="rb-sidebar-aside" data-block="sidebar">' + asideParts.join('') + '</aside>' +
+      '<main class="rb-sidebar-main" data-block="sidebarMain">' + mainParts.join('') + '</main>' +
+    '</div>';
+  }
+  try { window.renderFixedResumeSidebarHTML = renderFixedResumeSidebarHTML; } catch (_) {}
+
+  // Augment getFixedDocumentCss output with sidebar-mode rules. We keep the
+  // base CSS untouched and append these so non-sidebar templates render
+  // exactly as in Phase B.
+  function _getSidebarDocumentCss(settings) {
+    settings = settings || getDocumentLayoutSettings();
+    return [
+      '/* Phase C — sidebar layout (Page 1 only). Continuation pages */',
+      '/* (rb-doc-page--continuation) drop the grid for full-width text.   */',
+      '.rb-doc-page.rb-doc-page--sidebar .rb-doc-page-inner { inset: 0; padding: 0; }',
+      '.rb-doc-page.rb-doc-page--sidebar .rb-sidebar-grid {',
+      '  display: grid;',
+      '  grid-template-columns: 2.35in 1fr;',
+      '  width: 100%; height: 100%;',
+      '}',
+      '.rb-sidebar-aside {',
+      '  background: var(--rb-doc-accent);',
+      '  color: #fff;',
+      '  padding: ' + settings.margin + ' calc(' + settings.margin + ' - 0.05in);',
+      '  overflow: hidden;',
+      '}',
+      '.rb-sidebar-main {',
+      '  padding: ' + settings.margin + ';',
+      '  overflow: hidden;',
+      '}',
+      '.rb-sidebar-id { margin: 0 0 10pt; }',
+      '.rb-sidebar-name {',
+      '  margin: 0; color: #fff; font-family: var(--rb-doc-font-heading);',
+      '  font-size: 17pt; line-height: 1.05; font-weight: 800;',
+      '  letter-spacing: .01em; word-wrap: break-word;',
+      '}',
+      '.rb-sidebar-headline {',
+      '  margin: 4pt 0 0; color: rgba(255,255,255,.85);',
+      '  font-size: 9.6pt; line-height: 1.25; font-weight: 600;',
+      '}',
+      '.rb-sidebar-section { margin: 0 0 10pt; break-inside: avoid; page-break-inside: avoid; }',
+      '.rb-sidebar-title {',
+      '  margin: 0 0 4pt; padding-bottom: 2pt;',
+      '  border-bottom: .75pt solid rgba(255,255,255,.55);',
+      '  color: #fff; font-size: 9.5pt; font-weight: 700;',
+      '  text-transform: uppercase; letter-spacing: .085em;',
+      '}',
+      '.rb-sidebar-list { list-style: none; margin: 0; padding: 0; }',
+      '.rb-sidebar-list li { margin: 0 0 3pt; font-size: 8.8pt; color: rgba(255,255,255,.92); line-height: 1.35; word-wrap: break-word; }',
+      '.rb-sidebar-list-item::before { content: "\\2022\\2002"; opacity: .7; }',
+      '.rb-sidebar-contact-row { word-break: break-word; }',
+      '.rb-sidebar-edu-item, .rb-sidebar-cert-item { margin: 0 0 6pt; }',
+      '.rb-sidebar-edu-degree, .rb-sidebar-cert-name { font-weight: 700; color: #fff; font-size: 9pt; }',
+      '.rb-sidebar-edu-school, .rb-sidebar-cert-issuer { color: rgba(255,255,255,.86); font-size: 8.7pt; }',
+      '.rb-sidebar-edu-dates, .rb-sidebar-cert-dates, .rb-sidebar-edu-location { color: rgba(255,255,255,.72); font-size: 8.4pt; }',
+      // Continuation pages: full-width, normal margins.
+      '.rb-doc-page.rb-doc-page--continuation .rb-doc-page-inner {',
+      '  inset: var(--rb-doc-margin); padding: 0;',
+      '}',
+      '.rb-doc-page.rb-doc-page--continuation .rb-sidebar-grid { display: block; }',
+      '.rb-doc-page.rb-doc-page--continuation .rb-sidebar-aside { display: none; }',
+      '.rb-doc-page.rb-doc-page--continuation .rb-sidebar-main { padding: 0; }',
+      '/* Editorial template tweaks. */',
+      '.rb-fixed-document.template-editorial .rb-sidebar-name { font-family: "Archivo Black","Bebas Neue","Oswald",sans-serif; letter-spacing: .015em; text-transform: uppercase; }',
+      '.rb-fixed-document.template-editorial .rb-sidebar-aside { background: linear-gradient(180deg, var(--rb-doc-accent), color-mix(in srgb, var(--rb-doc-accent) 78%, #000 22%)); }'
+    ].join('\n');
+  }
+
+  // ============================================================
+  // Phase D — Measured pagination + Adjust Layout panel + Fit-to-1-Page.
+  //
+  // Strategy:
+  //   1. Render the unpaginated fixed-document HTML (Phase B/C output).
+  //   2. Load it into a hidden offscreen iframe sized to Letter width.
+  //   3. Walk each page's top-level blocks; accumulate into pages by
+  //      measured height vs. the inner content budget.
+  //   4. Split section blocks (keep title with at least one item).
+  //   5. Split bullet lists by individual <li>.
+  //   6. Emit continuation pages with rb-doc-page--continuation class.
+  //   7. For sidebar resume pages, only the .rb-sidebar-main column
+  //      paginates; the aside stays on Page 1.
+  // ============================================================
+
+  var _RB_PAGINATE = {
+    iframe: null,
+    busy: false,
+    queue: []
+  };
+
+  function _rbGetMeasurementIframe() {
+    if (_RB_PAGINATE.iframe && document.body.contains(_RB_PAGINATE.iframe)) {
+      return _RB_PAGINATE.iframe;
+    }
+    var f = document.createElement('iframe');
+    f.id = 'rb-doc-measure-iframe';
+    f.setAttribute('aria-hidden', 'true');
+    f.setAttribute('tabindex', '-1');
+    f.style.cssText = 'position:fixed;left:-10000px;top:0;width:8.5in;height:11in;border:0;opacity:0;pointer-events:none;visibility:hidden;';
+    document.body.appendChild(f);
+    _RB_PAGINATE.iframe = f;
+    return f;
+  }
+
+  function _rbWaitForFrameLoad(frame) {
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish() { if (!done) { done = true; resolve(); } }
+      try { frame.addEventListener('load', finish, { once: true }); } catch (_) {}
+      setTimeout(finish, 1500);
+    });
+  }
+
+  // Inches to CSS px at the iframe's current rendered scale. The measurement
+  // iframe is sized in inches so 1in === 96px in CSS terms.
+  function _inToPx(value) {
+    var s = String(value || '').trim();
+    var m = s.match(/^(-?\d*\.?\d+)\s*(in|pt|px)?$/i);
+    if (!m) return 0;
+    var n = parseFloat(m[1]);
+    var unit = (m[2] || 'in').toLowerCase();
+    if (unit === 'in') return n * 96;
+    if (unit === 'pt') return n * (96 / 72);
+    return n;
+  }
+
+  // Internal: split a single section across pages by item, keeping the
+  // section title with its first item. Returns array of HTML strings (one
+  // per page-fragment of this section). The doc is needed so we can clone
+  // section-level wrappers and measure new fragments.
+  function _splitSectionByItems(sectionEl, budgetPx, mDoc, currentRemaining) {
+    // Helper to compute height of an arbitrary fragment by appending a clone
+    // into a measurement scratch host inside the same iframe.
+    var measureHost = mDoc.querySelector('.rb-doc-measure-host');
+    if (!measureHost) {
+      measureHost = mDoc.createElement('div');
+      measureHost.className = 'rb-doc-measure-host';
+      // Approximate inner column width: full page width minus default margin.
+      // (Sidebar main column is narrower; we'll pass the right host width
+      // when called for sidebar continuation.)
+      var pageInner = sectionEl.closest('.rb-doc-page-inner') || sectionEl.closest('.rb-sidebar-main') || sectionEl.parentNode;
+      var w = (pageInner && pageInner.clientWidth) || 600;
+      measureHost.style.cssText =
+        'position:absolute;left:-99999px;top:0;width:' + w + 'px;visibility:hidden;';
+      mDoc.body.appendChild(measureHost);
+    }
+
+    function measureFragment(html) {
+      measureHost.innerHTML = html;
+      var h = measureHost.scrollHeight;
+      measureHost.innerHTML = '';
+      return h;
+    }
+
+    var titleEl = sectionEl.querySelector(':scope > .rb-doc-section-title');
+    var titleHTML = titleEl ? titleEl.outerHTML : '';
+    var itemEls = Array.prototype.slice.call(
+      sectionEl.querySelectorAll(':scope > .rb-doc-item, :scope > .rb-plan-card, :scope > article, :scope > p, :scope > ul')
+    );
+    if (!itemEls.length) {
+      // Section without recognized items — return whole HTML as one fragment.
+      return [sectionEl.outerHTML];
+    }
+
+    var openTag = sectionEl.outerHTML.match(/^<[^>]+>/)[0];
+    var closeTag = '</' + sectionEl.tagName.toLowerCase() + '>';
+
+    var pages = [];
+    var currentItems = [];
+    var currentBudget = (typeof currentRemaining === 'number' && currentRemaining > 0) ? currentRemaining : budgetPx;
+    var includeTitle = true;
+
+    function flush(forceCloseEvenIfEmpty) {
+      if (!currentItems.length && !forceCloseEvenIfEmpty) return;
+      var inner = (includeTitle ? titleHTML : '') + currentItems.join('');
+      pages.push(openTag + inner + closeTag);
+      currentItems = [];
+      includeTitle = false; // continuation fragments omit the title
+      currentBudget = budgetPx;
+    }
+
+    itemEls.forEach(function (item) {
+      var itemHTML = item.outerHTML;
+      var probe = openTag + (includeTitle ? titleHTML : '') + currentItems.join('') + itemHTML + closeTag;
+      var h = measureFragment(probe);
+      if (h <= currentBudget || (!currentItems.length && includeTitle)) {
+        // First item with the title — accept even if slightly over budget to
+        // avoid an orphan title alone on a page.
+        currentItems.push(itemHTML);
+      } else if (!currentItems.length && !includeTitle) {
+        // The item alone is bigger than the budget. Try bullet-splitting.
+        var split = _splitItemByBullets(item, budgetPx, openTag, closeTag, titleHTML, false, measureFragment);
+        if (split && split.length) {
+          // Push every bullet-split fragment as its own page.
+          split.forEach(function (frag) { pages.push(frag); });
+        } else {
+          // Give up and let it overflow on its own page.
+          pages.push(openTag + itemHTML + closeTag);
+        }
+        currentBudget = budgetPx;
+      } else {
+        // Close current page-fragment and start a new one with this item.
+        flush(false);
+        var probe2 = openTag + itemHTML + closeTag;
+        if (measureFragment(probe2) > currentBudget) {
+          var split2 = _splitItemByBullets(item, budgetPx, openTag, closeTag, '', false, measureFragment);
+          if (split2 && split2.length) {
+            split2.forEach(function (frag) { pages.push(frag); });
+          } else {
+            currentItems.push(itemHTML);
+          }
+        } else {
+          currentItems.push(itemHTML);
+        }
+      }
+    });
+
+    flush(false);
+    return pages;
+  }
+
+  function _splitItemByBullets(itemEl, budgetPx, openSecTag, closeSecTag, titleHTML, includeTitleFirst, measureFragment) {
+    var ul = itemEl.querySelector(':scope > .rb-doc-list, :scope > ul');
+    if (!ul) return null;
+    var lis = Array.prototype.slice.call(ul.querySelectorAll(':scope > li'));
+    if (!lis.length) return null;
+
+    var ulOpenMatch = ul.outerHTML.match(/^<ul[^>]*>/i);
+    var ulOpen = ulOpenMatch ? ulOpenMatch[0] : '<ul class="rb-doc-list">';
+    var ulClose = '</ul>';
+
+    var itemOpenMatch = itemEl.outerHTML.match(/^<[^>]+>/);
+    var itemOpen = itemOpenMatch ? itemOpenMatch[0] : '<article class="rb-doc-item">';
+    var itemClose = '</' + itemEl.tagName.toLowerCase() + '>';
+
+    // Pre-bullet content (header rows, summary) — everything inside itemEl except <ul>.
+    var clone = itemEl.cloneNode(true);
+    var cloneUl = clone.querySelector(':scope > .rb-doc-list, :scope > ul');
+    if (cloneUl && cloneUl.parentNode) cloneUl.parentNode.removeChild(cloneUl);
+    var preHTML = clone.innerHTML;
+
+    var pages = [];
+    var batch = [];
+    var includeTitle = !!includeTitleFirst;
+    var includePre = true;
+
+    function flush() {
+      if (!batch.length && !includePre) return;
+      var ulFrag = ulOpen + batch.join('') + ulClose;
+      var itemFrag = itemOpen + (includePre ? preHTML : '') + ulFrag + itemClose;
+      pages.push(openSecTag + (includeTitle ? titleHTML : '') + itemFrag + closeSecTag);
+      batch = [];
+      includeTitle = false;
+      includePre = false;
+    }
+
+    lis.forEach(function (li) {
+      var liHTML = li.outerHTML;
+      batch.push(liHTML);
+      var probe = openSecTag + (includeTitle ? titleHTML : '') +
+        itemOpen + (includePre ? preHTML : '') + ulOpen + batch.join('') + ulClose + itemClose +
+        closeSecTag;
+      if (measureFragment(probe) > budgetPx && batch.length > 1) {
+        // back off the last bullet, flush, and re-add it to next batch
+        batch.pop();
+        flush();
+        batch = [liHTML];
+      }
+    });
+    if (batch.length) flush();
+    return pages;
+  }
+
+  // Paginate one page element (full-width) into N page HTML strings.
+  function _paginateFullWidthPage(pageEl, mDoc) {
+    var inner = pageEl.querySelector('.rb-doc-page-inner');
+    if (!inner) return [pageEl.outerHTML];
+    var budget = inner.clientHeight;
+    if (!budget || budget < 50) return [pageEl.outerHTML];
+
+    var pageOpenMatch = pageEl.outerHTML.match(/^<[^>]+>/);
+    var pageOpen = pageOpenMatch ? pageOpenMatch[0] : '<section class="rb-doc-page">';
+    var pageClose = '</' + pageEl.tagName.toLowerCase() + '>';
+    var innerOpenMatch = inner.outerHTML.match(/^<[^>]+>/);
+    var innerOpen = innerOpenMatch ? innerOpenMatch[0] : '<div class="rb-doc-page-inner">';
+    var innerClose = '</div>';
+
+    var blocks = Array.prototype.slice.call(inner.children);
+    if (!blocks.length) return [pageEl.outerHTML];
+
+    // First fast path: if everything already fits, no work needed.
+    if (inner.scrollHeight <= budget + 2) {
+      return [pageEl.outerHTML];
+    }
+
+    // Walk blocks; sections may need item-level splitting.
+    var pageHTMLs = [];
+    var current = [];
+    var currentH = 0;
+
+    function pushPage(isContinuation) {
+      if (!current.length) return;
+      var po = pageOpen;
+      if (isContinuation) {
+        po = po.replace(/class="([^"]*)"/, function (_m, cls) {
+          if (/rb-doc-page--continuation/.test(cls)) return _m;
+          return 'class="' + cls + ' rb-doc-page--continuation"';
+        });
+        if (!/class=/.test(po)) {
+          po = po.replace(/^<(\w+)/, '<$1 class="rb-doc-page rb-doc-page--continuation"');
+        }
+        po = po.replace(/data-page-number="\d+"/, 'data-page-number="' + (pageHTMLs.length + 1) + '"');
+        if (!/data-page-number=/.test(po)) {
+          po = po.replace(/^<(\w+)([^>]*)>/, '<$1$2 data-page-number="' + (pageHTMLs.length + 1) + '">');
+        }
+      }
+      pageHTMLs.push(po + innerOpen + current.join('') + innerClose + pageClose);
+      current = [];
+      currentH = 0;
+    }
+
+    function blockHeight(html) {
+      var host = mDoc.querySelector('.rb-doc-measure-host-page');
+      if (!host) {
+        host = mDoc.createElement('div');
+        host.className = 'rb-doc-measure-host-page';
+        host.style.cssText =
+          'position:absolute;left:-99999px;top:0;width:' + inner.clientWidth + 'px;visibility:hidden;';
+        mDoc.body.appendChild(host);
+      }
+      host.innerHTML = html;
+      var h = host.scrollHeight;
+      host.innerHTML = '';
+      return h;
+    }
+
+    blocks.forEach(function (block) {
+      var html = block.outerHTML;
+      var h = blockHeight(html);
+      if (currentH + h <= budget || !current.length) {
+        current.push(html);
+        currentH += h;
+      } else if (block.classList && block.classList.contains('rb-doc-section')) {
+        // Try to split this section across pages.
+        var remaining = budget - currentH;
+        var fragments = _splitSectionByItems(block, budget, mDoc, remaining > 80 ? remaining : budget);
+        if (fragments.length) {
+          // First fragment fits the remaining current page (we hope).
+          var firstFrag = fragments[0];
+          var firstH = blockHeight(firstFrag);
+          if (firstH <= budget - currentH + 4) {
+            current.push(firstFrag);
+            pushPage(pageHTMLs.length > 0);
+            for (var i = 1; i < fragments.length; i++) {
+              current = [fragments[i]];
+              currentH = blockHeight(fragments[i]);
+              if (i < fragments.length - 1) pushPage(pageHTMLs.length > 0);
+            }
+          } else {
+            pushPage(pageHTMLs.length > 0);
+            for (var j = 0; j < fragments.length; j++) {
+              current = [fragments[j]];
+              currentH = blockHeight(fragments[j]);
+              if (j < fragments.length - 1) pushPage(pageHTMLs.length > 0);
+            }
+          }
+        } else {
+          pushPage(pageHTMLs.length > 0);
+          current.push(html);
+          currentH = h;
+        }
+      } else {
+        pushPage(pageHTMLs.length > 0);
+        current.push(html);
+        currentH = h;
+      }
+    });
+
+    pushPage(pageHTMLs.length > 0);
+    return pageHTMLs.length ? pageHTMLs : [pageEl.outerHTML];
+  }
+
+  // Sidebar pages: paginate only the .rb-sidebar-main overflow into
+  // continuation pages (full-width). The aside stays on Page 1.
+  function _paginateSidebarPage(pageEl, mDoc) {
+    var grid = pageEl.querySelector('.rb-sidebar-grid');
+    var main = grid && grid.querySelector('.rb-sidebar-main');
+    if (!grid || !main) return _paginateFullWidthPage(pageEl, mDoc);
+    var budgetMain = main.clientHeight;
+    if (main.scrollHeight <= budgetMain + 2) {
+      return [pageEl.outerHTML]; // no overflow
+    }
+
+    var pageOpenMatch = pageEl.outerHTML.match(/^<[^>]+>/);
+    var pageOpen = pageOpenMatch ? pageOpenMatch[0] : '<section class="rb-doc-page">';
+    var pageClose = '</' + pageEl.tagName.toLowerCase() + '>';
+
+    // Scratch measurement host sized to main column width.
+    var hostId = 'rb-doc-measure-main';
+    var host = mDoc.getElementById(hostId);
+    if (!host) {
+      host = mDoc.createElement('div');
+      host.id = hostId;
+      host.style.cssText =
+        'position:absolute;left:-99999px;top:0;width:' + main.clientWidth + 'px;visibility:hidden;';
+      mDoc.body.appendChild(host);
+    }
+    function measure(html) { host.innerHTML = html; var h = host.scrollHeight; host.innerHTML = ''; return h; }
+
+    var blocks = Array.prototype.slice.call(main.children);
+    var page1Blocks = [];
+    var overflowBlocks = [];
+    var accH = 0;
+    blocks.forEach(function (block) {
+      var html = block.outerHTML;
+      var h = measure(html);
+      if (overflowBlocks.length) {
+        overflowBlocks.push(block);
+      } else if (accH + h <= budgetMain || !page1Blocks.length) {
+        page1Blocks.push(html);
+        accH += h;
+      } else if (block.classList && block.classList.contains('rb-doc-section')) {
+        // Try to split this section: keep some on page 1, push rest to overflow.
+        var remaining = budgetMain - accH;
+        var fragments = _splitSectionByItems(block, budgetMain, mDoc, remaining > 80 ? remaining : budgetMain);
+        if (fragments.length >= 1) {
+          page1Blocks.push(fragments[0]);
+          for (var i = 1; i < fragments.length; i++) {
+            // Stash as raw HTML strings; we'll wrap later.
+            overflowBlocks.push({ __html: fragments[i] });
+          }
+        } else {
+          overflowBlocks.push(block);
+        }
+      } else {
+        overflowBlocks.push(block);
+      }
+    });
+
+    // Rebuild Page 1: replace .rb-sidebar-main innerHTML with page1Blocks.
+    var p1Clone = pageEl.cloneNode(true);
+    var p1Main = p1Clone.querySelector('.rb-sidebar-main');
+    if (p1Main) p1Main.innerHTML = page1Blocks.join('');
+    var pages = [p1Clone.outerHTML];
+
+    if (!overflowBlocks.length) return pages;
+
+    // Build a synthetic full-width "continuation" page that we then run
+    // through the standard full-width paginator.
+    var overflowHTML = overflowBlocks.map(function (b) {
+      return b.__html != null ? b.__html : b.outerHTML;
+    }).join('');
+
+    // Create a temporary page in the live measurement DOM so the full-width
+    // paginator can measure correctly.
+    var tmp = mDoc.createElement('section');
+    tmp.className = 'rb-doc-page rb-doc-page--continuation';
+    tmp.setAttribute('data-doc-type', pageEl.getAttribute('data-doc-type') || 'document');
+    tmp.setAttribute('data-template', pageEl.getAttribute('data-template') || '');
+    tmp.setAttribute('data-page-number', '2');
+    tmp.innerHTML = '<div class="rb-doc-page-inner">' + overflowHTML + '</div>';
+    mDoc.body.appendChild(tmp);
+    try {
+      var moreHTMLs = _paginateFullWidthPage(tmp, mDoc);
+      pages = pages.concat(moreHTMLs);
+    } finally {
+      try { mDoc.body.removeChild(tmp); } catch (_) {}
+    }
+    return pages;
+  }
+
+  function paginateFixedDocument(html, options) {
+    options = options || {};
+    return new Promise(function (resolve) {
+      if (!html || typeof html !== 'string') { resolve(html || ''); return; }
+      if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false) { resolve(html); return; }
+      // Skip if not a fixed-document doc (defensive).
+      if (html.indexOf('rb-fixed-document') === -1) { resolve(html); return; }
+
+      var run = function () {
+        _RB_PAGINATE.busy = true;
+        var frame = _rbGetMeasurementIframe();
+        var done = false;
+        function finish(result) {
+          if (done) return;
+          done = true;
+          _RB_PAGINATE.busy = false;
+          resolve(result);
+          // Drain queue.
+          var next = _RB_PAGINATE.queue.shift();
+          if (next) {
+            try { next(); } catch (_) {}
+          }
+        }
+        try {
+          frame.srcdoc = html;
+        } catch (_) {
+          finish(html);
+          return;
+        }
+        _rbWaitForFrameLoad(frame).then(function () {
+          var mDoc;
+          try { mDoc = frame.contentDocument; } catch (_) { mDoc = null; }
+          if (!mDoc || !mDoc.body) { finish(html); return; }
+          // Allow one paint pass for layout.
+          requestAnimationFrame(function () { requestAnimationFrame(function () {
+            try {
+              var pages = Array.prototype.slice.call(mDoc.querySelectorAll('.rb-doc-page'));
+              if (!pages.length) { finish(html); return; }
+
+              var rebuilt = [];
+              pages.forEach(function (pageEl) {
+                if (pageEl.classList.contains('rb-doc-page--sidebar')) {
+                  rebuilt = rebuilt.concat(_paginateSidebarPage(pageEl, mDoc));
+                } else {
+                  rebuilt = rebuilt.concat(_paginateFullWidthPage(pageEl, mDoc));
+                }
+              });
+
+              // Replace all pages in place. We reconstruct the full HTML by
+              // replacing the .rb-doc-viewer's innerHTML.
+              var viewer = mDoc.querySelector('.rb-doc-viewer');
+              if (viewer) {
+                viewer.innerHTML = rebuilt.join('');
+                viewer.setAttribute('data-doc-pages', String(rebuilt.length));
+                viewer.setAttribute('data-paginated', 'true');
+              }
+              var serialized = '<!doctype html>' + mDoc.documentElement.outerHTML;
+              finish(serialized);
+            } catch (err) {
+              try { console.error('[paginateFixedDocument] failed; returning unpaginated.', err); } catch (_) {}
+              finish(html);
+            }
+          }); });
+        });
+      };
+
+      if (_RB_PAGINATE.busy) {
+        _RB_PAGINATE.queue.push(run);
+      } else {
+        run();
+      }
+    });
+  }
+  try { window.paginateFixedDocument = paginateFixedDocument; } catch (_) {}
+
+  // ============================================================
+  // Phase D — Adjust Layout panel wiring.
+  // ============================================================
+  function _readDocumentLayoutOverridesFromUI() {
+    var ids = {
+      fontSize:       'adjust-font-size',
+      lineHeight:     'adjust-line-height',
+      sectionSpacing: 'adjust-section-spacing',
+      pageMargin:     'adjust-page-margin'
+    };
+    var out = {};
+    Object.keys(ids).forEach(function (k) {
+      var el = document.getElementById(ids[k]);
+      if (el && el.value) out[k] = el.value;
+    });
+    return out;
+  }
+
+  function _applyDocumentLayoutOverridesToUI() {
+    var saved = (window.RB_STATE && (RB_STATE.documentLayoutOverrides || RB_STATE.documentLayout)) || {};
+    [['adjust-font-size','fontSize'],
+     ['adjust-line-height','lineHeight'],
+     ['adjust-section-spacing','sectionSpacing'],
+     ['adjust-page-margin','pageMargin']].forEach(function (pair) {
+      var el = document.getElementById(pair[0]);
+      if (el && saved[pair[1]]) el.value = saved[pair[1]];
+    });
+  }
+
+  function _setAdjustLayoutStatus(text) {
+    var el = document.getElementById('adjust-layout-status');
+    if (el) el.textContent = text;
+  }
+
+  function _persistAdjustLayoutOverrides(overrides) {
+    if (!window.RB_STATE) return;
+    RB_STATE.documentLayoutOverrides = overrides || {};
+    try { if (typeof markBuilderDirty === 'function') markBuilderDirty('adjust-layout'); } catch (_) {}
+  }
+
+  function _wireAdjustLayoutPanel() {
+    var panel = document.getElementById('adjust-layout-panel');
+    if (!panel || panel._wired) return;
+    panel._wired = true;
+
+    _applyDocumentLayoutOverridesToUI();
+
+    Array.prototype.forEach.call(panel.querySelectorAll('select[data-adjust-key]'), function (sel) {
+      sel.addEventListener('change', function () {
+        var overrides = _readDocumentLayoutOverridesFromUI();
+        _persistAdjustLayoutOverrides(overrides);
+        _setAdjustLayoutStatus('Applied. Refreshing PDF / Word preview…');
+        try { schedulePreviewRefresh(); } catch (_) {}
+      });
+    });
+
+    var resetBtn = document.getElementById('adjust-reset-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        ['adjust-font-size','adjust-line-height','adjust-section-spacing','adjust-page-margin'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.value = el.querySelector('option[selected]') ? el.querySelector('option[selected]').value : el.options[0].value;
+        });
+        _persistAdjustLayoutOverrides({});
+        _setAdjustLayoutStatus('Defaults restored.');
+        try { schedulePreviewRefresh(); } catch (_) {}
+      });
+    }
+
+    var fitBtn = document.getElementById('adjust-fit-one-page-btn');
+    if (fitBtn) {
+      fitBtn.addEventListener('click', function () { _fitToOnePage(); });
+    }
+  }
+  try { window._wireAdjustLayoutPanel = _wireAdjustLayoutPanel; } catch (_) {}
+
+  // Iteratively reduce font size + spacing until the resume fits on one page.
+  function _fitToOnePage() {
+    var pkg = (window.RB_STATE && RB_STATE.documentPackage) ||
+              (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null);
+    if (!pkg || !pkg.selected || !pkg.selected.resume) {
+      _setAdjustLayoutStatus('Fit-to-1-Page requires a Resume to be selected in Step 3.');
+      return;
+    }
+
+    // Try presets from spacious -> compact, narrow margins, tight spacing.
+    var ladder = [
+      { fontSize: 'standard', lineHeight: 'normal', sectionSpacing: 'normal', pageMargin: 'standard' },
+      { fontSize: 'standard', lineHeight: 'normal', sectionSpacing: 'tight',  pageMargin: 'standard' },
+      { fontSize: 'standard', lineHeight: 'tight',  sectionSpacing: 'tight',  pageMargin: 'standard' },
+      { fontSize: 'compact',  lineHeight: 'tight',  sectionSpacing: 'tight',  pageMargin: 'standard' },
+      { fontSize: 'compact',  lineHeight: 'tight',  sectionSpacing: 'tight',  pageMargin: 'narrow'   }
+    ];
+
+    _setAdjustLayoutStatus('Calculating best layout…');
+
+    // Force a temporary single-resume package for measurement.
+    var measurePkg;
+    try {
+      measurePkg = (typeof buildSingleDocumentPackage === 'function')
+        ? buildSingleDocumentPackage('resume')
+        : pkg;
+    } catch (_) { measurePkg = pkg; }
+
+    var attempt = 0;
+    function tryNext() {
+      if (attempt >= ladder.length) {
+        // Apply the most aggressive preset and report.
+        _persistAdjustLayoutOverrides(ladder[ladder.length - 1]);
+        _applyDocumentLayoutOverridesToUI();
+        _setAdjustLayoutStatus('Could not shrink to 1 page; applied tightest preset. Consider trimming bullets.');
+        try { schedulePreviewRefresh(); } catch (_) {}
+        return;
+      }
+      var preset = ladder[attempt];
+      _persistAdjustLayoutOverrides(preset);
+      var html;
+      try { html = renderFixedDocumentPackageHTML(measurePkg, { target: 'export', format: 'pdf' }); }
+      catch (_) { html = ''; }
+      if (!html) {
+        _setAdjustLayoutStatus('Fit-to-1-Page failed (renderer error).');
+        return;
+      }
+      paginateFixedDocument(html).then(function (paginated) {
+        var matches = paginated && paginated.match(/class="[^"]*rb-doc-page\b/g);
+        var pageCount = matches ? matches.length : 1;
+        if (pageCount <= 1) {
+          _applyDocumentLayoutOverridesToUI();
+          _setAdjustLayoutStatus('Fit to 1 page using ' + preset.fontSize + ' font / ' + preset.lineHeight + ' line height.');
+          try { schedulePreviewRefresh(); } catch (_) {}
+          return;
+        }
+        attempt += 1;
+        tryNext();
+      });
+    }
+    tryNext();
+  }
+  try { window._fitToOnePage = _fitToOnePage; } catch (_) {}
+
+  // ============================================================
+  // Phase D — Wire pagination into the live preview + PDF export.
+  // ============================================================
+
+  // Token used to discard stale paginations if the user changes inputs
+  // while a paginate run is in flight.
+  var _RB_PAGINATE_TOKEN = 0;
+
+  function _maybePaginatePreviewAfterRender(frame, format) {
+    if (!frame) return;
+    if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false) return;
+    if (format !== 'pdf' && format !== 'docx' && format !== 'doc') return;
+    var token = ++_RB_PAGINATE_TOKEN;
+    var raw = '';
+    try { raw = frame.srcdoc || ''; } catch (_) {}
+    if (!raw || raw.indexOf('rb-fixed-document') === -1) return;
+    paginateFixedDocument(raw).then(function (paginated) {
+      if (token !== _RB_PAGINATE_TOKEN) return; // stale
+      if (!paginated || paginated === raw) return;
+      try { frame.srcdoc = paginated; } catch (err) {
+        try { console.error('[paginate-preview] srcdoc reassignment failed', err); } catch (_) {}
+      }
+    });
+  }
+  try { window._maybePaginatePreviewAfterRender = _maybePaginatePreviewAfterRender; } catch (_) {}
+
   function ensureDownloadPackageModal() {
     var existing = document.getElementById('download-package-modal');
     if (existing) return existing;
@@ -13279,6 +15099,20 @@
 
     html = sanitizePreviewHTML(html);
 
+    // Phase D: route fixed-document export HTML through the measurement
+    // paginator so PDF output and print fallback share the same pre-paginated
+    // page set (same source as preview).
+    if (window.RB_USE_FIXED_DOCUMENT_RENDERER !== false &&
+        typeof paginateFixedDocument === 'function' &&
+        html && html.indexOf('rb-fixed-document') !== -1) {
+      try {
+        var paginated = await paginateFixedDocument(html);
+        if (paginated && typeof paginated === 'string') html = paginated;
+      } catch (paginateErr) {
+        try { console.warn('[downloadPackagePdf] pagination failed; exporting unpaginated.', paginateErr); } catch (_) {}
+      }
+    }
+
     // Try the server-side renderer first (real PDF, no user dialog).
     // Fall back to the client print dialog if the endpoint is unavailable
     // (404/501) or the network call fails. Genuine HTTP errors (400/413/500)
@@ -13358,7 +15192,12 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    var docHtml = [
+    // Phase B: if `html` is already a complete document (the fixed-document
+    // renderer always returns one), pass it through unmodified so its
+    // self-contained @page / .rb-doc-page rules are honored. Only legacy
+    // partial-HTML callers get the print wrapper.
+    var isFullDoc = /^\s*<!doctype/i.test(String(html || ''));
+    var docHtml = isFullDoc ? html : [
       '<!doctype html><html><head><meta charset="utf-8">',
       '<title>' + titleSafe + '</title>',
       '<style>@page{size:letter;margin:0.5in;}html,body{margin:0;padding:0;background:#fff;}</style>',
@@ -16238,6 +18077,9 @@
       publishedUrl:               (RB_STATE && RB_STATE.publishedUrl) || null,
       shareUrl:                   (RB_STATE && RB_STATE.shareUrl) || null,
       publishedSlug:              (RB_STATE && RB_STATE.publishedSlug) || null,
+      // Phase D: persist Adjust Layout panel overrides so user-tuned PDF /
+      // Word output spacing follows the resume across save/load.
+      documentLayoutOverrides:    (RB_STATE && RB_STATE.documentLayoutOverrides) || null,
       updatedAtClient: new Date().toISOString()
     };
   }
@@ -16762,6 +18604,16 @@
           if (data.slug)         RB_STATE.publishedSlug = String(data.slug);
           if (!RB_STATE.publishedUrl && !RB_STATE.shareUrl && RB_STATE.publishedSlug) {
             RB_STATE.publishedUrl = location.origin + '/view.html?p=' + encodeURIComponent(RB_STATE.publishedSlug);
+          }
+        }
+      } catch (_) {}
+      // Phase D: restore Adjust Layout overrides and reflect them in the UI
+      // selects so the user sees their saved settings on load.
+      try {
+        if (data && data.documentLayoutOverrides && typeof data.documentLayoutOverrides === 'object') {
+          RB_STATE.documentLayoutOverrides = Object.assign({}, data.documentLayoutOverrides);
+          if (typeof _applyDocumentLayoutOverridesToUI === 'function') {
+            _applyDocumentLayoutOverridesToUI();
           }
         }
       } catch (_) {}
@@ -18652,6 +20504,9 @@
     try { _wireDirectDownloadGrid(); } catch (_) {}
     try { updateDirectDownloadButtonsState(); } catch (_) {}
     try { hydratePublishedShareLinkUI(); } catch (_) {}
+    // Phase D: wire Adjust Layout panel (font / spacing / margin selects +
+    // Reset + Fit-to-1-Page button). Idempotent.
+    try { _wireAdjustLayoutPanel(); } catch (_) {}
     // Action buttons via [data-action]
     document.querySelectorAll('[data-action]').forEach(function (el) {
       el.addEventListener('click', function (ev) {
