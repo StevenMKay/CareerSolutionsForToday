@@ -4133,6 +4133,7 @@
                 <button type="button" disabled aria-disabled="true" data-preview-format="pptx" title="PowerPoint preview is being polished">PowerPoint <span class="badge-soon">Coming Soon</span></button>
                 -->
               </div>
+              <div id="public-web-style-note" class="hint" style="display:none;font-size:12px;color:#64748b;margin-top:6px;line-height:1.4" aria-live="polite"></div>
             </div>
             <div id="preview-device-row" style="display:none" aria-hidden="true">
               <label class="field-label">Device</label>
@@ -5265,6 +5266,7 @@
         try { window.RB_STATE = window.RB_STATE || {}; RB_STATE.styleTemplate = styleKey; } catch (_) {}
         try { if (typeof markBuilderDirty === 'function') markBuilderDirty('style-change'); } catch (_) {}
         try { maybeRefreshPreview(); } catch (_) {}
+        try { updatePublicWebStyleNote(); } catch (_) {}
       });
     });
     document.querySelectorAll('.swatch').forEach(function (sw) {
@@ -5291,6 +5293,7 @@
         b.classList.add('active');
         if (b.hasAttribute('data-preview-format')) {
           try { updatePreviewControlsVisibility(); } catch (_) {}
+          try { updatePublicWebStyleNote(); } catch (_) {}
         }
         try { maybeRefreshPreview(); } catch (_) {}
       });
@@ -5299,7 +5302,41 @@
     try { applyStyleCardPreviewColor(getSelectedExportColor()); } catch (_) {}
     try { updatePreviewControlsVisibility(); } catch (_) {}
     try { initOutputTargetToggle(); } catch (_) {}
+    try { updatePublicWebStyleNote(); } catch (_) {}
   }
+
+  // Public Web Preview transparency note. The builder offers more style
+  // tokens than view.html implements, so the public web preview aliases
+  // them via getPublicViewStyleKey(). When that alias kicks in, surface
+  // a small note under the Live Preview format toggle so users know why
+  // the web preview looks different from the PDF/DOCX style. Only shown
+  // when format='web' AND the selected style is aliased.
+  function updatePublicWebStyleNote() {
+    var note = document.getElementById('public-web-style-note');
+    if (!note) return;
+    var fmt = (typeof getSelectedPreviewFormat === 'function') ? getSelectedPreviewFormat() : 'web';
+    if (fmt !== 'web') {
+      note.style.display = 'none';
+      note.textContent = '';
+      return;
+    }
+    var styleInput = document.getElementById('export-style');
+    var rawStyle = (styleInput && styleInput.value) ||
+      (window.RB_STATE && RB_STATE.exportStyle) ||
+      'modern-sidebar';
+    var aliased = getPublicViewStyleKey(rawStyle);
+    var rawLower = String(rawStyle || '').toLowerCase();
+    if (aliased === rawLower) {
+      // Style is already a native public-view key — no note needed.
+      note.style.display = 'none';
+      note.textContent = '';
+      return;
+    }
+    note.style.display = 'block';
+    note.textContent = getBuilderStyleLabel(rawStyle) +
+      ': PDF/DOCX style. Web preview uses the ' + getPublicViewStyleLabel(aliased) + ' layout.';
+  }
+  try { window.updatePublicWebStyleNote = updatePublicWebStyleNote; } catch (_) {}
 
   // Output Target toggle: PDF / Web Page  vs  Word.
   // Strictly filters which Style cards are visible. No cross-mingling.
@@ -9815,6 +9852,77 @@
     });
   }
 
+  // ---------- Public Web Page style alias map ----------
+  // SINGLE SOURCE OF TRUTH for collapsing builder style tokens to the
+  // smaller set view.html actually implements. view.html STYLE_CONFIG
+  // only knows: executive | modern | classic | bold | tech. The builder
+  // exposes more tokens (modern-sidebar, portfolio, editorial, ...) for
+  // PDF/DOCX. Any builder token must alias to one of those five for the
+  // PUBLIC web page (preview + published) so what the user sees in
+  // preview matches what view.html will publish.
+  //
+  // KEEP IN SYNC with view.html BUILDER_STYLE_ALIAS. If you add a token
+  // here, mirror it there (or vice versa). debugPublicPreviewParity()
+  // surfaces drift via styleAliased/effectivePublicViewStyle.
+  var PUBLIC_VIEW_STYLE_KEYS = ['executive', 'modern', 'classic', 'bold', 'tech'];
+  var PUBLIC_VIEW_STYLE_ALIAS = {
+    'modern-sidebar': 'executive',
+    'modern_sidebar': 'executive',
+    'modernsidebar':  'executive',
+    'portfolio':      'bold',
+    'portfolio_card': 'bold',
+    'bold-creative':  'bold',
+    'classic-serif':  'classic',
+    'minimal':        'modern',
+    'minimalist':     'modern',
+    'modern-minimal': 'modern',
+    'tech-terminal':  'tech',
+    'editorial':      'executive',
+    'corporate':      'executive'
+  };
+  function getPublicViewStyleKey(style) {
+    var raw = String(style || '').trim().toLowerCase();
+    if (!raw) return 'executive';
+    if (PUBLIC_VIEW_STYLE_KEYS.indexOf(raw) !== -1) return raw;
+    return PUBLIC_VIEW_STYLE_ALIAS[raw] || 'executive';
+  }
+  var PUBLIC_VIEW_STYLE_LABELS = {
+    executive: 'Executive',
+    modern:    'Modern',
+    classic:   'Classic',
+    bold:      'Bold',
+    tech:      'Tech'
+  };
+  function getPublicViewStyleLabel(key) {
+    return PUBLIC_VIEW_STYLE_LABELS[key] || 'Executive';
+  }
+  // Pretty label for the original builder token (for the transparency
+  // note: "<Builder Style>: Web preview uses the <Public Style> layout.")
+  var BUILDER_STYLE_LABELS = {
+    'modern-sidebar': 'Modern Sidebar',
+    'portfolio':      'Portfolio',
+    'editorial':      'Editorial',
+    'corporate':      'Corporate',
+    'classic-serif':  'Classic Serif',
+    'classic':        'Classic',
+    'modern':         'Modern',
+    'minimal':        'Minimal',
+    'executive':      'Executive',
+    'bold-creative':  'Bold Creative',
+    'tech-terminal':  'Tech Terminal'
+  };
+  function getBuilderStyleLabel(key) {
+    var raw = String(key || '').toLowerCase();
+    return BUILDER_STYLE_LABELS[raw] || (raw ? raw.replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : '');
+  }
+  try {
+    window.PUBLIC_VIEW_STYLE_KEYS  = PUBLIC_VIEW_STYLE_KEYS;
+    window.PUBLIC_VIEW_STYLE_ALIAS = PUBLIC_VIEW_STYLE_ALIAS;
+    window.getPublicViewStyleKey   = getPublicViewStyleKey;
+    window.getPublicViewStyleLabel = getPublicViewStyleLabel;
+    window.getBuilderStyleLabel    = getBuilderStyleLabel;
+  } catch (_) {}
+
   // ---------- Style configuration contract ----------
   // Each style declares how it should render for *both* output families:
   //   - docLayout / docSkillMode govern PDF & DOCX (portrait document outputs)
@@ -11985,16 +12093,31 @@
     var device = (format === 'web')
       ? (opts.device || (pkg.style && pkg.style.deviceMode) || 'desktop')
       : 'desktop';
-    var template = (pkg.style && pkg.style.template) || 'modern-sidebar';
+    var rawTemplate = (pkg.style && pkg.style.template) || 'modern-sidebar';
     var color    = (pkg.style && pkg.style.color)    || 'blue';
+    // Public Web Preview / Published parity: when rendering for the web
+    // format, collapse builder-only style tokens through the SAME alias
+    // map view.html uses (single source of truth above). This keeps the
+    // Public Web Preview honest — selecting Modern Sidebar in the builder
+    // shows the same Executive web layout the published page will use.
+    // PDF/DOCX preview keeps the original builder style untouched.
+    var template = rawTemplate;
+    var webStyleAliased = false;
+    if (format === 'web') {
+      var aliasedTemplate = getPublicViewStyleKey(rawTemplate);
+      webStyleAliased = (aliasedTemplate !== String(rawTemplate || '').toLowerCase());
+      template = aliasedTemplate;
+    }
     var cfg = getPreviewStyleConfig(template, color, format);
     var bodyClass = [
       'template-' + template, 'color-' + color,
       'format-' + format, 'mode-' + mode,
       'device-' + device, 'target-' + target,
       cfg.className,
-      'layout-' + cfg.layout, 'skill-' + cfg.skillStyle, 'section-' + cfg.sectionStyle
-    ].join(' ');
+      'layout-' + cfg.layout, 'skill-' + cfg.skillStyle, 'section-' + cfg.sectionStyle,
+      (format === 'web' ? ('public-view-style-' + template) : ''),
+      (format === 'web' && webStyleAliased ? ('aliased-from-' + String(rawTemplate).toLowerCase()) : '')
+    ].filter(Boolean).join(' ');
     var inner;
     if (format === 'pptx') {
       // PowerPoint preview is intentionally disabled (Coming Soon). The deck
@@ -15096,6 +15219,111 @@
       }
     };
     console.log('[debugPublicWebStructure]', result);
+    return result;
+  };
+
+  // Public Web Preview / Published parity diagnostic. Reports the
+  // selected builder style, the effective public-view style after
+  // alias collapse, the renderer paths, the rendered public sections,
+  // and a set of stale-pattern detectors that flag if the preview is
+  // accidentally rendering the old document/package shape on the web.
+  window.debugPublicPreviewParity = function () {
+    var pkg = null;
+    try { pkg = (typeof buildSelectedDocumentPackage === 'function') ? buildSelectedDocumentPackage() : null; } catch (_) {}
+    pkg = pkg || (window.RB_STATE && RB_STATE.documentPackage) || {};
+    var styleInput = document.getElementById('export-style');
+    var rawStyle = (pkg.style && pkg.style.template) ||
+      (styleInput && styleInput.value) ||
+      (window.RB_STATE && RB_STATE.exportStyle) ||
+      'modern-sidebar';
+    var aliased = getPublicViewStyleKey(rawStyle);
+    var aliased2 = String(rawStyle || '').toLowerCase();
+    var styleAliased = (aliased !== aliased2);
+    var color = (pkg.style && pkg.style.color) ||
+      (window.RB_STATE && RB_STATE.exportColor) || 'blue';
+
+    var publicSectionsRendered = [];
+    try { publicSectionsRendered = (typeof getPublicWebSectionsInOrder === 'function') ? getPublicWebSectionsInOrder(pkg) : []; } catch (_) {}
+    var coverLetterIncludedOnWeb = publicSectionsRendered.indexOf('coverLetter') !== -1;
+    var rolePlanIncludedOnWeb    = publicSectionsRendered.indexOf('rolePlan')    !== -1;
+
+    // Scrape the live preview iframe for parity facts.
+    var navLabels = [];
+    var headingList = [];
+    var duplicateNameHeading = false;
+    var stalePackageRenderDetected = false;
+    var staleCoverLetterSectionDetected = false;
+    var staleEmptyRolePlanDetected = false;
+    var webBodyClass = '';
+    try {
+      var frame = document.getElementById('preview-frame');
+      var fdoc = frame && frame.contentDocument;
+      if (fdoc) {
+        webBodyClass = (fdoc.body && fdoc.body.className) || '';
+        var navEls = fdoc.querySelectorAll('.web-sidebar [data-target], .web-sidebar a, .site-nav a');
+        navEls.forEach(function (n) {
+          var t = (n.textContent || '').replace(/\s+/g, ' ').trim();
+          if (t) navLabels.push(t);
+        });
+        var hs = fdoc.querySelectorAll('h1, h2');
+        hs.forEach(function (h) {
+          var t = (h.textContent || '').replace(/\s+/g, ' ').trim();
+          if (t) headingList.push(h.tagName + ': ' + t);
+        });
+        var h1s = fdoc.querySelectorAll('h1');
+        var seen = {};
+        for (var i = 0; i < h1s.length; i++) {
+          var key = (h1s[i].textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          if (!key) continue;
+          if (seen[key]) { duplicateNameHeading = true; break; }
+          seen[key] = true;
+        }
+        // Stale: package-style web render (doc-package-divider / doc-subdoc
+        // markers come from the PDF/DOCX path; should never appear on web).
+        if (fdoc.querySelector('.doc-package-divider, .doc-divider, .doc-subdoc-cv, .doc-subdoc-plan, .doc-subdoc-resume')) {
+          stalePackageRenderDetected = true;
+        }
+        // Stale: cover letter rendered on the public web page.
+        var cvSec = fdoc.querySelector('#sec-cv, .doc-subdoc-cv, [data-section="coverLetter"]');
+        if (cvSec && !coverLetterIncludedOnWeb) {
+          staleCoverLetterSectionDetected = true;
+        }
+        // Stale: empty Strategic Roadmap shell.
+        var planSec = fdoc.querySelector('#sec-plan');
+        if (planSec) {
+          var planText = (planSec.textContent || '').replace(/\s+/g, ' ').trim();
+          var hdr = planSec.querySelector('h1, h2, h3');
+          var hdrText = hdr ? (hdr.textContent || '').replace(/\s+/g, ' ').trim() : '';
+          if (hdr && planText.length <= hdrText.length + 4) {
+            staleEmptyRolePlanDetected = true;
+          }
+        }
+      }
+    } catch (_) {}
+
+    var publishedUrl = (window.RB_STATE && (RB_STATE.publishedUrl || RB_STATE.shareUrl)) || null;
+
+    var result = {
+      selectedBuilderStyle: rawStyle,
+      effectivePublicViewStyle: aliased,
+      effectivePublicViewStyleLabel: getPublicViewStyleLabel(aliased),
+      styleAliased: styleAliased,
+      styleColor: color,
+      livePreviewRendererPath: 'resumebuilder.html#_renderWebPortfolio',
+      publishedViewRendererPath: 'view.html#renderPlan',
+      publicSectionsRendered: publicSectionsRendered,
+      navLabels: navLabels,
+      headingList: headingList,
+      coverLetterIncludedOnWeb: coverLetterIncludedOnWeb,
+      rolePlanIncludedOnWeb: rolePlanIncludedOnWeb,
+      duplicateNameHeading: duplicateNameHeading,
+      stalePackageRenderDetected: stalePackageRenderDetected,
+      staleCoverLetterSectionDetected: staleCoverLetterSectionDetected,
+      staleEmptyRolePlanDetected: staleEmptyRolePlanDetected,
+      publishedUrl: publishedUrl,
+      webBodyClass: webBodyClass
+    };
+    console.log('[debugPublicPreviewParity]', result);
     return result;
   };
 
