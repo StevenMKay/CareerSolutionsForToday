@@ -13236,7 +13236,8 @@
     }
   } catch (_) {}
 
-  function getDocumentLayoutSettings() {
+  function getDocumentLayoutSettings(opts) {
+    opts = opts || {};
     var state = window.RB_STATE || {};
     var saved = state.documentLayoutOverrides || state.documentLayout || {};
 
@@ -13251,15 +13252,46 @@
     var itemGapMap    = { tight: '3pt', normal: '5pt', open: '7pt' };
     var marginMap     = { narrow: '0.4in', standard: '0.5in', wide: '0.6in' };
 
+    // ---- Resolve template + color via palette (Phase D+ fix). The previous
+    // implementation regex-checked the color KEY against a hex pattern and
+    // silently fell back to a hardcoded color for every non-hex key (e.g.
+    // "blue"). We now resolve via RB_COLOR_PALETTE.
+    var template = String(opts.template || '').toLowerCase();
+    if (!template) {
+      try {
+        var styleEl = document.getElementById('export-style');
+        template = String((styleEl && styleEl.value) || (state.exportStyle) || 'modern-sidebar').toLowerCase();
+      } catch (_) { template = 'modern-sidebar'; }
+    }
+
+    var colorKey = opts.colorKey || '';
+    if (!colorKey) {
+      try {
+        if (typeof getSelectedExportColor === 'function') colorKey = getSelectedExportColor();
+      } catch (_) {}
+    }
+    colorKey = String(colorKey || 'blue').toLowerCase();
+
+    var palette = window.RB_COLOR_PALETTE || {};
     var accent = '#0b487a';
-    try {
-      if (typeof getSelectedExportColor === 'function') {
-        var c = getSelectedExportColor();
-        if (c && /^#?[0-9a-f]{3,8}$/i.test(String(c).replace(/^#/, ''))) {
-          accent = String(c).charAt(0) === '#' ? c : ('#' + c);
-        }
-      }
-    } catch (_) {}
+    var accentDark = '#083560';
+    if (/^#?[0-9a-f]{3,8}$/i.test(colorKey) && !palette[colorKey]) {
+      // Honor a literal hex passthrough.
+      accent = colorKey.charAt(0) === '#' ? colorKey : ('#' + colorKey);
+      accentDark = accent;
+    } else {
+      try {
+        var p = (typeof getColorAccent === 'function') ? getColorAccent(colorKey) : null;
+        if (p && p.a) { accent = p.a; accentDark = p.d || p.a; }
+      } catch (_) {}
+    }
+
+    var cfg = opts.cfg || null;
+    var docLayout    = (cfg && cfg.docLayout)    || 'clean-single';
+    var sectionStyle = (cfg && cfg.sectionStyle) || 'ruled';
+    var className    = (cfg && cfg.className)    || ('style-' + (template || 'modern-sidebar'));
+    var fontHead     = (cfg && cfg.fontHead)     || 'Arial, Calibri, "Helvetica Neue", sans-serif';
+    var fontBody     = (cfg && cfg.fontBody)     || 'Arial, Calibri, "Helvetica Neue", sans-serif';
 
     return {
       pageWidth:         '8.5in',
@@ -13270,6 +13302,14 @@
       sectionGap:        sectionGapMap[sectionSpacing] || sectionGapMap.normal,
       itemGap:           itemGapMap[sectionSpacing]  || itemGapMap.normal,
       accent:            accent,
+      accentDark:        accentDark,
+      colorKey:          colorKey,
+      template:          template,
+      docLayout:         docLayout,
+      sectionStyle:      sectionStyle,
+      className:         className,
+      fontHead:          fontHead,
+      fontBody:          fontBody,
       fontSizeKey:       fontSize,
       lineHeightKey:     lineHeight,
       sectionSpacingKey: sectionSpacing,
@@ -13505,20 +13545,24 @@
     };
   }
 
-  function getFixedDocumentCss(settings) {
+  function getFixedDocumentCss(settings, cfg, template) {
     settings = settings || getDocumentLayoutSettings();
+    var fontHead = (settings && settings.fontHead) || (cfg && cfg.fontHead) || 'Arial, Calibri, "Helvetica Neue", sans-serif';
+    var fontBody = (settings && settings.fontBody) || (cfg && cfg.fontBody) || 'Arial, Calibri, "Helvetica Neue", sans-serif';
+    var accentDark = (settings && settings.accentDark) || settings.accent;
     return [
       ':root {',
       '  --rb-doc-page-width: ' + settings.pageWidth + ';',
       '  --rb-doc-page-height: ' + settings.pageHeight + ';',
       '  --rb-doc-margin: ' + settings.margin + ';',
-      '  --rb-doc-font-body: Arial, Calibri, "Helvetica Neue", sans-serif;',
-      '  --rb-doc-font-heading: Arial, Calibri, "Helvetica Neue", sans-serif;',
+      '  --rb-doc-font-body: ' + fontBody + ';',
+      '  --rb-doc-font-heading: ' + fontHead + ';',
       '  --rb-doc-font-size: ' + settings.bodyFontSize + ';',
       '  --rb-doc-line-height: ' + settings.lineHeight + ';',
       '  --rb-doc-section-gap: ' + settings.sectionGap + ';',
       '  --rb-doc-item-gap: ' + settings.itemGap + ';',
       '  --rb-doc-accent: ' + settings.accent + ';',
+      '  --rb-doc-accent-dark: ' + accentDark + ';',
       '  --rb-doc-text: #111827;',
       '  --rb-doc-muted: #4b5563;',
       '  --rb-doc-rule: #d1d5db;',
@@ -13927,9 +13971,25 @@
     var format = options.format || 'pdf';
     if (format === 'doc') format = 'docx';
 
-    var settings = getDocumentLayoutSettings();
+    // Phase D+ fix: thread template + color through getPreviewStyleConfig so
+    // PDF output is template-specific (not a generic renderer with only a
+    // class swap). Body classes downstream consume cfg.className,
+    // settings.docLayout, settings.sectionStyle, settings.colorKey.
+    var template = String((pkg && pkg.style && pkg.style.template) || 'modern-sidebar').toLowerCase();
+    var colorKey = String((pkg && pkg.style && pkg.style.color) || '').toLowerCase();
+    if (!colorKey) {
+      try { if (typeof getSelectedExportColor === 'function') colorKey = String(getSelectedExportColor() || 'blue').toLowerCase(); }
+      catch (_) { colorKey = 'blue'; }
+    }
+    var cfg = null;
+    try {
+      if (typeof getPreviewStyleConfig === 'function') {
+        cfg = getPreviewStyleConfig(template, colorKey, format === 'docx' ? 'docx' : 'pdf');
+      }
+    } catch (_) { cfg = null; }
+
+    var settings = getDocumentLayoutSettings({ cfg: cfg, template: template, colorKey: colorKey });
     var data = normalizeDocumentData(pkg);
-    var template = (pkg && pkg.style && pkg.style.template) || 'modern-sidebar';
 
     var pages = [];
     if (data.selected.resume && data.resume) {
@@ -13971,17 +14031,26 @@
       'rb-fixed-document',
       'format-' + (format === 'docx' ? 'docx' : 'pdf'),
       'target-' + (target === 'export' ? 'export' : 'preview'),
-      'template-' + template
-    ].join(' ');
+      'template-' + template,
+      (cfg && cfg.className) ? cfg.className : ('style-' + template),
+      'layout-' + (settings.docLayout || 'clean-single'),
+      'section-' + (settings.sectionStyle || 'ruled'),
+      'color-' + (settings.colorKey || colorKey || 'blue')
+    ].filter(Boolean).join(' ');
 
-    var css = getFixedDocumentCss(settings);
+    var css = getFixedDocumentCss(settings, cfg, template);
     try {
       if (typeof _getSidebarDocumentCss === 'function') {
         css += '\n' + _getSidebarDocumentCss(settings);
       }
     } catch (_) {}
+    try {
+      if (typeof _getFixedTemplateCss === 'function') {
+        css += '\n' + _getFixedTemplateCss(settings, cfg, template);
+      }
+    } catch (_) {}
 
-    return '<!doctype html><html lang="en"><head>' +
+    var html = '<!doctype html><html lang="en"><head>' +
       '<meta charset="utf-8">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       '<title>Document</title>' +
@@ -13991,6 +14060,20 @@
           pages.join('') +
         '</div>' +
       '</body></html>';
+
+    // Stash for debugPdfStyleState() so we can confirm the downloaded PDF
+    // and on-screen preview used the same selected template + CSS.
+    try {
+      window.RB_LAST_FIXED_DOC = {
+        target: target, format: format === 'docx' ? 'docx' : 'pdf',
+        template: template, colorKey: settings.colorKey,
+        bodyClass: bodyClass, cssLength: css.length, pageCount: pages.length,
+        cfg: cfg, settings: settings,
+        generatedAt: new Date().toISOString()
+      };
+    } catch (_) {}
+
+    return html;
   }
 
   try { window.getDocumentLayoutSettings        = getDocumentLayoutSettings; } catch (_) {}
@@ -14000,6 +14083,97 @@
   try { window.normalizeDocumentData            = normalizeDocumentData; } catch (_) {}
   try { window.renderFixedDocumentPackageHTML   = renderFixedDocumentPackageHTML; } catch (_) {}
   try { window.getFixedDocumentCss              = getFixedDocumentCss; } catch (_) {}
+
+  // Phase D+ -- expose builder + last-rendered iframe state side by side so
+  // we can confirm the downloaded PDF and the on-screen preview are using
+  // the same selected template + CSS. Returns null fields when the builder
+  // hasn't generated a fixed-document HTML yet this session.
+  window.debugPdfStyleState = function () {
+    var styleEl = document.getElementById('export-style');
+    var swatch = document.querySelector('.swatch.selected');
+    var color = swatch && swatch.getAttribute('data-color');
+    var pkg = null;
+    try { pkg = (typeof buildSelectedDocumentPackage === 'function') ? buildSelectedDocumentPackage() : null; }
+    catch (_) {}
+    var pkgStyle = pkg && pkg.style;
+    var template = (pkgStyle && pkgStyle.template) || (styleEl && styleEl.value) || null;
+    var cfg = null;
+    try {
+      if (typeof getPreviewStyleConfig === 'function') {
+        cfg = getPreviewStyleConfig(template, color || 'blue', 'pdf');
+      }
+    } catch (_) {}
+
+    var iframeInfo = null;
+    try {
+      var frame = document.getElementById('preview-frame');
+      var doc = frame && frame.contentDocument;
+      if (doc && doc.body) {
+        var styleTag = doc.querySelector('style');
+        var firstPage = doc.querySelector('.rb-doc-page');
+        var viewer = doc.querySelector('.rb-doc-viewer');
+        iframeInfo = {
+          bodyClass:           doc.body.className || '',
+          dataPaginated:       !!(viewer && viewer.getAttribute('data-paginated') === 'true'),
+          pageCount:           doc.querySelectorAll('.rb-doc-page').length,
+          firstPageTemplate:   firstPage ? firstPage.getAttribute('data-template') : null,
+          firstPageDocType:    firstPage ? firstPage.getAttribute('data-doc-type') : null,
+          inlineCssLength:     styleTag ? (styleTag.textContent || '').length : 0
+        };
+      }
+    } catch (_) {}
+
+    return {
+      exportStyleInput:     styleEl && styleEl.value,
+      packageStyle:         pkgStyle || null,
+      selectedColor:        color || null,
+      config:               cfg,
+      fixedRendererEnabled: window.RB_USE_FIXED_DOCUMENT_RENDERER !== false,
+      lastRendered:         window.RB_LAST_FIXED_DOC || null,
+      iframe:               iframeInfo,
+      bodyClassPreview:     iframeInfo ? iframeInfo.bodyClass
+                              : (window.RB_LAST_FIXED_DOC ? window.RB_LAST_FIXED_DOC.bodyClass : null),
+      timestamp: new Date().toISOString()
+    };
+  };
+
+  // Phase D+ -- non-blocking validator. Used by downloadPackagePdf to log a
+  // single console line per export so we can spot regressions in the field.
+  window.validateFixedPdfHtml = function (html) {
+    var out = {
+      ok: true, pageCount: 0, sidebarPageCount: 0,
+      sidebarOverflowRisk: false, bodyClass: '', templateClass: '',
+      hasModernSidebarEducationInAside: false
+    };
+    if (!html || typeof html !== 'string') { out.ok = false; return out; }
+    try {
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(html, 'text/html');
+      out.bodyClass = (doc.body && doc.body.className) || '';
+      var m = out.bodyClass.match(/template-([\w-]+)/);
+      out.templateClass = m ? m[1] : '';
+      var pages = doc.querySelectorAll('.rb-doc-page');
+      out.pageCount = pages.length;
+      for (var i = 0; i < pages.length; i++) {
+        var p = pages[i];
+        if (!p.classList.contains('rb-doc-page--sidebar')) continue;
+        out.sidebarPageCount++;
+        var aside = p.querySelector('.rb-sidebar-aside');
+        if (!aside) continue;
+        // Risk: education or certifications still inside the aside means the
+        // pre-render sidebar split did not run. Either of these can clip.
+        if (aside.querySelector('section[data-block="sidebarEducation"]') ||
+            aside.querySelector('section[data-block="sidebarCertifications"]')) {
+          out.sidebarOverflowRisk = true;
+          out.hasModernSidebarEducationInAside = true;
+        }
+      }
+    } catch (e) {
+      out.ok = false;
+      out.error = String(e && e.message || e);
+    }
+    return out;
+  };
 
   window.debugFixedDocumentLayout = function () {
     var frame = document.getElementById('preview-frame');
@@ -14055,10 +14229,18 @@
     return SIDEBAR_DOCUMENT_TEMPLATES.has(String(template || '').toLowerCase());
   }
 
+  // Sidebar holds at most this many skills. Overflow is rendered as a
+  // full-width "Additional Skills" section in the main column so the
+  // paginator can split it cleanly across continuation pages.
+  var MAX_SIDEBAR_SKILLS = 12;
+
   function renderFixedResumeSidebarHTML(model, settings, pkg) {
     if (!model) return '';
 
-    // Sidebar (left): identity + contact + skills + education + certifications.
+    // Phase D+ fix: sidebar (left) holds ONLY identity + contact + top-N
+    // skills. Education, certifications, and overflow skills move to the
+    // main column so the paginator can split them across continuation
+    // pages without clipping (the aside has overflow:hidden by design).
     var asideParts = [];
     asideParts.push(
       '<div class="rb-sidebar-id" data-block="sidebarIdentity">' +
@@ -14085,12 +14267,16 @@
       );
     }
 
+    var topSkills = [];
+    var overflowSkills = [];
     if (model.skills && model.skills.length) {
+      topSkills = model.skills.slice(0, MAX_SIDEBAR_SKILLS);
+      overflowSkills = model.skills.slice(MAX_SIDEBAR_SKILLS);
       asideParts.push(
         '<section class="rb-sidebar-section" data-block="sidebarSkills">' +
           '<h2 class="rb-sidebar-title">Skills</h2>' +
           '<ul class="rb-sidebar-list">' +
-            model.skills.map(function (s) {
+            topSkills.map(function (s) {
               return '<li class="rb-sidebar-list-item">' + rbDocEscape(s) + '</li>';
             }).join('') +
           '</ul>' +
@@ -14098,38 +14284,8 @@
       );
     }
 
-    if (model.education && model.education.length) {
-      asideParts.push(
-        '<section class="rb-sidebar-section" data-block="sidebarEducation">' +
-          '<h2 class="rb-sidebar-title">Education</h2>' +
-          model.education.map(function (e) {
-            return '<div class="rb-sidebar-edu-item" data-block="sidebarEducationItem">' +
-              (e.degree   ? '<div class="rb-sidebar-edu-degree">' + rbDocEscape(e.degree) + '</div>' : '') +
-              (e.school   ? '<div class="rb-sidebar-edu-school">' + rbDocEscape(e.school) + '</div>' : '') +
-              (e.dates    ? '<div class="rb-sidebar-edu-dates">' + rbDocEscape(e.dates) + '</div>' : '') +
-              (e.location ? '<div class="rb-sidebar-edu-location">' + rbDocEscape(e.location) + '</div>' : '') +
-            '</div>';
-          }).join('') +
-        '</section>'
-      );
-    }
-
-    if (model.certifications && model.certifications.length) {
-      asideParts.push(
-        '<section class="rb-sidebar-section" data-block="sidebarCertifications">' +
-          '<h2 class="rb-sidebar-title">Certifications</h2>' +
-          model.certifications.map(function (cert) {
-            return '<div class="rb-sidebar-cert-item" data-block="sidebarCertificationItem">' +
-              (cert.name   ? '<div class="rb-sidebar-cert-name">' + rbDocEscape(cert.name) + '</div>' : '') +
-              (cert.issuer ? '<div class="rb-sidebar-cert-issuer">' + rbDocEscape(cert.issuer) + '</div>' : '') +
-              (cert.dates  ? '<div class="rb-sidebar-cert-dates">' + rbDocEscape(cert.dates) + '</div>' : '') +
-            '</div>';
-          }).join('') +
-        '</section>'
-      );
-    }
-
-    // Main column: summary + experience + projects + achievements + volunteer.
+    // Main column: summary + experience + projects + achievements + volunteer
+    // + education + certifications + (optional) Additional Skills overflow.
     var mainParts = [];
     if (model.summary) {
       mainParts.push(
@@ -14206,6 +14362,57 @@
         '</section>'
       );
     }
+    if (model.education && model.education.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="education">' +
+          '<h2 class="rb-doc-section-title">Education</h2>' +
+          model.education.map(function (e) {
+            return '<article class="rb-doc-item" data-block="educationItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(e.degree || '') + '</span>' +
+                (e.dates ? '<span class="rb-doc-date">' + rbDocEscape(e.dates) + '</span>' : '') +
+              '</div>' +
+              ((e.school || e.location)
+                ? '<div class="rb-doc-row rb-doc-meta">' +
+                    '<span class="rb-doc-org">' + rbDocEscape(e.school || '') + '</span>' +
+                    (e.location ? '<span>' + rbDocEscape(e.location) + '</span>' : '') +
+                  '</div>'
+                : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+    if (model.certifications && model.certifications.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="certifications">' +
+          '<h2 class="rb-doc-section-title">Certifications</h2>' +
+          model.certifications.map(function (cert) {
+            return '<article class="rb-doc-item" data-block="certificationItem">' +
+              '<div class="rb-doc-row">' +
+                '<span class="rb-doc-role">' + rbDocEscape(cert.name || '') + '</span>' +
+                (cert.dates ? '<span class="rb-doc-date">' + rbDocEscape(cert.dates) + '</span>' : '') +
+              '</div>' +
+              (cert.issuer
+                ? '<div class="rb-doc-row rb-doc-meta"><span class="rb-doc-org">' + rbDocEscape(cert.issuer) + '</span></div>'
+                : '') +
+            '</article>';
+          }).join('') +
+        '</section>'
+      );
+    }
+    if (overflowSkills.length) {
+      mainParts.push(
+        '<section class="rb-doc-section" data-block="additionalSkills">' +
+          '<h2 class="rb-doc-section-title">Additional Skills</h2>' +
+          '<ul class="rb-doc-skills">' +
+            overflowSkills.map(function (s) {
+              return '<li class="rb-doc-skill">' + rbDocEscape(s) + '</li>';
+            }).join('') +
+          '</ul>' +
+        '</section>'
+      );
+    }
 
     return '<div class="rb-sidebar-grid">' +
       '<aside class="rb-sidebar-aside" data-block="sidebar">' + asideParts.join('') + '</aside>' +
@@ -14213,6 +14420,7 @@
     '</div>';
   }
   try { window.renderFixedResumeSidebarHTML = renderFixedResumeSidebarHTML; } catch (_) {}
+  try { window.MAX_SIDEBAR_SKILLS = MAX_SIDEBAR_SKILLS; } catch (_) {}
 
   // Augment getFixedDocumentCss output with sidebar-mode rules. We keep the
   // base CSS untouched and append these so non-sidebar templates render
@@ -14275,6 +14483,42 @@
       '.rb-fixed-document.template-editorial .rb-sidebar-aside { background: linear-gradient(180deg, var(--rb-doc-accent), color-mix(in srgb, var(--rb-doc-accent) 78%, #000 22%)); }'
     ].join('\n');
   }
+
+  // Phase D+ — Per-template document styling. All rules scope to body
+  // template-/style-/layout- classes set in renderFixedDocumentPackageHTML.
+  function _getFixedTemplateCss(settings, cfg, template) {
+    settings = settings || {};
+    template = String(template || (settings && settings.template) || '').toLowerCase();
+    return [
+      '/* Phase D+ template-specific document CSS. */',
+      // CLASSIC -- serif single-column, gray separators.
+      'body.template-classic .rb-doc-name { font-family: Georgia, "Times New Roman", serif; font-weight: 700; }',
+      'body.template-classic .rb-doc-section-title { color: #1f2937; border-bottom-color: #9ca3af; letter-spacing: .05em; }',
+      'body.template-classic .rb-doc-header { border-bottom-color: #9ca3af; }',
+      // EXECUTIVE -- uppercase letter-spaced name, accent rules.
+      'body.template-executive .rb-doc-name { text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }',
+      'body.template-executive .rb-doc-header { border-bottom: 2pt solid var(--rb-doc-accent); padding-bottom: 8pt; }',
+      'body.template-executive .rb-doc-section-title { border-bottom-width: 1.5pt; border-bottom-color: var(--rb-doc-accent); padding-bottom: 3pt; }',
+      // MODERN / Portfolio -- left-aligned accent rail header, tinted skill chips.
+      'body.template-modern .rb-doc-header, body.style-portfolio .rb-doc-header { text-align: left; border-bottom: none; padding: 4pt 0 6pt 10pt; border-left: 4pt solid var(--rb-doc-accent); margin-bottom: 10pt; }',
+      'body.template-modern .rb-doc-name, body.style-portfolio .rb-doc-name { font-family: "Outfit","Manrope",sans-serif; font-size: 19pt; }',
+      'body.template-modern .rb-doc-contact, body.style-portfolio .rb-doc-contact { justify-content: flex-start; }',
+      'body.template-modern .rb-doc-skill, body.style-portfolio .rb-doc-skill {',
+      '  background: color-mix(in srgb, var(--rb-doc-accent) 12%, #fff 88%);',
+      '  border-color: color-mix(in srgb, var(--rb-doc-accent) 35%, #fff 65%);',
+      '  color: var(--rb-doc-accent-dark, var(--rb-doc-accent));',
+      '}',
+      // CORPORATE -- darker rail color, uppercase sidebar name.
+      'body.template-corporate .rb-sidebar-aside { background: var(--rb-doc-accent-dark, var(--rb-doc-accent)); }',
+      'body.template-corporate .rb-sidebar-name { text-transform: uppercase; letter-spacing: .045em; }',
+      'body.template-corporate .rb-doc-section-title { border-bottom-width: 1pt; }',
+      // EDITORIAL -- display serif name, oversized, accent underline on titles.
+      'body.template-editorial { font-family: "Mulish","Inter",sans-serif; }',
+      'body.template-editorial .rb-doc-name { font-family: "Archivo Black","Bebas Neue","Oswald",sans-serif; font-size: 22pt; letter-spacing: .015em; text-transform: uppercase; }',
+      'body.template-editorial .rb-doc-section-title { font-family: "Archivo Black","Bebas Neue","Oswald",sans-serif; border-bottom: 1.25pt solid var(--rb-doc-accent); color: var(--rb-doc-accent); }'
+    ].join('\n');
+  }
+  try { window._getFixedTemplateCss = _getFixedTemplateCss; } catch (_) {}
 
   // ============================================================
   // Phase D — Measured pagination + Adjust Layout panel + Fit-to-1-Page.
@@ -14594,7 +14838,23 @@
   function _paginateSidebarPage(pageEl, mDoc) {
     var grid = pageEl.querySelector('.rb-sidebar-grid');
     var main = grid && grid.querySelector('.rb-sidebar-main');
+    var aside = grid && grid.querySelector('.rb-sidebar-aside');
     if (!grid || !main) return _paginateFullWidthPage(pageEl, mDoc);
+
+    // Phase D+ defensive sidebar overflow guard. The renderer caps skills at
+    // MAX_SIDEBAR_SKILLS=12, but a long custom skill string or a narrow
+    // page-margin preset can still overflow the aside (which is
+    // overflow:hidden by design). Trim Skills list items off the bottom
+    // until the aside fits.
+    if (aside && aside.scrollHeight > aside.clientHeight + 2) {
+      var skillsList = aside.querySelector('section[data-block="sidebarSkills"] .rb-sidebar-list');
+      var safety = 0;
+      while (skillsList && skillsList.children.length > 1 &&
+             aside.scrollHeight > aside.clientHeight + 2 && safety++ < 30) {
+        skillsList.removeChild(skillsList.lastElementChild);
+      }
+    }
+
     var budgetMain = main.clientHeight;
     if (main.scrollHeight <= budgetMain + 2) {
       return [pageEl.outerHTML]; // no overflow
@@ -15108,6 +15368,11 @@
       try {
         var paginated = await paginateFixedDocument(html);
         if (paginated && typeof paginated === 'string') html = paginated;
+        try {
+          if (typeof window.validateFixedPdfHtml === 'function') {
+            console.log('[pdf validation]', window.validateFixedPdfHtml(html));
+          }
+        } catch (_) {}
       } catch (paginateErr) {
         try { console.warn('[downloadPackagePdf] pagination failed; exporting unpaginated.', paginateErr); } catch (_) {}
       }
