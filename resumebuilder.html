@@ -13681,11 +13681,16 @@
       '.rb-doc-summary { margin: 1pt 0 3pt; }',
       '.rb-doc-list { margin: 2pt 0 0 14pt; padding: 0; }',
       '.rb-doc-list li { margin: 0 0 2pt; padding-left: 1pt; }',
-      '.rb-doc-skills { display: flex; flex-wrap: wrap; gap: 3pt 5pt; margin: 0; padding: 0; list-style: none; }',
+      // Phase E.1 -- non-sidebar PDF/DOCX skills are rendered as compact
+      // bullet rows, NOT pill/chip boxes. Pill CSS is neutralized below.
+      '.rb-doc-skills { margin: 0 0 0 14pt; padding: 0; list-style: disc; display: block; }',
       '.rb-doc-skill {',
-      '  border: .6pt solid #cbd5e1; border-radius: 999px;',
-      '  padding: 1.5pt 6pt; font-size: 8.7pt; color: #1f2937; background: #f8fafc;',
+      '  border: 0 !important; border-radius: 0 !important;',
+      '  background: transparent !important; padding: 0 !important;',
+      '  display: list-item; font-size: 9.2pt; color: #1f2937;',
       '}',
+      '.rb-doc-skill-lines { margin: 0; display: grid; gap: 2pt; }',
+      '.rb-doc-skill-line { margin: 0; font-size: 9.2pt; line-height: 1.28; color: #1f2937; }',
       '.rb-cv-block { margin: 0 0 6pt; }',
       '.rb-cv-block strong { color: #111827; }',
       '.rb-cv-date { color: var(--rb-doc-muted); margin: 0 0 8pt; }',
@@ -13751,6 +13756,30 @@
       '</ul>';
   }
 
+  // Phase E.1 -- non-sidebar PDF/DOCX skills rendered as compact bullet rows.
+  // Sidebar templates use renderSidebarSkillsHTML instead.
+  function chunkSkillsForLines(skills, perLine) {
+    var out = [];
+    for (var i = 0; i < skills.length; i += perLine) {
+      out.push(skills.slice(i, i + perLine));
+    }
+    return out;
+  }
+  function renderDocumentSkillsHTML(skills, settings, options) {
+    skills = Array.isArray(skills) ? skills.filter(Boolean) : [];
+    if (!skills.length) return '';
+    return '<section class="rb-doc-section" data-block="skills">' +
+      '<h2 class="rb-doc-section-title">Key Skills</h2>' +
+      '<div class="rb-doc-skill-lines">' +
+        chunkSkillsForLines(skills, 4).map(function (row) {
+          return '<p class="rb-doc-skill-line">\u2022 ' +
+            row.map(rbDocEscape).join(' &nbsp;\u2022&nbsp; ') +
+          '</p>';
+        }).join('') +
+      '</div>' +
+    '</section>';
+  }
+
   function renderFixedResumeDocumentHTML(model, settings, pkg) {
     if (!model) return '';
     var parts = [];
@@ -13773,14 +13802,9 @@
     }
 
     if (model.skills && model.skills.length) {
-      parts.push(
-        '<section class="rb-doc-section" data-block="skills">' +
-          '<h2 class="rb-doc-section-title">Key Skills</h2>' +
-          '<ul class="rb-doc-skills">' +
-            model.skills.map(function (s) { return '<li class="rb-doc-skill">' + rbDocEscape(s) + '</li>'; }).join('') +
-          '</ul>' +
-        '</section>'
-      );
+      // Phase E.1 -- compact bullet rows instead of pill/chip boxes.
+      // Sidebar templates use the rail renderer (renderSidebarSkillsHTML).
+      parts.push(renderDocumentSkillsHTML(model.skills, settings, {}));
     }
 
     if (model.experience && model.experience.length) {
@@ -14321,9 +14345,28 @@
         });
       } catch (_) {}
     });
+    // Phase E.1 -- sparse-page detection. A page is considered suspiciously
+    // sparse when it is not the last page, contains only one tiny tail section,
+    // and the next page is also a sparse tail page.
+    function _isSparseTailPage(text) {
+      var hasEducation     = /EDUCATION/i.test(text);
+      var hasCerts         = /CERTIFICATIONS/i.test(text);
+      var hasAchievements  = /ACHIEVEMENTS/i.test(text);
+      var tailCount = [hasEducation, hasCerts, hasAchievements].filter(Boolean).length;
+      return tailCount === 1 && text.length < 600;
+    }
+    result.sparsePages = [];
+    for (var pi = 0; pi < pages.length - 1; pi++) {
+      var pt  = (pages[pi].textContent || '').replace(/\s+/g, ' ').trim();
+      var pt2 = (pages[pi + 1].textContent || '').replace(/\s+/g, ' ').trim();
+      if (_isSparseTailPage(pt) && _isSparseTailPage(pt2)) {
+        result.sparsePages.push({ page: pi + 1, reason: 'Small tail sections split across sparse pages' });
+      }
+    }
     result.ok = !result.blankPages.length &&
                 !result.overflowPages.length &&
-                !result.bottomReserveViolations.length;
+                !result.bottomReserveViolations.length &&
+                !result.sparsePages.length;
     return result;
   };
 
@@ -14508,8 +14551,49 @@
     };
   };
 
-  // ============================================================
-  // Phase C / Phase D+++ — Sidebar-aware resume rendering for fixed-document.
+  // Phase E.1 -- page balance diagnostic.
+  window.debugDocumentPageBalance = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { error: 'No preview document.' };
+    var pages = Array.from(doc.querySelectorAll('.rb-doc-page'));
+    return {
+      bodyClass: doc.body ? doc.body.className : '',
+      pageCount: pages.length,
+      pages: pages.map(function (page, index) {
+        var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
+        return {
+          page: index + 1,
+          charCount: text.length,
+          hasAchievements: /ACHIEVEMENTS/i.test(text),
+          hasEducation: /EDUCATION/i.test(text),
+          hasCertifications: /CERTIFICATIONS/i.test(text),
+          sidebarSkillCount: page.querySelectorAll('.rb-sidebar-list-item').length,
+          docSkillChipCount: page.querySelectorAll('.rb-doc-skill').length,
+          docSkillLineCount: page.querySelectorAll('.rb-doc-skill-line').length,
+          tail: text.slice(-220)
+        };
+      })
+    };
+  };
+
+  // Phase E.1 -- skill rendering diagnostic.
+  window.debugDocumentSkillRendering = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { error: 'No preview document.' };
+    return {
+      bodyClass: doc.body ? doc.body.className : '',
+      sidebarSkillItems:    doc.querySelectorAll('.rb-sidebar-list-item').length,
+      documentSkillChips:   doc.querySelectorAll('.rb-doc-skill').length,
+      documentSkillLines:   doc.querySelectorAll('.rb-doc-skill-line').length,
+      hasPillSkillCss: Array.from(doc.querySelectorAll('style')).some(function (style) {
+        return /rb-doc-skill[\s\S]*border-radius:\s*999px/i.test(style.textContent || '');
+      })
+    };
+  };
   //
   // Templates listed in SIDEBAR_DOCUMENT_TEMPLATES render every page of
   // the resume as a two-column grid (accent rail + main content) when
@@ -14949,11 +15033,8 @@
       'body.template-modern .rb-doc-header, body.style-portfolio .rb-doc-header { text-align: left; border-bottom: none; padding: 4pt 0 6pt 10pt; border-left: 4pt solid var(--rb-doc-accent); margin-bottom: 10pt; }',
       'body.template-modern .rb-doc-name, body.style-portfolio .rb-doc-name { font-family: "Outfit","Manrope",sans-serif; font-size: 19pt; }',
       'body.template-modern .rb-doc-contact, body.style-portfolio .rb-doc-contact { justify-content: flex-start; }',
-      'body.template-modern .rb-doc-skill, body.style-portfolio .rb-doc-skill {',
-      '  background: color-mix(in srgb, var(--rb-doc-accent) 12%, #fff 88%);',
-      '  border-color: color-mix(in srgb, var(--rb-doc-accent) 35%, #fff 65%);',
-      '  color: var(--rb-doc-accent-dark, var(--rb-doc-accent));',
-      '}',
+      // Phase E.1 -- skills no longer rendered as chips in PDF/DOCX, so
+      // template-specific chip tinting has been removed.
       // CORPORATE -- darker rail color, uppercase sidebar name.
       'body.template-corporate .rb-sidebar-aside { background: var(--rb-doc-accent-dark, var(--rb-doc-accent)); }',
       'body.template-corporate .rb-sidebar-name { text-transform: uppercase; letter-spacing: .045em; }',
@@ -15211,9 +15292,34 @@
     var key = _getBlockKey(block);
     return key === 'education' || key === 'certifications' || key === 'achievements';
   }
+  // Phase E.1 -- tail sections. Treated as a single group at the end of
+  // the resume so we can pack them together rather than burning one page
+  // per tiny section.
+  function _isResumeTailSection(block) {
+    var key = _getBlockKey(block);
+    return (
+      key === 'achievements' ||
+      key === 'education' ||
+      key === 'certifications' ||
+      key === 'projects' ||
+      key === 'awards' ||
+      key === 'volunteering' ||
+      key === 'languages'
+    );
+  }
+  function _collectTailRun(blocks, startIndex) {
+    var run = [];
+    for (var i = startIndex; i < blocks.length; i++) {
+      if (_isResumeTailSection(blocks[i])) run.push(blocks[i]);
+      else break;
+    }
+    return run;
+  }
   try {
     window._getBlockKey = _getBlockKey;
     window._isKeepTogetherSection = _isKeepTogetherSection;
+    window._isResumeTailSection = _isResumeTailSection;
+    window._collectTailRun = _collectTailRun;
   } catch (_) {}
 
   // Phase E -- shared sidebar measurement host. Lives in the measurement
@@ -15423,12 +15529,13 @@
     blocks.forEach(function (block) {
       var html = block.outerHTML;
       var h = blockHeight(html);
-      // Phase E -- keep-together small sections (Education / Certifications /
-      // Achievements) never split. If the whole section does not fit in the
-      // remaining space and would fit cleanly on the next page, push it.
+      // Phase E.1 -- keep-together small sections (Education / Certifications /
+      // Achievements) never split. They DO share pages with each other and
+      // with normal sections. Only flush the page if this whole section
+      // does not fit in the remaining space.
       if (current.length && _isKeepTogetherSection(block)) {
         var remainingKT = budget - currentH;
-        if (h <= budget && (h > remainingKT || remainingKT < RB_DOC_MIN_SECTION_START_PX)) {
+        if (h <= budget && h > remainingKT) {
           pushPage(pageHTMLs.length > 0);
           current.push(html);
           currentH = h;
@@ -15601,16 +15708,43 @@
     var overflowBlocks = [];
     if (mainOverflows) {
       var accH = 0;
-      blocks.forEach(function (block) {
-        if (overflowBlocks.length) { overflowBlocks.push(block); return; }
+      var bottomReserve = Number(window.RB_DOC_BOTTOM_RESERVE_PX || 60);
+      for (var bi = 0; bi < blocks.length; bi++) {
+        var block = blocks[bi];
+        if (overflowBlocks.length) { overflowBlocks.push(block); continue; }
+
+        // Phase E.1 -- when we hit the first tail section, evaluate the
+        // whole consecutive tail run as a group. This prevents Achievements
+        // from clipping the bottom of page 1 while Education/Certifications
+        // get sparse pages of their own.
+        if (_isResumeTailSection(block)) {
+          var tailRun = _collectTailRun(blocks, bi);
+          var tailHtml = tailRun.map(function (b) { return b.outerHTML; }).join('');
+          var tailHeight = measure(tailHtml);
+          var remainingForTail = budgetMain - accH;
+          // Whole tail group fits cleanly on page 1 (with bottom reserve)?
+          if (page1Blocks.length === 0 || tailHeight <= remainingForTail - bottomReserve) {
+            tailRun.forEach(function (b) { page1Blocks.push(b.outerHTML); });
+            accH += tailHeight;
+            bi += tailRun.length - 1;
+            continue;
+          }
+          // Otherwise move the entire tail group to overflow so the
+          // continuation packer can group them on page 2.
+          tailRun.forEach(function (b) { overflowBlocks.push(b); });
+          bi += tailRun.length - 1;
+          continue;
+        }
+
         var html = block.outerHTML;
         var h = measure(html);
-        // Phase E keep-together: small sections never split.
+        // Keep-together small section that isn't part of a tail run:
+        // never split. Only flush when it literally doesn't fit.
         if (page1Blocks.length && _isKeepTogetherSection(block)) {
           var remainingKT = budgetMain - accH;
-          if (h <= budgetMain && (h > remainingKT || remainingKT < RB_DOC_MIN_SECTION_START_PX)) {
+          if (h <= budgetMain && h > remainingKT) {
             overflowBlocks.push(block);
-            return;
+            continue;
           }
         }
         if (accH + h <= budgetMain || !page1Blocks.length) {
@@ -15620,7 +15754,7 @@
           var remaining = budgetMain - accH;
           if (remaining < RB_DOC_MIN_SECTION_START_PX) {
             overflowBlocks.push(block);
-            return;
+            continue;
           }
           var fragments = _splitSectionByItems(block, budgetMain, mDoc, remaining);
           if (fragments.length >= 1) {
@@ -15643,7 +15777,7 @@
         } else {
           overflowBlocks.push(block);
         }
-      });
+      }
       // Replace .rb-sidebar-main innerHTML on the live page so its rendered
       // height now reflects what page 1 will actually show.
       main.innerHTML = page1Blocks.join('');
@@ -15748,25 +15882,38 @@
         tmpAside.innerHTML = asideHtml;
 
         // Now fill main column up to budget, keep-together aware.
+        // Phase E.1 -- pack as many small sections as fit. "Keep together"
+        // means do NOT split a section across pages, NOT "give it its own
+        // page." A continuation page must accumulate as many keep-together
+        // sections as fit before flushing.
         var mainBuffer = [];
         var mainBufferHeight = 0;
         while (mainQueue.length) {
           var block = mainQueue[0];
           var bh = block.__html != null ? block.__html : block.outerHTML;
-          // Keep-together small section: try whole; if doesn't fit, defer.
-          if (mainBuffer.length && _isKeepTogetherSection(block)) {
-            var remainKT = contBudget - mainBufferHeight;
-            var wholeH = measureContMain(mainBuffer.join('') + bh);
-            if (wholeH > contBudget || remainKT < RB_DOC_MIN_SECTION_START_PX) {
-              break; // flush and start a new page with this block
-            }
+          var probeH = measureContMain(mainBuffer.join('') + bh);
+          // If this is the first block of a fresh continuation page, take
+          // it unconditionally to avoid infinite loops and to allow even
+          // tail-section-only pages to start.
+          if (!mainBuffer.length) {
             mainBuffer.push(bh);
-            mainBufferHeight = wholeH;
+            mainBufferHeight = probeH;
             mainQueue.shift();
             continue;
           }
-          var probeH = measureContMain(mainBuffer.join('') + bh);
-          if (probeH <= contBudget || !mainBuffer.length) {
+          // Keep-together small section: take it whole when it fits,
+          // otherwise flush this page so it can start the next page whole.
+          if (_isKeepTogetherSection(block)) {
+            if (probeH <= contBudget) {
+              mainBuffer.push(bh);
+              mainBufferHeight = probeH;
+              mainQueue.shift();
+              continue;
+            }
+            break;
+          }
+          // Normal section: pack while it fits.
+          if (probeH <= contBudget) {
             mainBuffer.push(bh);
             mainBufferHeight = probeH;
             mainQueue.shift();
