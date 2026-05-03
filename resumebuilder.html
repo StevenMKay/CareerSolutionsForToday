@@ -5415,25 +5415,38 @@
     try { updatePublicWebStyleNote(); } catch (_) {}
   }
 
-  // Public Web Preview transparency note. The builder offers more style
-  // tokens than view.html implements, so the public web preview aliases
-  // them via getPublicViewStyleKey(). When that alias kicks in, surface
-  // a small note under the Live Preview format toggle so users know why
-  // the web preview looks different from the PDF/DOCX style. Only shown
-  // when format='web' AND the selected style is aliased.
+  // Preview style note. On web preview it explains public-style aliasing.
+  // On PDF preview it explains that sidebar/rail styles route to a
+  // PDF-safe single-column template for reliable multi-page pagination.
   function updatePublicWebStyleNote() {
     var note = document.getElementById('public-web-style-note');
     if (!note) return;
     var fmt = (typeof getSelectedPreviewFormat === 'function') ? getSelectedPreviewFormat() : 'web';
+    var styleInput = document.getElementById('export-style');
+    var rawStyle = (styleInput && styleInput.value) ||
+      (window.RB_STATE && RB_STATE.exportStyle) ||
+      'modern-sidebar';
+
+    if (fmt === 'pdf') {
+      var effective = getEffectivePdfTemplate(rawStyle, null);
+      var rawLowerPdf = String(rawStyle || '').toLowerCase();
+      var isSidebarLike = rawLowerPdf === 'modern-sidebar' || rawLowerPdf.indexOf('sidebar') !== -1 || rawLowerPdf.indexOf('rail') !== -1;
+      if (isSidebarLike) {
+        note.style.display = 'block';
+        note.textContent = 'Modern Sidebar is optimized for web and one-page layouts. Multi-page PDFs use the Modern Accent document layout for cleaner pagination.';
+      } else {
+        note.style.display = 'none';
+        note.textContent = '';
+      }
+      return;
+    }
+
     if (fmt !== 'web') {
       note.style.display = 'none';
       note.textContent = '';
       return;
     }
-    var styleInput = document.getElementById('export-style');
-    var rawStyle = (styleInput && styleInput.value) ||
-      (window.RB_STATE && RB_STATE.exportStyle) ||
-      'modern-sidebar';
+
     var aliased = getPublicViewStyleKey(rawStyle);
     var rawLower = String(rawStyle || '').toLowerCase();
     if (aliased === rawLower) {
@@ -13730,6 +13743,162 @@
       '@media screen and (max-width: 900px) {',
       '  .rb-doc-viewer { padding: 16px; align-items: flex-start; overflow-x: auto; }',
       '}'
+    ].join('\n') + '\n' + getPdfSafeTemplateCss(settings);
+  }
+
+  function getPdfSafeTemplateCss(settings) {
+    return [
+      '/* PDF-safe resume templates: no dynamic sidebars, no chips, no cards. */',
+
+      '.rb-pdf-safe-page {',
+      '  width: 8.5in;',
+      '  height: 11in;',
+      '  min-height: 11in;',
+      '  background: #fff;',
+      '  color: var(--rb-doc-text);',
+      '  overflow: hidden;',
+      '  position: relative;',
+      '}',
+
+      '.rb-pdf-safe-inner {',
+      '  position: absolute;',
+      '  inset: 0.46in 0.58in;',
+      '  overflow: hidden;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-header {',
+      '  margin: 0 0 9pt;',
+      '  padding-bottom: 6pt;',
+      '  border-bottom: 1pt solid var(--rb-doc-rule);',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-name {',
+      '  margin: 0;',
+      '  font-size: 19pt;',
+      '  line-height: 1.05;',
+      '  font-weight: 800;',
+      '  color: #111827;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-contact {',
+      '  margin-top: 4pt;',
+      '  font-size: 8.6pt;',
+      '  color: var(--rb-doc-muted);',
+      '  display: flex;',
+      '  flex-wrap: wrap;',
+      '  gap: 2pt 9pt;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-section {',
+      '  margin: 0 0 7pt;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-section-title {',
+      '  margin: 0 0 3pt;',
+      '  padding-bottom: 2pt;',
+      '  border-bottom: .75pt solid var(--rb-doc-rule);',
+      '  font-size: 9.4pt;',
+      '  line-height: 1.1;',
+      '  font-weight: 800;',
+      '  text-transform: uppercase;',
+      '  letter-spacing: .075em;',
+      '  color: var(--rb-doc-accent);',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-item {',
+      '  margin: 0 0 5pt;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-row {',
+      '  display: flex;',
+      '  justify-content: space-between;',
+      '  align-items: baseline;',
+      '  gap: 12pt;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-role {',
+      '  font-weight: 800;',
+      '  color: #111827;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-org {',
+      '  font-weight: 700;',
+      '  color: #374151;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-date {',
+      '  flex: 0 0 auto;',
+      '  white-space: nowrap;',
+      '  font-size: 8.4pt;',
+      '  color: #4b5563;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-meta {',
+      '  margin-top: 1pt;',
+      '  font-size: 8.6pt;',
+      '  color: #4b5563;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-list {',
+      '  margin: 2pt 0 0 14pt;',
+      '  padding: 0;',
+      '}',
+
+      '.rb-pdf-safe-page .rb-doc-list li {',
+      '  margin: 0 0 1.5pt;',
+      '  padding-left: 1pt;',
+      '}',
+
+      '.rb-doc-skill-lines {',
+      '  margin: 0;',
+      '  display: grid;',
+      '  gap: 2pt;',
+      '}',
+
+      '.rb-doc-skill-line {',
+      '  margin: 0;',
+      '  font-size: 9pt;',
+      '  line-height: 1.28;',
+      '  color: #1f2937;',
+      '}',
+
+      '/* Remove old document skill pills from PDF-safe output. */',
+      '.rb-pdf-safe-page .rb-doc-skill {',
+      '  border: 0 !important;',
+      '  border-radius: 0 !important;',
+      '  background: transparent !important;',
+      '  padding: 0 !important;',
+      '  display: list-item;',
+      '  font-size: 9pt;',
+      '  color: #1f2937;',
+      '}',
+
+      '/* 1. Classic ATS */',
+      'body.template-pdf-classic-ats .rb-pdf-safe-page { font-family: Arial, Calibri, sans-serif; }',
+      'body.template-pdf-classic-ats .rb-doc-header { text-align: center; border-bottom-color: #9ca3af; }',
+      'body.template-pdf-classic-ats .rb-doc-name { font-size: 18pt; letter-spacing: .01em; }',
+      'body.template-pdf-classic-ats .rb-doc-contact { justify-content: center; }',
+      'body.template-pdf-classic-ats .rb-doc-section-title { color: #111827; border-bottom-color: #9ca3af; }',
+
+      '/* 2. Executive */',
+      'body.template-pdf-executive .rb-doc-header { text-align: center; border-bottom: 1.25pt solid var(--rb-doc-accent); }',
+      'body.template-pdf-executive .rb-doc-name { text-transform: uppercase; letter-spacing: .055em; font-size: 18.5pt; }',
+      'body.template-pdf-executive .rb-doc-contact { justify-content: center; }',
+      'body.template-pdf-executive .rb-doc-section-title { border-bottom-color: var(--rb-doc-accent); color: var(--rb-doc-accent); }',
+
+      '/* 3. Modern Accent */',
+      'body.template-pdf-modern-accent .rb-doc-header { text-align: left; border-bottom: 0; border-left: 5pt solid var(--rb-doc-accent); padding: 7pt 0 7pt 10pt; background: #f8fafc; }',
+      'body.template-pdf-modern-accent .rb-doc-contact { justify-content: flex-start; }',
+      'body.template-pdf-modern-accent .rb-doc-section-title { color: var(--rb-doc-accent); border-bottom-color: #cbd5e1; }',
+
+      '/* 4. Compact */',
+      'body.template-pdf-compact .rb-pdf-safe-inner { inset: 0.40in 0.52in; }',
+      'body.template-pdf-compact .rb-doc-name { font-size: 17pt; }',
+      'body.template-pdf-compact .rb-doc-header { margin-bottom: 6pt; padding-bottom: 5pt; }',
+      'body.template-pdf-compact .rb-doc-section { margin-bottom: 5pt; }',
+      'body.template-pdf-compact .rb-doc-item { margin-bottom: 3.5pt; }',
+      'body.template-pdf-compact .rb-doc-list li { margin-bottom: 1pt; }',
+      'body.template-pdf-compact .rb-doc-section-title { font-size: 9pt; margin-bottom: 2pt; }'
     ].join('\n');
   }
 
@@ -14047,6 +14216,344 @@
       '</section>';
   }
 
+  // Legacy kill switch: the old multi-page sidebar PDF renderer is disabled
+  // by default. It can be re-enabled explicitly for emergency fallback only.
+  window.RB_LEGACY_MULTIPAGE_SIDEBAR_PDF = false;
+
+  function getEffectivePdfTemplate(styleKey, pkg) {
+    styleKey = String(styleKey || '').toLowerCase();
+
+    // Sidebar/rail styles remain valid for web rendering, but PDF uses
+    // stable single-column layouts for reliable pagination.
+    if (
+      styleKey === 'modern-sidebar' ||
+      styleKey === 'sidebar' ||
+      styleKey.indexOf('sidebar') !== -1 ||
+      styleKey.indexOf('rail') !== -1
+    ) {
+      return 'pdf-modern-accent';
+    }
+
+    if (styleKey === 'classic') return 'pdf-classic-ats';
+    if (styleKey === 'executive') return 'pdf-executive';
+    if (styleKey === 'modern') return 'pdf-modern-accent';
+    if (styleKey === 'portfolio') return 'pdf-modern-accent';
+    if (styleKey === 'corporate') return 'pdf-executive';
+    if (styleKey === 'editorial') return 'pdf-compact';
+
+    return 'pdf-modern-accent';
+  }
+  try { window.getEffectivePdfTemplate = getEffectivePdfTemplate; } catch (_) {}
+
+  function renderPdfSafePage(innerHtml, meta) {
+    meta = meta || {};
+    var template = meta.template || 'pdf-modern-accent';
+    var pageNumber = meta.pageNumber || 1;
+
+    return '<section class="rb-doc-page rb-pdf-safe-page template-' + rbDocEscape(template) + '"' +
+      ' data-doc-type="resume"' +
+      ' data-template="' + rbDocEscape(template) + '"' +
+      ' data-page-number="' + rbDocEscape(String(pageNumber)) + '">' +
+        '<div class="rb-doc-page-inner rb-pdf-safe-inner">' +
+          (innerHtml || '') +
+        '</div>' +
+      '</section>';
+  }
+
+  function renderPdfSafeHeaderHTML(model, settings, options) {
+    model = model || {};
+    var c = model.contact || {};
+    var contact = [];
+    ['email', 'phone', 'linkedin', 'website', 'location'].forEach(function (key) {
+      if (c[key]) contact.push(c[key]);
+    });
+
+    return '<header class="rb-doc-header" data-block="header">' +
+      '<h1 class="rb-doc-name">' + rbDocEscape(model.name || '') + '</h1>' +
+      (model.headline ? '<p class="rb-doc-headline">' + rbDocEscape(model.headline) + '</p>' : '') +
+      (contact.length ? '<div class="rb-doc-contact">' + contact.map(function (v) {
+        return '<span>' + rbDocEscape(v) + '</span>';
+      }).join('') + '</div>' : '') +
+    '</header>';
+  }
+
+  function renderPdfSafeSummaryHTML(model, settings, options) {
+    return '<section class="rb-doc-section" data-block="summary">' +
+      '<h2 class="rb-doc-section-title">Summary</h2>' +
+      '<p>' + rbDocEscape((model && model.summary) || '') + '</p>' +
+    '</section>';
+  }
+
+  function renderPdfSafeSkillsHTML(skills, settings, options) {
+    skills = Array.isArray(skills) ? skills.filter(Boolean) : [];
+    if (!skills.length) return '';
+
+    return '<section class="rb-doc-section" data-block="skills">' +
+      '<h2 class="rb-doc-section-title">Key Skills</h2>' +
+      '<div class="rb-doc-skill-lines">' +
+        chunkSkillsForLines(skills, 3).map(function (row) {
+          return '<p class="rb-doc-skill-line">• ' +
+            row.map(rbDocEscape).join(' &nbsp;•&nbsp; ') +
+          '</p>';
+        }).join('') +
+      '</div>' +
+    '</section>';
+  }
+
+  function renderPdfSafeExperienceItemHTML(job, settings, options) {
+    job = job || {};
+    var bullets = Array.isArray(job.bullets) ? job.bullets : [];
+
+    return '<article class="rb-doc-item" data-block="experienceItem">' +
+      '<div class="rb-doc-row">' +
+        '<span class="rb-doc-role">' + rbDocEscape(job.role || job.title || '') + '</span>' +
+        (job.dates ? '<span class="rb-doc-date">' + rbDocEscape(job.dates) + '</span>' : '') +
+      '</div>' +
+      ((job.company || job.location) ? '<div class="rb-doc-row rb-doc-meta">' +
+        '<span class="rb-doc-org">' + rbDocEscape(job.company || '') + '</span>' +
+        (job.location ? '<span>' + rbDocEscape(job.location) + '</span>' : '') +
+      '</div>' : '') +
+      ((job.role_summary || job.summary) ? '<p>' + rbDocEscape(job.role_summary || job.summary) + '</p>' : '') +
+      (bullets.length ? '<ul class="rb-doc-list">' + bullets.map(function (b) {
+        return '<li>' + rbDocEscape(b) + '</li>';
+      }).join('') + '</ul>' : '') +
+    '</article>';
+  }
+
+  function renderPdfSafeSimpleSectionHTML(label, items, settings, options) {
+    items = Array.isArray(items) ? items.filter(Boolean) : [];
+    if (!items.length) return '';
+
+    return '<section class="rb-doc-section rb-doc-tail-section" data-block="' + rbDocEscape(String(label || '').toLowerCase().replace(/\s+/g, '-')) + '">' +
+      '<h2 class="rb-doc-section-title">' + rbDocEscape(label) + '</h2>' +
+      items.map(function (item) {
+        if (typeof item === 'string') {
+          return '<div class="rb-doc-item"><p>' + rbDocEscape(item) + '</p></div>';
+        }
+
+        return '<article class="rb-doc-item">' +
+          '<div class="rb-doc-row">' +
+            '<span class="rb-doc-role">' + rbDocEscape(item.degree || item.name || item.title || item.role || '') + '</span>' +
+            ((item.dates || item.year) ? '<span class="rb-doc-date">' + rbDocEscape(item.dates || item.year) + '</span>' : '') +
+          '</div>' +
+          ((item.school || item.issuer || item.organization || item.location) ? '<div class="rb-doc-meta">' +
+            rbDocEscape(item.school || item.issuer || item.organization || item.location || '') +
+          '</div>' : '') +
+        '</article>';
+      }).join('') +
+    '</section>';
+  }
+
+  function buildPdfSafeResumeBlocks(model, settings, options) {
+    var blocks = [];
+    model = model || {};
+
+    blocks.push({
+      type: 'header',
+      key: 'header',
+      keepTogether: true,
+      html: renderPdfSafeHeaderHTML(model, settings, options)
+    });
+
+    if (model.summary) {
+      blocks.push({
+        type: 'section',
+        key: 'summary',
+        keepTogether: true,
+        html: renderPdfSafeSummaryHTML(model, settings, options)
+      });
+    }
+
+    if (model.skills && model.skills.length) {
+      blocks.push({
+        type: 'section',
+        key: 'skills',
+        keepTogether: true,
+        html: renderPdfSafeSkillsHTML(model.skills, settings, options)
+      });
+    }
+
+    if (model.experience && model.experience.length) {
+      blocks.push({
+        type: 'sectionHeading',
+        key: 'experienceHeading',
+        keepWithNext: true,
+        html: '<h2 class="rb-doc-section-title">Professional Experience</h2>'
+      });
+
+      model.experience.forEach(function (job) {
+        blocks.push({
+          type: 'experienceItem',
+          key: 'experience',
+          keepTogether: true,
+          canSplitBullets: true,
+          html: renderPdfSafeExperienceItemHTML(job, settings, options)
+        });
+      });
+    }
+
+    [
+      ['achievements', 'Achievements'],
+      ['education', 'Education'],
+      ['certifications', 'Certifications'],
+      ['projects', 'Projects'],
+      ['awards', 'Awards'],
+      ['volunteer', 'Volunteering'],
+      ['languages', 'Languages']
+    ].forEach(function (pair) {
+      var key = pair[0];
+      var label = pair[1];
+      if (model[key] && model[key].length) {
+        blocks.push({
+          type: 'tailSection',
+          key: key,
+          keepTogether: true,
+          html: renderPdfSafeSimpleSectionHTML(label, model[key], settings, options)
+        });
+      }
+    });
+
+    return blocks;
+  }
+
+  function getPdfSafePageBudget(settings, options) {
+    return 960;
+  }
+
+  function getPdfSafeMeasureHost(settings, options) {
+    options = options || {};
+    var template = options.template || 'pdf-modern-accent';
+    var docRef = document;
+    try {
+      if (typeof _rbGetMeasurementIframe === 'function') {
+        var frame = _rbGetMeasurementIframe();
+        if (frame && frame.contentDocument && frame.contentDocument.body) {
+          docRef = frame.contentDocument;
+        }
+      }
+    } catch (_) {}
+
+    var root = docRef.getElementById('rb-pdf-safe-measure-root');
+    if (!root) {
+      root = docRef.createElement('div');
+      root.id = 'rb-pdf-safe-measure-root';
+      root.style.cssText = 'position:absolute;left:-99999px;top:0;width:8.5in;height:auto;visibility:hidden;pointer-events:none;';
+      root.innerHTML = '<div class="rb-pdf-safe-inner" style="position:static;inset:auto;overflow:visible;width:7.34in;padding:0;margin:0;"></div>';
+      docRef.body.appendChild(root);
+    }
+    var inner = root.querySelector('.rb-pdf-safe-inner');
+    if (inner) {
+      inner.className = 'rb-pdf-safe-inner template-' + rbDocEscape(template);
+    }
+    return inner || root;
+  }
+
+  function measurePdfSafeBlock(html, settings, options) {
+    var host = getPdfSafeMeasureHost(settings, options);
+    if (!host) return 0;
+    host.innerHTML = html || '';
+    var rect = host.getBoundingClientRect();
+    var h = Math.ceil((rect && rect.height) ? rect.height : (host.scrollHeight || 0));
+    host.innerHTML = '';
+    return h;
+  }
+
+  function measurePdfSafeBlocks(blocks, settings, options) {
+    return (blocks || []).reduce(function (sum, b) {
+      return sum + measurePdfSafeBlock((b && b.html) || '', settings, options);
+    }, 0);
+  }
+
+  function collectPdfSafeTailRun(blocks, startIndex) {
+    var run = [];
+    for (var i = startIndex; i < blocks.length; i++) {
+      if (blocks[i].type === 'tailSection') run.push(blocks[i]);
+      else break;
+    }
+    return run;
+  }
+
+  function paginatePdfSafeBlocks(blocks, settings, options) {
+    var pages = [];
+    var current = [];
+    var currentH = 0;
+    var budget = getPdfSafePageBudget(settings, options);
+
+    for (var i = 0; i < blocks.length; i++) {
+      var block = blocks[i];
+
+      if (block.type === 'tailSection') {
+        var tailRun = collectPdfSafeTailRun(blocks, i);
+        var tailH = measurePdfSafeBlocks(tailRun, settings, options);
+
+        if (current.length && currentH + tailH <= budget) {
+          tailRun.forEach(function (b) {
+            current.push(b);
+            currentH += measurePdfSafeBlock(b.html, settings, options);
+          });
+          i += tailRun.length - 1;
+          continue;
+        }
+
+        if (tailH <= budget) {
+          if (current.length) pages.push(current);
+          current = [];
+          currentH = 0;
+          tailRun.forEach(function (b) {
+            current.push(b);
+            currentH += measurePdfSafeBlock(b.html, settings, options);
+          });
+          i += tailRun.length - 1;
+          continue;
+        }
+
+        for (var t = 0; t < tailRun.length; t++) {
+          var tb = tailRun[t];
+          var th = measurePdfSafeBlock(tb.html, settings, options);
+          if (current.length && currentH + th > budget) {
+            pages.push(current);
+            current = [];
+            currentH = 0;
+          }
+          current.push(tb);
+          currentH += th;
+        }
+
+        i += tailRun.length - 1;
+        continue;
+      }
+
+      var h = measurePdfSafeBlock(block.html, settings, options);
+      if (current.length && currentH + h > budget) {
+        pages.push(current);
+        current = [];
+        currentH = 0;
+      }
+      current.push(block);
+      currentH += h;
+    }
+
+    if (current.length) pages.push(current);
+    return pages;
+  }
+
+  function renderPdfSafeResumePages(model, settings, options) {
+    options = options || {};
+    var template = options.template || 'pdf-modern-accent';
+    var blocks = buildPdfSafeResumeBlocks(model, settings, options);
+    var pages = paginatePdfSafeBlocks(blocks, settings, options);
+
+    return pages.map(function (pageBlocks, index) {
+      return renderPdfSafePage(pageBlocks.map(function (b) {
+        return b.html || '';
+      }).join(''), {
+        template: template,
+        pageNumber: index + 1,
+        model: model
+      });
+    }).join('');
+  }
+
   function renderFixedDocumentPackageHTML(pkg, options) {
     options = options || {};
     var target = options.target || 'preview';
@@ -14058,6 +14565,8 @@
     // class swap). Body classes downstream consume cfg.className,
     // settings.docLayout, settings.sectionStyle, settings.colorKey.
     var template = String((pkg && pkg.style && pkg.style.template) || 'modern-sidebar').toLowerCase();
+    var effectivePdfTemplate = getEffectivePdfTemplate(template, pkg);
+    var activeTemplate = (format === 'pdf') ? effectivePdfTemplate : template;
     var colorKey = String((pkg && pkg.style && pkg.style.color) || '').toLowerCase();
     if (!colorKey) {
       try { if (typeof getSelectedExportColor === 'function') colorKey = String(getSelectedExportColor() || 'blue').toLowerCase(); }
@@ -14070,12 +14579,20 @@
       }
     } catch (_) { cfg = null; }
 
-    var settings = getDocumentLayoutSettings({ cfg: cfg, template: template, colorKey: colorKey });
+    var settings = getDocumentLayoutSettings({ cfg: cfg, template: activeTemplate, colorKey: colorKey });
     var data = normalizeDocumentData(pkg);
 
     var pages = [];
     if (data.selected.resume && data.resume) {
-      if (_isSidebarTemplate(template) && typeof renderFixedResumeSidebarHTML === 'function') {
+      if (format === 'pdf') {
+        pages.push(renderPdfSafeResumePages(data.resume, settings, {
+          template: effectivePdfTemplate,
+          originalStyle: template,
+          colorKey: colorKey,
+          cfg: cfg
+        }));
+      } else if (_isSidebarTemplate(template) &&
+                 typeof renderFixedResumeSidebarHTML === 'function') {
         pages.push(renderFixedDocumentPage(
           renderFixedResumeSidebarHTML(data.resume, settings, pkg),
           { type: 'resume', template: template, pageNumber: 1, sidebar: true }
@@ -14083,20 +14600,20 @@
       } else {
         pages.push(renderFixedDocumentPage(
           renderFixedResumeDocumentHTML(data.resume, settings, pkg),
-          { type: 'resume', template: template, pageNumber: 1 }
+          { type: 'resume', template: activeTemplate, pageNumber: 1 }
         ));
       }
     }
     if (data.selected.coverLetter && data.coverLetter) {
       pages.push(renderFixedDocumentPage(
         renderFixedCoverLetterDocumentHTML(data.coverLetter, settings, pkg),
-        { type: 'cover-letter', template: template, pageNumber: 1 }
+        { type: 'cover-letter', template: activeTemplate, pageNumber: 1 }
       ));
     }
     if (data.selected.rolePlan && data.rolePlan) {
       pages.push(renderFixedDocumentPage(
         renderFixedRolePlanDocumentHTML(data.rolePlan, settings, pkg),
-        { type: 'role-plan', template: template, pageNumber: 1 }
+        { type: 'role-plan', template: activeTemplate, pageNumber: 1 }
       ));
     }
 
@@ -14105,7 +14622,7 @@
         '<header class="rb-doc-header"><h1 class="rb-doc-name">No documents selected</h1>' +
           '<p class="rb-doc-headline">Select Resume, Cover Letter, or Role Plan in Step 3 to preview.</p>' +
         '</header>',
-        { type: 'empty', template: template, pageNumber: 1 }
+        { type: 'empty', template: activeTemplate, pageNumber: 1 }
       ));
     }
 
@@ -14113,8 +14630,8 @@
       'rb-fixed-document',
       'format-' + (format === 'docx' ? 'docx' : 'pdf'),
       'target-' + (target === 'export' ? 'export' : 'preview'),
-      'template-' + template,
-      (cfg && cfg.className) ? cfg.className : ('style-' + template),
+      'template-' + activeTemplate,
+      (format === 'pdf') ? ('style-' + activeTemplate) : ((cfg && cfg.className) ? cfg.className : ('style-' + template)),
       'layout-' + (settings.docLayout || 'clean-single'),
       'section-' + (settings.sectionStyle || 'ruled'),
       'color-' + (settings.colorKey || colorKey || 'blue')
@@ -14122,13 +14639,13 @@
 
     var css = getFixedDocumentCss(settings, cfg, template);
     try {
-      if (typeof _getSidebarDocumentCss === 'function') {
+      if ((format !== 'pdf' || window.RB_LEGACY_MULTIPAGE_SIDEBAR_PDF === true) && typeof _getSidebarDocumentCss === 'function') {
         css += '\n' + _getSidebarDocumentCss(settings);
       }
     } catch (_) {}
     try {
       if (typeof _getFixedTemplateCss === 'function') {
-        css += '\n' + _getFixedTemplateCss(settings, cfg, template);
+        css += '\n' + _getFixedTemplateCss(settings, cfg, activeTemplate);
       }
     } catch (_) {}
 
@@ -14148,7 +14665,9 @@
     try {
       window.RB_LAST_FIXED_DOC = {
         target: target, format: format === 'docx' ? 'docx' : 'pdf',
-        template: template, colorKey: settings.colorKey,
+        template: activeTemplate, colorKey: settings.colorKey,
+        selectedTemplate: template,
+        effectivePdfTemplate: effectivePdfTemplate,
         bodyClass: bodyClass, cssLength: css.length, pageCount: pages.length,
         cfg: cfg, settings: settings,
         generatedAt: new Date().toISOString()
@@ -14516,6 +15035,13 @@
   // path has snuck back in: full-width continuation pages on a sidebar
   // template, or a main-column "Additional Skills" section.
   window.debugSidebarRendererConflicts = function () {
+    if (window.RB_LEGACY_MULTIPAGE_SIDEBAR_PDF !== true) {
+      return {
+        enabled: false,
+        reason: 'Legacy multi-page sidebar PDF renderer is disabled.',
+        legacySidebarPdfEnabled: false
+      };
+    }
     var frame = document.getElementById('preview-frame');
     var doc = null;
     try { doc = frame && frame.contentDocument; } catch (_) {}
@@ -14548,6 +15074,55 @@
         };
       }),
       timestamp: new Date().toISOString()
+    };
+  };
+
+  window.debugPdfTemplateRouting = function () {
+    var pkg = null;
+    try { pkg = buildSelectedDocumentPackage(); } catch (_) { pkg = null; }
+    var styleKey = pkg && pkg.style && pkg.style.template;
+    var effective = getEffectivePdfTemplate(styleKey, pkg);
+    var frame = document.getElementById('preview-frame');
+    var bodyClass = null;
+
+    try {
+      bodyClass = frame && frame.contentDocument && frame.contentDocument.body
+        ? frame.contentDocument.body.className
+        : null;
+    } catch (_) {}
+
+    return {
+      selectedStyle: styleKey,
+      effectivePdfTemplate: effective,
+      legacySidebarPdfEnabled: window.RB_LEGACY_MULTIPAGE_SIDEBAR_PDF === true,
+      bodyClass: bodyClass
+    };
+  };
+
+  window.debugPdfSafePages = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+
+    if (!doc) return { error: 'No preview document.' };
+
+    var pages = Array.from(doc.querySelectorAll('.rb-pdf-safe-page'));
+    return {
+      pageCount: pages.length,
+      pages: pages.map(function (page, index) {
+        var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
+        return {
+          page: index + 1,
+          charCount: text.length,
+          hasAchievements: /ACHIEVEMENTS/i.test(text),
+          hasEducation: /EDUCATION/i.test(text),
+          hasCertifications: /CERTIFICATIONS/i.test(text),
+          hasSidebar: !!page.querySelector('.rb-sidebar-aside'),
+          hasSkillPills: !!page.querySelector('.rb-doc-skill'),
+          hasSkillLines: !!page.querySelector('.rb-doc-skill-line'),
+          tail: text.slice(-240)
+        };
+      })
     };
   };
 
@@ -15029,7 +15604,7 @@
       'body.template-executive .rb-doc-name { text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }',
       'body.template-executive .rb-doc-header { border-bottom: 2pt solid var(--rb-doc-accent); padding-bottom: 8pt; }',
       'body.template-executive .rb-doc-section-title { border-bottom-width: 1.5pt; border-bottom-color: var(--rb-doc-accent); padding-bottom: 3pt; }',
-      // MODERN / Portfolio -- left-aligned accent rail header, tinted skill chips.
+      // MODERN / Portfolio -- left-aligned accent header; skills render as professional text rows.
       'body.template-modern .rb-doc-header, body.style-portfolio .rb-doc-header { text-align: left; border-bottom: none; padding: 4pt 0 6pt 10pt; border-left: 4pt solid var(--rb-doc-accent); margin-bottom: 10pt; }',
       'body.template-modern .rb-doc-name, body.style-portfolio .rb-doc-name { font-family: "Outfit","Manrope",sans-serif; font-size: 19pt; }',
       'body.template-modern .rb-doc-contact, body.style-portfolio .rb-doc-contact { justify-content: flex-start; }',
@@ -16000,7 +16575,9 @@
 
               var rebuilt = [];
               pages.forEach(function (pageEl) {
-                if (pageEl.classList.contains('rb-doc-page--sidebar')) {
+                if (pageEl.classList.contains('rb-pdf-safe-page')) {
+                  rebuilt.push(pageEl.outerHTML);
+                } else if (pageEl.classList.contains('rb-doc-page--sidebar')) {
                   rebuilt = rebuilt.concat(_paginateSidebarPage(pageEl, mDoc, options));
                 } else {
                   rebuilt = rebuilt.concat(_paginateFullWidthPage(pageEl, mDoc, options));
