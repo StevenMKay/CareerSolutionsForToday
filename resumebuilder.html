@@ -11247,6 +11247,11 @@
     '</div>';
   }
 
+  // ISS-025: retired for live web preview — fallback only, do not extend.
+  // The Public Web Preview now renders via renderPublicViewPreviewHTML()
+  // (view.html-parity static renderer). This function is reachable only
+  // if the new renderer throws, in which case renderPackageHTML logs and
+  // falls back here so the preview iframe doesn't go blank.
   function _renderWebPortfolio(pkg, cfg) {
     cfg = cfg || getPreviewStyleConfig((pkg.style && pkg.style.template) || 'modern-sidebar', (pkg.style && pkg.style.color) || 'blue', 'web');
     var d = pkg.documents || {};
@@ -12119,7 +12124,25 @@
       (format === 'web' && webStyleAliased ? ('aliased-from-' + String(rawTemplate).toLowerCase()) : '')
     ].filter(Boolean).join(' ');
     var inner;
-    if (format === 'pptx') {
+    // ISS-025: Public Web Preview routes through the new view.html-parity
+    // static renderer (renderPublicViewPreviewHTML). It returns a complete
+    // HTML document, so we early-return when it succeeds. _renderWebPortfolio
+    // remains as a renderer-error fallback only (do not extend).
+    if (format === 'web') {
+      try {
+        var webDoc = renderPublicViewPreviewHTML(pkg, {
+          publicViewStyle: template,        // already alias-collapsed above
+          rawBuilderStyle: rawTemplate,
+          color: color,
+          device: device
+        });
+        if (webDoc) return webDoc;
+      } catch (renderErr) {
+        try { console.error('[preview] renderPublicViewPreviewHTML failed, falling back to legacy web portfolio:', renderErr); } catch (_) {}
+      }
+      inner = _renderWebPortfolio(pkg, cfg);
+    }
+    else if (format === 'pptx') {
       // PowerPoint preview is intentionally disabled (Coming Soon). The deck
       // renderer is preserved for later but never surfaced to users in this pass.
       inner = '<main class="document-package layout-coming-soon"><section class="doc-section coming-soon-card">' +
@@ -15222,6 +15245,506 @@
     return result;
   };
 
+  // ============================================================
+  // ISS-025: Public Web Preview renderer with view.html parity.
+  // ------------------------------------------------------------
+  // The preview iframe is sandbox="allow-same-origin" only (NO
+  // allow-scripts), so this renderer emits fully-static HTML using
+  // inline styles and a small embedded CSS preset — no Tailwind, no
+  // lucide. STYLE_CONFIG mirrors view.html's STYLE_CONFIG so what the
+  // user sees here matches what the published page renders. Anything
+  // added in view.html#renderPlan should be mirrored here (or vice
+  // versa) and tracked by debugPublicPreviewParity().
+  // KEEP IN SYNC with view.html STYLE_CONFIG.
+  // ============================================================
+  var PUBLIC_VIEW_STYLE_CONFIG = {
+    executive: {
+      name: 'Executive', layout: 'sidebar', pageBg: '#F8F9FB',
+      cardBg: '#fff', cardBorder: '#E5E7EB',
+      headingFont: "'Georgia', serif", bodyFont: "'Manrope', sans-serif",
+      headingColor: '#0A2F6B', textColor: '#374151', mutedColor: '#4B5563',
+      sidebarBg: '#0A2F6B', sidebarText: '#ffffff', sidebarMuted: '#94A3B8',
+      sectionLabelStyle: 'uppercase', cardRadius: '0.75rem', cardShadow: 'none',
+      borderStyle: '1px solid #E5E7EB', dividerStyle: '2px solid #E5E7EB',
+      skillCols: 4, kpiCols: 4
+    },
+    modern: {
+      name: 'Modern Minimal', layout: 'full-width', pageBg: '#FAFAFA',
+      cardBg: '#fff', cardBorder: 'transparent',
+      headingFont: "'Inter', sans-serif", bodyFont: "'Inter', sans-serif",
+      headingColor: '#111827', textColor: '#374151', mutedColor: '#6B7280',
+      sidebarBg: '#111827', sidebarText: '#ffffff', sidebarMuted: '#94A3B8',
+      sectionLabelStyle: 'minimal', cardRadius: '1rem',
+      cardShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      borderStyle: '1px solid #F3F4F6', dividerStyle: '1px solid #F3F4F6',
+      skillCols: 3, kpiCols: 4
+    },
+    classic: {
+      name: 'Classic', layout: 'banner', pageBg: '#FFFDF9',
+      cardBg: '#FEFCF8', cardBorder: '#E8DFD3',
+      headingFont: "'Playfair Display', serif", bodyFont: "'Georgia', serif",
+      headingColor: '#1a1a1a', textColor: '#333', mutedColor: '#555',
+      sidebarBg: '#1a1a1a', sidebarText: '#ffffff', sidebarMuted: '#C8B89A',
+      sectionLabelStyle: 'classic', cardRadius: '0.5rem', cardShadow: 'none',
+      borderStyle: '1px solid #E8DFD3', dividerStyle: '2px double #C8B89A',
+      skillCols: 3, kpiCols: 3
+    },
+    bold: {
+      name: 'Bold Creative', layout: 'bold', pageBg: '#F5F3FF',
+      cardBg: '#fff', cardBorder: '#E5E7EB',
+      headingFont: "'DM Sans', sans-serif", bodyFont: "'DM Sans', sans-serif",
+      headingColor: '#1E1B4B', textColor: '#374151', mutedColor: '#4B5563',
+      sidebarBg: '#1E1B4B', sidebarText: '#ffffff', sidebarMuted: '#A5B4FC',
+      sectionLabelStyle: 'bold', cardRadius: '1rem',
+      cardShadow: '0 4px 16px rgba(0,0,0,0.08)',
+      borderStyle: '1px solid #E5E7EB', dividerStyle: 'none',
+      skillCols: 4, kpiCols: 4
+    },
+    tech: {
+      name: 'Tech', layout: 'full-width', pageBg: '#0F172A',
+      cardBg: '#1E293B', cardBorder: '#334155',
+      headingFont: "'JetBrains Mono', monospace", bodyFont: "'Inter', sans-serif",
+      headingColor: '#E2E8F0', textColor: '#CBD5E1', mutedColor: '#94A3B8',
+      sidebarBg: '#0F172A', sidebarText: '#E2E8F0', sidebarMuted: '#94A3B8',
+      sectionLabelStyle: 'terminal', cardRadius: '0.5rem',
+      cardShadow: '0 2px 8px rgba(0,0,0,0.3)',
+      borderStyle: '1px solid #334155', dividerStyle: '1px solid #334155',
+      skillCols: 4, kpiCols: 4, accentOverride: '#22D3EE'
+    }
+  };
+  function getPublicViewStyleConfig(key) {
+    return PUBLIC_VIEW_STYLE_CONFIG[key] || PUBLIC_VIEW_STYLE_CONFIG.executive;
+  }
+  try {
+    window.PUBLIC_VIEW_STYLE_CONFIG = PUBLIC_VIEW_STYLE_CONFIG;
+    window.getPublicViewStyleConfig = getPublicViewStyleConfig;
+  } catch (_) {}
+
+  function _pvEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function _pvText(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    if (Array.isArray(v)) return v.map(_pvText).filter(Boolean).join(' ');
+    if (typeof v === 'object') return _pvText(v.text || v.summary || v.description || v.value || v.content || v.title || '');
+    return '';
+  }
+  // Self-contained CSS preset shared by every public-view preview style.
+  // No Tailwind, no external utility classes. Renders inside an iframe
+  // with sandbox="allow-same-origin" only (no scripts).
+  function _publicViewPreviewCSS(S) {
+    return [
+      '*,*::before,*::after{box-sizing:border-box;}',
+      'html,body{margin:0;padding:0;}',
+      'body{font-family:' + S.bodyFont + ';background:' + S.pageBg + ';color:' + S.textColor + ';line-height:1.5;-webkit-font-smoothing:antialiased;}',
+      'h1,h2,h3,h4{font-family:' + S.headingFont + ';margin:0;}',
+      'a{color:inherit;text-decoration:none;}',
+      'p{margin:0;}',
+      'ul{margin:0;padding:0;list-style:none;}',
+      'img{max-width:100%;}',
+      '.pv-wrap{max-width:1100px;margin:0 auto;padding:0 16px;}',
+      '.pv-hero-full{width:100%;padding:32px 0 8px;}',
+      '.pv-body{display:grid;grid-template-columns:220px 1fr;gap:32px;padding:24px 16px 48px;max-width:1100px;margin:0 auto;align-items:start;}',
+      '.pv-body.pv-no-sidebar{grid-template-columns:1fr;}',
+      '.pv-sidebar{position:sticky;top:16px;background:' + S.cardBg + ';border:' + S.borderStyle + ';border-radius:' + S.cardRadius + ';padding:14px;display:flex;flex-direction:column;gap:2px;}',
+      '.pv-sidebar .pv-nav-link{display:block;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:500;color:' + S.mutedColor + ';border-left:2px solid transparent;cursor:default;}',
+      '.pv-sidebar .pv-nav-link.is-active{background:rgba(0,0,0,0.04);color:' + S.headingColor + ';border-left-color:currentColor;font-weight:600;}',
+      '.pv-sections{display:flex;flex-direction:column;gap:18px;min-width:0;}',
+      '.pv-card{background:' + S.cardBg + ';border:' + S.borderStyle + ';border-radius:' + S.cardRadius + ';padding:24px;box-shadow:' + S.cardShadow + ';}',
+      '.pv-section-label{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;}',
+      '.pv-section-label-bar{width:4px;height:22px;border-radius:2px;display:inline-block;}',
+      '.pv-eyebrow{font-size:11px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;}',
+      '.pv-hero-card{padding:32px;border-radius:' + S.cardRadius + ';box-shadow:' + S.cardShadow + ';border:' + S.borderStyle + ';background:' + S.cardBg + ';}',
+      '.pv-hero-grid{display:grid;grid-template-columns:260px 1fr;border-radius:' + S.cardRadius + ';overflow:hidden;border:' + S.borderStyle + ';box-shadow:' + S.cardShadow + ';margin:0 16px;max-width:1100px;}',
+      '.pv-hero-side{padding:32px 24px;display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center;background:' + S.sidebarBg + ';color:' + S.sidebarText + ';}',
+      '.pv-hero-side h1{font-size:20px;font-weight:600;color:' + S.sidebarText + ';}',
+      '.pv-hero-side .pv-hero-title{font-size:14px;opacity:0.85;margin:0;}',
+      '.pv-hero-side .pv-hero-company{font-size:12px;color:' + S.sidebarMuted + ';margin:0;}',
+      '.pv-hero-main{padding:32px;background:' + S.cardBg + ';}',
+      '.pv-hero-main h1{font-size:30px;font-weight:600;color:' + S.headingColor + ';line-height:1.15;letter-spacing:-0.01em;}',
+      '.pv-hero-photo{object-fit:cover;border-radius:50%;border:4px solid rgba(255,255,255,0.25);}',
+      '.pv-photo-md{width:104px;height:104px;}',
+      '.pv-contact-row{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:' + S.mutedColor + ';margin-top:14px;}',
+      '.pv-contact-row span,.pv-contact-row a{display:inline-flex;align-items:center;gap:6px;}',
+      '.pv-summary-text{font-size:14px;line-height:1.6;color:' + S.textColor + ';margin-top:14px;}',
+      '.pv-list{display:flex;flex-direction:column;gap:8px;}',
+      '.pv-list-item{display:flex;gap:10px;font-size:14px;color:' + S.textColor + ';}',
+      '.pv-list-bullet{flex-shrink:0;font-weight:700;line-height:1.4;}',
+      '.pv-grid-skills{display:grid;gap:8px;}',
+      '.pv-skill{display:flex;align-items:center;gap:8px;padding:8px 12px;border:' + S.borderStyle + ';border-radius:8px;font-size:13px;color:' + S.textColor + ';}',
+      '.pv-grid-kpis{display:grid;gap:12px;}',
+      '.pv-kpi{padding:12px;border:' + S.borderStyle + ';border-radius:8px;text-align:center;}',
+      '.pv-kpi-label{font-size:11px;color:' + S.mutedColor + ';margin:0;}',
+      '.pv-kpi-value{font-size:18px;font-weight:700;color:' + S.headingColor + ';margin:4px 0 0;}',
+      '.pv-exp-item{display:flex;flex-direction:column;gap:4px;}',
+      '.pv-exp-item + .pv-exp-item{margin-top:18px;padding-top:18px;border-top:' + S.dividerStyle + ';}',
+      '.pv-exp-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;}',
+      '.pv-exp-title{font-size:15px;font-weight:600;color:' + S.headingColor + ';}',
+      '.pv-exp-dates{font-size:13px;font-weight:500;}',
+      '.pv-exp-company{font-size:13px;color:' + S.mutedColor + ';margin:0 0 8px;}',
+      '.pv-exp-summary{font-size:13px;color:' + S.textColor + ';margin:6px 0 8px;}',
+      '.pv-phase-card{border:' + S.borderStyle + ';border-radius:' + S.cardRadius + ';padding:20px;background:' + S.cardBg + ';margin-top:12px;}',
+      '.pv-phase-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}',
+      '.pv-phase-pill{font-size:11px;font-weight:600;padding:2px 10px;border-radius:999px;}',
+      '.pv-phase-title{font-size:18px;font-weight:600;margin-top:8px;color:' + S.headingColor + ';}',
+      '.pv-divider-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;margin:8px 0;}',
+      '.pv-divider-line{height:1px;background:' + (S.cardBorder || '#E5E7EB') + ';}',
+      '.pv-divider-card{padding:8px 16px;border-radius:999px;background:' + S.cardBg + ';border:' + S.borderStyle + ';font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:' + S.mutedColor + ';}',
+      '.pv-footer-bar{padding:14px 20px;border-radius:' + S.cardRadius + ';text-align:center;font-size:12px;color:rgba(255,255,255,0.78);margin-top:8px;}',
+      '@media (max-width: 900px){.pv-body{grid-template-columns:1fr;}.pv-sidebar{position:static;}.pv-hero-grid{grid-template-columns:1fr;}}',
+      '@media print{.pv-sidebar{display:none;}.pv-body{grid-template-columns:1fr;}}'
+    ].join('\n');
+  }
+
+  // The actual public-view-parity static renderer. Returns a complete
+  // HTML document string. Reuses buildGeneratedForPublishedView() so
+  // the preview consumes the EXACT same `generated` shape that gets
+  // written to Firestore for the published page — this is what makes
+  // the parity real instead of cosmetic.
+  function renderPublicViewPreviewHTML(pkg, opts) {
+    opts = opts || {};
+    var styleKey = opts.publicViewStyle || 'executive';
+    if (!PUBLIC_VIEW_STYLE_CONFIG[styleKey]) styleKey = 'executive';
+    var rawBuilderStyle = opts.rawBuilderStyle || styleKey;
+    var color = opts.color || 'blue';
+    var device = opts.device || 'desktop';
+    var S = getPublicViewStyleConfig(styleKey);
+    var palette = (typeof getColorAccent === 'function') ? getColorAccent(color) : { a: '#005EB8', d: '#003E7E' };
+    var C = S.accentOverride || palette.a;
+    var Cd = S.accentOverride ? S.accentOverride : palette.d;
+    var lightAccent = C + '18';
+
+    // Build the same `generated`-shape view.html will consume for the
+    // published page. This is the parity contract: same input -> same
+    // structure, regardless of which renderer is downstream.
+    var g = {};
+    try {
+      g = (typeof buildGeneratedForPublishedView === 'function') ? buildGeneratedForPublishedView(pkg) : {};
+    } catch (_) { g = {}; }
+    g = g || {};
+    g.hero = g.hero || {};
+    var name = _pvText(g.hero.name) || _pvText(g.hero.full_name) || '';
+    var targetTitle = _pvText(g.hero.target_title) || _pvText(g.hero.headline) || '';
+    var company = _pvText(g.hero.company) || '';
+    var heroSummary = _pvText(g.hero.tagline) || _pvText(g.hero.summary) || _pvText(g.summary) || _pvText(g.executive_summary) || '';
+    var photo = _pvText(g.hero.photo_url || g.hero.photo) || '';
+    if (/^data:image\//i.test(photo) || /^blob:/i.test(photo)) photo = '';
+    var planType = _pvText(g.plan_type) || '90-day';
+    var planLabel = (Array.isArray(g.plan_phases) && g.plan_phases.length)
+      ? (planType.replace('-', ' ').toUpperCase() + ' PLAN AND RESUME')
+      : 'RESUME';
+
+    function sectionLabel(text) {
+      var labelStyle = S.sectionLabelStyle;
+      if (labelStyle === 'terminal') {
+        return '<div class="pv-section-label" style="color:' + C + ';font-family:' + S.headingFont + '">&gt; ' + _pvEsc(text.toUpperCase()) + '</div>';
+      }
+      if (labelStyle === 'classic') {
+        return '<div class="pv-section-label" style="color:' + S.headingColor + ';border-bottom:' + S.dividerStyle + ';padding-bottom:8px;margin-bottom:14px;font-family:' + S.headingFont + ';letter-spacing:0.06em;">' + _pvEsc(text) + '</div>';
+      }
+      if (labelStyle === 'minimal') {
+        return '<div class="pv-section-label" style="color:' + S.mutedColor + ';font-family:' + S.headingFont + ';letter-spacing:0.18em;">' + _pvEsc(text) + '</div>';
+      }
+      if (labelStyle === 'bold') {
+        return '<div class="pv-section-label" style="color:' + S.headingColor + ';font-family:' + S.headingFont + ';"><span class="pv-section-label-bar" style="background:' + C + '"></span>' + _pvEsc(text) + '</div>';
+      }
+      return '<div class="pv-section-label" style="color:' + C + '">' + _pvEsc(text) + '</div>';
+    }
+
+    function contactRowItems(textColor) {
+      var hero = g.hero || {};
+      var bits = [];
+      if (hero.phone)    bits.push('<span>&#9742; ' + _pvEsc(hero.phone) + '</span>');
+      if (hero.email)    bits.push('<span>&#9993; ' + _pvEsc(hero.email) + '</span>');
+      if (hero.linkedin) bits.push('<span>in &middot; ' + _pvEsc(hero.linkedin) + '</span>');
+      if (hero.github)   bits.push('<span>&lang;/&rang; ' + _pvEsc(hero.github) + '</span>');
+      if (hero.website)  bits.push('<span>&#127760; ' + _pvEsc(hero.website) + '</span>');
+      return bits.join('');
+    }
+
+    // ---- Hero variants (mirror view.html#renderPlan) ----
+    var heroHtml = '';
+    if (S.layout === 'sidebar') {
+      heroHtml =
+        '<div class="pv-hero-full"><div class="pv-hero-grid">' +
+          '<div class="pv-hero-side">' +
+            (photo ? '<img class="pv-hero-photo pv-photo-md" src="' + _pvEsc(photo) + '" alt="' + _pvEsc(name) + '">' : '') +
+            (name ? '<h1>' + _pvEsc(name) + '</h1>' : '') +
+            (targetTitle ? '<p class="pv-hero-title">' + _pvEsc(targetTitle) + '</p>' : '') +
+            (company ? '<p class="pv-hero-company">' + _pvEsc(company) + '</p>' : '') +
+            '<div style="width:60%;height:1px;background:' + S.sidebarMuted + '40;margin:6px 0;"></div>' +
+            '<div class="pv-contact-row" style="flex-direction:column;align-items:center;gap:8px;color:' + S.sidebarText + ';opacity:0.85;margin-top:0;">' + contactRowItems() + '</div>' +
+          '</div>' +
+          '<div class="pv-hero-main">' +
+            '<p class="pv-eyebrow" style="color:' + C + '">' + _pvEsc(planLabel) + '</p>' +
+            (heroSummary ? '<p class="pv-summary-text" style="margin-top:10px;">' + _pvEsc(heroSummary) + '</p>' : '') +
+            '<div class="pv-contact-row">' + contactRowItems() + '</div>' +
+          '</div>' +
+        '</div></div>';
+    } else if (S.layout === 'banner') {
+      heroHtml =
+        '<div class="pv-wrap pv-hero-full"><div class="pv-hero-card" style="text-align:center;">' +
+          (photo ? '<img class="pv-hero-photo pv-photo-md" style="margin:0 auto 14px;border-color:' + C + '30;" src="' + _pvEsc(photo) + '" alt="' + _pvEsc(name) + '">' : '') +
+          '<p class="pv-eyebrow" style="color:' + C + '">' + _pvEsc(planLabel) + '</p>' +
+          (name ? '<h1 style="font-size:32px;font-weight:600;color:' + S.headingColor + ';font-family:' + S.headingFont + ';margin-top:6px;">' + _pvEsc(name) + '</h1>' : '') +
+          (targetTitle ? '<p style="font-size:18px;font-weight:500;margin-top:4px;color:' + C + ';font-family:' + S.headingFont + ';">' + _pvEsc(targetTitle) + '</p>' : '') +
+          (company ? '<p style="font-size:13px;margin-top:2px;color:' + S.mutedColor + ';">' + _pvEsc(company) + '</p>' : '') +
+          (heroSummary ? '<p class="pv-summary-text" style="max-width:640px;margin:14px auto 0;text-align:center;">' + _pvEsc(heroSummary) + '</p>' : '') +
+          '<div class="pv-contact-row" style="justify-content:center;">' + contactRowItems() + '</div>' +
+        '</div></div>';
+    } else if (S.layout === 'bold') {
+      heroHtml =
+        '<div class="pv-wrap pv-hero-full"><div style="background:linear-gradient(135deg,' + C + ',' + Cd + ');border-radius:' + S.cardRadius + ';padding:36px;color:#fff;box-shadow:' + S.cardShadow + ';position:relative;overflow:hidden;">' +
+          '<div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:rgba(255,255,255,0.08);border-radius:50%;"></div>' +
+          '<div style="display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;position:relative;z-index:1;">' +
+            (photo ? '<img class="pv-hero-photo pv-photo-md" src="' + _pvEsc(photo) + '" alt="' + _pvEsc(name) + '" style="border-color:rgba(255,255,255,0.3);">' : '') +
+            '<div style="flex:1;min-width:240px;">' +
+              '<p class="pv-eyebrow" style="color:rgba(255,255,255,0.7);">' + _pvEsc(planLabel) + '</p>' +
+              (name ? '<h1 style="font-size:32px;font-weight:700;margin-top:6px;color:#fff;font-family:' + S.headingFont + ';">' + _pvEsc(name) + '</h1>' : '') +
+              (targetTitle ? '<p style="font-size:18px;font-weight:500;margin-top:4px;color:rgba(255,255,255,0.9);">' + _pvEsc(targetTitle) + '</p>' : '') +
+              (company ? '<p style="font-size:13px;margin-top:2px;color:rgba(255,255,255,0.7);">' + _pvEsc(company) + '</p>' : '') +
+              (heroSummary ? '<p class="pv-summary-text" style="color:rgba(255,255,255,0.85);max-width:640px;">' + _pvEsc(heroSummary) + '</p>' : '') +
+              '<div class="pv-contact-row" style="color:rgba(255,255,255,0.85);">' + contactRowItems() + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div></div>';
+    } else {
+      // full-width / modern / tech
+      var isDark = (styleKey === 'tech');
+      heroHtml =
+        '<div class="pv-wrap pv-hero-full"><div class="pv-hero-card" style="background:' + (isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + (C + '12') + ')') + ';border-color:' + C + '30;">' +
+          '<div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">' +
+            (photo ? '<img class="pv-hero-photo pv-photo-md" src="' + _pvEsc(photo) + '" alt="' + _pvEsc(name) + '" style="border-color:' + C + '30;">' : '') +
+            '<div style="flex:1;min-width:240px;">' +
+              '<p class="pv-eyebrow" style="color:' + C + ';font-family:' + S.headingFont + ';">' + _pvEsc(planLabel) + '</p>' +
+              (name ? '<h1 style="font-size:32px;font-weight:300;letter-spacing:-0.01em;color:' + S.headingColor + ';font-family:' + S.headingFont + ';margin-top:6px;">' + _pvEsc(name) + '</h1>' : '') +
+              (targetTitle ? '<p style="font-size:18px;font-weight:500;margin-top:4px;color:' + C + ';">' + _pvEsc(targetTitle) + '</p>' : '') +
+              (company ? '<p style="font-size:13px;margin-top:2px;color:' + S.mutedColor + ';">' + _pvEsc(company) + '</p>' : '') +
+              (heroSummary ? '<p class="pv-summary-text">' + _pvEsc(heroSummary) + '</p>' : '') +
+              '<div class="pv-contact-row">' + contactRowItems() + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div></div>';
+    }
+
+    // ---- Sections (same order/gating as view.html#renderPlan) ----
+    var sectionList = []; // { id, label, html, skipNav }
+    function pushCard(id, label, bodyHtml) {
+      sectionList.push({
+        id: id, label: label,
+        html: '<section class="pv-card" id="' + id + '" data-testid="section-' + id + '">' +
+          sectionLabel(label) + bodyHtml + '</section>'
+      });
+    }
+
+    var execSummaryText = _pvText(g.executive_summary);
+    if (execSummaryText) {
+      pushCard('exec-summary', 'Executive Summary',
+        '<p style="font-size:14px;line-height:1.6;color:' + S.textColor + ';">' + _pvEsc(execSummaryText) + '</p>');
+    }
+
+    if (Array.isArray(g.plan_phases) && g.plan_phases.length) {
+      var phasesHtml = '';
+      g.plan_phases.forEach(function (p, idx) {
+        var phaseLabel = _pvText(p.phase || p.label || ('Phase ' + (idx + 1)));
+        var phaseTimeframe = _pvText(p.timeframe || p.timeline || '');
+        var phaseTitle = _pvText(p.title || '');
+        var actions = Array.isArray(p.actions) ? p.actions : (Array.isArray(p.key_actions) ? p.key_actions : []);
+        var milestones = Array.isArray(p.milestones) ? p.milestones : [];
+        var execValue = _pvText(p.exec_value || p.executive_value || p.value || '');
+        var objective = _pvText(p.objective || p.primary_objective || p.summary || '');
+        var actionsHtml = actions.length
+          ? '<div style="margin-top:14px;">' + sectionLabel('Key Actions') +
+              '<div class="pv-list">' + actions.map(function (a) {
+                return '<div class="pv-list-item"><span class="pv-list-bullet" style="color:' + C + '">&rsaquo;</span><span>' + _pvEsc(_pvText(a)) + '</span></div>';
+              }).join('') + '</div>' + '</div>'
+          : '';
+        var milestonesHtml = milestones.length
+          ? '<div style="margin-top:14px;">' + sectionLabel('Key Milestones') +
+              '<div class="pv-list">' + milestones.map(function (m) {
+                return '<div class="pv-list-item"><span class="pv-list-bullet" style="color:#047857">&check;</span><span>' + _pvEsc(_pvText(m)) + '</span></div>';
+              }).join('') + '</div>' + '</div>'
+          : '';
+        var execValueHtml = execValue
+          ? '<div style="margin-top:14px;padding:14px;border-radius:8px;background:' + lightAccent + ';border-left:3px solid ' + C + ';">' +
+              sectionLabel('Executive Value') +
+              '<p style="font-size:14px;color:' + S.textColor + ';">' + _pvEsc(execValue) + '</p>' +
+            '</div>'
+          : '';
+        var phaseHead = '<div class="pv-phase-head">' +
+          '<span class="pv-eyebrow" style="color:' + C + ';">' + _pvEsc(phaseLabel) + '</span>' +
+          (phaseTimeframe ? '<span class="pv-phase-pill" style="background:' + lightAccent + ';color:' + C + ';">' + _pvEsc(phaseTimeframe) + '</span>' : '') +
+        '</div>';
+        phasesHtml += '<div class="pv-phase-card" style="' + (S.layout === 'bold' ? '' : 'border-left:4px solid ' + C + ';') + '">' +
+          phaseHead +
+          (phaseTitle ? '<h3 class="pv-phase-title" style="font-family:' + S.headingFont + ';">' + _pvEsc(phaseTitle) + '</h3>' : '') +
+          (objective ? '<p style="font-size:14px;line-height:1.6;color:' + S.mutedColor + ';margin-top:6px;">' + _pvEsc(objective) + '</p>' : '') +
+          actionsHtml + milestonesHtml + execValueHtml +
+        '</div>';
+      });
+      sectionList.push({
+        id: 'strategic-plan', label: 'Strategic Roadmap',
+        html: '<section id="strategic-plan" data-testid="section-strategic-plan">' + sectionLabel('Strategic Roadmap') + phasesHtml + '</section>'
+      });
+    }
+
+    if (Array.isArray(g.success_criteria) && g.success_criteria.length) {
+      pushCard('success-criteria', 'What Success Looks Like',
+        '<div class="pv-list">' + g.success_criteria.map(function (s) {
+          return '<div class="pv-list-item"><span class="pv-list-bullet" style="color:#047857">&check;</span><span>' + _pvEsc(_pvText(s)) + '</span></div>';
+        }).join('') + '</div>');
+    }
+
+    if (Array.isArray(g.kpis) && g.kpis.length) {
+      var kCols = S.kpiCols || 4;
+      pushCard('kpis', 'Key Performance Indicators',
+        '<div class="pv-grid-kpis" style="grid-template-columns:repeat(' + (device === 'mobile' ? 2 : kCols) + ',minmax(0,1fr));">' +
+          g.kpis.map(function (k) {
+            var metric = _pvText(k && (k.metric || k.name || k.label || k.kpi || k.title) || '');
+            var target = _pvText(k && (k.target || k.value || k.goal || k.measure || k.threshold) || '');
+            return '<div class="pv-kpi">' +
+              '<p class="pv-kpi-label">' + _pvEsc(metric) + '</p>' +
+              (target ? '<p class="pv-kpi-value">' + _pvEsc(target) + '</p>' : '') +
+            '</div>';
+          }).join('') +
+        '</div>');
+    }
+
+    if (Array.isArray(g.experience) && g.experience.length) {
+      var expHtml = g.experience.map(function (e) {
+        var bullets = Array.isArray(e.bullets) ? e.bullets : (Array.isArray(e.achievements) ? e.achievements : []);
+        return '<div class="pv-exp-item">' +
+          '<div class="pv-exp-row">' +
+            '<span class="pv-exp-title" style="font-family:' + S.headingFont + ';">' + _pvEsc(_pvText(e.title || e.role || '')) + '</span>' +
+            '<span class="pv-exp-dates" style="color:' + C + '">' + _pvEsc(_pvText(e.dates || '')) + '</span>' +
+          '</div>' +
+          '<p class="pv-exp-company">' + _pvEsc(_pvText(e.company || '')) + (e.location ? ' &mdash; ' + _pvEsc(_pvText(e.location)) : '') + '</p>' +
+          (e.role_summary ? '<p class="pv-exp-summary">' + _pvEsc(_pvText(e.role_summary)) + '</p>' : '') +
+          (bullets.length
+            ? '<div class="pv-list">' + bullets.map(function (b) {
+                return '<div class="pv-list-item"><span class="pv-list-bullet" style="color:' + C + '">&#8227;</span><span>' + _pvEsc(_pvText(b)) + '</span></div>';
+              }).join('') + '</div>'
+            : '') +
+        '</div>';
+      }).join('');
+      pushCard('experience', 'Professional Experience', expHtml);
+    }
+
+    if (Array.isArray(g.skills) && g.skills.length) {
+      var sCols = S.skillCols || 3;
+      pushCard('skills', 'Core Competencies',
+        '<div class="pv-grid-skills" style="grid-template-columns:repeat(' + (device === 'mobile' ? 2 : sCols) + ',minmax(0,1fr));">' +
+          g.skills.map(function (s) {
+            return '<div class="pv-skill"><span style="color:' + C + ';">&#10003;</span>' + _pvEsc(_pvText(s)) + '</div>';
+          }).join('') +
+        '</div>');
+    }
+
+    if (Array.isArray(g.education) && g.education.length) {
+      pushCard('education', 'Education',
+        '<div class="pv-list" style="gap:14px;">' + g.education.map(function (e) {
+          return '<div>' +
+            '<p style="font-weight:600;color:' + S.headingColor + ';font-family:' + S.headingFont + ';">' + _pvEsc(_pvText(e.degree || e.qualification || '')) + '</p>' +
+            '<p style="font-size:13px;color:' + S.mutedColor + ';">' + _pvEsc(_pvText(e.school || e.institution || '')) + '</p>' +
+            (e.year || e.dates ? '<p style="font-size:12px;color:' + S.mutedColor + ';">' + _pvEsc(_pvText(e.year || e.dates)) + '</p>' : '') +
+            (e.details ? '<p style="font-size:12px;color:' + S.mutedColor + ';margin-top:4px;">' + _pvEsc(_pvText(e.details)) + '</p>' : '') +
+          '</div>';
+        }).join('') + '</div>');
+    }
+
+    if (Array.isArray(g.certifications) && g.certifications.length) {
+      pushCard('certifications', 'Certifications',
+        '<div class="pv-list" style="gap:14px;">' + g.certifications.map(function (c) {
+          var co = (c && typeof c === 'object') ? c : { name: String(c == null ? '' : c) };
+          var cName = _pvText(co.name || co.title || '');
+          var cIssuer = _pvText(co.issuer || co.org || co.organization || co.publisher || '');
+          var cYear = _pvText(co.year || co.date || co.dates || '');
+          return '<div>' +
+            (cName ? '<p style="font-weight:600;color:' + S.headingColor + ';font-family:' + S.headingFont + ';">' + _pvEsc(cName) + '</p>' : '') +
+            (cIssuer ? '<p style="font-size:13px;color:' + S.mutedColor + ';">' + _pvEsc(cIssuer) + '</p>' : '') +
+            (cYear ? '<p style="font-size:12px;color:' + S.mutedColor + ';">' + _pvEsc(cYear) + '</p>' : '') +
+          '</div>';
+        }).join('') + '</div>');
+    }
+
+    if (Array.isArray(g.achievements) && g.achievements.length) {
+      pushCard('achievements', 'Key Achievements',
+        '<div class="pv-list" style="gap:14px;">' + g.achievements.map(function (a) {
+          var aTitle = (typeof a === 'string') ? a : _pvText(a && (a.title || a.name) || '');
+          var aDesc = (typeof a === 'string') ? '' : _pvText(a && (a.description || a.summary || '') || '');
+          return '<div style="display:flex;gap:10px;align-items:flex-start;">' +
+            '<span style="color:' + C + ';font-size:18px;line-height:1;flex-shrink:0;">&#9733;</span>' +
+            '<div>' +
+              (aTitle ? '<p style="font-weight:600;color:' + S.headingColor + ';">' + _pvEsc(aTitle) + '</p>' : '') +
+              (aDesc ? '<p style="font-size:13px;color:' + S.mutedColor + ';margin-top:2px;">' + _pvEsc(aDesc) + '</p>' : '') +
+            '</div>' +
+          '</div>';
+        }).join('') + '</div>');
+    }
+
+    // Plan -> Resume divider when both present (mirror view.html).
+    var planIds = { 'exec-summary':1, 'strategic-plan':1, 'success-criteria':1, 'kpis':1 };
+    var resumeIds = { 'experience':1, 'skills':1, 'education':1, 'certifications':1, 'achievements':1 };
+    var lastPlanIdx = -1, firstResumeIdx = -1;
+    for (var i = 0; i < sectionList.length; i++) { if (planIds[sectionList[i].id]) lastPlanIdx = i; }
+    for (var j = 0; j < sectionList.length; j++) { if (resumeIds[sectionList[j].id]) { firstResumeIdx = j; break; } }
+    if (lastPlanIdx >= 0 && firstResumeIdx >= 0 && lastPlanIdx < firstResumeIdx) {
+      sectionList.splice(firstResumeIdx, 0, {
+        id: '__divider', label: '', skipNav: true,
+        html: '<div class="pv-divider-row" role="separator">' +
+          '<span class="pv-divider-line"></span>' +
+          '<span class="pv-divider-card">Career Plan &rarr; Resume</span>' +
+          '<span class="pv-divider-line"></span>' +
+        '</div>'
+      });
+    }
+
+    // ISS-025 spec: do NOT render an empty sidebar nav. If no rendered
+    // sections exist, hide the nav entirely. Hero still renders.
+    var navItems = sectionList.filter(function (s) { return !s.skipNav; });
+    var hasNav = navItems.length > 0;
+    var navHtml = hasNav
+      ? navItems.map(function (s, idx) {
+          return '<span class="pv-nav-link' + (idx === 0 ? ' is-active' : '') + '" data-target="' + s.id + '">' + _pvEsc(s.label) + '</span>';
+        }).join('')
+      : '';
+    var sectionsHtml = sectionList.map(function (s) { return s.html; }).join('');
+
+    var footerBg = (S.layout === 'sidebar') ? S.sidebarBg : (styleKey === 'tech' ? '#0F172A' : S.headingColor);
+    var footerHtml = '<div class="pv-footer-bar" style="background:' + footerBg + ';">' +
+      _pvEsc(name) + (targetTitle ? ' &bull; ' + _pvEsc(targetTitle) : '') + (company ? ' &bull; ' + _pvEsc(company) : '') +
+    '</div>';
+
+    var bodyClass = [
+      'pv-body-root',
+      'pv-style-' + styleKey,
+      'pv-color-' + color,
+      'pv-device-' + device,
+      'public-view-style-' + styleKey,
+      ((rawBuilderStyle && String(rawBuilderStyle).toLowerCase() !== styleKey) ? ('aliased-from-' + String(rawBuilderStyle).toLowerCase()) : '')
+    ].filter(Boolean).join(' ');
+
+    var bodyEl =
+      heroHtml +
+      '<div class="pv-body' + (hasNav ? '' : ' pv-no-sidebar') + '">' +
+        (hasNav ? '<aside class="pv-sidebar" aria-label="Section navigation">' + navHtml + '</aside>' : '') +
+        '<main class="pv-sections">' + sectionsHtml + footerHtml + '</main>' +
+      '</div>';
+
+    return '<!doctype html><html lang="en"><head>' +
+      '<meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<title>Public Web Page Preview</title>' +
+      '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">' +
+      '<style>' + _publicViewPreviewCSS(S) + '</style>' +
+      '</head><body class="' + bodyClass + '">' + bodyEl + '</body></html>';
+  }
+  try { window.renderPublicViewPreviewHTML = renderPublicViewPreviewHTML; } catch (_) {}
+
   // Public Web Preview / Published parity diagnostic. Reports the
   // selected builder style, the effective public-view style after
   // alias collapse, the renderer paths, the rendered public sections,
@@ -15254,13 +15777,27 @@
     var stalePackageRenderDetected = false;
     var staleCoverLetterSectionDetected = false;
     var staleEmptyRolePlanDetected = false;
+    var staleBuilderWebPortfolioDetected = false;
+    var livePreviewRendererPath = 'unknown';
     var webBodyClass = '';
     try {
       var frame = document.getElementById('preview-frame');
       var fdoc = frame && frame.contentDocument;
       if (fdoc) {
         webBodyClass = (fdoc.body && fdoc.body.className) || '';
-        var navEls = fdoc.querySelectorAll('.web-sidebar [data-target], .web-sidebar a, .site-nav a');
+        // Detect which renderer produced the current iframe contents.
+        // The new view-parity renderer marks <body class="pv-body-root ...">
+        // and sets <title>Public Web Page Preview</title>. The legacy
+        // builder web portfolio uses .web-portfolio / .site-nav.
+        if (fdoc.body && fdoc.body.classList && fdoc.body.classList.contains('pv-body-root')) {
+          livePreviewRendererPath = 'builder.renderPublicViewPreviewHTML';
+        } else if (fdoc.querySelector('.web-portfolio, .site-nav')) {
+          livePreviewRendererPath = 'builder._renderWebPortfolio';
+          staleBuilderWebPortfolioDetected = true;
+        } else if (fdoc.querySelector('.document-package')) {
+          livePreviewRendererPath = 'builder._renderDocumentPackage';
+        }
+        var navEls = fdoc.querySelectorAll('.pv-sidebar .pv-nav-link, .web-sidebar [data-target], .web-sidebar a, .site-nav a');
         navEls.forEach(function (n) {
           var t = (n.textContent || '').replace(/\s+/g, ' ').trim();
           if (t) navLabels.push(t);
@@ -15309,8 +15846,9 @@
       effectivePublicViewStyleLabel: getPublicViewStyleLabel(aliased),
       styleAliased: styleAliased,
       styleColor: color,
-      livePreviewRendererPath: 'resumebuilder.html#_renderWebPortfolio',
+      livePreviewRendererPath: livePreviewRendererPath,
       publishedViewRendererPath: 'view.html#renderPlan',
+      staleBuilderWebPortfolioDetected: staleBuilderWebPortfolioDetected,
       publicSectionsRendered: publicSectionsRendered,
       navLabels: navLabels,
       headingList: headingList,
