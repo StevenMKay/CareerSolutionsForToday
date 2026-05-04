@@ -17406,6 +17406,7 @@
       96
     ];
     var lastReport = null;
+    var attemptTrail = [];
     for (var ai = 0; ai < attempts.length; ai++) {
       var safety = attempts[ai];
       try {
@@ -17433,10 +17434,20 @@
         lastReport = { ok: false, error: String(e && e.message || e) };
       }
       if (lastReport && lastReport.ok) break;
+      attemptTrail.push({
+        safetyPx: safety,
+        overflowPages: lastReport && lastReport.overflowPages,
+        blankPages: lastReport && lastReport.blankPages
+      });
+      // Retries at higher safetyPx are routine and expected. Keep the
+      // per-attempt detail at debug level; only emit a single warn below
+      // if ALL attempts fail.
+      try { console.debug('[finalizeFixedDocumentHtml] retry at safetyPx=' + safety, attemptTrail[attemptTrail.length - 1]); } catch (_) {}
+    }
+    if (lastReport && lastReport.ok === false && attemptTrail.length === attempts.length) {
       try {
-        console.warn('[finalizeFixedDocumentHtml] layout validation failed at safetyPx=' +
-          safety + '; retrying. Overflow=', lastReport && lastReport.overflowPages,
-          'Blank=', lastReport && lastReport.blankPages);
+        console.warn('[finalizeFixedDocumentHtml] layout validation did not settle after ' +
+          attempts.length + ' retries; using last paginated output.', attemptTrail);
       } catch (_) {}
     }
     try { window.RB_LAST_FIXED_LAYOUT_REPORT = lastReport; } catch (_) {}
