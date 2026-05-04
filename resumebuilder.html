@@ -14250,6 +14250,43 @@
       '}',
       '@media screen and (max-width: 900px) {',
       '  .rb-doc-viewer { padding: 16px; align-items: flex-start; overflow-x: auto; }',
+      '}',
+      '/* Word/DOCX live preview: continuous, non-paginated. The downloaded',
+      '   DOCX is the source of truth; the live preview is a clean visual',
+      '   preview, not a fake Word print pagination. */',
+      'body.format-docx.target-preview,',
+      'body.format-doc.target-preview,',
+      'body.format-word.target-preview {',
+      '  overflow-x: hidden !important;',
+      '}',
+      'body.format-docx.target-preview .rb-doc-viewer,',
+      'body.format-doc.target-preview .rb-doc-viewer,',
+      'body.format-word.target-preview .rb-doc-viewer {',
+      '  overflow-x: hidden !important;',
+      '  max-width: 100% !important;',
+      '}',
+      'body.format-docx.target-preview .rb-doc-page,',
+      'body.format-doc.target-preview .rb-doc-page,',
+      'body.format-word.target-preview .rb-doc-page {',
+      '  height: auto !important;',
+      '  min-height: auto !important;',
+      '  max-width: calc(100vw - 48px);',
+      '  margin: 0 auto !important;',
+      '  overflow: visible !important;',
+      '  page-break-after: auto !important;',
+      '  break-after: auto !important;',
+      '}',
+      'body.format-docx.target-preview .rb-doc-page-inner,',
+      'body.format-doc.target-preview .rb-doc-page-inner,',
+      'body.format-word.target-preview .rb-doc-page-inner {',
+      '  height: auto !important;',
+      '  min-height: auto !important;',
+      '  overflow: visible !important;',
+      '}',
+      'body.format-docx.target-preview .rb-doc-page--continuation,',
+      'body.format-doc.target-preview .rb-doc-page--continuation,',
+      'body.format-word.target-preview .rb-doc-page--continuation {',
+      '  display: none !important;',
       '}'
     ].join('\n') + '\n' + getPdfSafeTemplateCss(settings);
   }
@@ -17396,6 +17433,11 @@
     return new Promise(function (resolve) {
       if (!html || typeof html !== 'string') { resolve(html || ''); return; }
       if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false) { resolve(html); return; }
+      // Defensive: never paginate Word/DOCX live preview, even if a
+      // legacy caller skips finalizeFixedDocumentHtml. The downloaded
+      // DOCX is the source of truth for real Word pagination.
+      var _fmt = String((options && options.format) || '').toLowerCase();
+      if (_fmt === 'docx' || _fmt === 'doc' || _fmt === 'word') { resolve(html); return; }
       // Skip if not a fixed-document doc (defensive).
       if (html.indexOf('rb-fixed-document') === -1) { resolve(html); return; }
 
@@ -17494,6 +17536,28 @@
         html = sanitizePreviewHTML(html);
       }
     } catch (_) {}
+
+    // Word/DOCX live preview: do NOT paginate. Browser HTML cannot
+    // reliably mimic Word's pagination engine; the downloaded DOCX is
+    // the source of truth. Render one continuous Word-styled preview.
+    // This avoids the fake blank pages and horizontal scroll caused by
+    // forcing docx through the PDF-style fixed paginator.
+    var fmtNorm = String(format || '').toLowerCase();
+    if (fmtNorm === 'docx' || fmtNorm === 'doc' || fmtNorm === 'word') {
+      try {
+        window.RB_LAST_FINALIZED_FIXED_DOC = {
+          target: target,
+          format: format,
+          rawLength: html.length,
+          finalLength: html.length,
+          changed: false,
+          paginated: false,
+          pageCount: (html.match(/class="[^"]*rb-doc-page\b/g) || []).length,
+          finalizedAt: new Date().toISOString()
+        };
+      } catch (_) {}
+      return html;
+    }
 
     if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false ||
         html.indexOf('rb-fixed-document') === -1 ||
@@ -25055,35 +25119,47 @@
   // the first page contains both, no .rb-doc-page-inner is overflowing,
   // and the first experience role is not stranded on page 2.
   window.debugWordPreviewPagination = function () {
+    // Word/DOCX live preview is now a single continuous document
+    // (not paginated). Success criteria: exactly one page wrapper,
+    // no continuation pages, skills + experience present, no
+    // horizontal overflow risks.
     var frame = document.getElementById('preview-frame');
     var doc = null;
     try { doc = frame && frame.contentDocument; } catch (_) {}
     if (!doc) return { ok: false, error: 'No preview document' };
     var pages = Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page'));
-    var report = pages.map(function (page, index) {
-      var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
-      var inner = page.querySelector('.rb-doc-page-inner');
-      var ch = inner ? inner.clientHeight : null;
-      var sh = inner ? inner.scrollHeight : null;
-      return {
-        page: index + 1,
-        hasSkills: /CORE SKILLS|KEY SKILLS/i.test(text),
-        hasExperienceHeading: /PROFESSIONAL EXPERIENCE/i.test(text),
-        hasExperienceItem: !!page.querySelector('article.rb-doc-item[data-block="experienceItem"], section[data-block="experience"] article.rb-doc-item'),
-        charCount: text.length,
-        innerClientHeight: ch,
-        innerScrollHeight: sh,
-        hasOverflow: (ch != null && sh != null) ? sh > ch + 2 : null,
-        tail: text.slice(-240)
-      };
+    var visiblePages = pages.filter(function (p) {
+      try {
+        var cs = (p.ownerDocument.defaultView || window).getComputedStyle(p);
+        return cs && cs.display !== 'none';
+      } catch (_) { return true; }
     });
-    var page1 = report[0] || null;
+    var hasContinuation = visiblePages.some(function (p) {
+      return p.classList && p.classList.contains('rb-doc-page--continuation');
+    });
+    var text = doc.body ? (doc.body.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    var horizontalOverflowRisks = [];
+    try {
+      horizontalOverflowRisks = Array.prototype.slice
+        .call(doc.querySelectorAll('.rb-doc-viewer, .rb-doc-page, .rb-doc-page-inner'))
+        .filter(function (el) { return el.scrollWidth > el.clientWidth + 4; })
+        .slice(0, 6)
+        .map(function (el) {
+          return { tag: el.tagName, className: el.className, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth };
+        });
+    } catch (_) {}
+    var hasSkills = /CORE SKILLS|KEY SKILLS/i.test(text);
+    var hasExperience = /PROFESSIONAL EXPERIENCE/i.test(text);
     return {
-      ok: !!(page1 && page1.hasSkills && page1.hasExperienceHeading &&
-             page1.hasExperienceItem && page1.hasOverflow !== true),
-      pageCount: report.length,
-      bodyClass: doc.body ? doc.body.className : '',
-      pages: report
+      ok: visiblePages.length === 1 && !hasContinuation && hasSkills &&
+          hasExperience && horizontalOverflowRisks.length === 0,
+      pageCount: visiblePages.length,
+      totalPageWrappers: pages.length,
+      hasContinuationPages: hasContinuation,
+      hasSkills: hasSkills,
+      hasExperience: hasExperience,
+      horizontalOverflowRisks: horizontalOverflowRisks,
+      bodyClass: doc.body ? doc.body.className : ''
     };
   };
 
