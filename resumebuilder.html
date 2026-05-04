@@ -14394,6 +14394,18 @@
       '  border-left: 2pt solid var(--rb-doc-accent); padding-left: 7pt;',
       '}',
 
+      '/* Word templates: force flat-column skill grids regardless of the',
+      '   .rb-doc-skill-columns-N variant emitted by the renderer. */',
+      'body.template-word-standard .rb-pdf-safe-page .rb-doc-skill-columns {',
+      '  grid-template-columns: repeat(2, minmax(0, 1fr));',
+      '}',
+      'body.template-word-executive .rb-pdf-safe-page .rb-doc-skill-columns {',
+      '  grid-template-columns: repeat(3, minmax(0, 1fr));',
+      '}',
+      'body.template-word-compact .rb-pdf-safe-page .rb-doc-skill-columns {',
+      '  grid-template-columns: repeat(3, minmax(0, 1fr));',
+      '}',
+
       '/* 1. Classic ATS */',
       'body.template-pdf-classic-ats .rb-pdf-safe-page { font-family: Arial, Calibri, sans-serif; }',
       'body.template-pdf-classic-ats .rb-doc-header { text-align: center; border-bottom-color: #9ca3af; }',
@@ -14470,21 +14482,28 @@
   // multi-column or grouped output. Public web profile + builder UI are NOT
   // affected — these helpers are only used by the PDF-safe + DOCX paths.
 
+  // Cleanup pass: every active template uses flat columns. The grouped
+  // renderer is preserved in buildDocumentSkillsHTML for a possible
+  // future opt-in but is no longer reachable through layout lookup.
   function getDocumentSkillLayout(template, format) {
     template = String(template || '').toLowerCase();
     format = String(format || '').toLowerCase();
-    if (template === 'pdf-classic-ats')   return { mode: 'columns', columns: 3, showBullets: true };
-    if (template === 'pdf-executive')     return { mode: 'grouped', columns: 2, showGroupLabels: true };
-    if (template === 'pdf-modern-accent') return { mode: 'columns', columns: 2, showBullets: true, accentLeft: true };
-    if (template === 'pdf-compact')       return { mode: 'columns', columns: 3, showBullets: true, compact: true };
-    if (template === 'word-standard')     return { mode: 'columns', columns: 2, showBullets: true };
-    if (template === 'word-executive')    return { mode: 'grouped', columns: 2, showGroupLabels: true };
-    if (template === 'word-compact')      return { mode: 'columns', columns: 3, showBullets: true, compact: true };
-    return { mode: 'columns', columns: 2, showBullets: true };
+    if (template === 'pdf-classic-ats')   return { mode: 'columns', columns: 3, showBullets: true, label: 'Key Skills' };
+    if (template === 'pdf-executive')     return { mode: 'columns', columns: 3, showBullets: true, label: 'Key Skills' };
+    if (template === 'pdf-modern-accent') return { mode: 'columns', columns: 2, showBullets: true, accentLeft: true, label: 'Key Skills' };
+    if (template === 'pdf-compact')       return { mode: 'columns', columns: 3, showBullets: true, compact: true, label: 'Key Skills' };
+    if (template === 'word-standard')     return { mode: 'columns', columns: 2, showBullets: true, label: 'Core Skills' };
+    if (template === 'word-executive')    return { mode: 'columns', columns: 3, showBullets: true, label: 'Core Skills' };
+    if (template === 'word-compact')      return { mode: 'columns', columns: 3, showBullets: true, compact: true, label: 'Core Skills' };
+    return { mode: 'columns', columns: 2, showBullets: true, label: 'Core Skills' };
   }
 
   function getWordSkillLayout(template) {
-    return getDocumentSkillLayout(template, 'docx');
+    template = String(template || '').toLowerCase();
+    if (template === 'word-standard')  return { mode: 'columns', columns: 2, label: 'Core Skills' };
+    if (template === 'word-executive') return { mode: 'columns', columns: 3, label: 'Core Skills' };
+    if (template === 'word-compact')   return { mode: 'columns', columns: 3, label: 'Core Skills' };
+    return { mode: 'columns', columns: 2, label: 'Core Skills' };
   }
 
   function normalizeSkillList(skills) {
@@ -14562,7 +14581,11 @@
     var format = opts.format ||
       (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.format) ||
       'pdf';
-    var layout = getDocumentSkillLayout(template, format);
+    var isWord = format === 'docx' || /^word-/.test(String(template).toLowerCase());
+    var layout = isWord
+      ? getWordSkillLayout(template)
+      : getDocumentSkillLayout(template, format);
+    var label = layout.label || (isWord ? 'Core Skills' : 'Key Skills');
 
     if (layout.mode === 'grouped') {
       var groups = groupSkillsForResume(list);
@@ -14571,10 +14594,10 @@
       // so the user never sees a useless single-group label.
       var onlyAdditional = groups.length === 1 && groups[0].name === 'Additional Strengths';
       if (groups.length <= 1 && onlyAdditional) {
-        return _buildSkillColumnsHTML(list, { columns: layout.columns || 2 });
+        return _buildSkillColumnsHTML(list, { columns: layout.columns || 2, label: label });
       }
       return '<section class="rb-doc-section rb-doc-skills-section rb-doc-skills-section--grouped" data-block="skills">' +
-        '<h2 class="rb-doc-section-title">Key Skills</h2>' +
+        '<h2 class="rb-doc-section-title">' + rbDocEscape(label) + '</h2>' +
         '<div class="rb-doc-skill-groups">' +
           groups.map(function (g) {
             return '<div class="rb-doc-skill-group">' +
@@ -14588,13 +14611,14 @@
       '</section>';
     }
 
-    return _buildSkillColumnsHTML(list, { columns: layout.columns || 2 });
+    return _buildSkillColumnsHTML(list, { columns: layout.columns || 2, label: label });
   }
 
   function _buildSkillColumnsHTML(list, opts) {
     var columns = distributeIntoColumns(list, (opts && opts.columns) || 2);
+    var label = (opts && opts.label) || 'Key Skills';
     return '<section class="rb-doc-section rb-doc-skills-section" data-block="skills">' +
-      '<h2 class="rb-doc-section-title">Key Skills</h2>' +
+      '<h2 class="rb-doc-section-title">' + rbDocEscape(label) + '</h2>' +
       '<div class="rb-doc-skill-columns rb-doc-skill-columns-' + rbDocEscape(String((opts && opts.columns) || 2)) + '">' +
         columns.map(function (col) {
           return '<ul class="rb-doc-skill-col">' +
@@ -15057,20 +15081,26 @@
     }
 
     if (model.experience && model.experience.length) {
-      blocks.push({
-        type: 'sectionHeading',
-        key: 'experienceHeading',
-        keepWithNext: true,
-        html: '<h2 class="rb-doc-section-title">Professional Experience</h2>'
-      });
-
-      model.experience.forEach(function (job) {
+      // Cleanup: fold the "Professional Experience" heading into the first
+      // experience item so the heading can never orphan at the bottom of a
+      // page. The paginator currently bin-packs whole blocks and does not
+      // split a single block across pages; the merged block stays
+      // measure-as-one (paginator's existing behavior). Bullets are not
+      // forcibly held together because the paginator does not honor
+      // keepTogether — it only measures and places. So we are not creating
+      // a new "force entire long job onto next page" failure mode here.
+      model.experience.forEach(function (job, index) {
+        var html = '';
+        if (index === 0) {
+          html = '<h2 class="rb-doc-section-title">Professional Experience</h2>';
+        }
+        html += renderPdfSafeExperienceItemHTML(job, settings, options);
         blocks.push({
           type: 'experienceItem',
           key: 'experience',
           keepTogether: true,
           canSplitBullets: true,
-          html: renderPdfSafeExperienceItemHTML(job, settings, options)
+          html: html
         });
       });
     }
@@ -15100,7 +15130,19 @@
   }
 
   function getPdfSafePageBudget(settings, options) {
-    return 960;
+    options = options || {};
+    var template = String(options.template || 'pdf-modern-accent').toLowerCase();
+    var base;
+    switch (template) {
+      case 'pdf-classic-ats':   base = 975; break;
+      case 'pdf-executive':     base = 985; break;
+      case 'pdf-modern-accent': base = 970; break;
+      case 'pdf-compact':       base = 990; break;
+      default:                  base = 960;
+    }
+    var safety = (typeof options.safetyPx === 'number') ? options.safetyPx : 0;
+    var budget = base - safety;
+    return budget < 760 ? 760 : budget;
   }
 
   function getPdfSafeMeasureHost(settings, options) {
@@ -15116,13 +15158,40 @@
       }
     } catch (_) {}
 
+    // Ensure the measurement document carries the same template body class
+    // and the same template CSS as the live preview so block heights match.
+    try {
+      if (docRef.body) {
+        docRef.body.className = (docRef.body.className || '')
+          .replace(/\btemplate-[a-z0-9-]+\b/g, '')
+          .trim();
+        docRef.body.classList.add('template-' + String(template).toLowerCase());
+      }
+      var styleId = 'rb-pdf-safe-measure-css';
+      var styleEl = docRef.getElementById(styleId);
+      if (!styleEl) {
+        styleEl = docRef.createElement('style');
+        styleEl.id = styleId;
+        if (docRef.head) docRef.head.appendChild(styleEl);
+        else docRef.body.appendChild(styleEl);
+      }
+      var injectedTemplate = styleEl.getAttribute('data-template') || '';
+      if (injectedTemplate !== template && typeof getPdfSafeTemplateCss === 'function') {
+        styleEl.textContent = getPdfSafeTemplateCss({ template: template });
+        styleEl.setAttribute('data-template', template);
+      }
+    } catch (_) {}
+
     var root = docRef.getElementById('rb-pdf-safe-measure-root');
     if (!root) {
       root = docRef.createElement('div');
       root.id = 'rb-pdf-safe-measure-root';
+      root.className = 'rb-pdf-safe-page template-' + rbDocEscape(template);
       root.style.cssText = 'position:absolute;left:-99999px;top:0;width:8.5in;height:auto;visibility:hidden;pointer-events:none;';
       root.innerHTML = '<div class="rb-pdf-safe-inner" style="position:static;inset:auto;overflow:visible;width:7.34in;padding:0;margin:0;"></div>';
       docRef.body.appendChild(root);
+    } else {
+      root.className = 'rb-pdf-safe-page template-' + rbDocEscape(template);
     }
     var inner = root.querySelector('.rb-pdf-safe-inner');
     if (inner) {
@@ -18793,9 +18862,23 @@
       : 'word-standard';
     var layout = (typeof getWordSkillLayout === 'function')
       ? getWordSkillLayout(wordTemplate)
-      : { mode: 'columns', columns: 2 };
+      : { mode: 'columns', columns: 2, label: 'Core Skills' };
 
-    children.push(kit.heading('Core Skills', { level: 2 }));
+    // Defensive: every active Word template uses flat columns. The
+    // grouped branch below stays in place for a future opt-in but is
+    // unreachable for the three known Word templates.
+    if (wordTemplate === 'word-standard' ||
+        wordTemplate === 'word-executive' ||
+        wordTemplate === 'word-compact') {
+      layout = {
+        mode: 'columns',
+        columns: wordTemplate === 'word-executive' ? 3
+              : wordTemplate === 'word-compact'   ? 3 : 2,
+        label: 'Core Skills'
+      };
+    }
+
+    children.push(kit.heading(layout.label || 'Core Skills', { level: 2 }));
 
     if (layout.mode === 'grouped' && typeof groupSkillsForResume === 'function') {
       var groups = groupSkillsForResume(list);
@@ -24769,6 +24852,54 @@
       hasShowFn:  typeof window.showAiTaskLoader === 'function',
       hasHideFn:  typeof window.hideAiTaskLoader === 'function',
       hasWithFn:  typeof window.withAiTaskLoader === 'function'
+    };
+  };
+
+  // Inspects the live PDF preview iframe to verify the page-break cleanup:
+  // each page should NOT end on a bare section heading, the first page
+  // that contains the Professional Experience heading should also start
+  // (or contain) the first experience item, and pages should report a
+  // sensible char count.
+  window.debugPdfPageBreaks = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { available: false };
+    var pageEls = doc.querySelectorAll('.rb-pdf-safe-page');
+    var pages = Array.prototype.map.call(pageEls, function (el, i) {
+      var text = (el.textContent || '').trim();
+      var headings = el.querySelectorAll('.rb-doc-section-title');
+      var lastHeading = headings.length ? headings[headings.length - 1] : null;
+      var lastChild = el.querySelector('.rb-pdf-safe-inner') || el;
+      var children = lastChild.children;
+      var endsWithHeadingOnly = false;
+      if (children && children.length) {
+        var tail = children[children.length - 1];
+        endsWithHeadingOnly = !!(tail && tail.tagName === 'H2' &&
+          /section-title/.test(tail.className || ''));
+      }
+      var hasExpHeading = Array.prototype.some.call(headings, function (h) {
+        return /professional experience/i.test(h.textContent || '');
+      });
+      var firstItem = el.querySelector('article.rb-doc-item[data-block="experienceItem"]');
+      var startsWithExperienceItem = !!firstItem;
+      return {
+        page: i + 1,
+        charCount: text.length,
+        hasProfessionalExperienceHeading: hasExpHeading,
+        startsWithExperienceItem: startsWithExperienceItem,
+        endsWithHeadingOnly: endsWithHeadingOnly,
+        head: text.slice(0, 80),
+        tail: text.slice(-80)
+      };
+    });
+    return {
+      pageCount: pages.length,
+      pages: pages,
+      orphanedHeadingDetected: pages.some(function (p) { return p.endsWithHeadingOnly; }),
+      experienceHeadingFolded: pages.some(function (p) {
+        return p.hasProfessionalExperienceHeading && p.startsWithExperienceItem;
+      })
     };
   };
 
