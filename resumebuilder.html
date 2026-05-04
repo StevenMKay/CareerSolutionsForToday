@@ -24000,15 +24000,24 @@
       }
       if (html) {
         // The iframe is sandboxed with only `allow-same-origin` (no
-        // `allow-scripts`), so any <script> tag in the rendered HTML
-        // would trigger a "Blocked script execution" warning in the
-        // console. Strip them — the preview is purely visual and never
-        // needed those scripts to run.
+        // `allow-scripts`), so any <script>, inline event handler, or
+        // javascript: URL in the rendered HTML would trigger a "Blocked
+        // script execution" warning. Use the same sanitizer the legacy
+        // preview iframe uses so the public preview is held to the same
+        // defense-in-depth bar.
         try {
-          html = String(html)
-            .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
-            .replace(/<script\b[^>]*\/>/gi, '');
+          if (typeof stripScriptsFromPreviewHTML === 'function') {
+            html = stripScriptsFromPreviewHTML(String(html));
+          } else {
+            html = String(html)
+              .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+              .replace(/<script\b[^>]*\/>/gi, '');
+          }
         } catch (_) {}
+        var residual = String(html).match(/<script\b[^>]*>/i);
+        if (residual) {
+          try { console.warn('[public-preview] residual <script> after sanitize:', String(html).substr(Math.max(0, residual.index), 200)); } catch (_) {}
+        }
         var d = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
         if (d) { d.open(); d.write(html); d.close(); }
       }
