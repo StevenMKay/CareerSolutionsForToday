@@ -588,6 +588,28 @@
   .btn-primary:hover { background: var(--c-primary-d); }
   .btn-save     { background: var(--c-save); border-color: #065F46; }
   .btn-publish  { background: var(--c-publish); border-color: #047857; }
+  .btn-publish.is-dirty { background: #D97706; border-color: #B45309; box-shadow: 0 6px 18px rgba(217,119,6,.32); }
+  .btn-publish.is-dirty:hover { background: #B45309; border-color: #92400E; }
+  /* Leave-guard modal for unsaved Public Web Page preferences. */
+  .pw-leave-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(15,23,42,.55);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 9999; padding: 1rem;
+  }
+  .pw-leave-modal {
+    background: #fff; color: #0f172a; border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(15,23,42,.35);
+    max-width: 460px; width: 100%; padding: 1.4rem 1.4rem 1.25rem;
+    font-family: inherit;
+  }
+  .pw-leave-modal h3 { margin: 0 0 .5rem; font-size: 1.1rem; font-weight: 800; color: #0f172a; }
+  .pw-leave-modal p  { margin: 0 0 1rem; font-size: .92rem; line-height: 1.55; color: #334155; }
+  .pw-leave-modal-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; }
+  .pw-leave-modal-actions .btn { min-height: 38px; }
+  @media (max-width: 480px) {
+    .pw-leave-modal-actions { flex-direction: column-reverse; }
+    .pw-leave-modal-actions .btn { width: 100%; justify-content: center; }
+  }
   .btn-optimize { background: var(--c-optimize); border-color: #6D28D9; box-shadow: 0 6px 18px rgba(124,58,237,0.4); }
   .btn-secondary{ background: rgba(30,41,59,0.65); border-color: rgba(148,163,184,0.2); color: var(--c-text); }
   .btn-ghost    { background: transparent; color: var(--c-text); border-color: rgba(148,163,184,0.25); }
@@ -5299,6 +5321,20 @@
 
   function goToStep(stepId) {
     if (!stepId || STEP_ORDER.indexOf(stepId) === -1) return;
+    // Public Web Page leave-guard: if the user is leaving step-export with
+    // unsaved Public Web preferences, prompt before navigating.
+    try {
+      var currentStep = window.__activeStep;
+      if (currentStep === 'step-export' && stepId !== 'step-export' &&
+          typeof _isPublicWebDirty === 'function' && _isPublicWebDirty() &&
+          typeof _confirmLeavePublicWebDirty === 'function') {
+        _confirmLeavePublicWebDirty(
+          function () { goToStep(stepId); },
+          function () { /* cancel: stay on step-export */ }
+        );
+        return;
+      }
+    } catch (_) {}
     window.__activeStep = stepId;
     // Show/hide step panels
     STEP_ORDER.forEach(function (id) {
@@ -13945,11 +13981,13 @@
       if (existing && existing.parentNode) {
         try { existing.parentNode.removeChild(existing); } catch (_) {}
       }
+      try { if (typeof _clearPublicWebDirty === 'function') _clearPublicWebDirty(); } catch (_) {}
       return false;
     }
     try {
       if (typeof showPublishedShareResult === 'function') {
         showPublishedShareResult(url);
+        try { if (typeof _updatePublishButtonLabel === 'function') _updatePublishButtonLabel(); } catch (_) {}
         return true;
       }
     } catch (err) {
@@ -20591,6 +20629,7 @@
         });
       } catch (_) {}
       showPublishedShareResult(url);
+      try { if (typeof _clearPublicWebDirty === 'function') _clearPublicWebDirty(); } catch (_) {}
       showToast('Published share link created.', 'success');
       return url;
     } catch (err) {
@@ -20603,6 +20642,9 @@
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
           try { window.lucide.createIcons(); } catch (_) {}
         }
+        // Reapply the correct label (handles both successful publish and
+        // failure paths -- on success dirty is cleared, on failure it stays).
+        try { if (typeof _updatePublishButtonLabel === 'function') _updatePublishButtonLabel(); } catch (_) {}
       }
     }
   }
@@ -22086,10 +22128,14 @@
       }
     }, true);
     window.addEventListener('beforeunload', function (ev) {
-      if (RB_STATE && RB_STATE._hasUnsavedChanges) {
+      var hasUnsaved = RB_STATE && RB_STATE._hasUnsavedChanges;
+      var hasPublicWebDirty = (typeof _isPublicWebDirty === 'function') && _isPublicWebDirty();
+      if (hasUnsaved || hasPublicWebDirty) {
         // Best-effort flush. Firestore may not finish before the page is gone,
         // but trigger it anyway so the request goes out.
-        try { flushLazySave('beforeunload'); } catch (_) {}
+        if (hasUnsaved) {
+          try { flushLazySave('beforeunload'); } catch (_) {}
+        }
         ev.preventDefault();
         ev.returnValue = '';
       }
@@ -24771,6 +24817,7 @@
         RB_STATE.publicWebStyle = template;
       } catch (_) {}
       try { if (typeof markBuilderDirty === 'function') markBuilderDirty('public-web-style'); } catch (_) {}
+      try { if (typeof _markPublicWebDirty === 'function') _markPublicWebDirty(); } catch (_) {}
     }
     _syncLegacyExportInputs();
     renderExportFlowUI();
@@ -24784,6 +24831,7 @@
       RB_STATE.publicIncludeMode = mode;
     } catch (_) {}
     try { if (typeof markBuilderDirty === 'function') markBuilderDirty('public-include-mode'); } catch (_) {}
+    try { if (typeof _markPublicWebDirty === 'function') _markPublicWebDirty(); } catch (_) {}
     // Keep radios + card visuals + preview shell in sync regardless of how
     // the mode was changed (click, keyboard, programmatic call, hydration).
     try { _syncPublicIncludeRadios(mode); } catch (_) {}
@@ -24855,6 +24903,7 @@
     try { _syncLegacyExportInputs(); } catch (_) {}
     try { if (typeof markBuilderDirty === 'function') markBuilderDirty('export-color'); } catch (_) {}
     if (window.RB_EXPORT_FLOW.target === 'publicWeb') {
+      try { if (typeof _markPublicWebDirty === 'function') _markPublicWebDirty(); } catch (_) {}
       try { _renderPublicWebPreview(); } catch (_) {}
     } else {
       try { renderSelectedExportPreview(); } catch (_) {}
@@ -24930,6 +24979,7 @@
         if (pwShell) { pwShell.hidden = false; pwShell.style.display = ''; }
       } catch (_) {}
       try { _renderPublicWebPreview(); } catch (_) {}
+      try { if (typeof _updatePublishButtonLabel === 'function') _updatePublishButtonLabel(); } catch (_) {}
       return;
     }
 
@@ -24948,7 +24998,9 @@
         var colorRowCV = document.getElementById('export-color-row');
         if (colorRowCV) colorRowCV.style.display = 'none';
         _renderCoverLetterActions();
-        try { renderSelectedExportPreview(); } catch (_) {}
+        // Cover Letter target uses a readable letter-styled card instead of
+        // the document/iframe preview pipeline (which has no template for it).
+        try { _renderCoverLetterPreview(); } catch (_) {}
         try { updatePublicWebStyleNote(); } catch (_) {}
         return;
       }
@@ -25076,6 +25128,184 @@
     if (typeof cv.body === 'string' && cv.body.trim()) return true;
     return false;
   }
+
+  // ---- Public Web Page dirty tracking + leave-guard ----------------------
+  // Tracks whether the user has changed Public Web preferences (style /
+  // include mode / color) AFTER the resume was already published. When
+  // that's true, the Publish button morphs into "Save Changes" and any
+  // attempt to leave the Export step / unload the tab triggers a guard
+  // modal (or the native beforeunload prompt for tab close).
+  function _isPublicWebPublished() {
+    return !!(window.RB_STATE && (RB_STATE.publishedUrl || RB_STATE.shareUrl || RB_STATE.publishedSlug));
+  }
+  function _isPublicWebDirty() {
+    return !!(window.RB_STATE && RB_STATE._publicWebDirtySincePublish);
+  }
+  function _markPublicWebDirty() {
+    if (!_isPublicWebPublished()) return;
+    try {
+      window.RB_STATE = window.RB_STATE || {};
+      RB_STATE._publicWebDirtySincePublish = true;
+    } catch (_) {}
+    try { _updatePublishButtonLabel(); } catch (_) {}
+  }
+  function _clearPublicWebDirty() {
+    try {
+      window.RB_STATE = window.RB_STATE || {};
+      RB_STATE._publicWebDirtySincePublish = false;
+    } catch (_) {}
+    try { _updatePublishButtonLabel(); } catch (_) {}
+  }
+  function _updatePublishButtonLabel() {
+    var btn = document.getElementById('publish-btn');
+    if (!btn) return;
+    if (btn.disabled) return; // currently mid-publish; don't clobber spinner.
+    var dirty = _isPublicWebPublished() && _isPublicWebDirty();
+    if (dirty) {
+      btn.classList.add('is-dirty');
+      btn.innerHTML = '<i data-lucide="save" style="width:16px;height:16px;"></i> Save Changes';
+      try { btn.setAttribute('aria-label', 'Save changes to your published web page'); } catch (_) {}
+    } else {
+      btn.classList.remove('is-dirty');
+      btn.innerHTML = '<i data-lucide="share-2" style="width:16px;height:16px;"></i> Publish Share Link';
+      try { btn.setAttribute('aria-label', 'Publish share link'); } catch (_) {}
+    }
+    try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
+  }
+  try {
+    window._isPublicWebDirty         = _isPublicWebDirty;
+    window._markPublicWebDirty       = _markPublicWebDirty;
+    window._clearPublicWebDirty      = _clearPublicWebDirty;
+    window._updatePublishButtonLabel = _updatePublishButtonLabel;
+  } catch (_) {}
+
+  // Leave-guard modal. onProceed is called when the user opts to leave
+  // (after a successful publish, or after discarding). onCancel is called
+  // if the user dismisses the modal.
+  function _confirmLeavePublicWebDirty(onProceed, onCancel) {
+    onProceed = typeof onProceed === 'function' ? onProceed : function () {};
+    onCancel  = typeof onCancel  === 'function' ? onCancel  : function () {};
+    var existing = document.getElementById('pw-leave-modal-backdrop');
+    if (existing) { try { existing.remove(); } catch (_) {} }
+
+    var backdrop = document.createElement('div');
+    backdrop.id = 'pw-leave-modal-backdrop';
+    backdrop.className = 'pw-leave-modal-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-labelledby', 'pw-leave-modal-title');
+    backdrop.innerHTML =
+      '<div class="pw-leave-modal">' +
+        '<h3 id="pw-leave-modal-title">Unsaved Public Web Page changes</h3>' +
+        '<p>You changed your published web page settings (style, content, or color) but haven\u2019t saved them yet. ' +
+          'Save and re-publish so your live link reflects the latest preferences?</p>' +
+        '<div class="pw-leave-modal-actions">' +
+          '<button type="button" class="btn btn-ghost"      data-pw-leave="cancel">Cancel</button>' +
+          '<button type="button" class="btn btn-secondary"  data-pw-leave="discard">Discard Changes</button>' +
+          '<button type="button" class="btn btn-publish"    data-pw-leave="save">Save &amp; Publish</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(backdrop);
+
+    function close() {
+      try { backdrop.remove(); } catch (_) {}
+      try { document.removeEventListener('keydown', onKey, true); } catch (_) {}
+    }
+    function onKey(ev) {
+      if (ev.key === 'Escape') { ev.preventDefault(); close(); onCancel(); }
+    }
+    document.addEventListener('keydown', onKey, true);
+
+    backdrop.addEventListener('click', function (ev) {
+      if (ev.target === backdrop) { close(); onCancel(); }
+    });
+    backdrop.querySelectorAll('[data-pw-leave]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var act = b.getAttribute('data-pw-leave');
+        if (act === 'cancel')  { close(); onCancel(); return; }
+        if (act === 'discard') { _clearPublicWebDirty(); close(); onProceed(); return; }
+        if (act === 'save') {
+          backdrop.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+          Promise.resolve(
+            (typeof publishShareLink === 'function') ? publishShareLink() : null
+          ).then(function () {
+            close();
+            onProceed();
+          }).catch(function () {
+            close();
+            onCancel();
+          });
+        }
+      });
+    });
+  }
+  try { window._confirmLeavePublicWebDirty = _confirmLeavePublicWebDirty; } catch (_) {}
+
+  // ---- Cover Letter readable preview (letter-styled card) ----------------
+  // Renders the generated cover letter directly into #preview-container-export
+  // so the user can read the letter on the Cover Letter target screen. No
+  // PDF iframe / template engine -- just clean, readable typography.
+  function _cvEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function _renderCoverLetterPreview() {
+    var host = document.getElementById('preview-container-export');
+    if (!host) return;
+    // Reset any preview-format class set by the resume/role-plan path so our
+    // card layout isn't constrained by document-mode CSS rules.
+    try { host.className = ''; } catch (_) {}
+
+    if (!_coverLetterHasContent()) {
+      host.innerHTML =
+        '<div id="preview-empty-state" class="preview-empty" style="padding:2.5rem 1rem;">' +
+          '<p style="margin:0;color:#64748B;font-size:.95rem;line-height:1.5;text-align:center;">' +
+            'Generate a cover letter from the Optimize step to preview it here.' +
+          '</p>' +
+        '</div>';
+      return;
+    }
+
+    var cv = (window.RB_STATE && (RB_STATE.coverLetter || RB_STATE.cvDraft)) || {};
+    var heading = String(cv.heading || '').trim();
+    var opening = String(cv.opening || '').trim();
+    var closing = String(cv.closing || '').trim();
+    var body = Array.isArray(cv.body)
+      ? cv.body.map(function (p) { return String(p == null ? '' : p).trim(); }).filter(Boolean)
+      : (typeof cv.body === 'string'
+          ? cv.body.split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean)
+          : []);
+
+    var paraStyle = 'margin:0 0 1.05rem;font-family:Georgia,"Times New Roman",serif;font-size:15px;line-height:1.65;color:#1f2937;white-space:pre-wrap;';
+    var html = '';
+    html += '<div class="cv-letter-preview-wrap" style="padding:1.25rem .75rem 2rem;display:flex;justify-content:center;background:transparent;">';
+    html +=   '<article class="cv-letter-card" style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 4px 18px rgba(15,23,42,.06);max-width:720px;width:100%;padding:2.5rem clamp(1.25rem, 4vw, 3rem);">';
+
+    if (heading) {
+      html += '<header style="' + paraStyle +
+        'border-bottom:1px solid #e5e7eb;padding-bottom:1.1rem;margin-bottom:1.6rem;color:#0f172a;">' +
+        _cvEsc(heading) + '</header>';
+    }
+    if (opening) {
+      html += '<p style="' + paraStyle + '">' + _cvEsc(opening) + '</p>';
+    }
+    body.forEach(function (p) {
+      html += '<p style="' + paraStyle + '">' + _cvEsc(p) + '</p>';
+    });
+    if (closing) {
+      html += '<p style="' + paraStyle + 'margin-top:1.5rem;">' + _cvEsc(closing) + '</p>';
+    }
+
+    html +=   '</article>';
+    html += '</div>';
+
+    host.innerHTML = html;
+  }
+  try { window._renderCoverLetterPreview = _renderCoverLetterPreview; } catch (_) {}
+
   function _renderCoverLetterActions() {
     var host = document.getElementById('export-download-actions');
     if (!host) return;
