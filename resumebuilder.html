@@ -22207,12 +22207,21 @@
           }
         }
         if (savedPublicColor) {
+          // Public Web color is the canonical source for public-web export;
+          // overwrite the public-* fields directly so a stale resume color
+          // can't shadow the saved selection.
           RB_STATE.publicWebColorKey = savedPublicColor;
           RB_STATE.publicColorKey    = savedPublicColor;
-          RB_STATE.exportColor       = RB_STATE.exportColor || savedPublicColor;
-          RB_STATE.selectedColor     = RB_STATE.selectedColor || savedPublicColor;
           RB_EXPORT_FLOW.publicColorKey = savedPublicColor;
-          RB_EXPORT_FLOW.colorKey       = RB_EXPORT_FLOW.colorKey || savedPublicColor;
+          if (RB_EXPORT_FLOW.target === 'publicWeb') {
+            RB_STATE.exportColor   = savedPublicColor;
+            RB_STATE.selectedColor = savedPublicColor;
+            RB_EXPORT_FLOW.colorKey = savedPublicColor;
+          } else {
+            RB_STATE.exportColor   = RB_STATE.exportColor   || savedPublicColor;
+            RB_STATE.selectedColor = RB_STATE.selectedColor || savedPublicColor;
+            RB_EXPORT_FLOW.colorKey = RB_EXPORT_FLOW.colorKey || savedPublicColor;
+          }
         }
         if (typeof syncExportColorSwatches === 'function' && (savedPublicColor || RB_STATE.exportColor)) {
           try { syncExportColorSwatches(savedPublicColor || RB_STATE.exportColor); } catch (_) {}
@@ -24589,18 +24598,32 @@
   function getCurrentExportColorKey() {
     var flow  = window.RB_EXPORT_FLOW || {};
     var state = window.RB_STATE       || {};
+    var target = flow.target || '';
     var fromSwatch = '';
     try {
       var sel = document.querySelector('.swatch.selected, [data-color].is-active, [data-color].active');
       fromSwatch = sel ? (sel.getAttribute('data-color') || '') : '';
     } catch (_) {}
+
+    if (target === 'publicWeb') {
+      return (
+        flow.publicColorKey ||
+        state.publicWebColorKey ||
+        state.publicColorKey ||
+        flow.colorKey ||
+        state.exportColor ||
+        state.selectedColor ||
+        fromSwatch ||
+        'blue'
+      );
+    }
     return (
       flow.colorKey ||
-      flow.publicColorKey ||
       state.exportColor ||
+      state.selectedColor ||
+      flow.publicColorKey ||
       state.publicWebColorKey ||
       state.publicColorKey ||
-      state.selectedColor ||
       fromSwatch ||
       'blue'
     );
@@ -24611,6 +24634,9 @@
       document.querySelectorAll('.swatch[data-color], [data-color]').forEach(function (el) {
         var isActive = el.getAttribute('data-color') === colorKey;
         el.classList.toggle('selected', isActive);
+        el.classList.toggle('active', isActive);
+        el.classList.toggle('is-active', isActive);
+        try { el.setAttribute('aria-pressed', isActive ? 'true' : 'false'); } catch (_) {}
       });
     } catch (_) {}
   }
@@ -24866,6 +24892,18 @@
     }
     pkg.style.template    = webStyle;
     pkg.style.publicStyle = webStyle;
+
+    // Carry the Public Web color onto the package so _renderPublicWebPreview
+    // and view.html consumers can read pkg.style.color directly without
+    // re-deriving it from RB_STATE.
+    try {
+      var publicColor = (typeof getCurrentExportColorKey === 'function')
+        ? getCurrentExportColorKey()
+        : ((window.RB_STATE && (RB_STATE.publicWebColorKey || RB_STATE.publicColorKey || RB_STATE.exportColor)) || 'blue');
+      pkg.style.color          = publicColor;
+      pkg.style.colorKey       = publicColor;
+      pkg.style.publicColorKey = publicColor;
+    } catch (_) {}
 
     // Hard-prune unselected document content so renderers cannot fall back
     // to RB_STATE / pkg.documents and accidentally include omitted content.
