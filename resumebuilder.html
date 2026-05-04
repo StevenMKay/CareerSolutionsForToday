@@ -16821,8 +16821,15 @@
 
   function _getPdfSafeBudget(rawBudget, options) {
     options = options || {};
+    var format = String(options.format || '').toLowerCase();
     var safety = Number(options.safetyPx);
-    if (!isFinite(safety) || safety < 0) safety = RB_DOC_PAGE_SAFETY_PX;
+    if (!isFinite(safety) || safety < 0) {
+      // Word/DOCX live preview is HTML only; it never goes through the
+      // Puppeteer/print pipeline that needs the larger safety strip. Use
+      // a smaller safety so "Professional Experience heading + first job"
+      // can fit on page 1 instead of being stranded after Core Skills.
+      safety = (format === 'docx' || format === 'doc') ? 18 : RB_DOC_PAGE_SAFETY_PX;
+    }
     var budget = Math.floor((Number(rawBudget) || 0) - safety);
     return budget < 50 ? 50 : budget;
   }
@@ -16876,6 +16883,43 @@
     var blocks = Array.prototype.slice.call(inner.children);
     if (!blocks.length) return [pageEl.outerHTML];
 
+    // Pre-split multi-item, non-keep-together sections (Professional
+    // Experience, Projects, Volunteer, etc.) into per-item virtual blocks.
+    // Without this, an entire section is treated as one indivisible block;
+    // when the remaining page budget after Core Skills can't host the full
+    // section, the whole thing is dumped onto page 2 -- producing the
+    // visible blank gap at the bottom of page 1 in Word preview.
+    function _splitSectionToItemBlocks(sectionEl) {
+      var titleEl = sectionEl.querySelector(':scope > .rb-doc-section-title');
+      var titleHTML = titleEl ? titleEl.outerHTML : '';
+      var openMatch = sectionEl.outerHTML.match(/^<[^>]+>/);
+      var openTag = openMatch ? openMatch[0] : '<section class="rb-doc-section">';
+      var closeTag = '</' + sectionEl.tagName.toLowerCase() + '>';
+      var items = Array.prototype.slice.call(
+        sectionEl.querySelectorAll(':scope > .rb-doc-item, :scope > article.rb-doc-item')
+      );
+      if (items.length < 2) return null;
+      return items.map(function (item, index) {
+        return openTag + (index === 0 ? titleHTML : '') + item.outerHTML + closeTag;
+      });
+    }
+
+    var expandedBlocks = [];
+    blocks.forEach(function (block) {
+      var isSection = block.classList && block.classList.contains('rb-doc-section');
+      if (isSection && !_isKeepTogetherSection(block)) {
+        var parts = _splitSectionToItemBlocks(block);
+        if (parts && parts.length) {
+          parts.forEach(function (h) {
+            expandedBlocks.push({ __html: h, __isSplitItem: true });
+          });
+          return;
+        }
+      }
+      expandedBlocks.push(block);
+    });
+    blocks = expandedBlocks;
+
     // First fast path: if everything already fits, no work needed.
     if (Math.ceil(inner.scrollHeight) <= budget) {
       return [pageEl.outerHTML];
@@ -16926,14 +16970,23 @@
       return h;
     }
 
+    function measurePageHtml(htmls) {
+      return blockHeight(htmls.join(''));
+    }
+
     blocks.forEach(function (block) {
-      var html = block.outerHTML;
+      var isVirtual = !!(block && block.__html);
+      var html = isVirtual ? block.__html : block.outerHTML;
+      var realIsSection = !isVirtual && block.classList &&
+        block.classList.contains('rb-doc-section');
+      var isKeepTogether = !isVirtual && _isKeepTogetherSection(block);
       var h = blockHeight(html);
+
       // Phase E.1 -- keep-together small sections (Education / Certifications /
       // Achievements) never split. They DO share pages with each other and
       // with normal sections. Only flush the page if this whole section
       // does not fit in the remaining space.
-      if (current.length && _isKeepTogetherSection(block)) {
+      if (current.length && isKeepTogether) {
         var remainingKT = budget - currentH;
         if (h <= budget && h > remainingKT) {
           pushPage(pageHTMLs.length > 0);
@@ -16942,10 +16995,18 @@
           return;
         }
       }
-      if (currentH + h <= budget || !current.length) {
+
+      // Decide based on the FULL candidate page height, not the running
+      // sum. Block-by-block sums undercount margin/grid interactions, so
+      // pages can end up over budget (or, more often here, the paginator
+      // bails on a section that would actually fit).
+      var candidate = current.concat([html]);
+      var candidateH = current.length ? measurePageHtml(candidate) : h;
+
+      if (candidateH <= budget || !current.length) {
         current.push(html);
-        currentH += h;
-      } else if (block.classList && block.classList.contains('rb-doc-section')) {
+        currentH = candidateH;
+      } else if (realIsSection) {
         // Try to split this section across pages.
         var remaining = budget - currentH;
         // Phase D+++ -- if the leftover space is too small to host a useful
@@ -25014,6 +25075,44 @@
       ok: pages.length > 0 && pages.every(function (p) { return !p.overflow; }),
       pageCount: pages.length,
       pages: pages
+    };
+  };
+
+  // Inspects the live Word/DOCX preview iframe to verify that page 1
+  // includes Core Skills AND Professional Experience after the
+  // pre-split + candidate-measure pagination patches. ok===true when
+  // the first page contains both, no .rb-doc-page-inner is overflowing,
+  // and the first experience role is not stranded on page 2.
+  window.debugWordPreviewPagination = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { ok: false, error: 'No preview document' };
+    var pages = Array.prototype.slice.call(doc.querySelectorAll('.rb-doc-page'));
+    var report = pages.map(function (page, index) {
+      var text = (page.textContent || '').replace(/\s+/g, ' ').trim();
+      var inner = page.querySelector('.rb-doc-page-inner');
+      var ch = inner ? inner.clientHeight : null;
+      var sh = inner ? inner.scrollHeight : null;
+      return {
+        page: index + 1,
+        hasSkills: /CORE SKILLS|KEY SKILLS/i.test(text),
+        hasExperienceHeading: /PROFESSIONAL EXPERIENCE/i.test(text),
+        hasExperienceItem: !!page.querySelector('article.rb-doc-item[data-block="experienceItem"], section[data-block="experience"] article.rb-doc-item'),
+        charCount: text.length,
+        innerClientHeight: ch,
+        innerScrollHeight: sh,
+        hasOverflow: (ch != null && sh != null) ? sh > ch + 2 : null,
+        tail: text.slice(-240)
+      };
+    });
+    var page1 = report[0] || null;
+    return {
+      ok: !!(page1 && page1.hasSkills && page1.hasExperienceHeading &&
+             page1.hasExperienceItem && page1.hasOverflow !== true),
+      pageCount: report.length,
+      bodyClass: doc.body ? doc.body.className : '',
+      pages: report
     };
   };
 
