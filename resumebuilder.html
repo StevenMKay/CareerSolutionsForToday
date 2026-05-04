@@ -3069,6 +3069,62 @@
   }
 
   /* ============================================================
+     PHASE C: Reusable AI Task Loader
+     Generic full-screen loader for parse / research / cover letter
+     / role plan AI runs. Optimize keeps its existing dedicated
+     modal; this loader is suppressed while the optimize modal is
+     visible (stacking guard).
+     ============================================================ */
+  #ai-task-loader {
+    position: fixed; inset: 0; z-index: 10040;
+    background: radial-gradient(ellipse at center, rgba(15, 23, 42, .82), rgba(2, 6, 23, .94));
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  #ai-task-loader[hidden] { display: none; }
+  .ai-loader-card {
+    width: 100%; max-width: 380px;
+    background: linear-gradient(160deg, rgba(15,23,42,.96), rgba(30,41,59,.96));
+    border: 1px solid rgba(99, 102, 241, .35);
+    border-radius: 18px;
+    padding: 24px 22px;
+    color: #E2E8F0; text-align: center;
+    box-shadow: 0 24px 60px -16px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.03) inset;
+  }
+  .ai-loader-ring {
+    width: 56px; height: 56px; margin: 0 auto 14px; position: relative;
+  }
+  .ai-loader-ring::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    border: 3px solid rgba(99, 102, 241, .18);
+  }
+  .ai-loader-ring::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #818CF8;
+    border-right-color: rgba(167, 139, 250, .6);
+    animation: optGradientSpin .9s linear infinite;
+  }
+  .ai-loader-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem; font-weight: 700; letter-spacing: .01em;
+    color: #F1F5F9; margin: 0 0 4px;
+  }
+  .ai-loader-subtitle {
+    font-size: .85rem; color: #94A3B8; margin: 0 0 12px;
+  }
+  .ai-loader-bar {
+    position: relative; height: 4px; border-radius: 999px;
+    background: rgba(99, 102, 241, .15); overflow: hidden;
+  }
+  .ai-loader-bar::after {
+    content: ""; position: absolute; top: 0; bottom: 0; width: 40%;
+    background: linear-gradient(90deg, transparent, #818CF8, transparent);
+    animation: optBarSweep 1.4s linear infinite;
+  }
+
+  /* ============================================================
      FIRST-TIME WALKTHROUGH (RB Tour)
      Lightweight onboarding for new users — animated spotlight +
      tooltip card. Triggered automatically once per signed-in user
@@ -3500,6 +3556,16 @@
       <li data-step="3" class="opt-pending"><span class="opt-dot">3</span>Drafting improvements</li>
       <li data-step="4" class="opt-pending"><span class="opt-dot">4</span>Validating each change raises the score</li>
     </ul>
+  </div>
+</div>
+
+<!-- ====== Reusable AI Task Loader (parse / research / cover letter / role plan) ====== -->
+<div id="ai-task-loader" hidden role="dialog" aria-modal="true" aria-labelledby="ai-task-loader-title" aria-busy="true">
+  <div class="ai-loader-card">
+    <div class="ai-loader-ring" aria-hidden="true"></div>
+    <h3 class="ai-loader-title" id="ai-task-loader-title">Working on it…</h3>
+    <p class="ai-loader-subtitle" id="ai-task-loader-subtitle">This usually takes a few seconds.</p>
+    <div class="ai-loader-bar" aria-hidden="true"></div>
   </div>
 </div>
 
@@ -4388,6 +4454,21 @@
               </label>
             </div>
             <div id="public-web-style-panel" class="export-template-panel" style="margin-bottom:1rem;"></div>
+            <div id="public-web-color-row" class="export-color-row">
+              <label class="field-label">Color</label>
+              <div class="swatch-row">
+                <span class="swatch swatch-blue selected" data-color="blue"     title="Blue"></span>
+                <span class="swatch swatch-navy"          data-color="navy"     title="Navy"></span>
+                <span class="swatch swatch-purple"        data-color="purple"   title="Purple"></span>
+                <span class="swatch swatch-emerald"       data-color="emerald"  title="Emerald"></span>
+                <span class="swatch swatch-teal"          data-color="teal"     title="Teal"></span>
+                <span class="swatch swatch-slate"         data-color="slate"    title="Slate"></span>
+                <span class="swatch swatch-charcoal"      data-color="charcoal" title="Charcoal"></span>
+                <span class="swatch swatch-amber"         data-color="amber"    title="Amber"></span>
+                <span class="swatch swatch-rose"          data-color="rose"     title="Rose"></span>
+                <span class="swatch swatch-burgundy"      data-color="burgundy" title="Burgundy"></span>
+              </div>
+            </div>
             <div class="public-web-actions">
               <button type="button" class="btn btn-secondary" id="preview-public-web-btn" hidden tabindex="-1" aria-hidden="true" style="display:none !important;">Preview Web Page</button>
               <button id="publish-btn" type="button" class="btn btn-publish" data-action="publishShareLink">
@@ -5575,13 +5656,23 @@
     });
     document.querySelectorAll('.swatch').forEach(function (sw) {
       sw.addEventListener('click', function () {
-        document.querySelectorAll('.swatch').forEach(function (s) { s.classList.remove('selected'); });
-        sw.classList.add('selected');
         var colorKey = sw.getAttribute('data-color') || 'blue';
-        try { window.RB_STATE = window.RB_STATE || {}; RB_STATE.selectedColor = colorKey; } catch (_) {}
+        // Sync `.selected` across all swatch rows so the document-step
+        // and the public-web-step swatches stay in lock-step.
+        document.querySelectorAll('.swatch').forEach(function (s) {
+          s.classList.toggle('selected', s.getAttribute('data-color') === colorKey);
+        });
+        try { window.RB_STATE = window.RB_STATE || {}; RB_STATE.selectedColor = colorKey; RB_STATE.exportColor = colorKey; } catch (_) {}
         try { applyStyleCardPreviewColor(colorKey); } catch (_) {}
         try { if (typeof markBuilderDirty === 'function') markBuilderDirty('color-change'); } catch (_) {}
         try { maybeRefreshPreview(); } catch (_) {}
+        // Phase B: refresh public-web preview live when in that branch.
+        try {
+          var flow = window.RB_EXPORT_FLOW;
+          if (flow && flow.target === 'publicWeb' && typeof _renderPublicWebPreview === 'function') {
+            _renderPublicWebPreview();
+          }
+        } catch (_) {}
       });
     });
     document.querySelectorAll('.preview-toggle button').forEach(function (b) {
@@ -7115,11 +7206,65 @@
     });
   }
 
+  // ---- Phase C: Reusable AI Task Loader ------------------------------------
+  // Generic full-screen loader for parse / research / cover letter / role
+  // plan AI runs. Optimize keeps its dedicated modal — this loader checks
+  // for an open optimize modal and bails out (stacking guard) so the two
+  // never overlap. Always pair show*/hide* via try/finally.
+  var _aiLoaderRefCount = 0;
+  function _isOptimizeModalOpen() {
+    try {
+      var m = document.getElementById('optimize-progress-modal');
+      return !!(m && !m.hidden);
+    } catch (_) { return false; }
+  }
+  function showAiTaskLoader(opts) {
+    opts = opts || {};
+    if (_isOptimizeModalOpen()) return; // stacking guard
+    var modal = document.getElementById('ai-task-loader');
+    if (!modal) return;
+    var titleEl = document.getElementById('ai-task-loader-title');
+    var subEl   = document.getElementById('ai-task-loader-subtitle');
+    if (titleEl) titleEl.textContent = opts.title    || 'Working on it\u2026';
+    if (subEl)   subEl.textContent   = opts.subtitle || 'This usually takes a few seconds.';
+    _aiLoaderRefCount++;
+    modal.hidden = false;
+  }
+  function hideAiTaskLoader() {
+    if (_aiLoaderRefCount > 0) _aiLoaderRefCount--;
+    if (_aiLoaderRefCount > 0) return;
+    var modal = document.getElementById('ai-task-loader');
+    if (modal) modal.hidden = true;
+  }
+  // Promise-friendly wrapper: closes the loader in the finally branch even
+  // if the wrapped function throws synchronously or rejects.
+  function withAiTaskLoader(opts, fn) {
+    showAiTaskLoader(opts);
+    try {
+      var result = fn();
+      if (result && typeof result.then === 'function') {
+        return result.then(function (v) { hideAiTaskLoader(); return v; },
+                           function (e) { hideAiTaskLoader(); throw e; });
+      }
+      hideAiTaskLoader();
+      return result;
+    } catch (e) {
+      hideAiTaskLoader();
+      throw e;
+    }
+  }
+  try {
+    window.showAiTaskLoader   = showAiTaskLoader;
+    window.hideAiTaskLoader   = hideAiTaskLoader;
+    window.withAiTaskLoader   = withAiTaskLoader;
+  } catch (_) {}
+
   function runResumeExtractionFromFile(file) {
     if (_extractionInFlight) return Promise.resolve();
     var v = validateResumeFile(file);
     if (!v.ok) { showToast(v.message, 'warning'); return Promise.resolve(); }
     _extractionInFlight = true;
+    showAiTaskLoader({ title: 'Reading your resume\u2026', subtitle: 'Extracting your name, experience, and skills.' });
 
     var endpoint = getResumeExtractionEndpoint();
     RB_STATE.extractionEndpoint = endpoint;
@@ -7148,6 +7293,7 @@
       showToast('Extraction failed: ' + (err && err.message || err), 'error');
     }).then(function () {
       _extractionInFlight = false;
+      hideAiTaskLoader();
     });
   }
 
@@ -7155,6 +7301,7 @@
     if (_extractionInFlight) return Promise.resolve();
     if (!text) { showToast('Upload a resume file or paste resume text first.', 'warning'); return Promise.resolve(); }
     _extractionInFlight = true;
+    showAiTaskLoader({ title: 'Reading your resume\u2026', subtitle: 'Extracting your name, experience, and skills.' });
     var endpoint = getResumeExtractionEndpoint();
     RB_STATE.extractionEndpoint = endpoint;
     setExtractionStatus('loading', 'Extracting resume details\u2026');
@@ -7186,6 +7333,7 @@
       showToast('Extraction failed: ' + (err && err.message || err), 'error');
     }).then(function () {
       _extractionInFlight = false;
+      hideAiTaskLoader();
     });
   }
 
@@ -7578,6 +7726,9 @@
     var statusEl = document.getElementById('role-research-status');
     if (statusEl) statusEl.textContent = 'Researching role\u2026';
     updateAIReadinessUI();
+    if (!opts.auto) {
+      showAiTaskLoader({ title: 'Researching the role\u2026', subtitle: 'Pulling responsibilities, keywords, and likely interview themes.' });
+    }
     getAuthHeaders().then(function (headers) {
       headers['Content-Type'] = 'application/json';
       return fetch(BUILDER_API_BASE + '/builder/research-role', {
@@ -7614,6 +7765,7 @@
       if (!opts.auto) showToast(msg, 'error');
     }).then(function () {
       RB_STATE._roleResearchInFlight = false;
+      if (!opts.auto) hideAiTaskLoader();
       updateAIReadinessUI();
     });
   }
@@ -7917,8 +8069,7 @@
     var file = getSelectedResumeFile();
     if (!file) { showToast('Please choose a resume file first.', 'warning'); return; }
     runResumeExtractionFromFile(file);
-  }
-  // Bind drag-and-drop on the Import Resume upload box. Reuses the same
+  }  // Bind drag-and-drop on the Import Resume upload box. Reuses the same
   // validation and the existing parseResumeFile() pipeline; does NOT
   // duplicate parsing logic.
   function wireResumeDropZone() {
@@ -9960,6 +10111,7 @@
     RB_STATE._cvInFlight = true;
     if (btn) btn.disabled = true;
     if (statusEl) statusEl.textContent = 'Generating cover letter…';
+    showAiTaskLoader({ title: 'Drafting your cover letter\u2026', subtitle: 'Tailoring tone and key proof points to this role.' });
     getTargetRoleFromDOM();
     var u = auth && auth.currentUser;
     getAuthHeaders().then(function (headers) {
@@ -10004,6 +10156,7 @@
     }).then(function () {
       RB_STATE._cvInFlight = false;
       if (btn) btn.disabled = false;
+      hideAiTaskLoader();
       updateAIReadinessUI();
     });
   }
@@ -10021,6 +10174,7 @@
     RB_STATE._planInFlight = true;
     if (btn) btn.disabled = true;
     if (statusEl) statusEl.textContent = 'Generating ' + planTypeApi + ' plan…';
+    showAiTaskLoader({ title: 'Building your ' + planTypeApi + ' plan\u2026', subtitle: 'Drafting phases, KPIs, and success criteria.' });
     getTargetRoleFromDOM();
     var payload = {
       resume_data: stripPlanKeysFromResumeData(RB_STATE.resumeData || {}),
@@ -10084,6 +10238,7 @@
     }).then(function () {
       RB_STATE._planInFlight = false;
       if (btn) btn.disabled = false;
+      hideAiTaskLoader();
       updateAIReadinessUI();
     });
   }
@@ -14198,6 +14353,47 @@
       '  color: #1f2937;',
       '}',
 
+      '/* Phase A polish — column / grouped Key Skills layout. */',
+      '.rb-pdf-safe-page .rb-doc-skills-section { margin-bottom: 7pt; }',
+      '.rb-pdf-safe-page .rb-doc-skill-columns {',
+      '  display: grid;',
+      '  gap: 4pt 14pt;',
+      '  align-items: start;',
+      '}',
+      '.rb-pdf-safe-page .rb-doc-skill-columns-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }',
+      '.rb-pdf-safe-page .rb-doc-skill-columns-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }',
+      '.rb-pdf-safe-page .rb-doc-skill-col,',
+      '.rb-pdf-safe-page .rb-doc-skill-group-list {',
+      '  margin: 0; padding-left: 12pt; list-style: disc;',
+      '}',
+      '.rb-pdf-safe-page .rb-doc-skill-col li,',
+      '.rb-pdf-safe-page .rb-doc-skill-group-list li {',
+      '  margin: 0 0 1.7pt; padding-left: 0;',
+      '  font-size: 8.8pt; line-height: 1.24; color: #1f2937;',
+      '}',
+      '.rb-pdf-safe-page .rb-doc-skill-groups {',
+      '  display: grid;',
+      '  grid-template-columns: repeat(2, minmax(0, 1fr));',
+      '  gap: 5pt 14pt;',
+      '}',
+      '.rb-pdf-safe-page .rb-doc-skill-group {',
+      '  break-inside: avoid; page-break-inside: avoid;',
+      '}',
+      '.rb-pdf-safe-page .rb-doc-skill-group-title {',
+      '  margin: 0 0 2pt; font-size: 8.4pt; line-height: 1.1; font-weight: 800;',
+      '  color: var(--rb-doc-accent);',
+      '  text-transform: uppercase; letter-spacing: .045em;',
+      '  border: 0; padding: 0;',
+      '}',
+      'body.template-pdf-classic-ats .rb-pdf-safe-page .rb-doc-skill-group-title { color: #111827; }',
+      'body.template-pdf-compact .rb-pdf-safe-page .rb-doc-skill-col li,',
+      'body.template-pdf-compact .rb-pdf-safe-page .rb-doc-skill-group-list li {',
+      '  font-size: 8.3pt; line-height: 1.16; margin-bottom: 1.1pt;',
+      '}',
+      'body.template-pdf-modern-accent .rb-pdf-safe-page .rb-doc-skills-section {',
+      '  border-left: 2pt solid var(--rb-doc-accent); padding-left: 7pt;',
+      '}',
+
       '/* 1. Classic ATS */',
       'body.template-pdf-classic-ats .rb-pdf-safe-page { font-family: Arial, Calibri, sans-serif; }',
       'body.template-pdf-classic-ats .rb-doc-header { text-align: center; border-bottom-color: #9ca3af; }',
@@ -14268,19 +14464,154 @@
     }
     return out;
   }
-  function renderDocumentSkillsHTML(skills, settings, options) {
-    skills = Array.isArray(skills) ? skills.filter(Boolean) : [];
-    if (!skills.length) return '';
-    return '<section class="rb-doc-section" data-block="skills">' +
+
+  // ----- Document Skill Layout (Phase A polish) -----------------------------
+  // Replaces the old loose inline-bullet renderer with template-aware
+  // multi-column or grouped output. Public web profile + builder UI are NOT
+  // affected — these helpers are only used by the PDF-safe + DOCX paths.
+
+  function getDocumentSkillLayout(template, format) {
+    template = String(template || '').toLowerCase();
+    format = String(format || '').toLowerCase();
+    if (template === 'pdf-classic-ats')   return { mode: 'columns', columns: 3, showBullets: true };
+    if (template === 'pdf-executive')     return { mode: 'grouped', columns: 2, showGroupLabels: true };
+    if (template === 'pdf-modern-accent') return { mode: 'columns', columns: 2, showBullets: true, accentLeft: true };
+    if (template === 'pdf-compact')       return { mode: 'columns', columns: 3, showBullets: true, compact: true };
+    if (template === 'word-standard')     return { mode: 'columns', columns: 2, showBullets: true };
+    if (template === 'word-executive')    return { mode: 'grouped', columns: 2, showGroupLabels: true };
+    if (template === 'word-compact')      return { mode: 'columns', columns: 3, showBullets: true, compact: true };
+    return { mode: 'columns', columns: 2, showBullets: true };
+  }
+
+  function getWordSkillLayout(template) {
+    return getDocumentSkillLayout(template, 'docx');
+  }
+
+  function normalizeSkillList(skills) {
+    if (!Array.isArray(skills)) return [];
+    var seen = {};
+    return skills
+      .map(function (s) { return String(s == null ? '' : s).trim(); })
+      .filter(function (s) {
+        if (!s) return false;
+        var key = s.toLowerCase();
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+      });
+  }
+
+  function distributeIntoColumns(items, columnCount) {
+    items = Array.isArray(items) ? items : [];
+    columnCount = Math.max(1, Number(columnCount || 1));
+    var columns = [];
+    for (var c = 0; c < columnCount; c++) columns.push([]);
+    items.forEach(function (item, index) {
+      columns[index % columnCount].push(item);
+    });
+    return columns;
+  }
+
+  function inferSkillCategory(skill) {
+    var s = String(skill || '').toLowerCase();
+    var technical = [
+      'excel','powerpoint','sharepoint','sql','python','machine learning',
+      'artificial intelligence','ai','data','analytics','reporting',
+      'automation','website','web','microsoft','dashboard','visualization',
+      'modeling','algorithm','statistics','tableau','power bi'
+    ];
+    var leadership = [
+      'leadership','executive','presentation','relationship','management',
+      'market leadership','influence','stakeholder','strategy','strategic',
+      'mentor','coaching','vision','negotiation','communication'
+    ];
+    var operations = [
+      'risk','credit','fraud','root cause','training','process',
+      'operations','compliance','audit','okr','quality','controls',
+      'governance','project management','program management'
+    ];
+    if (technical.some(function (x) { return s.indexOf(x) !== -1; })) return 'Technical & Analytics';
+    if (leadership.some(function (x) { return s.indexOf(x) !== -1; })) return 'Leadership & Strategy';
+    if (operations.some(function (x) { return s.indexOf(x) !== -1; })) return 'Operations & Risk';
+    return 'Additional Strengths';
+  }
+
+  function groupSkillsForResume(skills) {
+    var list = normalizeSkillList(skills);
+    var groups = {};
+    list.forEach(function (skill) {
+      var name = inferSkillCategory(skill);
+      if (!groups[name]) groups[name] = [];
+      groups[name].push(skill);
+    });
+    var order = ['Leadership & Strategy','Technical & Analytics','Operations & Risk','Additional Strengths'];
+    return order
+      .filter(function (n) { return groups[n] && groups[n].length; })
+      .map(function (n) { return { name: n, skills: groups[n] }; });
+  }
+
+  // Shared HTML renderer used by both renderDocumentSkillsHTML and
+  // renderPdfSafeSkillsHTML. Returns a complete <section>…</section>.
+  function buildDocumentSkillsHTML(skills, opts) {
+    opts = opts || {};
+    var list = normalizeSkillList(skills);
+    if (!list.length) return '';
+    var template = opts.template ||
+      (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.template) ||
+      'pdf-modern-accent';
+    var format = opts.format ||
+      (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.format) ||
+      'pdf';
+    var layout = getDocumentSkillLayout(template, format);
+
+    if (layout.mode === 'grouped') {
+      var groups = groupSkillsForResume(list);
+      // Fallback: if categorization yields a single bucket of "Additional
+      // Strengths" (everything uncategorized), render flat columns instead
+      // so the user never sees a useless single-group label.
+      var onlyAdditional = groups.length === 1 && groups[0].name === 'Additional Strengths';
+      if (groups.length <= 1 && onlyAdditional) {
+        return _buildSkillColumnsHTML(list, { columns: layout.columns || 2 });
+      }
+      return '<section class="rb-doc-section rb-doc-skills-section rb-doc-skills-section--grouped" data-block="skills">' +
+        '<h2 class="rb-doc-section-title">Key Skills</h2>' +
+        '<div class="rb-doc-skill-groups">' +
+          groups.map(function (g) {
+            return '<div class="rb-doc-skill-group">' +
+              '<h3 class="rb-doc-skill-group-title">' + rbDocEscape(g.name) + '</h3>' +
+              '<ul class="rb-doc-skill-group-list">' +
+                g.skills.map(function (s) { return '<li>' + rbDocEscape(s) + '</li>'; }).join('') +
+              '</ul>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</section>';
+    }
+
+    return _buildSkillColumnsHTML(list, { columns: layout.columns || 2 });
+  }
+
+  function _buildSkillColumnsHTML(list, opts) {
+    var columns = distributeIntoColumns(list, (opts && opts.columns) || 2);
+    return '<section class="rb-doc-section rb-doc-skills-section" data-block="skills">' +
       '<h2 class="rb-doc-section-title">Key Skills</h2>' +
-      '<div class="rb-doc-skill-lines">' +
-        chunkSkillsForLines(skills, 4).map(function (row) {
-          return '<p class="rb-doc-skill-line">\u2022 ' +
-            row.map(rbDocEscape).join(' &nbsp;\u2022&nbsp; ') +
-          '</p>';
+      '<div class="rb-doc-skill-columns rb-doc-skill-columns-' + rbDocEscape(String((opts && opts.columns) || 2)) + '">' +
+        columns.map(function (col) {
+          return '<ul class="rb-doc-skill-col">' +
+            col.map(function (s) { return '<li>' + rbDocEscape(s) + '</li>'; }).join('') +
+          '</ul>';
         }).join('') +
       '</div>' +
     '</section>';
+  }
+  try { window.buildDocumentSkillsHTML = buildDocumentSkillsHTML; } catch (_) {}
+  try { window.normalizeSkillList = normalizeSkillList; } catch (_) {}
+  try { window.groupSkillsForResume = groupSkillsForResume; } catch (_) {}
+  try { window.getDocumentSkillLayout = getDocumentSkillLayout; } catch (_) {}
+  try { window.getWordSkillLayout = getWordSkillLayout; } catch (_) {}
+
+  function renderDocumentSkillsHTML(skills, settings, options) {
+    return buildDocumentSkillsHTML(skills, options || {});
   }
 
   function renderFixedResumeDocumentHTML(model, settings, pkg) {
@@ -14649,19 +14980,7 @@
   }
 
   function renderPdfSafeSkillsHTML(skills, settings, options) {
-    skills = Array.isArray(skills) ? skills.filter(Boolean) : [];
-    if (!skills.length) return '';
-
-    return '<section class="rb-doc-section" data-block="skills">' +
-      '<h2 class="rb-doc-section-title">Key Skills</h2>' +
-      '<div class="rb-doc-skill-lines">' +
-        chunkSkillsForLines(skills, 3).map(function (row) {
-          return '<p class="rb-doc-skill-line">• ' +
-            row.map(rbDocEscape).join(' &nbsp;•&nbsp; ') +
-          '</p>';
-        }).join('') +
-      '</div>' +
-    '</section>';
+    return buildDocumentSkillsHTML(skills, options || {});
   }
 
   function renderPdfSafeExperienceItemHTML(job, settings, options) {
@@ -18407,6 +18726,90 @@
     }
   }
 
+  // ---- DOCX skills helpers (Phase A polish) --------------------------------
+  // Replace the old single-line bullet-join with template-aware multi-column
+  // or grouped borderless tables so Word output matches the PDF polish.
+  function _docxBorderlessCell(paragraphs, kit, opts) {
+    opts = opts || {};
+    var none = { style: kit.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
+    var cellOpts = {
+      margins: { top: 30, bottom: 30, left: 0, right: 60 },
+      borders: { top: none, bottom: none, left: none, right: none },
+      children: (paragraphs && paragraphs.length) ? paragraphs : [kit.para('')]
+    };
+    if (opts.widthPct) {
+      cellOpts.width = { size: opts.widthPct, type: kit.WidthType.PERCENTAGE };
+    }
+    return new kit.TableCell(cellOpts);
+  }
+
+  function _buildDocxColumnSkillsTable(list, kit, layout) {
+    var cols = (typeof distributeIntoColumns === 'function')
+      ? distributeIntoColumns(list, layout.columns || 2)
+      : [list];
+    var widthPct = Math.max(1, Math.floor(100 / Math.max(1, cols.length)));
+    var cells = cols.map(function (col) {
+      var paragraphs = col.map(function (s) { return kit.bullet(s); });
+      return _docxBorderlessCell(paragraphs, kit, { widthPct: widthPct });
+    });
+    return new kit.Table({
+      width: { size: 100, type: kit.WidthType.PERCENTAGE },
+      rows: [ new kit.TableRow({ children: cells }) ]
+    });
+  }
+
+  function _buildDocxGroupedSkillsTable(groups, kit) {
+    var rows = [];
+    for (var i = 0; i < groups.length; i += 2) {
+      var pair = groups.slice(i, i + 2);
+      var cells = pair.map(function (g) {
+        var paragraphs = [
+          kit.para(String(g.name || '').toUpperCase(), {
+            bold: true, size: 18, color: kit.accent, after: 50
+          })
+        ];
+        (g.skills || []).forEach(function (s) { paragraphs.push(kit.bullet(s)); });
+        return _docxBorderlessCell(paragraphs, kit, { widthPct: 50 });
+      });
+      while (cells.length < 2) {
+        cells.push(_docxBorderlessCell([kit.para('')], kit, { widthPct: 50 }));
+      }
+      rows.push(new kit.TableRow({ children: cells }));
+    }
+    return new kit.Table({
+      width: { size: 100, type: kit.WidthType.PERCENTAGE },
+      rows: rows
+    });
+  }
+
+  function appendDocxSkillsSection(children, skills, kit, template) {
+    var list = (typeof normalizeSkillList === 'function')
+      ? normalizeSkillList(skills)
+      : (Array.isArray(skills) ? skills.filter(Boolean) : []);
+    if (!list.length) return;
+
+    var wordTemplate = (typeof getEffectiveWordPreviewTemplate === 'function')
+      ? getEffectiveWordPreviewTemplate(template)
+      : 'word-standard';
+    var layout = (typeof getWordSkillLayout === 'function')
+      ? getWordSkillLayout(wordTemplate)
+      : { mode: 'columns', columns: 2 };
+
+    children.push(kit.heading('Core Skills', { level: 2 }));
+
+    if (layout.mode === 'grouped' && typeof groupSkillsForResume === 'function') {
+      var groups = groupSkillsForResume(list);
+      var onlyAdditional = groups.length === 1 && groups[0].name === 'Additional Strengths';
+      if (groups.length && !onlyAdditional) {
+        children.push(_buildDocxGroupedSkillsTable(groups, kit));
+        return;
+      }
+      // Fall back to flat columns if categorization yields a single bucket.
+    }
+    children.push(_buildDocxColumnSkillsTable(list, kit, layout));
+  }
+  try { window.appendDocxSkillsSection = appendDocxSkillsSection; } catch (_) {}
+
   function addDocxResumeContentClassic(children, model, kit, styleOpts) {
     styleOpts = styleOpts || {};
     var r = model.resume || {};
@@ -18448,8 +18851,13 @@
     }
 
     if (r.skills && r.skills.length) {
-      children.push(kit.heading('Core Skills', { level: 2 }));
-      children.push(kit.para(r.skills.join(' \u2022 '), { after: 120 }));
+      // Phase A polish: layout-aware multi-column or grouped skills table
+      // (replaces the old loose " • "-joined single line).
+      try { appendDocxSkillsSection(children, r.skills, kit, model && model.template); }
+      catch (_) {
+        children.push(kit.heading('Core Skills', { level: 2 }));
+        children.push(kit.para(r.skills.join(' \u2022 '), { after: 120 }));
+      }
     }
 
     if (r.experience && r.experience.length) {
@@ -19516,6 +19924,17 @@
       if (colorMap[rawColor]) color = colorMap[rawColor];
       else if (typeof rawColor === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(rawColor)) color = rawColor;
       else color = colorMap.blue;
+      // Phase B: persist color KEY in addition to the resolved hex so
+      // view.html and any future renderer can re-resolve the palette.
+      // Stored at top-level AND mirrored into the generated payload so
+      // either branch resolves correctly.
+      var colorKey = (typeof rawColor === 'string' && /^[a-z]+$/i.test(rawColor) && colorMap[rawColor.toLowerCase()])
+        ? rawColor.toLowerCase()
+        : 'blue';
+      try {
+        generated.public_color_key = colorKey;
+        generated.colorKey = colorKey;
+      } catch (_) {}
 
       var heroForPayload = generated.hero || {};
       var canonicalPlanTypeForPayload = (typeof mapPlanTypeForApi === 'function')
@@ -19550,6 +19969,8 @@
         rolePlan: includePlanForPayload ? (RB_STATE.rolePlan || null) : null,
         style: styleToken,
         color: color,
+        publicColorKey: colorKey,
+        colorKey: colorKey,
         styleSettings: styleSettings,
         contactPhone: heroForPayload.phone || '',
         contactEmail: heroForPayload.email || '',
@@ -21298,7 +21719,15 @@
     } catch (_) {}
     if (data.styleSettings) {
       var style = data.styleSettings.style || 'modern-sidebar';
-      var color = data.styleSettings.color || 'blue';
+      // Phase B: prefer the most-specific saved color key, falling back
+      // through generated.* mirrors and the legacy styleSettings color.
+      var color =
+        (data.generated && (data.generated.public_color_key || data.generated.colorKey)) ||
+        data.publicColorKey ||
+        data.colorKey ||
+        data.styleSettings.color ||
+        'blue';
+      try { window.RB_STATE = window.RB_STATE || {}; RB_STATE.exportColor = color; RB_STATE.selectedColor = color; } catch (_) {}
       var es = document.getElementById('export-style');
       if (es) es.value = style;
       document.querySelectorAll('.style-card').forEach(function (card) {
@@ -24244,6 +24673,103 @@
         expectedTitle: formatPublicIncludeTitle(mode, generated.plan_type)
       };
     } catch (e) { return { error: String(e && e.message || e) }; }
+  };
+
+  // ---- Phase D: focused debug helpers ------------------------------------
+
+  // Verifies the Phase A skills polish: PDF and Word previews must use the
+  // new column or grouped layout (no inline " • "-bullets, no .rb-doc-skill
+  // pills). Run after switching the export target to resume / format to
+  // pdf or docx.
+  window.debugSkillSectionRendering = function () {
+    function probe(frameId) {
+      var frame = document.getElementById(frameId);
+      var doc = null;
+      try { doc = frame && frame.contentDocument; } catch (_) {}
+      if (!doc) return { available: false };
+      var section = doc.querySelector('section[data-block="skills"], .rb-doc-skills-section');
+      var skillColumns = doc.querySelectorAll('.rb-doc-skill-columns').length;
+      var skillGroups  = doc.querySelectorAll('.rb-doc-skill-group').length;
+      var oldInlineSkillLines = doc.querySelectorAll('.rb-doc-skill-line').length;
+      var skillPills = doc.querySelectorAll('.rb-doc-skill').length;
+      var groupTitles = Array.prototype.map.call(
+        doc.querySelectorAll('.rb-doc-skill-group-title'),
+        function (n) { return (n.textContent || '').trim(); }
+      );
+      return {
+        available: true,
+        hasSection: !!section,
+        skillColumns: skillColumns,
+        skillGroups: skillGroups,
+        oldInlineSkillLines: oldInlineSkillLines, // expected: 0
+        skillPills: skillPills,                   // expected: 0
+        groupTitles: groupTitles,
+        passes: oldInlineSkillLines === 0 && skillPills === 0 && (skillColumns > 0 || skillGroups > 0)
+      };
+    }
+    return {
+      flow: window.RB_EXPORT_FLOW || null,
+      pdfPreview:    probe('preview-frame'),
+      publicPreview: probe('preview-frame-public')
+    };
+  };
+
+  // Verifies the Phase B color plumbing: the swatch the user clicked is
+  // selected, RB_STATE has the same key, and the public-preview iframe
+  // received the matching CSS variable.
+  window.debugPublicWebColor = function () {
+    var sel = document.querySelector('.swatch.selected');
+    var key = sel ? sel.getAttribute('data-color') : null;
+    var docFrame = document.getElementById('preview-frame-public');
+    var iframeRoot = null;
+    try {
+      var d = docFrame && docFrame.contentDocument;
+      iframeRoot = d && (d.documentElement || d.body);
+    } catch (_) {}
+    var iframeColor = '';
+    try {
+      if (iframeRoot) {
+        iframeColor = iframeRoot.style.getPropertyValue('--c-primary')
+          || (window.getComputedStyle && window.getComputedStyle(iframeRoot).getPropertyValue('--c-primary'))
+          || '';
+      }
+    } catch (_) {}
+    var swatchRows = document.querySelectorAll('.swatch-row').length;
+    return {
+      selectedKey: key,
+      rbStateColor: (window.RB_STATE && (RB_STATE.exportColor || RB_STATE.selectedColor)) || null,
+      swatchRowCount: swatchRows, // expected: 2 (document + public)
+      iframeAccent: iframeColor.trim() || '(unset)',
+      paletteEntry: (key && typeof getColorAccent === 'function') ? getColorAccent(key) : null,
+      flowTarget: (window.RB_EXPORT_FLOW && RB_EXPORT_FLOW.target) || null
+    };
+  };
+
+  // Verifies the Phase C loader contract: shared loader visible iff at
+  // least one tracked AI task is in flight, optimize modal owns its own
+  // loader, and the two never overlap.
+  window.debugAiTaskLoader = function () {
+    var loader = document.getElementById('ai-task-loader');
+    var optModal = document.getElementById('optimize-progress-modal');
+    var inFlight = {
+      extraction:    !!(typeof _extractionInFlight !== 'undefined' && _extractionInFlight),
+      roleResearch:  !!(window.RB_STATE && RB_STATE._roleResearchInFlight),
+      coverLetter:   !!(window.RB_STATE && RB_STATE._cvInFlight),
+      rolePlan:      !!(window.RB_STATE && RB_STATE._planInFlight),
+      optimize:      !!(window.RB_STATE && RB_STATE._optimizeInFlight)
+    };
+    var loaderVisible = !!(loader && !loader.hidden);
+    var optimizeVisible = !!(optModal && !optModal.hidden);
+    return {
+      loaderVisible: loaderVisible,
+      optimizeModalVisible: optimizeVisible,
+      stackingGuardRespected: !(loaderVisible && optimizeVisible),
+      refCount: (typeof _aiLoaderRefCount === 'number') ? _aiLoaderRefCount : null,
+      inFlight: inFlight,
+      hasShowFn:  typeof window.showAiTaskLoader === 'function',
+      hasHideFn:  typeof window.hideAiTaskLoader === 'function',
+      hasWithFn:  typeof window.withAiTaskLoader === 'function'
+    };
   };
 
   // Boot
