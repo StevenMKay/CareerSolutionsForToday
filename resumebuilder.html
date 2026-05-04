@@ -3258,14 +3258,24 @@
   }
   .export-target-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px; margin: 0 0 4px;
+    align-items: stretch;
   }
   .export-target-card {
     display: flex; flex-direction: column; gap: 4px; text-align: left;
     background: #fff; border: 1.5px solid #e2e8f0; border-radius: 12px;
     padding: 14px 16px; cursor: pointer; font-family: inherit; font-size: .9rem;
+    width: 100%; min-height: 112px; justify-content: center;
     transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  .export-target-card.is-active {
+    border-color: var(--c-primary, #1d4ed8); background: #eff6ff;
+    box-shadow: 0 0 0 2px rgba(37,99,235,.18);
+  }
+  @media (max-width: 760px) {
+    .export-target-grid { grid-template-columns: 1fr; }
+    .export-target-card { min-height: auto; }
   }
   .export-target-card:hover:not(:disabled) {
     border-color: var(--c-primary, #1d4ed8);
@@ -3294,15 +3304,28 @@
     text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px;
   }
   .export-template-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;
+    width: 100%;
   }
   .export-template-card {
-    display: flex; flex-direction: column; gap: 2px;
+    display: flex; flex-direction: column; gap: 2px; justify-content: center;
     background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px;
     padding: 10px 12px; cursor: pointer; font-family: inherit;
-    font-size: .84rem; text-align: left;
+    font-size: .84rem; text-align: left; width: 100%; min-height: 76px;
     transition: border-color .15s, background .15s;
   }
+  @media (max-width: 640px) {
+    .export-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .export-template-card { min-height: 70px; padding: .7rem; }
+    .export-template-card small { display: none; }
+  }
+  @media (max-width: 420px) {
+    .export-template-grid { grid-template-columns: 1fr; }
+  }
+  /* Inline-expand flow: target cards stay visible, back buttons hidden. */
+  .export-back-btn[data-export-flow-back] { display: none !important; }
+  /* Defensive: never show Preview Web Page button. Preview is automatic. */
+  #preview-public-web-btn { display: none !important; }
   .export-template-card:hover { border-color: var(--c-primary, #1d4ed8); background: #f8faff; }
   .export-template-card.is-active { border-color: var(--c-primary, #1d4ed8); background: #eff6ff; }
   .export-template-card strong { font-weight: 700; color: #1e293b; font-size: .88rem; }
@@ -4375,17 +4398,17 @@
                 <strong>Resume</strong>
                 <span>Preview and download your resume as PDF or Word.</span>
               </button>
-              <button type="button" class="export-target-card" data-export-target="rolePlan">
-                <strong>Role Plan</strong>
-                <span>Preview and download your tailored role plan.</span>
+              <button type="button" class="export-target-card" data-export-target="publicWeb">
+                <strong>Public Web Page</strong>
+                <span>Publish a shareable web page.</span>
               </button>
               <button type="button" class="export-target-card" data-export-target="coverLetter">
                 <strong>Cover Letter</strong>
                 <span>Preview and download your generated cover letter.</span>
               </button>
-              <button type="button" class="export-target-card" data-export-target="publicWeb">
-                <strong>Public Web Page</strong>
-                <span>Publish a shareable web page.</span>
+              <button type="button" class="export-target-card hidden" data-export-target="rolePlan" aria-hidden="true" tabindex="-1" style="display:none !important;">
+                <strong>Role Plan</strong>
+                <span>Preview and download your tailored role plan.</span>
               </button>
             </div>
           </div>
@@ -21558,6 +21581,29 @@
       // Phase D: persist Adjust Layout panel overrides so user-tuned PDF /
       // Word output spacing follows the resume across save/load.
       documentLayoutOverrides:    (RB_STATE && RB_STATE.documentLayoutOverrides) || null,
+      // Preview & Export polish: explicitly persist Public Web Page style,
+      // color, and include-mode so they round-trip across save/reload
+      // independently of RB_STATE serialization.
+      publicWebStyle:
+        (RB_STATE && RB_STATE.publicWebStyle) ||
+        (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicStyle) ||
+        null,
+      publicStyle:
+        (RB_STATE && RB_STATE.publicWebStyle) ||
+        (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicStyle) ||
+        null,
+      publicWebColorKey:
+        (RB_STATE && (RB_STATE.publicWebColorKey || RB_STATE.publicColorKey || RB_STATE.exportColor)) ||
+        (window.RB_EXPORT_FLOW && (window.RB_EXPORT_FLOW.publicColorKey || window.RB_EXPORT_FLOW.colorKey)) ||
+        null,
+      publicColorKey:
+        (RB_STATE && (RB_STATE.publicColorKey || RB_STATE.publicWebColorKey || RB_STATE.exportColor)) ||
+        (window.RB_EXPORT_FLOW && (window.RB_EXPORT_FLOW.publicColorKey || window.RB_EXPORT_FLOW.colorKey)) ||
+        null,
+      publicIncludeMode:
+        (RB_STATE && RB_STATE.publicIncludeMode) ||
+        (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode) ||
+        'resume',
       updatedAtClient: new Date().toISOString()
     };
   }
@@ -22129,10 +22175,51 @@
           null;
         if (savedIncludeMode) {
           window.RB_EXPORT_FLOW = window.RB_EXPORT_FLOW || {};
+          window.RB_STATE       = window.RB_STATE       || {};
           window.RB_EXPORT_FLOW.publicIncludeMode = savedIncludeMode;
+          RB_STATE.publicIncludeMode = savedIncludeMode;
           if (typeof _syncPublicIncludeRadios === 'function') {
             try { _syncPublicIncludeRadios(savedIncludeMode); } catch (_) {}
           }
+        }
+      } catch (_) {}
+      // Preview & Export polish: explicitly restore Public Web Page style
+      // and color so the saved selection is reflected on reload.
+      try {
+        var savedPublicStyle =
+          (data && (data.publicWebStyle || data.publicStyle)) ||
+          (data && data.generated && (data.generated.public_style || data.generated.publicStyle)) ||
+          null;
+        var savedPublicColor =
+          (data && (data.publicWebColorKey || data.publicColorKey)) ||
+          (data && data.generated && (data.generated.public_color_key || data.generated.colorKey)) ||
+          (data && data.colorKey) ||
+          null;
+        window.RB_EXPORT_FLOW = window.RB_EXPORT_FLOW || {};
+        window.RB_STATE       = window.RB_STATE       || {};
+        if (savedPublicStyle) {
+          RB_STATE.publicWebStyle = savedPublicStyle;
+          RB_EXPORT_FLOW.publicStyle = savedPublicStyle;
+          // Only seed flow.template when the user is on the publicWeb target
+          // -- otherwise let document targets keep their own template.
+          if (RB_EXPORT_FLOW.target === 'publicWeb') {
+            RB_EXPORT_FLOW.template = savedPublicStyle;
+          }
+        }
+        if (savedPublicColor) {
+          RB_STATE.publicWebColorKey = savedPublicColor;
+          RB_STATE.publicColorKey    = savedPublicColor;
+          RB_STATE.exportColor       = RB_STATE.exportColor || savedPublicColor;
+          RB_STATE.selectedColor     = RB_STATE.selectedColor || savedPublicColor;
+          RB_EXPORT_FLOW.publicColorKey = savedPublicColor;
+          RB_EXPORT_FLOW.colorKey       = RB_EXPORT_FLOW.colorKey || savedPublicColor;
+        }
+        if (typeof syncExportColorSwatches === 'function' && (savedPublicColor || RB_STATE.exportColor)) {
+          try { syncExportColorSwatches(savedPublicColor || RB_STATE.exportColor); } catch (_) {}
+        }
+        if (typeof renderExportFlowUI === 'function' &&
+            typeof getActiveStep === 'function' && getActiveStep() === 'step-export') {
+          try { renderExportFlowUI(); } catch (_) {}
         }
       } catch (_) {}
       // selects so the user sees their saved settings on load.
@@ -24418,12 +24505,41 @@
   };
 
   function setExportTarget(target) {
+    // Direct Role Plan export removed -- role plan is included via the
+    // Public Web Page "Resume + Role Plan" / "Role Plan only" modes.
+    if (target === 'rolePlan') return;
     window.RB_EXPORT_FLOW.target = target;
     window.RB_EXPORT_FLOW.format = (target === 'publicWeb') ? 'web' : 'pdf';
     var fmtTemplates = (EXPORT_TEMPLATE_MAP[target] || {})[window.RB_EXPORT_FLOW.format] || [];
-    window.RB_EXPORT_FLOW.template = fmtTemplates.length ? fmtTemplates[0].key : null;
+
+    // For Public Web Page, restore the user's last-saved style instead of
+    // resetting to the first option. For other targets, preserve the
+    // current template if it's still valid for this target/format.
+    var preferred = window.RB_EXPORT_FLOW.template;
+    if (target === 'publicWeb') {
+      preferred = (window.RB_STATE && RB_STATE.publicWebStyle) ||
+                  window.RB_EXPORT_FLOW.publicStyle ||
+                  window.RB_EXPORT_FLOW.template;
+    }
+    var valid = preferred && fmtTemplates.some(function (t) { return t.key === preferred; });
+    window.RB_EXPORT_FLOW.template = valid
+      ? preferred
+      : (fmtTemplates.length ? fmtTemplates[0].key : null);
+
+    // Keep color in sync from the canonical source.
+    try {
+      if (typeof getCurrentExportColorKey === 'function') {
+        window.RB_EXPORT_FLOW.colorKey = getCurrentExportColorKey();
+      }
+    } catch (_) {}
+
     _syncLegacyExportInputs();
     renderExportFlowUI();
+    try {
+      if (typeof syncExportColorSwatches === 'function') {
+        syncExportColorSwatches(getCurrentExportColorKey());
+      }
+    } catch (_) {}
     renderSelectedExportPreview();
   }
   function setExportFormat(format) {
@@ -24436,6 +24552,16 @@
   }
   function setExportTemplate(template) {
     window.RB_EXPORT_FLOW.template = template;
+    // Persist Public Web Page style separately so it survives target
+    // switches and (via save layer) page reloads.
+    if (window.RB_EXPORT_FLOW.target === 'publicWeb') {
+      window.RB_EXPORT_FLOW.publicStyle = template;
+      try {
+        window.RB_STATE = window.RB_STATE || {};
+        RB_STATE.publicWebStyle = template;
+      } catch (_) {}
+      try { if (typeof markBuilderDirty === 'function') markBuilderDirty('public-web-style'); } catch (_) {}
+    }
     _syncLegacyExportInputs();
     renderExportFlowUI();
     renderSelectedExportPreview();
@@ -24443,6 +24569,11 @@
   function setPublicIncludeMode(mode) {
     mode = mode || 'resume';
     window.RB_EXPORT_FLOW.publicIncludeMode = mode;
+    try {
+      window.RB_STATE = window.RB_STATE || {};
+      RB_STATE.publicIncludeMode = mode;
+    } catch (_) {}
+    try { if (typeof markBuilderDirty === 'function') markBuilderDirty('public-include-mode'); } catch (_) {}
     // Keep radios + card visuals + preview shell in sync regardless of how
     // the mode was changed (click, keyboard, programmatic call, hydration).
     try { _syncPublicIncludeRadios(mode); } catch (_) {}
@@ -24454,6 +24585,59 @@
       try { _renderPublicWebPreview(); } catch (_) {}
     }
   }
+  // ---- Color helpers (single source of truth) ------------------------------
+  function getCurrentExportColorKey() {
+    var flow  = window.RB_EXPORT_FLOW || {};
+    var state = window.RB_STATE       || {};
+    var fromSwatch = '';
+    try {
+      var sel = document.querySelector('.swatch.selected, [data-color].is-active, [data-color].active');
+      fromSwatch = sel ? (sel.getAttribute('data-color') || '') : '';
+    } catch (_) {}
+    return (
+      flow.colorKey ||
+      flow.publicColorKey ||
+      state.exportColor ||
+      state.publicWebColorKey ||
+      state.publicColorKey ||
+      state.selectedColor ||
+      fromSwatch ||
+      'blue'
+    );
+  }
+  function syncExportColorSwatches(colorKey) {
+    colorKey = String(colorKey || 'blue').trim() || 'blue';
+    try {
+      document.querySelectorAll('.swatch[data-color], [data-color]').forEach(function (el) {
+        var isActive = el.getAttribute('data-color') === colorKey;
+        el.classList.toggle('selected', isActive);
+      });
+    } catch (_) {}
+  }
+  function setExportColor(colorKey) {
+    colorKey = String(colorKey || 'blue').trim() || 'blue';
+    window.RB_EXPORT_FLOW = window.RB_EXPORT_FLOW || {};
+    window.RB_STATE       = window.RB_STATE       || {};
+    window.RB_EXPORT_FLOW.colorKey       = colorKey;
+    window.RB_EXPORT_FLOW.publicColorKey = colorKey;
+    RB_STATE.exportColor       = colorKey;
+    RB_STATE.publicWebColorKey = colorKey;
+    RB_STATE.publicColorKey    = colorKey;
+    RB_STATE.selectedColor     = colorKey;
+    syncExportColorSwatches(colorKey);
+    try { _syncLegacyExportInputs(); } catch (_) {}
+    try { if (typeof markBuilderDirty === 'function') markBuilderDirty('export-color'); } catch (_) {}
+    if (window.RB_EXPORT_FLOW.target === 'publicWeb') {
+      try { _renderPublicWebPreview(); } catch (_) {}
+    } else {
+      try { renderSelectedExportPreview(); } catch (_) {}
+    }
+  }
+  try {
+    window.getCurrentExportColorKey = getCurrentExportColorKey;
+    window.syncExportColorSwatches  = syncExportColorSwatches;
+    window.setExportColor           = setExportColor;
+  } catch (_) {}
   function _syncPublicIncludeRadios(mode) {
     mode = mode || (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode) || 'resume';
     try {
@@ -24487,21 +24671,33 @@
     var publicStep = document.getElementById('export-public-step');
     if (!targetStep) return;
 
-    if (!flow.target) {
-      targetStep.classList.remove('hidden');
-      if (documentStep) documentStep.classList.add('hidden');
-      if (publicStep) publicStep.classList.add('hidden');
-      _updateExportTargetCards();
-      return;
-    }
-    if (flow.target === 'publicWeb') {
-      targetStep.classList.add('hidden');
-      if (documentStep) documentStep.classList.add('hidden');
-      if (publicStep) publicStep.classList.remove('hidden');
+    // Target cards stay visible at all times. The active target's panel
+    // expands inline below the cards. No back button needed.
+    targetStep.classList.remove('hidden');
+    _updateExportTargetCards();
+
+    var isDocTarget = flow.target === 'resume' || flow.target === 'coverLetter';
+    var isPublic    = flow.target === 'publicWeb';
+
+    if (documentStep) documentStep.classList.toggle('hidden', !isDocTarget);
+    if (publicStep)   publicStep.classList.toggle('hidden', !isPublic);
+
+    // Defensive: hide any remaining back buttons (also CSS-hidden).
+    document.querySelectorAll('[data-export-flow-back]').forEach(function (btn) {
+      btn.classList.add('hidden');
+      btn.setAttribute('aria-hidden', 'true');
+      btn.tabIndex = -1;
+    });
+
+    if (isPublic) {
       try { hydratePublishedShareLinkUI(); } catch (_) {}
       _renderPublicWebStyleOptions(flow.template || 'executive');
-      // Preview is auto-rendered on entry — no manual button click needed.
       try { _syncPublicIncludeRadios(flow.publicIncludeMode || 'resume'); } catch (_) {}
+      try {
+        if (typeof syncExportColorSwatches === 'function') {
+          syncExportColorSwatches(getCurrentExportColorKey());
+        }
+      } catch (_) {}
       try {
         var pwShell = document.getElementById('public-web-preview-shell');
         if (pwShell) { pwShell.hidden = false; pwShell.style.display = ''; }
@@ -24509,10 +24705,8 @@
       try { _renderPublicWebPreview(); } catch (_) {}
       return;
     }
-    targetStep.classList.add('hidden');
-    if (publicStep) publicStep.classList.add('hidden');
-    if (documentStep) {
-      documentStep.classList.remove('hidden');
+
+    if (isDocTarget && documentStep) {
       var titleEl = document.getElementById('export-context-title');
       if (titleEl) titleEl.textContent = _EXPORT_TARGET_TITLES[flow.target] || flow.target;
       _renderExportFormatActions(flow.target, flow.format);
@@ -24520,17 +24714,24 @@
       var colorRow = document.getElementById('export-color-row');
       if (colorRow) colorRow.style.display = (flow.target === 'resume') ? '' : 'none';
       _renderExportDownloadActions(flow.target, flow.format);
+      try {
+        if (typeof syncExportColorSwatches === 'function') {
+          syncExportColorSwatches(getCurrentExportColorKey());
+        }
+      } catch (_) {}
       try { updatePublicWebStyleNote(); } catch (_) {}
     }
   }
   try { window.renderExportFlowUI = renderExportFlowUI; } catch (_) {}
 
   function _updateExportTargetCards() {
+    var flow = window.RB_EXPORT_FLOW || {};
     document.querySelectorAll('[data-export-target]').forEach(function (card) {
       var t = card.getAttribute('data-export-target');
       var available = _isExportTargetAvailable(t);
       card.disabled = !available;
       card.setAttribute('aria-disabled', available ? 'false' : 'true');
+      card.classList.toggle('is-active', !!flow.target && t === flow.target);
       var prev = card.querySelector('.export-card-reason');
       if (!available) {
         if (!prev) { prev = document.createElement('em'); prev.className = 'export-card-reason'; card.appendChild(prev); }
@@ -24688,8 +24889,14 @@
     pkg.style.previewFormat = flow.format;
     pkg.style.exportTarget = flow.target;
     try {
-      var color = (typeof getSelectedExportColor === 'function') ? getSelectedExportColor() : null;
-      if (color) pkg.style.color = color;
+      var color = (typeof getCurrentExportColorKey === 'function')
+        ? getCurrentExportColorKey()
+        : ((typeof getSelectedExportColor === 'function') ? getSelectedExportColor() : null);
+      if (color) {
+        pkg.style.color = color;
+        pkg.style.colorKey = color;
+        pkg.style.publicColorKey = color;
+      }
     } catch (_) {}
     return pkg;
   }
@@ -24828,10 +25035,7 @@
         return;
       }
       if (el.closest('[data-export-flow-back]')) {
-        window.RB_EXPORT_FLOW.target = null;
-        window.RB_EXPORT_FLOW.format = null;
-        window.RB_EXPORT_FLOW.template = null;
-        renderExportFlowUI();
+        // Inline-expand flow: back buttons are no-ops (CSS-hidden).
         return;
       }
       var fmtBtn = el.closest('[data-export-format]');
@@ -24840,12 +25044,11 @@
       if (tmplBtn) { try { setExportTemplate(tmplBtn.getAttribute('data-export-template')); } catch (e) { console.error(e); } return; }
       if (el.closest('[data-download-current-export]')) { try { downloadCurrentExportSelection(); } catch (e) { console.error(e); } return; }
       if (el.closest('#preview-public-web-btn')) { /* preview is auto-rendered; button hidden */ return; }
-      // Color swatch click in new flow
-      var sw = el.closest('.swatch[data-color]');
-      if (sw && root.contains(sw)) {
-        root.querySelectorAll('.swatch').forEach(function (s) { s.classList.remove('selected'); });
-        sw.classList.add('selected');
-        try { renderSelectedExportPreview(); } catch (_) {}
+      // Color swatch click in new flow -- route through setExportColor so
+      // RB_EXPORT_FLOW + RB_STATE + every visible swatch row stay in sync.
+      var sw = el.closest('.swatch[data-color], [data-color]');
+      if (sw && root.contains(sw) && sw.getAttribute('data-color')) {
+        try { setExportColor(sw.getAttribute('data-color')); } catch (_) {}
         return;
       }
     });
@@ -24861,6 +25064,46 @@
   // ============================================================
   // DEBUG HELPERS (export flow)
   // ============================================================
+  window.debugExportFlowPolish = function () {
+    var flow  = window.RB_EXPORT_FLOW || {};
+    var state = window.RB_STATE       || {};
+    var targetStep = document.getElementById('export-target-step');
+    var visibleCards = Array.prototype.slice.call(
+      document.querySelectorAll('#export-target-step [data-export-target]')
+    ).filter(function (b) {
+      try { return getComputedStyle(b).display !== 'none'; } catch (_) { return !b.classList.contains('hidden'); }
+    }).map(function (b) { return b.getAttribute('data-export-target'); });
+    var backHidden = Array.prototype.slice.call(
+      document.querySelectorAll('[data-export-flow-back]')
+    ).every(function (b) {
+      try { return getComputedStyle(b).display === 'none'; } catch (_) { return true; }
+    });
+    return {
+      flow: {
+        target: flow.target, format: flow.format, template: flow.template,
+        publicStyle: flow.publicStyle, publicIncludeMode: flow.publicIncludeMode,
+        colorKey: flow.colorKey, publicColorKey: flow.publicColorKey
+      },
+      state: {
+        publicWebStyle: state.publicWebStyle,
+        publicWebColorKey: state.publicWebColorKey,
+        publicColorKey: state.publicColorKey,
+        publicIncludeMode: state.publicIncludeMode,
+        exportColor: state.exportColor,
+        selectedColor: state.selectedColor
+      },
+      currentColor: (typeof getCurrentExportColorKey === 'function') ? getCurrentExportColorKey() : null,
+      targetCardOrder: visibleCards,
+      targetStepVisible: !!(targetStep && !targetStep.classList.contains('hidden')),
+      backButtonsHidden: backHidden,
+      previewPublicBtnHidden: (function () {
+        var b = document.getElementById('preview-public-web-btn');
+        if (!b) return true;
+        try { return getComputedStyle(b).display === 'none'; } catch (_) { return true; }
+      })()
+    };
+  };
+
   window.debugExportFlowState = function () {
     var frame = document.getElementById('preview-frame');
     var bodyClass = null; var pageCount = 0;
