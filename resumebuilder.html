@@ -14287,6 +14287,45 @@
       'body.format-doc.target-preview .rb-doc-page--continuation,',
       'body.format-word.target-preview .rb-doc-page--continuation {',
       '  display: none !important;',
+      '}',
+      '/* Continuous-preview class set by prepareWordPreviewHtml. Overrides',
+      '   the fixed-page model (absolute-positioned inner, hidden overflow,',
+      '   fixed page height) so Word preview flows as one continuous',
+      '   document and never clips. */',
+      'body.word-preview-continuous,',
+      'body.format-docx-preview {',
+      '  overflow-x: hidden !important;',
+      '}',
+      'body.word-preview-continuous .rb-doc-viewer,',
+      'body.format-docx-preview .rb-doc-viewer {',
+      '  max-width: 100% !important;',
+      '  overflow-x: hidden !important;',
+      '  align-items: center;',
+      '}',
+      'body.word-preview-continuous .rb-doc-page,',
+      'body.format-docx-preview .rb-doc-page {',
+      '  width: 7.5in;',
+      '  max-width: calc(100vw - 48px);',
+      '  height: auto !important;',
+      '  min-height: auto !important;',
+      '  overflow: visible !important;',
+      '  break-after: auto !important;',
+      '  page-break-after: auto !important;',
+      '}',
+      'body.word-preview-continuous .rb-doc-page-inner,',
+      'body.format-docx-preview .rb-doc-page-inner {',
+      '  position: relative !important;',
+      '  inset: auto !important;',
+      '  top: auto !important; right: auto !important;',
+      '  bottom: auto !important; left: auto !important;',
+      '  padding: var(--rb-doc-margin);',
+      '  height: auto !important;',
+      '  min-height: auto !important;',
+      '  overflow: visible !important;',
+      '}',
+      'body.word-preview-continuous .rb-doc-page--continuation,',
+      'body.format-docx-preview .rb-doc-page--continuation {',
+      '  display: none !important;',
       '}'
     ].join('\n') + '\n' + getPdfSafeTemplateCss(settings);
   }
@@ -17517,6 +17556,54 @@
   try { window.paginateFixedDocument = paginateFixedDocument; } catch (_) {}
 
   // ============================================================
+  // Word/DOCX live preview helper.
+  //
+  // The downloaded DOCX is the source of truth for real Word
+  // pagination. The live preview is a continuous visual preview --
+  // no fake page breaks, no clipping, no continuation pages. This
+  // helper merges any pre-existing multi-page wrappers into one and
+  // tags the body so CSS overrides can collapse the fixed-page model.
+  // ============================================================
+  function prepareWordPreviewHtml(html, options) {
+    html = String(html || '');
+    if (!html) return html;
+    try {
+      var doc = new DOMParser().parseFromString(html, 'text/html');
+      if (!doc || !doc.body) return html;
+
+      doc.body.classList.add('word-preview-continuous');
+      doc.body.classList.add('format-docx-preview');
+
+      var viewer = doc.querySelector('.rb-doc-viewer');
+      if (viewer) {
+        viewer.setAttribute('data-paginated', 'false');
+        var pages = Array.prototype.slice.call(viewer.querySelectorAll('.rb-doc-page'));
+        if (pages.length > 1) {
+          var merged = pages.map(function (page) {
+            var inner = page.querySelector('.rb-doc-page-inner');
+            return inner ? inner.innerHTML : page.innerHTML;
+          }).join('');
+          var first = pages[0];
+          first.classList.remove('rb-doc-page--continuation');
+          first.setAttribute('data-page-number', '1');
+          var firstInner = first.querySelector('.rb-doc-page-inner');
+          if (firstInner) firstInner.innerHTML = merged;
+          // Drop the rest.
+          for (var i = 1; i < pages.length; i++) {
+            try { pages[i].parentNode && pages[i].parentNode.removeChild(pages[i]); } catch (_) {}
+          }
+          viewer.setAttribute('data-doc-pages', '1');
+        }
+      }
+      return '<!doctype html>' + doc.documentElement.outerHTML;
+    } catch (err) {
+      try { console.warn('[prepareWordPreviewHtml] fallback', err); } catch (_) {}
+      return html;
+    }
+  }
+  try { window.prepareWordPreviewHtml = prepareWordPreviewHtml; } catch (_) {}
+
+  // ============================================================
   // Phase D++ -- Canonical fixed-document finalization helper.
   //
   // Both PDF preview and PDF export must call this so they share one
@@ -17544,19 +17631,21 @@
     // forcing docx through the PDF-style fixed paginator.
     var fmtNorm = String(format || '').toLowerCase();
     if (fmtNorm === 'docx' || fmtNorm === 'doc' || fmtNorm === 'word') {
+      var continuousHtml = (typeof prepareWordPreviewHtml === 'function')
+        ? prepareWordPreviewHtml(html, options) : html;
       try {
         window.RB_LAST_FINALIZED_FIXED_DOC = {
           target: target,
           format: format,
           rawLength: html.length,
-          finalLength: html.length,
-          changed: false,
+          finalLength: continuousHtml.length,
+          changed: continuousHtml !== html,
           paginated: false,
-          pageCount: (html.match(/class="[^"]*rb-doc-page\b/g) || []).length,
+          pageCount: (continuousHtml.match(/class="[^"]*rb-doc-page\b/g) || []).length,
           finalizedAt: new Date().toISOString()
         };
       } catch (_) {}
-      return html;
+      return continuousHtml;
     }
 
     if (window.RB_USE_FIXED_DOCUMENT_RENDERER === false ||
