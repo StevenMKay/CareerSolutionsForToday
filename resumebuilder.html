@@ -4362,7 +4362,7 @@
             <button type="button" class="btn btn-ghost export-back-btn" data-export-flow-back aria-label="Back to export options">&#8592; Back to export options</button>
             <div class="export-context-header">
               <h3>Public Web Page</h3>
-              <p>Choose what to include, preview if needed, then publish your share link.</p>
+              <p>Choose what to include, select a web style, then publish your share link. The preview updates automatically.</p>
             </div>
             <div class="public-include-options">
               <label class="public-include-card">
@@ -4389,13 +4389,13 @@
             </div>
             <div id="public-web-style-panel" class="export-template-panel" style="margin-bottom:1rem;"></div>
             <div class="public-web-actions">
-              <button type="button" class="btn btn-secondary" id="preview-public-web-btn">Preview Web Page</button>
+              <button type="button" class="btn btn-secondary" id="preview-public-web-btn" hidden tabindex="-1" aria-hidden="true" style="display:none !important;">Preview Web Page</button>
               <button id="publish-btn" type="button" class="btn btn-publish" data-action="publishShareLink">
                 <i data-lucide="share-2" style="width:16px;height:16px;"></i> Publish Share Link
               </button>
             </div>
             <div id="publish-share-result-host"></div>
-            <div id="public-web-preview-shell" style="display:none;" class="export-preview-shell">
+            <div id="public-web-preview-shell" class="export-preview-shell">
               <div id="preview-device-wrap" class="preview-device device-desktop">
                 <iframe id="preview-frame-public" sandbox="allow-same-origin" loading="lazy" title="Public web page preview"></iframe>
               </div>
@@ -19117,9 +19117,25 @@
 
   function buildGeneratedForPublishedView(pkg) {
     pkg = pkg || (typeof buildSelectedDocumentPackage === 'function' ? buildSelectedDocumentPackage() : null);
+    pkg = pkg || {};
     var docs = (pkg && pkg.documents) || {};
-    var resume = docs.resume || RB_STATE.resumeData || {};
-    var rolePlan = docs.rolePlan || RB_STATE.rolePlan || null;
+
+    // Public Web include mode is part of the data contract: preview, publish,
+    // and view.html all read from this single source of truth. Default only
+    // when no mode was set on the package.
+    var hasResumeContent = !!(docs.resume || RB_STATE.resumeData);
+    var hasPlanContent   = !!(docs.rolePlan || RB_STATE.rolePlan);
+    var includeMode = pkg.publicIncludeMode || pkg.includeMode || null;
+    if (!includeMode) {
+      if (hasResumeContent && hasPlanContent) includeMode = 'resumePlan';
+      else if (hasPlanContent && !hasResumeContent) includeMode = 'plan';
+      else includeMode = 'resume';
+    }
+    var includeResume = (includeMode === 'resume' || includeMode === 'resumePlan');
+    var includePlan   = (includeMode === 'plan'   || includeMode === 'resumePlan');
+
+    var resume = includeResume ? (docs.resume || RB_STATE.resumeData || {}) : {};
+    var rolePlan = includePlan ? (docs.rolePlan || RB_STATE.rolePlan || null) : null;
     var coverLetter = docs.coverLetter || RB_STATE.coverLetter || null;
 
     var targetRole = typeof getTargetRoleFromDOM === 'function'
@@ -19192,10 +19208,24 @@
     var rolePlanIsMeaningful = (typeof hasMeaningfulRolePlanForWeb === 'function')
       ? hasMeaningfulRolePlanForWeb(rolePlan, activePlanType)
       : !!(Array.isArray(phases) && phases.length);
-    var publicPhases       = rolePlanIsMeaningful ? (Array.isArray(phases) ? phases : []) : [];
-    var publicSuccess      = rolePlanIsMeaningful ? (Array.isArray(successCriteria) ? successCriteria : []) : [];
-    var publicKpis         = rolePlanIsMeaningful ? (Array.isArray(kpis) ? kpis : []) : [];
-    var publicExecSummary  = rolePlanIsMeaningful ? executiveSummary : '';
+    // Belt-and-braces: even if rolePlan content survived, honor includeMode.
+    var publishPlan        = includePlan && rolePlanIsMeaningful;
+    var publicPhases       = publishPlan ? (Array.isArray(phases) ? phases : []) : [];
+    var publicSuccess      = publishPlan ? (Array.isArray(successCriteria) ? successCriteria : []) : [];
+    var publicKpis         = publishPlan ? (Array.isArray(kpis) ? kpis : []) : [];
+    var publicExecSummary  = publishPlan ? executiveSummary : '';
+
+    // Normalize plan_type to canonical api form (e.g. '90d' -> '90-day') so
+    // view.html never renders a raw enum like "90D PLAN AND RESUME".
+    var canonicalPlanType = (typeof mapPlanTypeForApi === 'function')
+      ? mapPlanTypeForApi(activePlanType)
+      : (String(activePlanType || '').replace(/^90d$/i, '90-day').replace(/^12m$/i, '12-month').replace(/^2y$/i, '2-year') || '90-day');
+    var planTypeLabel = (typeof formatPlanTypeLabel === 'function')
+      ? formatPlanTypeLabel(canonicalPlanType)
+      : '90-Day';
+    var publicTitle   = (typeof formatPublicIncludeTitle === 'function')
+      ? formatPublicIncludeTitle(includeMode, canonicalPlanType)
+      : 'Resume';
 
     return {
       hero: {
@@ -19221,32 +19251,37 @@
           return u;
         })()
       },
+      // Include-mode metadata: read by view.html to gate sections + label.
+      public_include_mode: includeMode,
+      include_mode: includeMode,
+      plan_type_label: planTypeLabel,
+      public_title: publicTitle,
       executive_summary: publicExecSummary,
-      summary: summary,
+      summary: includeResume ? summary : '',
       // Cover letter is intentionally NOT published on the public web
       // page (private recruiter document). Downloads still include it.
       cover_letter: null,
-      plan_type: activePlanType,
-      plan_title: activePlanBucket.title || 'Career Plan',
-      plan_timeframe: activePlanBucket.timeframe || activePlanType || '',
+      plan_type: canonicalPlanType,
+      plan_title: publishPlan ? (activePlanBucket.title || 'Career Plan') : '',
+      plan_timeframe: publishPlan ? (activePlanBucket.timeframe || canonicalPlanType || '') : '',
       plan_phases: publicPhases,
       success_criteria: publicSuccess,
       kpis: publicKpis,
-      resume: resume,
-      experience: Array.isArray(resume.experience) ? resume.experience : [],
-      skills: Array.isArray(resume.skills) ? resume.skills : [],
-      technical_skills: Array.isArray(resume.technical_skills) ? resume.technical_skills : [],
-      tools: Array.isArray(resume.tools) ? resume.tools : [],
-      software: Array.isArray(resume.software) ? resume.software : [],
-      methodologies: Array.isArray(resume.methodologies) ? resume.methodologies : [],
-      industry_knowledge: Array.isArray(resume.industry_knowledge) ? resume.industry_knowledge : [],
-      soft_skills: Array.isArray(resume.soft_skills) ? resume.soft_skills : [],
-      education: Array.isArray(resume.education) ? resume.education : [],
-      certifications: Array.isArray(resume.certifications) ? resume.certifications : [],
-      achievements: Array.isArray(resume.achievements) ? resume.achievements : [],
-      projects: Array.isArray(resume.projects) ? resume.projects : [],
-      volunteer_experience: Array.isArray(resume.volunteer_experience) ? resume.volunteer_experience : [],
-      leadership_engagement: Array.isArray(resume.leadership_engagement) ? resume.leadership_engagement : []
+      resume: includeResume ? resume : null,
+      experience: includeResume && Array.isArray(resume.experience) ? resume.experience : [],
+      skills: includeResume && Array.isArray(resume.skills) ? resume.skills : [],
+      technical_skills: includeResume && Array.isArray(resume.technical_skills) ? resume.technical_skills : [],
+      tools: includeResume && Array.isArray(resume.tools) ? resume.tools : [],
+      software: includeResume && Array.isArray(resume.software) ? resume.software : [],
+      methodologies: includeResume && Array.isArray(resume.methodologies) ? resume.methodologies : [],
+      industry_knowledge: includeResume && Array.isArray(resume.industry_knowledge) ? resume.industry_knowledge : [],
+      soft_skills: includeResume && Array.isArray(resume.soft_skills) ? resume.soft_skills : [],
+      education: includeResume && Array.isArray(resume.education) ? resume.education : [],
+      certifications: includeResume && Array.isArray(resume.certifications) ? resume.certifications : [],
+      achievements: includeResume && Array.isArray(resume.achievements) ? resume.achievements : [],
+      projects: includeResume && Array.isArray(resume.projects) ? resume.projects : [],
+      volunteer_experience: includeResume && Array.isArray(resume.volunteer_experience) ? resume.volunteer_experience : [],
+      leadership_engagement: includeResume && Array.isArray(resume.leadership_engagement) ? resume.leadership_engagement : []
     };
   }
 
@@ -19329,7 +19364,23 @@
       }
 
       RB_STATE.documentPackage = pkg;
+      var publicIncludeMode = (pkg && (pkg.publicIncludeMode || pkg.includeMode))
+        || (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode)
+        || 'resume';
       var generated = buildGeneratedForPublishedView(pkg);
+      // Belt-and-braces: always re-stamp include-mode metadata on the saved
+      // generated payload so view.html cannot accidentally render content
+      // from the unselected branch.
+      try {
+        generated.public_include_mode = publicIncludeMode;
+        generated.include_mode = publicIncludeMode;
+        if (typeof formatPlanTypeLabel === 'function') {
+          generated.plan_type_label = formatPlanTypeLabel(generated.plan_type);
+        }
+        if (typeof formatPublicIncludeTitle === 'function') {
+          generated.public_title = formatPublicIncludeTitle(publicIncludeMode, generated.plan_type);
+        }
+      } catch (_) {}
 
       var heroName = (generated.hero && generated.hero.name) || '';
       var heroTitle = (generated.hero && generated.hero.target_title) || '';
@@ -19377,6 +19428,14 @@
       else color = colorMap.blue;
 
       var heroForPayload = generated.hero || {};
+      var canonicalPlanTypeForPayload = (typeof mapPlanTypeForApi === 'function')
+        ? mapPlanTypeForApi(generated.plan_type || RB_STATE.rolePlanType || '90-day')
+        : (generated.plan_type || '90-day');
+      // Mirror the include selection on the top-level doc + prune
+      // RB_STATE leaks so view.html / synthesizeGeneratedFromPayload
+      // cannot fall back to omitted content.
+      var includeResumeForPayload = (publicIncludeMode === 'resume' || publicIncludeMode === 'resumePlan');
+      var includePlanForPayload   = (publicIncludeMode === 'plan'   || publicIncludeMode === 'resumePlan');
       var payload = sanitizeForFirestore({
         schemaVersion: 'resume-builder-clean-lean-v1',
         source: 'resumebuilder.html',
@@ -19385,16 +19444,18 @@
         userName: heroName,
         jobTitle: heroTitle,
         company: heroCompany,
-        planType: generated.plan_type || RB_STATE.rolePlanType || '90-day',
+        planType: canonicalPlanTypeForPayload,
+        publicIncludeMode: publicIncludeMode,
+        includeMode: publicIncludeMode,
         slug: slug,
         published: true,
         publishedAt: firebase.firestore.FieldValue.serverTimestamp(),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         generated: generated,
         documentPackage: pkg,
-        resumeData: RB_STATE.resumeData || null,
+        resumeData: includeResumeForPayload ? (RB_STATE.resumeData || null) : null,
         coverLetter: RB_STATE.coverLetter || null,
-        rolePlan: RB_STATE.rolePlan || null,
+        rolePlan: includePlanForPayload ? (RB_STATE.rolePlan || null) : null,
         style: styleToken,
         color: color,
         styleSettings: styleSettings,
@@ -19875,12 +19936,22 @@
     // through formatPublicIncludeTitle / formatPlanTypeLabel so we never
     // surface "90D" to users.
     var hasPlanContent = Array.isArray(g.plan_phases) && g.plan_phases.length;
-    var includeMode = (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode) || (hasPlanContent ? 'resumePlan' : 'resume');
+    // Read includeMode from the package first (single source of truth),
+    // then fall back to generated metadata, then RB_EXPORT_FLOW, then
+    // infer from available content.
+    var includeMode =
+      opts.includeMode ||
+      (pkg && (pkg.publicIncludeMode || pkg.includeMode)) ||
+      g.public_include_mode ||
+      g.include_mode ||
+      (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode) ||
+      (hasPlanContent ? 'resumePlan' : 'resume');
     if (includeMode === 'resumePlan' && !hasPlanContent) includeMode = 'resume';
     if (includeMode === 'plan' && !hasPlanContent) includeMode = 'resume';
-    var planLabelText = (includeMode === 'resume')
-      ? 'Resume'
-      : formatPublicIncludeTitle(includeMode, planType);
+    var planLabelText = g.public_title
+      || ((includeMode === 'resume')
+        ? 'Resume'
+        : formatPublicIncludeTitle(includeMode, planType));
     var planLabel = planLabelText.toUpperCase();
 
     function sectionLabel(text) {
@@ -21152,7 +21223,22 @@
           }
         }
       } catch (_) {}
-      // Phase D: restore Adjust Layout overrides and reflect them in the UI
+      // Restore Public Web include mode from any saved/published record so
+      // the radios + auto-preview reflect the last selection on reload.
+      try {
+        var savedIncludeMode =
+          (data && (data.publicIncludeMode || data.includeMode)) ||
+          (data && data.generated && (data.generated.public_include_mode || data.generated.include_mode)) ||
+          (data && data.documentPackage && (data.documentPackage.publicIncludeMode || data.documentPackage.includeMode)) ||
+          null;
+        if (savedIncludeMode) {
+          window.RB_EXPORT_FLOW = window.RB_EXPORT_FLOW || {};
+          window.RB_EXPORT_FLOW.publicIncludeMode = savedIncludeMode;
+          if (typeof _syncPublicIncludeRadios === 'function') {
+            try { _syncPublicIncludeRadios(savedIncludeMode); } catch (_) {}
+          }
+        }
+      } catch (_) {}
       // selects so the user sees their saved settings on load.
       try {
         if (data && data.documentLayoutOverrides && typeof data.documentLayoutOverrides === 'object') {
@@ -23456,11 +23542,31 @@
     renderSelectedExportPreview();
   }
   function setPublicIncludeMode(mode) {
+    mode = mode || 'resume';
     window.RB_EXPORT_FLOW.publicIncludeMode = mode;
+    // Keep radios + card visuals + preview shell in sync regardless of how
+    // the mode was changed (click, keyboard, programmatic call, hydration).
+    try { _syncPublicIncludeRadios(mode); } catch (_) {}
     if (window.RB_EXPORT_FLOW.target === 'publicWeb') {
+      try {
+        var shell = document.getElementById('public-web-preview-shell');
+        if (shell) shell.hidden = false;
+      } catch (_) {}
       try { _renderPublicWebPreview(); } catch (_) {}
     }
   }
+  function _syncPublicIncludeRadios(mode) {
+    mode = mode || (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode) || 'resume';
+    try {
+      var radios = document.querySelectorAll('input[name="publicIncludeMode"]');
+      radios.forEach(function (r) {
+        r.checked = (r.value === mode);
+        var card = r.closest('.public-include-card');
+        if (card) card.classList.toggle('is-active', r.checked);
+      });
+    } catch (_) {}
+  }
+  try { window._syncPublicIncludeRadios = _syncPublicIncludeRadios; } catch (_) {}
   function _syncLegacyExportInputs() {
     try {
       var si = document.getElementById('export-style');
@@ -23495,6 +23601,13 @@
       if (publicStep) publicStep.classList.remove('hidden');
       try { hydratePublishedShareLinkUI(); } catch (_) {}
       _renderPublicWebStyleOptions(flow.template || 'executive');
+      // Preview is auto-rendered on entry — no manual button click needed.
+      try { _syncPublicIncludeRadios(flow.publicIncludeMode || 'resume'); } catch (_) {}
+      try {
+        var pwShell = document.getElementById('public-web-preview-shell');
+        if (pwShell) { pwShell.hidden = false; pwShell.style.display = ''; }
+      } catch (_) {}
+      try { _renderPublicWebPreview(); } catch (_) {}
       return;
     }
     targetStep.classList.add('hidden');
@@ -23625,19 +23738,45 @@
   try { window.downloadCurrentExportSelection = downloadCurrentExportSelection; } catch (_) {}
 
   function buildPublicWebPackageForIncludeMode(mode) {
+    mode = mode || 'resume';
     var pkg;
     try { pkg = buildSelectedDocumentPackage(); } catch (_) { pkg = {}; }
     pkg = pkg || {};
-    pkg.selected = pkg.selected || {};
-    pkg.style    = pkg.style    || {};
-    if (mode === 'resume')     { pkg.selected.resume = true;  pkg.selected.coverLetter = false; pkg.selected.rolePlan = false; }
-    else if (mode === 'resumePlan') { pkg.selected.resume = true; pkg.selected.coverLetter = false; pkg.selected.rolePlan = true; }
-    else if (mode === 'plan')  { pkg.selected.resume = false; pkg.selected.coverLetter = false; pkg.selected.rolePlan = true; }
+    pkg.selected  = pkg.selected  || {};
+    pkg.documents = pkg.documents || {};
+    pkg.style     = pkg.style     || {};
+
+    var includeResume = (mode === 'resume' || mode === 'resumePlan');
+    var includePlan   = (mode === 'plan'   || mode === 'resumePlan');
+
+    pkg.selected.resume      = includeResume;
+    pkg.selected.coverLetter = false;
+    pkg.selected.rolePlan    = includePlan;
+
+    // Carry the include mode on the package so every downstream consumer
+    // (preview renderer, publish payload, view.html) reads from a single
+    // source of truth instead of inferring from "is content present?".
+    pkg.publicIncludeMode = mode;
+    pkg.includeMode       = mode;
+
     pkg.style.previewFormat = 'web';
-    var webStyle = (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.template) || 'executive';
-    if (typeof getPublicViewStyleKey === 'function') webStyle = getPublicViewStyleKey(webStyle);
-    pkg.style.template = webStyle;
+    var webStyle = (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.template) || pkg.style.template || 'executive';
+    if (typeof getPublicViewStyleKey === 'function') {
+      try { webStyle = getPublicViewStyleKey(webStyle) || 'executive'; } catch (_) { webStyle = 'executive'; }
+    }
+    pkg.style.template    = webStyle;
     pkg.style.publicStyle = webStyle;
+
+    // Hard-prune unselected document content so renderers cannot fall back
+    // to RB_STATE / pkg.documents and accidentally include omitted content.
+    if (!includeResume) {
+      pkg.documents.resume = null;
+      pkg.resume = null;
+    }
+    if (!includePlan) {
+      pkg.documents.rolePlan = null;
+      pkg.rolePlan = null;
+    }
     return pkg;
   }
   try { window.buildPublicWebPackageForIncludeMode = buildPublicWebPackageForIncludeMode; } catch (_) {}
@@ -23782,7 +23921,7 @@
       var tmplBtn = el.closest('[data-export-template]');
       if (tmplBtn) { try { setExportTemplate(tmplBtn.getAttribute('data-export-template')); } catch (e) { console.error(e); } return; }
       if (el.closest('[data-download-current-export]')) { try { downloadCurrentExportSelection(); } catch (e) { console.error(e); } return; }
-      if (el.closest('#preview-public-web-btn')) { try { _renderPublicWebPreview(); } catch (e) { console.error(e); } return; }
+      if (el.closest('#preview-public-web-btn')) { /* preview is auto-rendered; button hidden */ return; }
       // Color swatch click in new flow
       var sw = el.closest('.swatch[data-color]');
       if (sw && root.contains(sw)) {
@@ -23916,6 +24055,38 @@
       hasNormalizeRolePlanPrintDocumentHTML: typeof normalizeRolePlanPrintDocumentHTML === 'function',
       hasPublicPreviewRenderer: typeof renderPublicViewPreviewHTML === 'function'
     };
+  };
+  // Inspect the actual data contract that preview + publish will use.
+  // Confirms include mode flows from radio -> pkg -> generated payload.
+  window.debugPublicWebPayload = function (mode) {
+    try {
+      mode = mode || (window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode) || 'resume';
+      var pkg = (typeof buildPublicWebPackageForIncludeMode === 'function')
+        ? buildPublicWebPackageForIncludeMode(mode)
+        : null;
+      var generated = (pkg && typeof buildGeneratedForPublishedView === 'function')
+        ? buildGeneratedForPublishedView(pkg)
+        : null;
+      return {
+        flowIncludeMode: window.RB_EXPORT_FLOW && window.RB_EXPORT_FLOW.publicIncludeMode,
+        radioCheckedValue: (function () {
+          var r = document.querySelector('input[name="publicIncludeMode"]:checked');
+          return r ? r.value : null;
+        })(),
+        pkgIncludeMode: pkg && (pkg.publicIncludeMode || pkg.includeMode),
+        pkgSelected: pkg && pkg.selected,
+        pkgHasResumeDoc: !!(pkg && pkg.documents && pkg.documents.resume),
+        pkgHasRolePlanDoc: !!(pkg && pkg.documents && pkg.documents.rolePlan),
+        generatedIncludeMode: generated && (generated.public_include_mode || generated.include_mode),
+        generatedPublicTitle: generated && generated.public_title,
+        generatedPlanTypeLabel: generated && generated.plan_type_label,
+        generatedPlanType: generated && generated.plan_type,
+        generatedHasResume: !!(generated && (generated.resume || (generated.experience && generated.experience.length))),
+        generatedHasPlan: !!(generated && Array.isArray(generated.plan_phases) && generated.plan_phases.length),
+        generatedExperienceCount: generated && Array.isArray(generated.experience) ? generated.experience.length : 0,
+        generatedPlanPhaseCount: generated && Array.isArray(generated.plan_phases) ? generated.plan_phases.length : 0
+      };
+    } catch (e) { return { error: String(e && e.message || e) }; }
   };
 
   // Boot
