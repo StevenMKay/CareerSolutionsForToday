@@ -15131,18 +15131,34 @@
 
   function getPdfSafePageBudget(settings, options) {
     options = options || {};
+
+    // Real visible inner area. .rb-pdf-safe-page is Letter (8.5x11in).
+    // .rb-pdf-safe-inner uses inset: 0.46in 0.58in, so usable height is
+    // 11in - 0.92in = 10.08in. At 96dpi that is ~968px. The validator
+    // confirms clientHeight === 968.
+    var innerHeightPx = Number(options.innerHeightPx);
+    if (!isFinite(innerHeightPx) || innerHeightPx <= 0) innerHeightPx = 968;
+
     var template = String(options.template || 'pdf-modern-accent').toLowerCase();
-    var base;
-    switch (template) {
-      case 'pdf-classic-ats':   base = 975; break;
-      case 'pdf-executive':     base = 985; break;
-      case 'pdf-modern-accent': base = 970; break;
-      case 'pdf-compact':       base = 990; break;
-      default:                  base = 960;
+
+    // Caller-provided safety wins. Otherwise pick a template-aware default
+    // that always leaves the budget BELOW innerHeightPx.
+    var safety = Number(options.safetyPx);
+    var hasExplicitSafety = isFinite(safety);
+    if (!hasExplicitSafety) {
+      switch (template) {
+        case 'pdf-compact':       safety = 36; break;
+        case 'pdf-classic-ats':   safety = 44; break;
+        case 'pdf-modern-accent': safety = 48; break;
+        case 'pdf-executive':     safety = 52; break;
+        default:                  safety = 48;
+      }
     }
-    var safety = (typeof options.safetyPx === 'number') ? options.safetyPx : 0;
-    var budget = base - safety;
-    return budget < 760 ? 760 : budget;
+    if (!isFinite(safety) || safety < 0) safety = 48;
+
+    var budget = innerHeightPx - safety;
+    if (budget < 760) budget = 760;
+    return Math.floor(budget);
   }
 
   function getPdfSafeMeasureHost(settings, options) {
@@ -15216,6 +15232,27 @@
     }, 0);
   }
 
+  // Measure the candidate page as a SINGLE rendered block. Summing isolated
+  // block heights undercounts margin collapse, section spacing, grid
+  // layouts, and CSS interactions, which lets the paginator overfill page 1
+  // and then the validator reports scrollHeight > clientHeight. This
+  // measures the joined HTML so the paginator's decision matches the
+  // real rendered height.
+  function measurePdfSafePageHtml(blocks, settings, options) {
+    var host = getPdfSafeMeasureHost(settings, options);
+    if (!host) return 0;
+    host.innerHTML = (blocks || []).map(function (b) {
+      return (b && b.html) || '';
+    }).join('');
+    var rect = host.getBoundingClientRect && host.getBoundingClientRect();
+    var h = Math.ceil(
+      (host.scrollHeight || 0) ||
+      ((rect && rect.height) ? rect.height : 0)
+    );
+    host.innerHTML = '';
+    return h;
+  }
+
   function collectPdfSafeTailRun(blocks, startIndex) {
     var run = [];
     for (var i = startIndex; i < blocks.length; i++) {
@@ -15236,53 +15273,58 @@
 
       if (block.type === 'tailSection') {
         var tailRun = collectPdfSafeTailRun(blocks, i);
-        var tailH = measurePdfSafeBlocks(tailRun, settings, options);
+        // Measure the entire tail run as a unit (real layout) and the
+        // candidate page that would result from appending it.
+        var tailCandidate = current.concat(tailRun);
+        var tailCandidateH = measurePdfSafePageHtml(tailCandidate, settings, options);
+        var tailRunH = measurePdfSafePageHtml(tailRun, settings, options);
 
-        if (current.length && currentH + tailH <= budget) {
-          tailRun.forEach(function (b) {
-            current.push(b);
-            currentH += measurePdfSafeBlock(b.html, settings, options);
-          });
+        if (current.length && tailCandidateH <= budget) {
+          current = tailCandidate;
+          currentH = tailCandidateH;
           i += tailRun.length - 1;
           continue;
         }
 
-        if (tailH <= budget) {
+        if (tailRunH <= budget) {
           if (current.length) pages.push(current);
-          current = [];
-          currentH = 0;
-          tailRun.forEach(function (b) {
-            current.push(b);
-            currentH += measurePdfSafeBlock(b.html, settings, options);
-          });
+          current = tailRun.slice();
+          currentH = tailRunH;
           i += tailRun.length - 1;
           continue;
         }
 
+        // Tail run alone exceeds the budget. Place its blocks one by one
+        // using the same candidate-measurement rule.
         for (var t = 0; t < tailRun.length; t++) {
           var tb = tailRun[t];
-          var th = measurePdfSafeBlock(tb.html, settings, options);
-          if (current.length && currentH + th > budget) {
+          var tCandidate = current.concat([tb]);
+          var tCandidateH = measurePdfSafePageHtml(tCandidate, settings, options);
+          if (current.length && tCandidateH > budget) {
             pages.push(current);
-            current = [];
-            currentH = 0;
+            current = [tb];
+            currentH = measurePdfSafePageHtml(current, settings, options);
+          } else {
+            current = tCandidate;
+            currentH = tCandidateH;
           }
-          current.push(tb);
-          currentH += th;
         }
 
         i += tailRun.length - 1;
         continue;
       }
 
-      var h = measurePdfSafeBlock(block.html, settings, options);
-      if (current.length && currentH + h > budget) {
+      // Normal block: decide based on full candidate page height.
+      var candidate = current.concat([block]);
+      var candidateH = measurePdfSafePageHtml(candidate, settings, options);
+      if (current.length && candidateH > budget) {
         pages.push(current);
-        current = [];
-        currentH = 0;
+        current = [block];
+        currentH = measurePdfSafePageHtml(current, settings, options);
+      } else {
+        current = candidate;
+        currentH = candidateH;
       }
-      current.push(block);
-      currentH += h;
     }
 
     if (current.length) pages.push(current);
@@ -24911,6 +24953,39 @@
       experienceHeadingFolded: pages.some(function (p) {
         return p.hasProfessionalExperienceHeading && p.startsWithExperienceItem;
       })
+    };
+  };
+
+  // Inspects the live PDF preview iframe to confirm no .rb-pdf-safe-inner
+  // page is overflowing its visible area. ok===true means the paginator
+  // budget + candidate measurement settled correctly for the current
+  // template. If ok is false, inspect pages[].tail to see what content
+  // is being clipped.
+  window.debugPdfSafeOverflow = function () {
+    var frame = document.getElementById('preview-frame');
+    var doc = null;
+    try { doc = frame && frame.contentDocument; } catch (_) {}
+    if (!doc) return { ok: false, error: 'No preview document' };
+
+    var pageEls = doc.querySelectorAll('.rb-pdf-safe-page');
+    var pages = Array.prototype.map.call(pageEls, function (page, index) {
+      var inner = page.querySelector('.rb-pdf-safe-inner') || page;
+      var ch = inner.clientHeight || 0;
+      var sh = inner.scrollHeight || 0;
+      var tail = (inner.textContent || '').replace(/\s+/g, ' ').trim();
+      return {
+        page: index + 1,
+        clientHeight: ch,
+        scrollHeight: sh,
+        overflow: sh > ch + 2,
+        overflowPx: Math.max(0, sh - ch),
+        tail: tail.slice(-220)
+      };
+    });
+    return {
+      ok: pages.length > 0 && pages.every(function (p) { return !p.overflow; }),
+      pageCount: pages.length,
+      pages: pages
     };
   };
 
