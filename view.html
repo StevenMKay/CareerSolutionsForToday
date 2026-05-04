@@ -11,7 +11,7 @@
 <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/24f41fc0ba84fa65c8b2fad5155b6b32c824486e/icons/CareerIcon.png" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b26be6501f1cd10eb39e1257de10c6d856ca6996/icons/Career%20Icon%20Blue.png" media="(prefers-color-scheme: light)">
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Archivo+Black&family=Bebas+Neue&family=Mulish:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -46,23 +46,13 @@
   @media (min-width:1024px){
     .sidebar-inner{position:static;transform:none!important;box-shadow:none;padding:0;background:transparent}
   }
-  @media print{
-    *,*::before,*::after{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}
-    @page{size:Letter;margin:.5in;}
-    html,body{background:#fff !important;padding:0;margin:0;font-size:10.5pt;line-height:1.45;}
-    .no-print{display:none !important}
-    .section-card{break-inside:avoid;page-break-inside:avoid;margin:0 0 14px !important;border:0 !important;box-shadow:none !important;border-radius:0 !important;padding:8px 0 !important;background:transparent !important;}
-    .section-card h2,.section-card h3{break-after:avoid;page-break-after:avoid;}
-    #print-modal{display:none !important}
-    .hero-full{padding:0 0 12px !important;}
-    #hero-section > div,#hero-section > div > div{box-shadow:none !important;border:0 !important;border-radius:0 !important;background:#fff !important;}
-    #hero-section h1{font-size:18pt !important;}
-    .max-w-7xl{max-width:none !important;}
-    .flex.gap-8{display:block !important;gap:0 !important;}
-    .sidebar-col,.no-print{display:none !important;}
-    .package-section-divider{margin:18px auto !important;page-break-before:always;break-before:page;}
-    a{color:#000 !important;text-decoration:none !important;}
-    img{max-width:1.4in !important;height:auto !important;}
+  @media print{body{background:#fff!important;padding:0}.no-print{display:none!important}.section-card{break-inside:avoid}#print-modal{display:none!important}
+    /* Profile photo is a web-profile-only enhancement; hide in print. */
+    #hero-section img,
+    .preview-profile-photo,
+    .web-hero-photo,
+    .published-hero-photo,
+    [class*="photo-shape-"]{display:none!important}
   }
 
   /* PATCH (Plan polish v2): premium divider between Plan and Resume on the
@@ -215,6 +205,85 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 /* KEEP IN SYNC with builder.html STYLE_CONFIG */
+
+// ---- Public Web include-mode helpers (KEEP IN SYNC with resumebuilder.html
+//      formatPlanTypeLabel / formatPublicIncludeTitle).
+//      Word order: "Resume" / "90-Day Plan" / "Resume and 90-Day Plan".
+function normalizePlanTypeKey(value) {
+  const key = String(value || '').toLowerCase().trim();
+  if (key === '90d'  || key === '90-day'   || key === '90 day'   || key === '90days')   return '90-day';
+  if (key === '12m'  || key === '12-month' || key === '12 month')                       return '12-month';
+  if (key === '2y'   || key === '2-year'   || key === '2 year')                         return '2-year';
+  return key || '90-day';
+}
+function formatPlanTypeLabel(value, options) {
+  options = options || {};
+  const key = normalizePlanTypeKey(value);
+  const hyphen = options.noHyphen ? ' ' : '-';
+  if (key === '90-day')   return '90'  + hyphen + 'Day Plan';
+  if (key === '12-month') return '12'  + hyphen + 'Month Plan';
+  if (key === '2-year')   return '2'   + hyphen + 'Year Plan';
+  return 'Role Plan';
+}
+function formatPublicIncludeTitle(mode, planType) {
+  const planLabel = formatPlanTypeLabel(planType || '90-day');
+  if (mode === 'resume')     return 'Resume';
+  if (mode === 'plan')       return planLabel;
+  if (mode === 'resumePlan') return 'Resume and ' + planLabel;
+  return 'Resume and ' + planLabel;
+}
+function getPublicIncludeModeFromPublishedPlan(plan) {
+  plan = plan || {};
+  const generated = plan.generated || {};
+  const explicit =
+    generated.public_include_mode ||
+    generated.include_mode ||
+    plan.publicIncludeMode ||
+    plan.includeMode ||
+    null;
+  if (explicit) return explicit;
+  // Legacy docs (no explicit mode): infer from content so we never
+  // render "Resume and Plan" branding for a resume-only published doc.
+  const hasResume = !!(
+    (generated && (generated.resume || (Array.isArray(generated.experience) && generated.experience.length))) ||
+    plan.resumeData
+  );
+  const hasPlan = !!(
+    (generated && Array.isArray(generated.plan_phases) && generated.plan_phases.length) ||
+    plan.rolePlan
+  );
+  if (hasResume && hasPlan)  return 'resumePlan';
+  if (hasPlan && !hasResume) return 'plan';
+  return 'resume';
+}
+// Treat any stored public_title that conflicts with current include mode,
+// uses the old "Plan and Resume" word order, or contains raw enum tokens
+// (90D / 12M / 2Y) as stale, and recompute from helpers.
+function isStalePublicTitle(title, includeMode) {
+  const t = String(title || '').trim();
+  if (!t) return true;
+  if (/\b90D\b|\b12M\b|\b2Y\b/i.test(t)) return true;
+  if (/Plan\s+and\s+Resume/i.test(t)) return true;
+  if (includeMode === 'resume' && /Plan/i.test(t)) return true;
+  if (includeMode === 'plan'   && /Resume/i.test(t)) return true;
+  return false;
+}
+function getPublicTitleFromPublishedPlan(plan) {
+  plan = plan || {};
+  const generated = plan.generated || {};
+  const includeMode = getPublicIncludeModeFromPublishedPlan(plan);
+  const planType =
+    generated.plan_type ||
+    generated.planType ||
+    plan.planType ||
+    '90-day';
+  // Title is ALWAYS recomputed from includeMode + planType. Stored
+  // titles (generated.public_title / plan.publicTitle) are ignored to
+  // prevent legacy "2 YEAR PLAN AND RESUME" strings from leaking onto
+  // resume-only published pages.
+  return formatPublicIncludeTitle(includeMode, planType);
+}
+
 const STYLE_CONFIG = {
   executive: {
     name: 'Executive', layout: 'sidebar', pageBg: '#F8F9FB',
@@ -265,42 +334,6 @@ const STYLE_CONFIG = {
     borderStyle: '1px solid #334155', dividerStyle: '1px solid #334155',
     skillCols: 4, kpiCols: 4, accentOverride: '#22D3EE',
   },
-  corporate: {
-    name: 'Corporate', layout: 'sidebar', pageBg: '#F4F6FA',
-    cardBg: '#fff', cardBorder: '#E5E7EB',
-    headingFont: "'Outfit','Helvetica Neue',Arial,sans-serif",
-    bodyFont: "'Inter','Helvetica Neue',Arial,sans-serif",
-    headingColor: '#0F2A44', textColor: '#1F2937', mutedColor: '#475569',
-    sidebarBg: '#0F2A44', sidebarText: '#fff', sidebarMuted: '#CBD5E1',
-    sectionLabelStyle: 'uppercase', cardRadius: '0.5rem', cardShadow: 'none',
-    borderStyle: '1px solid #E5E7EB', dividerStyle: '2px solid #0F2A44',
-    skillCols: 3, kpiCols: 3, accentOverride: '#0F2A44',
-  },
-  editorial: {
-    name: 'Editorial', layout: 'full-width', pageBg: '#FBFAF7',
-    cardBg: '#fff', cardBorder: '#E8E2D8',
-    headingFont: "'Archivo Black','Bebas Neue','Oswald','Helvetica Neue',Arial,sans-serif",
-    bodyFont: "'Mulish','Inter','Helvetica Neue',Arial,sans-serif",
-    headingColor: '#1A1A1A', textColor: '#1A1A1A', mutedColor: '#4B5563',
-    sectionLabelStyle: 'uppercase', cardRadius: '0.25rem',
-    cardShadow: 'none',
-    borderStyle: '1px solid #E8E2D8', dividerStyle: '1px solid #1A1A1A',
-    skillCols: 3, kpiCols: 3, accentOverride: '#1A1A1A',
-  },
-};
-// Allow the builder's template names ("modern-sidebar", "modern", "executive", "classic")
-// to map onto the view.html STYLE_CONFIG keys above. This keeps the builder
-// and the public page visually consistent without duplicating presets.
-const STYLE_ALIASES = {
-  'modern-sidebar': 'executive',
-  'modern': 'modern',
-  'portfolio': 'modern',
-  'executive': 'executive',
-  'classic': 'classic',
-  'bold': 'bold',
-  'tech': 'tech',
-  'corporate': 'corporate',
-  'editorial': 'editorial'
 };
 
 function toggleSidebar() {
@@ -310,26 +343,399 @@ document.getElementById('sidebar-col').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');
 });
 
+// ============================================================
+// View contract helpers (added for publish-link stabilization)
+// ============================================================
+//
+// Builder writes plans/{id} with style tokens that don't all match the
+// keys in STYLE_CONFIG above (e.g. 'modern-sidebar', 'portfolio'). Map
+// them to the closest existing config so newer builder payloads render
+// instead of silently falling back to executive with no logging.
+const BUILDER_STYLE_ALIAS = {
+  'modern-sidebar': 'executive',
+  'modern_sidebar': 'executive',
+  'modernsidebar':  'executive',
+  'portfolio':      'bold',
+  'portfolio_card': 'bold',
+  'bold-creative':  'bold',
+  'tech-terminal':  'tech',
+  'minimal':        'modern',
+  'modern-minimal': 'modern',
+  'minimalist':     'modern',
+  'classic-serif':  'classic'
+};
+function resolveStyleKey(rawStyle) {
+  const raw = String(rawStyle || '').trim().toLowerCase();
+  if (!raw) return 'executive';
+  if (STYLE_CONFIG[raw]) return raw;
+  if (BUILDER_STYLE_ALIAS[raw] && STYLE_CONFIG[BUILDER_STYLE_ALIAS[raw]]) return BUILDER_STYLE_ALIAS[raw];
+  return 'executive';
+}
+
+// Coerce arbitrary Firestore/published-payload values into a safe string.
+// Published payloads have evolved over time, so a field like
+// `executive_summary` may show up as a string (current), an array of
+// bullet strings, an object like { text: '...' } or { summary: '...' },
+// null, undefined, or a number. Calling `.substring()` on any of those
+// non-string shapes crashes the whole render. safeText walks the value
+// once and returns a clean string; safeSnippet truncates for descriptions.
+function safeText(value, fallback) {
+  if (value == null) return fallback || '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map(function (item) { return safeText(item); })
+      .filter(Boolean)
+      .join(' ');
+  }
+  if (typeof value === 'object') {
+    return safeText(
+      value.text ||
+      value.summary ||
+      value.description ||
+      value.value ||
+      value.content ||
+      value.title ||
+      '',
+      fallback
+    );
+  }
+  return fallback || '';
+}
+function safeSnippet(value, maxLength) {
+  var text = safeText(value);
+  var limit = maxLength || 180;
+  return text.length > limit ? text.substring(0, limit) + '...' : text;
+}
+try { window.safeText = safeText; window.safeSnippet = safeSnippet; } catch (_) {}
+
+// If the builder published payload has no `generated` block (newer schema
+// keeps content in documentPackage / resumeData / coverLetter / rolePlan),
+// synthesize a minimal `generated`-shaped object so renderPlan() can still
+// produce a public page. Fields are best-effort only — missing data is
+// simply omitted.
+function synthesizeGeneratedFromPayload(plan) {
+  if (!plan || typeof plan !== 'object') return {};
+  const docPkg = plan.documentPackage || {};
+  const docs = (docPkg && docPkg.documents) || {};
+  const resume = docs.resume || plan.resumeData || {};
+  const coverLetter = docs.coverLetter || plan.coverLetter || null;
+  const rolePlan = docs.rolePlan || plan.rolePlan || null;
+
+  const heroName =
+    resume.full_name || resume.name ||
+    (resume.contact && (resume.contact.full_name || resume.contact.name)) ||
+    plan.userName || '';
+  const heroTitle =
+    resume.target_title || resume.headline || resume.current_title ||
+    plan.jobTitle || '';
+  const heroCompany =
+    (resume.target_company || resume.company || plan.company || '') + '';
+  const contact = resume.contact || resume || {};
+  const hero = {
+    name: heroName,
+    target_title: heroTitle,
+    company: heroCompany,
+    summary: resume.summary || resume.professional_summary || '',
+    email: contact.email || resume.email || '',
+    phone: contact.phone || resume.phone || '',
+    linkedin: contact.linkedin || resume.linkedin || '',
+    github: contact.github || resume.github || '',
+    website: contact.website || contact.portfolio || resume.website || resume.portfolio || '',
+    photo_url: plan.photoUrl || plan.profilePhotoUrl || ''
+  };
+
+  // Try to derive plan_phases / kpis / success_criteria from rolePlan.
+  let planBucket = null;
+  if (rolePlan) {
+    const t = String(plan.planType || '').toLowerCase();
+    if (/12/.test(t))      planBucket = rolePlan.months12 || rolePlan['12-month'];
+    else if (/2/.test(t))  planBucket = rolePlan.years2   || rolePlan['2-year'];
+    planBucket = planBucket || rolePlan.days90 || rolePlan['90-day'] || rolePlan;
+  }
+  const planPhases =
+    (planBucket && (planBucket.phases || planBucket.quarters || planBucket.plan_phases)) || [];
+  const successCriteria =
+    (planBucket && (planBucket.success_criteria || planBucket.successCriteria)) || [];
+  const rawKpis =
+    (planBucket && (planBucket.suggested_kpis || planBucket.kpis || planBucket.success_metrics)) || [];
+
+  return {
+    hero: hero,
+    summary: resume.summary || '',
+    executive_summary: (planBucket && planBucket.executive_summary) ||
+                       (rolePlan && rolePlan.executive_summary) || '',
+    plan_phases: Array.isArray(planPhases) ? planPhases : [],
+    success_criteria: Array.isArray(successCriteria) ? successCriteria : [],
+    kpis: Array.isArray(rawKpis) ? rawKpis : [],
+    experience: Array.isArray(resume.experience) ? resume.experience : [],
+    skills: Array.isArray(resume.skills) ? resume.skills : [],
+    education: Array.isArray(resume.education) ? resume.education : [],
+    certifications: Array.isArray(resume.certifications) ? resume.certifications : [],
+    achievements: Array.isArray(resume.achievements) ? resume.achievements : [],
+    leadership: Array.isArray(resume.leadership) ? resume.leadership : [],
+    leadership_engagement: Array.isArray(resume.leadership_engagement) ? resume.leadership_engagement : [],
+    cover_letter: coverLetter || null,
+    plan_type: normalizePlanTypeKey(plan.planType || '90-day'),
+    _synthesized: true
+  };
+}
+
+// Map a thrown Firestore error / generic exception to a category +
+// user-facing message + console hint. Avoids hiding real failures behind
+// the generic "Plan Not Found" card.
+function categorizeViewLoadError(err, ctx) {
+  const code = String((err && (err.code || err.name)) || '').toLowerCase();
+  const msg  = String((err && err.message) || err || '');
+  if (code === 'permission-denied' || /permission/i.test(msg)) {
+    return {
+      category: 'permission-denied',
+      title: 'Access Denied',
+      detail: 'Firestore rules blocked this read. The owner may need to re-publish, or rules need to allow public reads on plans/{id} where published == true.',
+      hint: 'Check Firestore Rules: allow get/list on /plans/{id} when resource.data.published == true.'
+    };
+  }
+  if (code === 'failed-precondition' || /index/i.test(msg)) {
+    return {
+      category: 'failed-precondition',
+      title: 'Database Index Missing',
+      detail: 'Firestore needs a composite index on plans (slug ASC, published ASC).',
+      hint: 'The error message in console contains a one-click link to create the index.'
+    };
+  }
+  if (code === 'unavailable' || /network|offline/i.test(msg)) {
+    return {
+      category: 'unavailable',
+      title: 'Service Unavailable',
+      detail: 'Could not reach the database. Check your connection and try again.',
+      hint: 'Firestore unavailable — likely transient.'
+    };
+  }
+  if (ctx === 'render') {
+    return {
+      category: 'render-error',
+      title: 'Could Not Display Plan',
+      detail: 'The published plan loaded but failed to render. The owner may need to re-publish.',
+      hint: 'See render error stack in console. Likely a missing field consumed by renderPlan.'
+    };
+  }
+  if (ctx === 'malformed') {
+    return {
+      category: 'malformed-payload',
+      title: 'Plan Data Incomplete',
+      detail: 'The published plan is missing required fields. The owner needs to re-publish from the builder.',
+      hint: 'Both generated.hero and documentPackage/resumeData are missing.'
+    };
+  }
+  if (ctx === 'not-found') {
+    return {
+      category: 'not-found',
+      title: 'Plan Not Found',
+      detail: 'This plan may have been removed or the link is incorrect.',
+      hint: 'No Firestore document matched the slug + published==true filter.'
+    };
+  }
+  if (ctx === 'no-slug') {
+    return {
+      category: 'no-slug',
+      title: 'Invalid Link',
+      detail: 'This URL is missing the share code (?p=...).',
+      hint: 'Expected URL shape: /view.html?p=<slug>.'
+    };
+  }
+  return {
+    category: 'unknown',
+    title: 'Could Not Load Plan',
+    detail: 'Something went wrong loading this plan. Please try again.',
+    hint: msg || 'Unknown error.'
+  };
+}
+
+function renderViewError(info) {
+  const nf = document.getElementById('not-found');
+  if (!nf) return;
+  document.getElementById('loading').classList.add('hidden');
+  nf.classList.remove('hidden');
+  nf.innerHTML =
+    '<div style="background:#fff;border:1px solid #E5E7EB;border-radius:0.75rem;padding:2rem 1.5rem;text-align:center">' +
+      '<h2 style="font-size:1.25rem;font-weight:700;color:#0A2F6B;margin:0 0 0.5rem">' + info.title + '</h2>' +
+      '<p style="font-size:0.875rem;color:#6B7280;margin:0 0 1rem">' + info.detail + '</p>' +
+      '<p style="font-size:0.7rem;color:#9CA3AF;margin:0 0 1rem;font-family:ui-monospace,monospace">[' + info.category + ']</p>' +
+      '<a href="builder.html" style="display:inline-block;font-size:0.875rem;font-weight:500;padding:0.5rem 1rem;border-radius:0.5rem;color:#fff;background:#005EB8;text-decoration:none">Create Your Own Plan</a>' +
+    '</div>';
+}
+
 async function loadPlan() {
   const slug = new URLSearchParams(window.location.search).get('p');
-  if (!slug) { document.getElementById('loading').classList.add('hidden'); document.getElementById('not-found').classList.remove('hidden'); return; }
+  console.log('[view] loadPlan start — slug param =', JSON.stringify(slug));
+  if (!slug) {
+    renderViewError(categorizeViewLoadError(null, 'no-slug'));
+    return;
+  }
+  let plan = null;
+  let docId = '';
   try {
-    const snap = await db.collection('plans').where('slug','==',slug).where('published','==',true).limit(1).get();
-    if (snap.empty) { document.getElementById('loading').classList.add('hidden'); document.getElementById('not-found').classList.remove('hidden'); return; }
-    const plan = snap.docs[0].data();
+    console.log('[view] querying plans where slug==', slug, 'AND published==true');
+    let snap = await db.collection('plans').where('slug','==',slug).where('published','==',true).limit(1).get();
+    if (snap.empty) {
+      // Fallback 1: slug-only query (in case `published` isn't a boolean true).
+      console.warn('[view] composite query empty — retrying slug-only');
+      snap = await db.collection('plans').where('slug','==',slug).limit(1).get();
+    }
+    if (snap.empty) {
+      // Fallback 2: doc-id lookup (legacy share links sometimes used the doc id).
+      console.warn('[view] slug query empty — retrying as doc-id lookup');
+      try {
+        const direct = await db.collection('plans').doc(slug).get();
+        if (direct.exists) {
+          plan = direct.data();
+          docId = direct.id;
+        }
+      } catch (e) { /* swallow — fall through to not-found */ }
+    } else {
+      plan = snap.docs[0].data();
+      docId = snap.docs[0].id;
+    }
+    if (!plan) {
+      console.warn('[view] no document found for slug', slug);
+      renderViewError(categorizeViewLoadError(null, 'not-found'));
+      return;
+    }
+
+    // Diagnostics: surface the real shape we received.
+    const topKeys = Object.keys(plan);
+    console.log('[view] firestore doc loaded', {
+      docId: docId,
+      slug: plan.slug || '',
+      published: plan.published === true,
+      schemaVersion: plan.schemaVersion || '(none)',
+      topLevelKeys: topKeys,
+      hasGenerated: !!plan.generated,
+      hasGeneratedHero: !!(plan.generated && plan.generated.hero),
+      hasDocumentPackage: !!plan.documentPackage,
+      hasResumeData: !!plan.resumeData,
+      hasCoverLetter: !!plan.coverLetter,
+      hasRolePlan: !!plan.rolePlan,
+      style: plan.style || '',
+      color: plan.color || '',
+      hasStyleSettings: !!plan.styleSettings
+    });
+
+    if (plan.published !== true) {
+      console.warn('[view] document found but published flag is not true:', plan.published);
+    }
+
     // Check if publish link has expired (free trial / $1 users get 24hr links)
     if (plan.publishExpiresAt && new Date(plan.publishExpiresAt) < new Date()) {
+      console.warn('[view] published link expired at', plan.publishExpiresAt);
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('not-found').classList.remove('hidden');
       const nf = document.getElementById('not-found');
       if (nf) nf.innerHTML = '<div style="text-align:center;padding:3rem 1.5rem"><h2 style="font-size:1.5rem;font-weight:700;color:#0A2F6B;margin-bottom:0.5rem">Link Expired</h2><p style="color:#6B7280">This shared link has expired. The owner can re-publish or upgrade for permanent links.</p></div>';
       return;
     }
-    const g = plan.generated || {};
-    const style = plan.style || 'executive';
-    const aliasedStyle = STYLE_ALIASES[style] || style;
-    const S = STYLE_CONFIG[aliasedStyle] || STYLE_CONFIG.executive;
-    const C = S.accentOverride || plan.color || '#005EB8';
+
+    // Resolve `generated`: prefer real one; otherwise synthesize from
+    // documentPackage / resumeData / rolePlan so newer builder payloads
+    // still render.
+    let g = plan.generated || null;
+    let rendererPath = 'generated';
+    if (!g || !g.hero || !g.hero.name) {
+      const synth = synthesizeGeneratedFromPayload(plan);
+      if (synth.hero && (synth.hero.name || synth.hero.target_title)) {
+        console.log('[view] generated.hero missing — using fallback synth from documentPackage/resumeData');
+        g = Object.assign({}, synth, g || {});
+        // Make sure hero is the synthesized one if original was empty.
+        if (!g.hero || !g.hero.name) g.hero = synth.hero;
+        rendererPath = (plan.generated ? 'generated+synth' : 'synth-only');
+      } else if (!g) {
+        console.error('[view] no generated AND no usable documentPackage/resumeData — malformed payload');
+        renderViewError(categorizeViewLoadError(null, 'malformed'));
+        return;
+      } else {
+        rendererPath = 'generated-no-hero';
+      }
+    }
+
+    // Normalize public/optional payload fields before render. Older
+    // published documents may store these as arrays/objects/null. We
+    // coerce them to plain strings so downstream code (meta description,
+    // Executive Summary card, hero subtitles) never crashes on
+    // .substring()/.trim()/.replace() against the wrong type.
+    try {
+      var resumeDataN = plan.resumeData || {};
+      var execOriginal = g.executive_summary;
+      var execNormalized = safeText(
+        g.executive_summary ||
+        g.executiveSummary ||
+        g.summary ||
+        g.hero_summary ||
+        g.heroSummary ||
+        plan.summary ||
+        resumeDataN.summary ||
+        ''
+      );
+      g.executive_summary = execNormalized;
+      if (execOriginal != null && typeof execOriginal !== 'string') {
+        console.warn('[view] normalized malformed field', {
+          field: 'executive_summary',
+          originalType: Array.isArray(execOriginal) ? 'array' : typeof execOriginal,
+          normalized: execNormalized
+        });
+      }
+      g.summary = safeText(g.summary || plan.summary || resumeDataN.summary || '');
+      g.hero = g.hero || {};
+      var heroNameOriginal = g.hero.name;
+      g.hero.name = safeText(
+        g.hero.name ||
+        (resumeDataN && (resumeDataN.full_name || resumeDataN.name)) ||
+        plan.userName ||
+        ''
+      );
+      if (heroNameOriginal != null && typeof heroNameOriginal !== 'string') {
+        console.warn('[view] normalized malformed field', {
+          field: 'hero.name',
+          originalType: Array.isArray(heroNameOriginal) ? 'array' : typeof heroNameOriginal,
+          normalized: g.hero.name
+        });
+      }
+      g.hero.headline = safeText(
+        g.hero.headline ||
+        g.hero.target_title ||
+        (resumeDataN && (resumeDataN.headline || resumeDataN.current_title || resumeDataN.target_title)) ||
+        ''
+      );
+      g.hero.target_title = safeText(g.hero.target_title || g.hero.headline || '');
+      g.hero.summary = safeText(g.hero.summary || g.executive_summary || '');
+      g.hero.tagline = safeText(g.hero.tagline || g.hero.summary || '');
+      g.hero.company = safeText(g.hero.company || plan.company || '');
+    } catch (normErr) {
+      console.warn('[view] payload normalization failed (continuing render):', normErr);
+    }
+
+    const rawStyle = plan.style || 'executive';
+    const style = resolveStyleKey(rawStyle);
+    const S = STYLE_CONFIG[style] || STYLE_CONFIG.executive;
+    if (style !== rawStyle) {
+      console.log('[view] style alias applied:', rawStyle, '→', style);
+    }
+    console.log('[view] renderer path =', rendererPath, '| resolved style =', style, '| color =', plan.color || '(default)');
+    // Phase B: resolve accent color via explicit fallback chain so the
+    // viewer respects whatever swatch the user chose at publish time —
+    // generated.public_color_key takes priority, then generated.colorKey,
+    // then the top-level mirrors, then the legacy resolved hex, then blue.
+    var VIEW_COLOR_PALETTE = {
+      blue: '#2563EB', navy: '#0B487A', purple: '#7C3AED', emerald: '#059669',
+      teal: '#0F766E', slate: '#475569', charcoal: '#111827', amber: '#D97706',
+      rose: '#E11D48', burgundy: '#7F1D1D', green: '#047857'
+    };
+    var generatedColorKey = (g && (g.public_color_key || g.colorKey)) || '';
+    var topLevelColorKey  = plan.publicColorKey || plan.colorKey || '';
+    var resolvedColorKey  = String(generatedColorKey || topLevelColorKey || '').toLowerCase();
+    var paletteHex        = resolvedColorKey && VIEW_COLOR_PALETTE[resolvedColorKey];
+    var legacyColorHex    = (typeof plan.color === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(plan.color)) ? plan.color : '';
+    const C = S.accentOverride || paletteHex || legacyColorHex || VIEW_COLOR_PALETTE.blue;
     // Apply theme CSS variables
     document.documentElement.style.setProperty('--c-primary', C);
     document.documentElement.style.setProperty('--page-bg', S.pageBg);
@@ -345,7 +751,15 @@ async function loadPlan() {
     const company = g.hero?.company || plan.company || '';
     document.title = name + ' — ' + title + (company ? ' at ' + company : '');
     document.querySelector('meta[property="og:title"]').content = document.title;
-    const desc = g.executive_summary ? g.executive_summary.substring(0, 160) : name + "'s " + (plan.planType || '90-day') + ' plan for ' + title;
+    const desc = safeSnippet(
+      g.executive_summary ||
+      g.executiveSummary ||
+      g.summary ||
+      g.hero_summary ||
+      g.heroSummary ||
+      '',
+      160
+    ) || (name + "'s " + (plan.planType || '90-day') + ' plan for ' + title);
     document.querySelector('meta[name="description"]').content = desc;
     document.querySelector('meta[property="og:description"]').content = desc;
     // Header theme for dark themes
@@ -355,23 +769,69 @@ async function loadPlan() {
       document.querySelector('footer').style.background = '#0F172A';
       document.querySelector('footer').style.borderColor = '#334155';
     }
-    renderPlan(g, plan, S, C, style);
+    try {
+      renderPlan(g, plan, S, C, style);
+    } catch (renderErr) {
+      console.error('[view] renderPlan threw:', renderErr);
+      renderViewError(categorizeViewLoadError(renderErr, 'render'));
+      return;
+    }
     document.getElementById('loading').classList.add('hidden');
     document.getElementById('plan-content').classList.remove('hidden');
     document.getElementById('plan-footer').classList.remove('hidden');
     setupScrollSpy();
+    console.log('[view] render complete — path =', rendererPath);
   } catch(e) {
-    console.error(e);
-    document.getElementById('loading').classList.add('hidden');
-    document.getElementById('not-found').classList.remove('hidden');
+    console.error('[view] loadPlan failed:', e, '— code:', (e && e.code) || '(none)');
+    renderViewError(categorizeViewLoadError(e, 'load'));
   }
-  lucide.createIcons();
+  try { if (window.lucide && lucide.createIcons) lucide.createIcons(); } catch (_) {}
 }
+
+// Public diagnostic helper for the view page.
+window.debugViewLoad = async function () {
+  const slug = new URLSearchParams(window.location.search).get('p');
+  if (!slug) return { ok: false, reason: 'no slug param' };
+  try {
+    const snap = await db.collection('plans').where('slug','==',slug).where('published','==',true).limit(1).get();
+    if (snap.empty) return { ok: false, reason: 'no document matched slug+published', slug: slug };
+    const d = snap.docs[0].data() || {};
+    return {
+      ok: true,
+      slug: d.slug || '',
+      published: d.published === true,
+      schemaVersion: d.schemaVersion || '',
+      style: d.style || '',
+      resolvedStyle: resolveStyleKey(d.style),
+      color: d.color || '',
+      topLevelKeys: Object.keys(d),
+      hasGenerated: !!d.generated,
+      hasGeneratedHero: !!(d.generated && d.generated.hero),
+      hasDocumentPackage: !!d.documentPackage,
+      hasResumeData: !!d.resumeData,
+      hasCoverLetter: !!d.coverLetter,
+      hasRolePlan: !!d.rolePlan
+    };
+  } catch (e) {
+    return { ok: false, reason: 'query failed', code: (e && e.code) || '', message: (e && e.message) || String(e) };
+  }
+};
 
 function renderPlan(g, plan, S, C, style) {
   const light = C + '18';
   const lighter = C + '10';
   const sections = []; // collect for sidebar nav
+
+  // ---- Public Web include-mode contract ----------------------------
+  // Read include mode + canonical title from the saved record. Helpers
+  // live at module scope so both rendering and debug can use them, and
+  // they are kept in sync with resumebuilder.html. The stale-title guard
+  // inside getPublicTitleFromPublishedPlan handles old records whose
+  // public_title pre-dates this contract.
+  const includeMode   = getPublicIncludeModeFromPublishedPlan(plan);
+  const publicTitle   = getPublicTitleFromPublishedPlan(plan);
+  const includeResume = includeMode === 'resume' || includeMode === 'resumePlan';
+  const includePlan   = includeMode === 'plan'   || includeMode === 'resumePlan';
 
   // Helper: section label
   function sectionLabel(icon, text) {
@@ -399,12 +859,13 @@ function renderPlan(g, plan, S, C, style) {
   function contactBar(accentColor) {
     const ac = accentColor || C;
     let items = '';
-    const phone = plan.contactPhone || '';
-    const email = plan.contactEmail || '';
-    const linkedin = plan.contactLinkedin || '';
-    const github = plan.contactGithub || '';
-    const website = plan.contactWebsite || '';
-    const twitter = plan.contactTwitter || '';
+    const hero = g.hero || {};
+    const phone    = plan.contactPhone    || hero.phone    || plan.phone    || '';
+    const email    = plan.contactEmail    || hero.email    || plan.email    || '';
+    const linkedin = plan.contactLinkedin || hero.linkedin || plan.linkedin || '';
+    const github   = plan.contactGithub   || hero.github   || plan.github   || '';
+    const website  = plan.contactWebsite  || hero.website  || hero.portfolio || plan.website || plan.portfolio || '';
+    const twitter  = plan.contactTwitter  || hero.twitter  || plan.twitter  || '';
     if (phone) items += `<a href="tel:${phone}" class="flex items-center gap-1.5 hover:opacity-80" style="color:inherit;text-decoration:none"><i data-lucide="phone" style="width:14px;height:14px;color:${ac}"></i>${phone}</a>`;
     if (email) items += `<a href="mailto:${email}" class="flex items-center gap-1.5 hover:opacity-80" style="color:inherit;text-decoration:none"><i data-lucide="mail" style="width:14px;height:14px;color:${ac}"></i>${email}</a>`;
     if (linkedin) items += `<a href="${linkedin.startsWith('http') ? linkedin : 'https://' + linkedin}" target="_blank" class="flex items-center gap-1.5 hover:underline" style="color:inherit;text-decoration:none"><img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0a01a653a891ffe30d4da303a139dc3336cedcb5/icons/LinkedInIcon.png" alt="LinkedIn" style="width:14px;height:14px">LinkedIn</a>`;
@@ -414,19 +875,75 @@ function renderPlan(g, plan, S, C, style) {
     return items;
   }
 
+  // ===== Helpers for safe rendering & hero/leadership normalization =====
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function getHeroSummaryText() {
+    const h = g.hero || {};
+    return h.tagline || h.summary || g.summary || g.executive_summary || plan.summary || '';
+  }
+  function normalizeTextItem(item) {
+    if (item == null) return '';
+    if (typeof item === 'string') return item.trim();
+    if (typeof item === 'object') {
+      return String(
+        item.text || item.value || item.description || item.summary ||
+        item.title || item.name || item.label || ''
+      ).trim();
+    }
+    return String(item).trim();
+  }
+  function normalizeLeadershipItem(item) {
+    if (item == null) return null;
+    if (typeof item === 'string') {
+      const t = item.trim();
+      return t ? { title: t, organization: '', description: '' } : null;
+    }
+    if (typeof item !== 'object') {
+      const t = String(item).trim();
+      return t ? { title: t, organization: '', description: '' } : null;
+    }
+    const title = String(
+      item.title || item.role || item.name || item.label || item.position || ''
+    ).trim();
+    const organization = String(
+      item.organization || item.org || item.company || item.group || item.institution || ''
+    ).trim();
+    const description = String(
+      item.description || item.summary || item.details || item.text || item.body || ''
+    ).trim();
+    if (!title && !organization && !description) return null;
+    return { title: title, organization: organization, description: description };
+  }
+  function normalizeLeadershipList(list) {
+    if (!Array.isArray(list)) return [];
+    return list.map(normalizeLeadershipItem).filter(Boolean);
+  }
+
   // ===== HERO (full-width) =====
   let heroHtml = '';
   if (g.hero) {
-    const photo = (plan.showPhoto !== false) ? (plan.photoUrl || '') : '';
+    const heroSummary = getHeroSummaryText();
+    const heroPhotoUrl = (
+      plan.photoUrl ||
+      plan.profilePhotoUrl ||
+      plan.profilePhotoDataUrl ||
+      (g.hero && (g.hero.photo_url || g.hero.photo)) ||
+      ''
+    );
+    const photo = (plan.showPhoto !== false) ? heroPhotoUrl : '';
     const photoShape = plan.photoShape || 'circle';
     const photoSize = plan.photoSize || 'md';
     const photoSizePx = { sm: 'w-20 h-20', md: 'w-28 h-28', lg: 'w-36 h-36' }[photoSize] || 'w-28 h-28';
     const PLAN_SECTION_KEYS = ['plan', 'executive_summary', 'kpis', 'success_criteria'];
     const savedSections = plan.sections || [];
     const hasPlanSections = savedSections.length === 0 || savedSections.some(s => PLAN_SECTION_KEYS.includes(s));
-    const planLabel = hasPlanSections
-      ? (plan.planType || '90-day').replace('-', ' ').toUpperCase() + ' PLAN AND RESUME'
-      : 'RESUME';
+    // Single source of truth: publicTitle is already resolved (with stale
+    // guardrail) at the top of renderPlan. Just uppercase it for the eyebrow.
+    const planLabel = (publicTitle || '').toUpperCase();
 
     if (S.layout === 'sidebar') {
       // Executive: sidebar hero
@@ -441,8 +958,9 @@ function renderPlan(g, plan, S, C, style) {
         </div>
         <div style="background:${S.cardBg};padding:2rem;font-family:${S.bodyFont}">
           <p class="text-xs font-bold uppercase tracking-wider mb-3" style="color:${C};letter-spacing:0.2em">${planLabel}</p>
-          ${g.hero.tagline ? `<p class="text-sm leading-relaxed" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          ${heroSummary ? `<p class="text-sm leading-relaxed" style="color:${S.textColor}">${heroSummary}</p>` : ''}
           ${g.hero.subtitle ? `<p class="text-sm mt-2" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
+          <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         </div>
       </div></div>`;
     } else if (S.layout === 'banner') {
@@ -452,7 +970,7 @@ function renderPlan(g, plan, S, C, style) {
         <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight" style="color:${S.headingColor};font-family:${S.headingFont}">${g.hero.name || ''}</h1>
         <p class="text-lg font-medium mt-1" style="color:${C};font-family:${S.headingFont}">${g.hero.target_title || ''}</p>
         ${g.hero.company ? `<p class="text-sm mt-0.5" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
-        ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed" style="color:${S.mutedColor}">${g.hero.tagline}</p>` : ''}
+        ${heroSummary ? `<p class="text-sm mt-3 max-w-2xl mx-auto leading-relaxed" style="color:${S.mutedColor}">${heroSummary}</p>` : ''}
         <div class="flex flex-wrap justify-center gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         <div style="${S.dividerStyle !== 'none' ? 'border-bottom:' + S.dividerStyle + ';margin-top:1.5rem' : ''}"></div>
       </div>`, `background:${S.cardBg}`)}</div>`;
@@ -466,7 +984,7 @@ function renderPlan(g, plan, S, C, style) {
             <h1 class="text-3xl sm:text-4xl font-bold tracking-tight" style="color:#fff;font-family:${S.headingFont}">${g.hero.name || ''}</h1>
             <p class="text-lg font-medium mt-1" style="color:rgba(255,255,255,0.9)">${g.hero.target_title || ''}</p>
             ${g.hero.company ? `<p class="text-sm mt-0.5" style="color:rgba(255,255,255,0.7)">${g.hero.company}</p>` : ''}
-            ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed" style="color:rgba(255,255,255,0.8)">${g.hero.tagline}</p>` : ''}
+            ${heroSummary ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed" style="color:rgba(255,255,255,0.8)">${heroSummary}</p>` : ''}
             <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:rgba(255,255,255,0.8)">${contactBar('rgba(255,255,255,0.8)')}</div>
           </div>
         </div>
@@ -482,7 +1000,7 @@ function renderPlan(g, plan, S, C, style) {
           <p class="text-lg font-medium mt-1" style="color:${C}">${g.hero.target_title || ''}</p>
           ${g.hero.subtitle ? `<p class="text-sm mt-0.5" style="color:${S.mutedColor}">${g.hero.subtitle}</p>` : ''}
           ${g.hero.company ? `<p class="text-sm mt-0.5" style="color:${S.mutedColor}">${g.hero.company}</p>` : ''}
-          ${g.hero.tagline ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed" style="color:${S.textColor}">${g.hero.tagline}</p>` : ''}
+          ${heroSummary ? `<p class="text-sm mt-3 max-w-2xl leading-relaxed" style="color:${S.textColor}">${heroSummary}</p>` : ''}
           <div class="flex flex-wrap gap-4 mt-4 text-sm" style="color:${S.mutedColor}">${contactBar()}</div>
         </div>
       </div>`, `background:${isDark ? S.cardBg : 'linear-gradient(135deg,' + S.cardBg + ',' + lighter + ')'};border-color:${C}30`)}</div>`;
@@ -492,12 +1010,21 @@ function renderPlan(g, plan, S, C, style) {
 
   // ===== CONTENT SECTIONS (with anchor IDs for sidebar nav) =====
   const ss = plan.sections || [];
-  const showSection = (key) => ss.length === 0 || ss.includes(key);
+  const PLAN_SECTION_KEYS_RP = new Set(['plan', 'executive_summary', 'success_criteria', 'kpis']);
+  const RESUME_SECTION_KEYS_RP = new Set(['experience', 'skills', 'education', 'certifications', 'achievements', 'leadership', 'projects', 'volunteer', 'volunteer_experience']);
+  const showSection = (key) => {
+    // Honor include mode first: hide unselected branches entirely on the
+    // published page so what's published matches what was selected.
+    if (PLAN_SECTION_KEYS_RP.has(key) && !includePlan) return false;
+    if (RESUME_SECTION_KEYS_RP.has(key) && !includeResume) return false;
+    return ss.length === 0 || ss.includes(key);
+  };
 
   // Executive Summary
-  if (showSection('executive_summary') && g.executive_summary) {
+  const execSummaryText = safeText(g.executive_summary);
+  if (showSection('executive_summary') && execSummaryText) {
     sections.push({ id: 'exec-summary', icon: 'sparkles', label: 'Executive Summary',
-      html: card(`${sectionLabel('sparkles', 'Executive Summary')}<p class="text-sm leading-relaxed" style="color:${S.textColor}">${g.executive_summary}</p>`)
+      html: card(`${sectionLabel('sparkles', 'Executive Summary')}<p class="text-sm leading-relaxed" style="color:${S.textColor}">${execSummaryText}</p>`)
     });
   }
 
@@ -551,9 +1078,29 @@ function renderPlan(g, plan, S, C, style) {
   // KPIs
   if (showSection('kpis') && g.kpis?.length) {
     const kCols = S.kpiCols;
-    sections.push({ id: 'kpis', icon: 'bar-chart-3', label: 'KPIs',
-      html: card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3">${g.kpis.map(k => `<div class="p-3 rounded-lg text-center" style="border:${S.borderStyle}"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric}</p><p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p></div>`).join('')}</div>`)
-    });
+    // Normalize each KPI: accept strings ("CSAT: 95%") or objects with various field names.
+    const kpiItems = g.kpis.map(k => {
+      if (k == null) return null;
+      if (typeof k === 'string') {
+        const s = k.trim();
+        if (!s) return null;
+        const m = s.match(/^([^:|\u2013\u2014]+?)\s*(?::|\||\s[\-\u2013\u2014]\s)\s*(.+)$/);
+        return m ? { metric: m[1].trim(), target: m[2].trim() } : { metric: s, target: '' };
+      }
+      if (typeof k === 'object') {
+        return {
+          metric: k.metric || k.name || k.label || k.kpi || k.title || '',
+          target: k.target || k.value || k.goal || k.measure || k.threshold || '',
+          icon: k.icon || ''
+        };
+      }
+      return null;
+    }).filter(k => k && (k.metric || k.target));
+    if (kpiItems.length) {
+      sections.push({ id: 'kpis', icon: 'bar-chart-3', label: 'KPIs',
+        html: card(`${sectionLabel('bar-chart-3', 'Key Performance Indicators')}<div class="grid grid-cols-2 sm:grid-cols-${kCols} gap-3">${kpiItems.map(k => `<div class="p-3 rounded-lg text-center" style="border:${S.borderStyle}"><i data-lucide="${k.icon || 'target'}" style="width:20px;height:20px;color:${C};margin:0 auto 0.5rem"></i><p class="text-xs" style="color:${S.mutedColor}">${k.metric || ''}</p>${k.target ? `<p class="text-lg font-bold mt-1" style="color:${S.headingColor}">${k.target}</p>` : ''}</div>`).join('')}</div>`)
+      });
+    }
   }
 
   // Experience
@@ -564,10 +1111,13 @@ function renderPlan(g, plan, S, C, style) {
   }
 
   // Leadership Engagement
-  if (showSection('leadership') && g.leadership_engagement?.length) {
-    sections.push({ id: 'leadership-engagement', icon: 'users', label: 'Leadership',
-      html: card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4">${g.leadership_engagement.map(l => `<div class="p-4 rounded-lg" style="border:${S.borderStyle}"><h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${l.title}</h4><p class="text-xs mb-2" style="color:${C}">${l.organization || ''}</p><p class="text-sm" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`)
-    });
+  if (showSection('leadership')) {
+    const leadershipEngagement = normalizeLeadershipList(g.leadership_engagement);
+    if (leadershipEngagement.length) {
+      sections.push({ id: 'leadership-engagement', icon: 'users', label: 'Leadership',
+        html: card(`${sectionLabel('users', 'Leadership Engagement')}<div class="grid sm:grid-cols-2 gap-4">${leadershipEngagement.map(l => `<div class="p-4 rounded-lg" style="border:${S.borderStyle}">${l.title ? `<h4 class="text-sm font-semibold mb-1" style="color:${S.headingColor};font-family:${S.headingFont}">${escapeHtml(l.title)}</h4>` : ''}${l.organization ? `<p class="text-xs mb-2" style="color:${C}">${escapeHtml(l.organization)}</p>` : ''}${l.description ? `<p class="text-sm" style="color:${S.mutedColor}">${escapeHtml(l.description)}</p>` : ''}</div>`).join('')}</div>`)
+      });
+    }
   }
 
   // Skills
@@ -589,7 +1139,14 @@ function renderPlan(g, plan, S, C, style) {
   }
   if (showSection('education') && g.certifications?.length) {
     sections.push({ id: 'certifications', icon: 'award', label: 'Certifications',
-      html: card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4">${g.certifications.map(c => `<div><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${c.name}</p><p class="text-sm" style="color:${S.mutedColor}">${c.issuer}</p><p class="text-xs" style="color:${S.mutedColor}">${c.year || ''}</p>${c.url ? `<a href="${c.url}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`).join('')}</div>`)
+      html: card(`${sectionLabel('award', 'Certifications')}<div class="space-y-4">${g.certifications.map(c => {
+        const cObj = (c && typeof c === 'object') ? c : { name: (c == null ? '' : String(c)) };
+        const cName = cObj.name || cObj.title || '';
+        const cIssuer = cObj.issuer || cObj.org || cObj.organization || cObj.publisher || '';
+        const cYear = cObj.year || cObj.date || cObj.dates || '';
+        const cUrl = cObj.url || cObj.link || '';
+        return `<div>${cName ? `<p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${cName}</p>` : ''}${cIssuer ? `<p class="text-sm" style="color:${S.mutedColor}">${cIssuer}</p>` : ''}${cYear ? `<p class="text-xs" style="color:${S.mutedColor}">${cYear}</p>` : ''}${cUrl ? `<a href="${cUrl}" target="_blank" class="text-xs font-medium" style="color:${C}">View Certificate</a>` : ''}</div>`;
+      }).join('')}</div>`)
     });
   }
 
@@ -601,10 +1158,13 @@ function renderPlan(g, plan, S, C, style) {
   }
 
   // Leadership
-  if (showSection('leadership') && g.leadership?.length) {
-    sections.push({ id: 'leadership-roles', icon: 'crown', label: 'Leadership Roles',
-      html: card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4">${g.leadership.map(l => `<div><p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${l.role}</p><p class="text-sm mt-1" style="color:${S.mutedColor}">${l.description}</p></div>`).join('')}</div>`)
-    });
+  if (showSection('leadership')) {
+    const leadershipRoles = normalizeLeadershipList(g.leadership);
+    if (leadershipRoles.length) {
+      sections.push({ id: 'leadership-roles', icon: 'crown', label: 'Leadership Roles',
+        html: card(`${sectionLabel('crown', 'Leadership')}<div class="space-y-4">${leadershipRoles.map(l => `<div>${l.title ? `<p class="font-semibold" style="color:${S.headingColor};font-family:${S.headingFont}">${escapeHtml(l.title)}</p>` : ''}${l.organization ? `<p class="text-xs mt-1" style="color:${C}">${escapeHtml(l.organization)}</p>` : ''}${l.description ? `<p class="text-sm mt-1" style="color:${S.mutedColor}">${escapeHtml(l.description)}</p>` : ''}</div>`).join('')}</div>`)
+      });
+    }
   }
 
   // ===== PATCH (Plan polish v2): insert Plan->Resume divider when both =====
@@ -647,7 +1207,87 @@ function renderPlan(g, plan, S, C, style) {
   }
 
   document.getElementById('sections-container').innerHTML = contentHtml;
+  try { wirePublishedSidebarNav(); } catch (_) {}
+  // Expose the active plan for debug helpers.
+  try { window.__PUBLISHED_PLAN__ = plan; } catch (_) {}
 }
+
+// Live debug helper: confirm what title the published page is resolving to.
+// Usage in browser console on the published share page:
+//   debugPublishedPublicTitle()
+window.debugPublishedPublicTitle = function () {
+  const plan = window.__PUBLISHED_PLAN__ || window.plan || {};
+  const generated = plan.generated || {};
+  const includeMode = getPublicIncludeModeFromPublishedPlan(plan);
+  const stored = generated.public_title || plan.publicTitle || '';
+  return {
+    includeMode: includeMode,
+    rawPlanType: plan.planType,
+    generatedPlanType: generated.plan_type,
+    storedPublicTitle: stored,
+    storedIsStale: isStalePublicTitle(stored, includeMode),
+    resolvedPublicTitle: getPublicTitleFromPublishedPlan(plan),
+    generatedHasResume: !!(generated && (generated.resume || (Array.isArray(generated.experience) && generated.experience.length))),
+    generatedHasPlan: !!(generated && Array.isArray(generated.plan_phases) && generated.plan_phases.length)
+  };
+};
+
+// Click-handler wiring for the published sidebar nav. The sidebar uses
+// real anchor links to real section IDs; this just upgrades clicks to
+// smooth scrolling and keeps the active state in sync.
+function wirePublishedSidebarNav() {
+  const nav = document.getElementById('sidebar-nav');
+  if (!nav || nav._wired) return;
+  nav._wired = true;
+  nav.addEventListener('click', function (e) {
+    const a = e.target && e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a) return;
+    const id = a.getAttribute('href').slice(1);
+    const target = id && document.getElementById(id);
+    if (!target) return;
+    e.preventDefault();
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    nav.querySelectorAll('a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    try { closeSidebarMobile(); } catch (_) {}
+  });
+}
+
+window.debugPublishedNav = function () {
+  const links = Array.from(document.querySelectorAll('#sidebar-nav a[href^="#"]'));
+  const targets = links.map(a => {
+    const id = a.getAttribute('href').slice(1);
+    return { id: id, exists: !!document.getElementById(id), label: a.textContent.trim() };
+  });
+  return {
+    linkCount: links.length,
+    missingTargets: targets.filter(t => !t.exists).map(t => t.id),
+    targets: targets
+  };
+};
+
+window.debugPublishedContentQuality = function () {
+  const root = document.getElementById('sections-container');
+  const text = root ? root.innerText || '' : '';
+  const leadershipCards = document.querySelectorAll(
+    '#leadership-engagement [class*="rounded-lg"], #leadership-roles div'
+  ).length;
+  return {
+    hasUndefinedText: /\bundefined\b/.test(text),
+    hasNullText: /\bnull\b/.test(text),
+    leadershipCards: leadershipCards,
+    nav: (typeof window.debugPublishedNav === 'function') ? window.debugPublishedNav() : null
+  };
+};
+
+window.debugPublishedPhoto = function () {
+  const img = document.querySelector('#hero-section img');
+  return {
+    hasPhotoImg: !!img,
+    srcLength: img ? String(img.getAttribute('src') || '').length : 0,
+    hiddenForPrintCssPresent: true
+  };
+};
 
 function closeSidebarMobile() {
   document.getElementById('sidebar-col').classList.remove('open');
