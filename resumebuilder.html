@@ -9442,7 +9442,8 @@
           || (RB_STATE.rolePlan.days90 ? '90-day'
               : (RB_STATE.rolePlan.months12 ? '12-month'
                 : (RB_STATE.rolePlan.years2 ? '2-year' : '90-day')));
-        renderRolePlanOutput(RB_STATE.rolePlan, pt);
+        var ptUI = pt === '12-month' ? '12m' : pt === '2-year' ? '2y' : '90d';
+        renderRolePlanOutput(RB_STATE.rolePlan, ptUI);
       }
     } catch (_) {}
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
@@ -9487,7 +9488,8 @@
           || (RB_STATE.rolePlan.days90 ? '90-day'
               : (RB_STATE.rolePlan.months12 ? '12-month'
                 : (RB_STATE.rolePlan.years2 ? '2-year' : '90-day')));
-        renderRolePlanOutput(RB_STATE.rolePlan, pt);
+        var ptUI = pt === '12-month' ? '12m' : pt === '2-year' ? '2y' : '90d';
+        renderRolePlanOutput(RB_STATE.rolePlan, ptUI);
       }
     } catch (_) {}
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
@@ -10042,18 +10044,32 @@
       var generated = normalizeGeneratedPlanResponse(r.body, planTypeUI);
       var v = validateRequestedPlanShape(generated, planTypeUI);
       if (!v.ok) {
-        // Do not store invalid plan.
-        RB_STATE.rolePlan = null;
-        renderRolePlanOutput(null, planTypeUI);
+        // Do not store invalid plan — but DO preserve any previously
+        // generated buckets for other timeframes.
+        renderRolePlanOutput(RB_STATE.rolePlan || null, planTypeUI);
         var emsg = 'Plan rejected: ' + v.errors.join('; ');
         RB_STATE._aiLastError = emsg;
         if (statusEl) statusEl.textContent = emsg;
         showToast('Plan validation failed. Try again.', 'error');
         return;
       }
-      RB_STATE.rolePlan = generated;
+      // Merge the new horizon bucket into the existing rolePlan so that
+      // previously-generated timeframes (90d/12m/2y) survive when the
+      // user generates a different one. Switching the radio later will
+      // re-render the cached bucket without re-calling the AI.
+      var bucketKey = planTypeUI === '12m' ? 'months12' : planTypeUI === '2y' ? 'years2' : 'days90';
+      var merged = Object.assign({}, RB_STATE.rolePlan || {});
+      Object.keys(generated || {}).forEach(function (k) {
+        // Always overwrite the freshly generated bucket; for top-level
+        // metadata keys (executive_summary, etc.) prefer the latest run.
+        merged[k] = generated[k];
+      });
+      // Defensive: ensure the active bucket key reflects the new response.
+      if (generated && generated[bucketKey]) merged[bucketKey] = generated[bucketKey];
+      RB_STATE.rolePlan = merged;
       RB_STATE.rolePlanType = planTypeApi;
-      renderRolePlanOutput(generated, planTypeUI);
+      renderRolePlanOutput(merged, planTypeUI);
+      try { _updatePlanGenerateButtonLabel(); } catch (_) {}
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
@@ -10071,6 +10087,72 @@
       updateAIReadinessUI();
     });
   }
+
+  // ----- Role plan: per-timeframe cache + radio swap helpers -----
+  // Switching the plan-type radio re-renders the cached bucket (if any)
+  // without calling the AI. The user only burns AI credit when they
+  // explicitly click "Generate Role Plan" for a timeframe that has no
+  // cached result yet (or when they want to re-generate it).
+  function _planBucketKeyFromUI(planTypeUI) {
+    return planTypeUI === '12m' ? 'months12'
+         : planTypeUI === '2y'  ? 'years2'
+         : 'days90';
+  }
+  function _hasCachedPlanFor(planTypeUI) {
+    var rp = RB_STATE.rolePlan;
+    if (!rp || typeof rp !== 'object') return false;
+    var b = rp[_planBucketKeyFromUI(planTypeUI)];
+    return !!(b && (Array.isArray(b.phases) ? b.phases.length : (Array.isArray(b.quarters) && b.quarters.length)));
+  }
+  function _updatePlanGenerateButtonLabel() {
+    var btn = document.getElementById('btn-generate-plan');
+    if (!btn) return;
+    var planTypeUI = getSelectedPlanType();
+    var label = _hasCachedPlanFor(planTypeUI) ? 'Re-generate Role Plan' : 'Generate Role Plan';
+    var icon = '<i data-lucide="map" style="width:16px;height:16px;"></i> ';
+    btn.innerHTML = icon + label;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      try { window.lucide.createIcons(); } catch (_) {}
+    }
+  }
+  function _onPlanTypeRadioChange() {
+    var planTypeUI = getSelectedPlanType();
+    var planTypeApi = mapPlanTypeForApi(planTypeUI);
+    var statusEl = document.getElementById('plan-status');
+    // Update the active timeframe regardless of cache state — this
+    // controls what the export/publish flows treat as "current".
+    var prevActive = RB_STATE.rolePlanType;
+    RB_STATE.rolePlanType = planTypeApi;
+    if (_hasCachedPlanFor(planTypeUI)) {
+      // Cached bucket exists — render it instantly, no AI call.
+      try { renderRolePlanOutput(RB_STATE.rolePlan, planTypeUI); } catch (_) {}
+      if (statusEl) statusEl.textContent = 'Showing cached ' + planTypeApi + ' plan.';
+    } else {
+      // No cached bucket — clear the visible plan output and prompt the
+      // user to generate, but keep the cache for other timeframes intact.
+      try { renderRolePlanOutput(null, planTypeUI); } catch (_) {}
+      if (statusEl) statusEl.textContent = 'No ' + planTypeApi + ' plan yet — click Generate Role Plan.';
+    }
+    try { _updatePlanGenerateButtonLabel(); } catch (_) {}
+    try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
+    try { maybeRefreshPreview(); } catch (_) {}
+    // Persist the new active timeframe so the autosave picks it up;
+    // skip dirty marking if the active timeframe didn't actually change.
+    if (prevActive !== planTypeApi) {
+      try { markBuilderDirty('role-plan-timeframe-switch'); } catch (_) {}
+    }
+  }
+  function _wireRolePlanTypeRadios() {
+    var nodes = document.querySelectorAll('input[name="plan-type"]');
+    nodes.forEach(function (n) {
+      if (n._rbPlanTypeWired) return;
+      n._rbPlanTypeWired = true;
+      n.addEventListener('change', _onPlanTypeRadioChange);
+    });
+    try { _updatePlanGenerateButtonLabel(); } catch (_) {}
+  }
+  try { window._wireRolePlanTypeRadios = _wireRolePlanTypeRadios; } catch (_) {}
+
   // ============================================================
   // Long-Term Responsive Preview Renderer
   // Pipeline: RB_STATE -> buildSelectedDocumentPackage()
@@ -21163,9 +21245,35 @@
     }
     if (data.rolePlan) {
       RB_STATE.rolePlan = data.rolePlan;
+      // Restore the active timeframe from the saved record so switching
+      // back to a previously generated plan length doesn't require a
+      // re-run. Prefer explicit fields, then fall back to whichever
+      // bucket has data, then default to 90-day.
+      var savedPlanTypeApi = (function () {
+        var raw = data.rolePlanType || data.planType ||
+          (data.generated && (data.generated.plan_type || data.generated.planType)) || '';
+        var k = String(raw || '').toLowerCase().trim();
+        if (k === '12m' || k === '12-month' || k === '12 month') return '12-month';
+        if (k === '2y'  || k === '2-year'   || k === '2 year')   return '2-year';
+        if (k === '90d' || k === '90-day'   || k === '90 day')   return '90-day';
+        if (data.rolePlan.months12) return '12-month';
+        if (data.rolePlan.years2)   return '2-year';
+        return '90-day';
+      })();
+      RB_STATE.rolePlanType = savedPlanTypeApi;
+      var savedPlanTypeUI = savedPlanTypeApi === '12-month' ? '12m'
+                          : savedPlanTypeApi === '2-year'   ? '2y'
+                          : '90d';
+      // Sync the plan-type radios so UI matches the restored timeframe.
+      try {
+        document.querySelectorAll('input[name="plan-type"]').forEach(function (r) {
+          r.checked = (r.value === savedPlanTypeUI);
+        });
+      } catch (_) {}
       if (typeof renderRolePlanOutput === 'function') {
-        try { renderRolePlanOutput(data.rolePlan, RB_STATE.rolePlanType || '90-day'); } catch (_) {}
+        try { renderRolePlanOutput(data.rolePlan, savedPlanTypeUI); } catch (_) {}
       }
+      try { _updatePlanGenerateButtonLabel(); } catch (_) {}
     }
     // Restore role research so the review section can render.
     if (data.roleResearch && typeof data.roleResearch === 'object') {
@@ -23221,6 +23329,9 @@
     try { _wireExportTargetFlow(); } catch (_) {}
     // Initial export flow render
     try { renderExportFlowUI(); } catch (_) {}
+    // Wire the role-plan timeframe radios so switching 90d/12m/2y
+    // instantly re-renders the cached bucket (if any) without an AI call.
+    try { _wireRolePlanTypeRadios(); } catch (_) {}
   }
 
   // ============================================================
