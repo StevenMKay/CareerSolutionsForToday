@@ -5502,9 +5502,13 @@
             RB_TOUR.setCompletedFromServer(!!usg.tourCompleted);
           }
           // Mirror to localStorage so the next page load short-circuits
-          // without waiting on Firestore.
+          // without waiting on Firestore. If the server says NOT completed
+          // (new user), clear any stale flag from a prior account in this
+          // browser — otherwise the new user is silently denied the tour.
           if (usg.tourCompleted) {
             try { localStorage.setItem('rb_tour_completed', '1'); } catch (_) {}
+          } else {
+            try { localStorage.removeItem('rb_tour_completed'); } catch (_) {}
           }
         } catch (_) {}
       }
@@ -5732,10 +5736,22 @@
   if (auth) {
     auth.onAuthStateChanged(function (user) {
       setAuthLoading(false);
+      // Always clear any in-flight email-login loading state. The email
+      // sign-in path only resets this on error; success used to leave the
+      // button stuck on "Signing in..." and disabled, which then carried
+      // over after sign-out and blocked the user from signing back in.
+      try { if (typeof setEmailLoginLoading === 'function') setEmailLoginLoading(false); } catch (_) {}
       applyAuthState(user);
       // body.signed-in toggles top-nav account menu visibility.
       if (user) document.body.classList.add('signed-in');
       else      document.body.classList.remove('signed-in');
+      // On sign-out, clear the browser-scoped tour-completed flag so the
+      // next user signing in on the same browser still gets the
+      // walkthrough. The per-user truth lives in builderUsage/{uid}.
+      if (!user) {
+        try { localStorage.removeItem('rb_tour_completed'); } catch (_) {}
+        try { sessionStorage.removeItem('rb_tour_dismissed'); } catch (_) {}
+      }
       // Best-effort: persist Terms / Privacy acceptance for signed-in users.
       try { if (user) syncTermsAcceptanceForUser(user); } catch (_) {}
       // Best-effort: load subscription/usage state. Never blocks UI.
