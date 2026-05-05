@@ -5827,6 +5827,88 @@
   var BUILDER_API_BASE    = API_BASE;
   var PDF_EXPORT_ENDPOINT = API_BASE + '/builder/export/pdf-server';
 
+  // -------------------------------------------------------------------------
+  // Cold-start retry wrapper for Railway-hosted backend.
+  //
+  // Railway free-tier containers spin down after inactivity. The first
+  // request after sleep frequently returns 502 / 503 / 504 (or a network
+  // error) while the container boots. This helper auto-retries those
+  // transient gateway/network failures with backoff so the user does not
+  // see a hard failure on the first click.
+  //
+  // - 4xx (auth, validation, paywall, score gate) is NEVER retried.
+  // - 2xx and other 5xx are returned immediately.
+  // - Optional opts.onRetry(attempt) lets the caller surface a "Waking..."
+  //   status while the container boots.
+  // -------------------------------------------------------------------------
+  async function fetchBuilderApiWithRetry(path, init, opts) {
+    init = init || {};
+    opts = opts || {};
+    var url = (path && path.indexOf('http') === 0) ? path : (BUILDER_API_BASE + path);
+    var maxAttempts = Math.max(1, opts.maxAttempts || 3);
+    var backoffs    = opts.backoffs || [1500, 4000];
+    var attempt = 0;
+    var lastNetErr = null;
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        var r = await fetch(url, init);
+        if ((r.status === 502 || r.status === 503 || r.status === 504) && attempt < maxAttempts) {
+          // Drain body to release the connection cleanly.
+          try { await r.text(); } catch (_) {}
+          try { if (typeof opts.onRetry === 'function') opts.onRetry(attempt); } catch (_) {}
+          var waitMs = backoffs[Math.min(attempt - 1, backoffs.length - 1)] || 4000;
+          await new Promise(function (resolve) { setTimeout(resolve, waitMs); });
+          continue;
+        }
+        return r;
+      } catch (netErr) {
+        lastNetErr = netErr;
+        if (attempt < maxAttempts) {
+          try { if (typeof opts.onRetry === 'function') opts.onRetry(attempt); } catch (_) {}
+          var waitMs2 = backoffs[Math.min(attempt - 1, backoffs.length - 1)] || 4000;
+          await new Promise(function (resolve) { setTimeout(resolve, waitMs2); });
+          continue;
+        }
+        throw netErr;
+      }
+    }
+    if (lastNetErr) throw lastNetErr;
+    throw new Error('Request failed after ' + maxAttempts + ' attempts.');
+  }
+  try { window.fetchBuilderApiWithRetry = fetchBuilderApiWithRetry; } catch (_) {}
+
+  // Warm-ping the backend on page load to wake a sleeping container before
+  // the user clicks anything. Fire-and-forget -- failures are harmless.
+  // Uses GET / (Express returns 200 with a small JSON banner) so it does
+  // not require auth. The retry wrapper is intentionally NOT used here
+  // because we do not want to block on cold-start; the user's first
+  // optimize/generate click will still benefit from its own retry.
+  (function warmPingBuilderApi() {
+    function _ping() {
+      try {
+        // Use no-cors so an unexpected CORS response does not throw in
+        // the console -- we only care about waking the container.
+        fetch(BUILDER_API_BASE.replace(/\/api$/, '') + '/', {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          keepalive: true
+        }).catch(function () {});
+      } catch (_) {}
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      // Defer slightly so the warm-ping does not compete with critical
+      // page-load fetches (Firebase, auth, plan hydrate).
+      setTimeout(_ping, 800);
+    } else {
+      window.addEventListener('DOMContentLoaded', function () {
+        setTimeout(_ping, 800);
+      }, { once: true });
+    }
+  })();
+
   // ---------- Owner gating ----------
   var OWNER_EMAIL = 'kay.m.steven@gmail.com';
   function normalizeEmail(e) { return (e || '').trim().toLowerCase(); }
@@ -9050,7 +9132,7 @@
     }
     getAuthHeaders().then(function (headers) {
       headers['Content-Type'] = 'application/json';
-      return fetch(BUILDER_API_BASE + '/builder/research-role', {
+      return fetchBuilderApiWithRetry('/builder/research-role', {
         method: 'POST', headers: headers,
         body: JSON.stringify({
           job_title: RB_STATE.targetRole.job_title,
@@ -9060,6 +9142,10 @@
           source: opts.source || (opts.auto ? 'auto' : 'manual'),
           reason: opts._reason || (opts.auto ? 'auto-debounce' : 'user-click')
         })
+      }, {
+        onRetry: function () {
+          if (statusEl) statusEl.textContent = 'Waking the AI service\u2026';
+        }
       });
     }).then(function (resp) {
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
@@ -9448,8 +9534,12 @@
     if (statusEl) statusEl.textContent = 'Fetching job details…';
     getAuthHeaders().then(function (headers) {
       headers['Content-Type'] = 'application/json';
-      return fetch(BUILDER_API_BASE + '/builder/import-linkedin-job', {
+      return fetchBuilderApiWithRetry('/builder/import-linkedin-job', {
         method: 'POST', headers: headers, body: JSON.stringify({ url: url })
+      }, {
+        onRetry: function () {
+          if (statusEl) statusEl.textContent = 'Waking the AI service\u2026';
+        }
       });
     }).then(function (resp) {
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
@@ -10130,8 +10220,12 @@
       if (!headers || !headers['Content-Type']) {
         headers = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
       }
-      var res = await fetch(BUILDER_API_BASE + '/builder/interview-prep-refresh', {
+      var res = await fetchBuilderApiWithRetry('/builder/interview-prep-refresh', {
         method: 'POST', headers: headers, body: JSON.stringify(payload)
+      }, {
+        onRetry: function () {
+          if (labelEl) labelEl.textContent = 'Waking AI\u2026';
+        }
       });
       // Safe non-JSON parse — Railway 502 returns an HTML body.
       var raw = '';
@@ -11984,12 +12078,19 @@
       if (!headers || !headers['Content-Type']) {
         headers = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
       }
-      var res = await fetch(BUILDER_API_BASE + '/builder/optimize', {
+      // Cold-start aware fetch: shared retry wrapper handles 502/503/504 and
+      // network errors with backoff so the user does not see Railway's
+      // first-request boot failure.
+      var res = await fetchBuilderApiWithRetry('/builder/optimize', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(payload)
+      }, {
+        onRetry: function () {
+          if (statusEl) statusEl.textContent = 'Waking the optimization service\u2026';
+        }
       });
-      // Safe non-JSON parse — Railway 502 returns an HTML body.
+      // Safe non-JSON parse \u2014 Railway 502 returns an HTML body.
       var raw = '';
       try { raw = await res.text(); } catch (_) { raw = ''; }
       var data = null;
@@ -12267,7 +12368,7 @@
     var u = auth && auth.currentUser;
     getAuthHeaders().then(function (headers) {
       headers['Content-Type'] = 'application/json';
-      return fetch(BUILDER_API_BASE + '/builder/generate-cv', {
+      return fetchBuilderApiWithRetry('/builder/generate-cv', {
         method: 'POST', headers: headers,
         body: JSON.stringify({
           profile: RB_STATE.resumeData || {},
@@ -12280,6 +12381,10 @@
             email: (u && u.email) || null
           }
         })
+      }, {
+        onRetry: function () {
+          if (statusEl) statusEl.textContent = 'Waking the AI service\u2026';
+        }
       });
     }).then(function (resp) {
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
@@ -12339,8 +12444,12 @@
     };
     getAuthHeaders().then(function (headers) {
       headers['Content-Type'] = 'application/json';
-      return fetch(BUILDER_API_BASE + '/builder/generate', {
+      return fetchBuilderApiWithRetry('/builder/generate', {
         method: 'POST', headers: headers, body: JSON.stringify(payload)
+      }, {
+        onRetry: function () {
+          if (statusEl) statusEl.textContent = 'Waking the AI service\u2026';
+        }
       });
     }).then(function (resp) {
       return resp.json().then(function (j) { return { ok: resp.ok, status: resp.status, body: j }; });
