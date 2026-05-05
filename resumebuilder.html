@@ -73,6 +73,174 @@
     };
   })();
 </script>
+<script>
+  /* ============================================================================
+     PRODUCTION HARDENING — RB_DEBUG flag + console gating + debug-helper sweep
+     ----------------------------------------------------------------------------
+     Production console shield:
+     In normal production mode, suppress development-only console output and
+     hide debug helpers. This avoids exposing resume / AI payloads / Firestore
+     documents / share-link internals in the browser console without touching
+     fragile app logic at the call site. In debug mode, original console
+     behavior and debug helpers are preserved — nothing is stubbed or swept.
+
+     This is a SHIELD, not a replacement for later call-site cleanup. Future
+     gating of individual logs should use the rbDebugLog/rbDebugWarn/rbDebugError
+     helpers below.
+
+     Goals:
+       - Default-quiet console in production (.log/.info/.table/.group/.debug).
+       - console.warn / console.error PRESERVED so real production diagnostics
+         (save failures, publish errors, paywall errors, fallbacks) still surface.
+       - window.debug* helpers swept off `window` in production. Originals stay
+         defined as inner closures — only their global exposure is removed.
+       - Whitelist: window.validateFixedPdfHtml + window.validateFixedPdfLayout
+         are NEVER swept (production PDF rendering paths call them directly).
+       - All real app exports (downloadSingleDocument, buildSingleDocumentPackage,
+         updateDirectDownloadButtonsState, hydratePublishedShareLinkUI,
+         renderExportFlowUI, ACTIONS map entries, openAccordion, etc.) untouched.
+
+     Debug mode opt-in:
+       - URL: ?debug=1
+       - localStorage: RB_DEBUG = '1'
+     ============================================================================ */
+  var RB_DEBUG = (function () {
+    try {
+      return /[?&]debug=1\b/.test(window.location.search) ||
+        window.localStorage.getItem('RB_DEBUG') === '1';
+    } catch (_) {
+      return /[?&]debug=1\b/.test(window.location.search);
+    }
+  })();
+  window.RB_DEBUG = RB_DEBUG;
+
+  // Snapshot the ORIGINAL console methods up front so debug helpers always
+  // route through the real implementations even after we stub the globals
+  // below. Bind to console so call sites that rely on `this === console` keep
+  // working. (The Tailwind suppressor above already wrapped console.warn into
+  // a filter; binding here captures that wrapped function as the "real" warn,
+  // which is correct — we want the Tailwind filter to keep applying.)
+  var RB_ORIGINAL_CONSOLE = {
+    log:            console.log            ? console.log.bind(console)            : function () {},
+    info:           console.info           ? console.info.bind(console)           : function () {},
+    debug:          console.debug          ? console.debug.bind(console)          : function () {},
+    table:          console.table          ? console.table.bind(console)          : function () {},
+    group:          console.group          ? console.group.bind(console)          : function () {},
+    groupCollapsed: console.groupCollapsed ? console.groupCollapsed.bind(console) : function () {},
+    groupEnd:       console.groupEnd       ? console.groupEnd.bind(console)       : function () {},
+    warn:           console.warn           ? console.warn.bind(console)           : function () {},
+    error:          console.error          ? console.error.bind(console)          : function () {}
+  };
+
+  // Debug-only logging helpers. Use these for new gated logs going forward.
+  // They route through RB_ORIGINAL_CONSOLE so they keep working even after the
+  // production shield stubs out console.log / console.info / etc.
+  function rbDebugLog() {
+    if (!RB_DEBUG) return;
+    try { RB_ORIGINAL_CONSOLE.log.apply(null, arguments); } catch (_) {}
+  }
+  function rbDebugWarn() {
+    if (!RB_DEBUG) return;
+    try { RB_ORIGINAL_CONSOLE.warn.apply(null, arguments); } catch (_) {}
+  }
+  function rbDebugError() {
+    if (!RB_DEBUG) return;
+    try { RB_ORIGINAL_CONSOLE.error.apply(null, arguments); } catch (_) {}
+  }
+  function rbDebugGroupCollapsed() {
+    if (!RB_DEBUG) return;
+    try { RB_ORIGINAL_CONSOLE.groupCollapsed.apply(null, arguments); } catch (_) {}
+  }
+  function rbDebugGroupEnd() {
+    if (!RB_DEBUG) return;
+    try { RB_ORIGINAL_CONSOLE.groupEnd.apply(null, arguments); } catch (_) {}
+  }
+  window.rbDebugLog = rbDebugLog;
+  window.rbDebugWarn = rbDebugWarn;
+  window.rbDebugError = rbDebugError;
+  window.rbDebugGroupCollapsed = rbDebugGroupCollapsed;
+  window.rbDebugGroupEnd = rbDebugGroupEnd;
+
+  // PRODUCTION-ONLY: stub the noisy console methods + sweep window.debug*.
+  // In debug mode, this whole block is skipped — console behaves normally
+  // and every window.debug* / testSaveDraftDryRun helper stays exposed.
+  if (!RB_DEBUG) {
+    // (a) Console gating. console.warn / console.error are intentionally
+    //     left alone (real production diagnostics).
+    try {
+      var _rbNoop = function () {};
+      console.log            = _rbNoop;
+      console.info           = _rbNoop;
+      console.debug          = _rbNoop;
+      console.table          = _rbNoop;
+      console.group          = _rbNoop;
+      console.groupCollapsed = _rbNoop;
+      console.groupEnd       = _rbNoop;
+    } catch (_) {}
+
+    // (b) Conservative window-sweep of diagnostic-only helpers. Runs after
+    //     DOM ready and again after full load to catch late attachments
+    //     made during deferred init.
+    var rbSweepDebugGlobals = function () {
+      try {
+        // Whitelist: NEVER delete these — production code paths call them.
+        var keep = {
+          validateFixedPdfHtml: 1,
+          validateFixedPdfLayout: 1
+        };
+        Object.getOwnPropertyNames(window).forEach(function (k) {
+          if (keep[k]) return;
+          // Only sweep names that are clearly diagnostic-only:
+          //   /^debug[A-Z]/  — e.g. debugPublicWebPayload, debugAiTaskLoader
+          //   testSaveDraftDryRun  — explicit dev-only helper
+          if (/^debug[A-Z]/.test(k) || k === 'testSaveDraftDryRun') {
+            try { delete window[k]; }
+            catch (_) { try { window[k] = undefined; } catch (__) {} }
+          }
+        });
+      } catch (_) {}
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(rbSweepDebugGlobals, 0);
+      });
+    } else {
+      setTimeout(rbSweepDebugGlobals, 0);
+    }
+    window.addEventListener('load', function () {
+      setTimeout(rbSweepDebugGlobals, 250);
+    });
+  }
+
+  // Debug-only readiness self-check. Defined unconditionally; only attached
+  // to window when RB_DEBUG is true. Does NOT run automatically.
+  function debugProductionReadinessCheck() {
+    var duplicateIds = [];
+    try {
+      var seen = {};
+      document.querySelectorAll('[id]').forEach(function (el) {
+        var id = el.id;
+        if (!id) return;
+        if (seen[id]) duplicateIds.push(id);
+        seen[id] = true;
+      });
+    } catch (_) {}
+    return {
+      debug: RB_DEBUG,
+      duplicateIds: duplicateIds,
+      hasPaywallModal: !!document.getElementById('paywall-modal'),
+      hasAccountMenu: !!document.getElementById('account-menu-btn'),
+      hasMyResumesButton: !!document.getElementById('nav-my-resumes'),
+      hasPreviewContainer: !!document.getElementById('preview-container-export'),
+      hasPublishButton: !!document.getElementById('publish-btn'),
+      signedInClass: document.documentElement.classList.contains('signed-in'),
+      builderActive: !!(document.body && document.body.classList.contains('builder-active'))
+    };
+  }
+  if (RB_DEBUG) {
+    window.debugProductionReadinessCheck = debugProductionReadinessCheck;
+  }
+</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest" defer></script>
 
@@ -9846,7 +10014,9 @@
         // Log full server response for diagnostics. Backend returns
         // { error: <code>, message: <human reason> } on failures —
         // surface the human message in the toast, not the bare code.
-        try { console.warn('[interview-prep-refresh] server', res.status, data || raw); } catch (_) {}
+        // Avoid logging full server body — may include AI / interview-prep
+        // content. Status code is enough for production support.
+        try { console.warn('[interview-prep-refresh] server HTTP', res.status); } catch (_) {}
         var msg = (data && (data.message || data.error))
           || ('Interview prep refresh failed (HTTP ' + res.status + ').');
         throw new Error(msg);
