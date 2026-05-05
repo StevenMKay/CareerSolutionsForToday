@@ -11796,6 +11796,10 @@
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
 
     showToast('Optimization changes undone.', 'info');
+    // Undo is a real state mutation -- mark dirty so the lazy-save system
+    // persists the reverted draft. Without this, leaving/reloading after
+    // Undo could discard the revert.
+    try { markBuilderDirty('optimization-undone'); } catch (_) {}
   }
 
   function restoreOptimizationOutputFromState() {
@@ -11856,6 +11860,21 @@
       cloned.rawResumeText = cloned.rawResumeText.slice(0, 50000);
     }
     return cloned;
+  }
+
+  // Persist the captured applied-change plan. After apply, current values
+  // match suggestions, so a freshly-built plan would report totalApply=0.
+  // Saving the frozen plan keeps Applied counts/badges accurate after
+  // reload. apply() closures cannot be serialized -- strip them via the
+  // replacer so JSON.stringify does not throw on circular function refs.
+  function cloneAppliedOptimizationChangePlanForPersistence(plan) {
+    if (!plan || typeof plan !== 'object') return null;
+    try {
+      return JSON.parse(JSON.stringify(plan, function (key, value) {
+        if (typeof value === 'function') return undefined;
+        return value;
+      }));
+    } catch (_) { return null; }
   }
 
   // ============================================================
@@ -23710,6 +23729,7 @@
       optimizationStatus:         RB_STATE.optimizationStatus || null,
       optimizationAppliedAt:      RB_STATE.optimizationAppliedAt || null,
       preOptimizationSnapshot:    cloneOptimizationSnapshotForPersistence(RB_STATE.preOptimizationSnapshot),
+      appliedOptimizationChangePlan: cloneAppliedOptimizationChangePlanForPersistence(RB_STATE.appliedOptimizationChangePlan),
       lastManualSaveAt:           RB_STATE.lastManualSaveAt || null,
       lastDownloadedAt:           RB_STATE.lastDownloadedAt || null,
       exportCompletedAt:          RB_STATE.exportCompletedAt || null,
@@ -24293,6 +24313,13 @@
       if (data && data.optimizationAppliedAt) {
         RB_STATE.optimizationAppliedAt = data.optimizationAppliedAt;
       }
+      // Hydrate the frozen applied plan only when an apply timestamp is
+      // present. After apply, current values equal suggestions, so the
+      // Applied UI must read from this saved plan to keep counts/badges
+      // correct -- a rebuilt plan would report 0.
+      RB_STATE.appliedOptimizationChangePlan = RB_STATE.optimizationAppliedAt
+        ? ((data && data.appliedOptimizationChangePlan) || null)
+        : null;
       if (data && data.preOptimizationSnapshot) {
         RB_STATE.preOptimizationSnapshot = data.preOptimizationSnapshot;
       }
