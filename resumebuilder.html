@@ -24225,6 +24225,232 @@
     };
   };
 
+  // ============================================================
+  // Post-checkout activation handler
+  // ------------------------------------------------------------
+  // When Stripe redirects back to resumebuilder.html?upgraded=1
+  // (optionally with &session_id=cs_...), we:
+  //   1. Show an "Activating your subscription…" banner so the user
+  //      knows something is happening even though the webhook may
+  //      take a moment.
+  //   2. POST the session_id to /api/builder/verify-checkout — the
+  //      backend confirms with Stripe and writes the entitlement to
+  //      builderSubscriptions/{email}. This is the warm path; the
+  //      Stripe webhook is the durable source of truth.
+  //   3. Poll /api/builder/check-subscription?email=... every 2s for
+  //      up to ~24s in case verify is unavailable and we have to
+  //      wait for the webhook.
+  //   4. On success: re-run loadBuilderAccessForUser, hide the banner,
+  //      show a confirmation toast, and strip the upgraded/session_id
+  //      query params from the URL so a refresh doesn't re-trigger.
+  //   5. On timeout: leave a "Still processing — refresh in a minute"
+  //      message with a Retry button.
+  // ============================================================
+  function showActivationBanner(message, opts) {
+    opts = opts || {};
+    var el = document.getElementById('rb-activation-banner');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'rb-activation-banner';
+      el.setAttribute('role', 'status');
+      el.style.cssText =
+        'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);' +
+        'z-index:6000;max-width:min(92vw,520px);padding:14px 18px;' +
+        'background:#0F172A;color:#fff;border-radius:12px;' +
+        'box-shadow:0 18px 40px rgba(0,0,0,.35);' +
+        'font:600 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;' +
+        'display:flex;align-items:center;gap:12px;';
+      document.body.appendChild(el);
+    }
+    var spinner = opts.spinner === false
+      ? ''
+      : '<span aria-hidden="true" style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:rbSpin 0.9s linear infinite;flex:none"></span>';
+    var actions = opts.retry
+      ? '<button type="button" id="rb-activation-retry" style="margin-left:auto;background:#fff;color:#0F172A;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer">Retry</button>'
+      : '';
+    el.innerHTML = spinner + '<span style="flex:1">' + message + '</span>' + actions;
+    if (!document.getElementById('rb-activation-style')) {
+      var s = document.createElement('style');
+      s.id = 'rb-activation-style';
+      s.textContent = '@keyframes rbSpin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
+    }
+  }
+  function hideActivationBanner() {
+    var el = document.getElementById('rb-activation-banner');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function stripUpgradedFromUrl() {
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete('upgraded');
+      u.searchParams.delete('session_id');
+      u.searchParams.delete('cancelled');
+      window.history.replaceState({}, document.title, u.pathname + (u.search ? u.search : '') + u.hash);
+    } catch (_) {}
+  }
+
+  async function refreshEntitlementsAndCelebrate() {
+    var user = auth && auth.currentUser;
+    if (!user) return false;
+    try { await loadBuilderAccessForUser(user); } catch (_) {}
+    var unlocked = (typeof canUsePremium === 'function') && canUsePremium();
+    if (unlocked) {
+      hideActivationBanner();
+      try { showToast('Your subscription is active. Welcome aboard!', 'success'); } catch (_) {}
+      try { hidePaywall(); } catch (_) {}
+      stripUpgradedFromUrl();
+      return true;
+    }
+    return false;
+  }
+
+  async function verifyCheckoutOnce(sessionId) {
+    if (!sessionId) return null;
+    var user = auth && auth.currentUser;
+    if (!user) return null;
+    try {
+      var token = await user.getIdToken();
+      var resp = await fetch(API_BASE + '/builder/verify-checkout', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+      if (!resp.ok) {
+        console.warn('[rb-upgrade] verify-checkout HTTP', resp.status);
+        return null;
+      }
+      return await resp.json();
+    } catch (e) {
+      console.warn('[rb-upgrade] verify-checkout failed:', e && e.message || e);
+      return null;
+    }
+  }
+
+  async function pollCheckSubscription(email, maxTries, intervalMs) {
+    if (!email) return false;
+    var tries = 0;
+    var ceil = maxTries || 12;
+    var wait = intervalMs || 2000;
+    while (tries < ceil) {
+      tries++;
+      try {
+        var r = await fetch(API_BASE + '/builder/check-subscription?email=' + encodeURIComponent(email));
+        if (r.ok) {
+          var j = await r.json();
+          if (j && j.subscribed) return true;
+        }
+      } catch (_) {}
+      // Also refresh from Firestore in case the webhook wrote directly.
+      var ok = await refreshEntitlementsAndCelebrate();
+      if (ok) return true;
+      await new Promise(function (res) { setTimeout(res, wait); });
+    }
+    return false;
+  }
+
+  var _rbUpgradeRan = false;
+  async function handlePostCheckoutActivation() {
+    if (_rbUpgradeRan) return;
+    _rbUpgradeRan = true;
+
+    var params;
+    try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    var upgraded  = params.get('upgraded') === '1';
+    var sessionId = params.get('session_id') || '';
+    var cancelled = params.get('cancelled') === '1';
+
+    if (cancelled) {
+      try { showToast('Checkout was cancelled. No charge was made.', 'info'); } catch (_) {}
+      stripUpgradedFromUrl();
+      return;
+    }
+    if (!upgraded && !sessionId) return;
+
+    var user = auth && auth.currentUser;
+    if (!user) {
+      // Wait once for auth to resolve, then retry.
+      try {
+        await new Promise(function (resolve) {
+          var done = false;
+          var unsub = auth.onAuthStateChanged(function (u) {
+            if (done) return;
+            if (u) { done = true; try { unsub(); } catch (_) {} resolve(u); }
+          });
+          setTimeout(function () {
+            if (!done) { done = true; try { unsub(); } catch (_) {} resolve(null); }
+          }, 8000);
+        });
+      } catch (_) {}
+      user = auth && auth.currentUser;
+    }
+    if (!user) {
+      // Not signed in after timeout — leave query params so a re-attempt
+      // after sign-in still works.
+      _rbUpgradeRan = false;
+      return;
+    }
+
+    showActivationBanner('Activating your subscription…');
+
+    // Step 1: warm-path verify with Stripe (if we have a session_id).
+    if (sessionId) {
+      var verify = await verifyCheckoutOnce(sessionId);
+      if (verify && verify.paid) {
+        var ok1 = await refreshEntitlementsAndCelebrate();
+        if (ok1) return;
+      }
+    }
+
+    // Step 2: poll the subscription doc until the webhook lands.
+    var email = String((user && user.email) || '').toLowerCase();
+    var ok2 = await pollCheckSubscription(email, 12, 2000); // ~24s
+    if (ok2) {
+      await refreshEntitlementsAndCelebrate();
+      return;
+    }
+
+    // Step 3: timed out. Stripe charged the card but our webhook hasn't
+    // landed yet. Leave a recoverable banner so the user can retry.
+    showActivationBanner(
+      'Payment received — finalizing your access. If this takes more than a minute, click Retry.',
+      { retry: true, spinner: false }
+    );
+    var btn = document.getElementById('rb-activation-retry');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        _rbUpgradeRan = false;
+        showActivationBanner('Activating your subscription…');
+        handlePostCheckoutActivation();
+      });
+    }
+  }
+
+  // Trigger on auth-ready: run once immediately (in case user is already
+  // signed in from a cached session) and once on the next sign-in event.
+  try {
+    if (auth && typeof auth.onAuthStateChanged === 'function') {
+      auth.onAuthStateChanged(function (u) {
+        if (u) { try { handlePostCheckoutActivation(); } catch (_) {} }
+      });
+    }
+  } catch (_) {}
+  // Also kick off on DOMContentLoaded for the case where auth resolves
+  // before this IIFE runs (handlePostCheckoutActivation no-ops if there
+  // are no upgrade params).
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      try { handlePostCheckoutActivation(); } catch (_) {}
+    }, { once: true });
+  } else {
+    try { handlePostCheckoutActivation(); } catch (_) {}
+  }
+  window.handlePostCheckoutActivation = handlePostCheckoutActivation;
+
   function initLegalModalCloseHandlers() {
     var t = document.getElementById('terms-modal');
     var p = document.getElementById('privacy-modal');
