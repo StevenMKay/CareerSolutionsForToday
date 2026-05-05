@@ -9575,6 +9575,27 @@
     }));
   }
 
+  // Compare helpers used by the Suggested Updates UI so cards do not present
+  // an identical "Current" vs "Suggested" comparison. Whitespace, smart
+  // quotes, em/en dashes, and case are normalized so trivial formatting
+  // differences do not count as a real rewrite.
+  function normalizeRewriteCompareText(value) {
+    return String(value == null ? '' : value)
+      .replace(/\s+/g, ' ')
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u2013\u2014]/g, '-')
+      .trim()
+      .toLowerCase();
+  }
+  function hasVisibleRewriteDifference(original, suggested) {
+    return normalizeRewriteCompareText(original) !== normalizeRewriteCompareText(suggested);
+  }
+  try {
+    window.normalizeRewriteCompareText = normalizeRewriteCompareText;
+    window.hasVisibleRewriteDifference = hasVisibleRewriteDifference;
+  } catch (_) {}
+
   function optScoreLabel(score) {
     var n = Number(score || 0);
     if (n >= 85) return 'Strong Match';
@@ -10546,34 +10567,53 @@
       return s;
     }
 
-    function rewriteCard(title, original, suggested, reason, flag, inline) {
-      var warn = flag ? ' has-warning' : '';
+    function rewriteCard(title, original, suggested, reason, flag, opts) {
+      // Back-compat: old callers passed `inline` (boolean) as the 6th arg.
+      if (opts === true)  opts = { inline: true };
+      if (!opts || typeof opts !== 'object') opts = {};
+      var inline = !!opts.inline;
+      var alreadyApplied = (typeof opts.applied === 'boolean')
+        ? opts.applied
+        : !!(window.RB_STATE && RB_STATE.optimizationAppliedAt);
+      var isReviewOnly = !!flag;
+      // Skip non-review cards whose original text already matches the
+      // suggestion (after normalization). Without this the user sees an
+      // identical Current/Suggested or Before/Applied comparison and thinks
+      // the AI did nothing.
+      if (!isReviewOnly && !hasVisibleRewriteDifference(original, suggested)) {
+        return '';
+      }
+      var warn = isReviewOnly ? ' has-warning' : '';
       var cardKey = 'card-' + (++_cardKeyCounter);
-      // Open by default for Review items; otherwise honor stored state.
-      var defaultOpen = !!flag;
+      var defaultOpen = isReviewOnly;
       var stored = _optCollapseState.cards.hasOwnProperty(cardKey)
         ? !!_optCollapseState.cards[cardKey]
         : null;
       var openAttr = (stored == null ? defaultOpen : stored) ? ' open' : '';
-      var alreadyApplied = !!(window.RB_STATE && RB_STATE.optimizationAppliedAt);
       // Badge wording is explicit so users can see at a glance which items
       // get changed when they hit "Apply Safe Updates" and which require
-      // manual review. After the user has applied updates, non-review items
-      // flip from "Will apply" to "Applied".
+      // manual review. After apply, non-review items flip to "Applied".
       var statusBadge;
-      if (flag) {
+      if (isReviewOnly) {
         statusBadge = '<span class="opt-rewrite-status review" title="This item has placeholder text and will NOT be applied automatically. Review it manually.">Review only</span>';
       } else if (alreadyApplied) {
         statusBadge = '<span class="opt-rewrite-status applied" title="This change has been applied to your resume draft."><i data-lucide="check" style="width:11px;height:11px;"></i> Applied</span>';
       } else {
         statusBadge = '<span class="opt-rewrite-status updated" title="This item will be applied when you click Apply Safe Updates.">Will apply</span>';
       }
+      // Column labels reflect WHAT the user is comparing. After apply, the
+      // left column shows the pre-apply snapshot ("Before") and the right
+      // shows the suggestion that was applied. Before apply or for review
+      // items, the left is the live "Current" text and the right is what
+      // the AI proposed.
+      var leftLabel  = (alreadyApplied && !isReviewOnly) ? 'Before'         : 'Current';
+      var rightLabel = (alreadyApplied && !isReviewOnly) ? 'Applied update' : 'Suggested';
       var bodyHtml =
         '<div class="opt-rewrite-card-body">'
           + '<div class="opt-rewrite-grid">'
-            + '<div class="opt-rewrite-col"><div class="opt-rewrite-col-label"><i data-lucide="file-text" style="width:12px;height:12px;"></i> Current</div>'
-              + '<div class="opt-rewrite-col-text">' + (original ? _esc(original) : '<span style="color:#94A3B8;font-style:italic;">No current text</span>') + '</div></div>'
-            + '<div class="opt-rewrite-col is-suggested"><div class="opt-rewrite-col-label"><i data-lucide="sparkles" style="width:12px;height:12px;"></i> Suggested</div>'
+            + '<div class="opt-rewrite-col"><div class="opt-rewrite-col-label"><i data-lucide="file-text" style="width:12px;height:12px;"></i> ' + leftLabel + '</div>'
+              + '<div class="opt-rewrite-col-text">' + (original ? _esc(original) : '<span style="color:#94A3B8;font-style:italic;">No previous text</span>') + '</div></div>'
+            + '<div class="opt-rewrite-col is-suggested"><div class="opt-rewrite-col-label"><i data-lucide="sparkles" style="width:12px;height:12px;"></i> ' + rightLabel + '</div>'
               + '<div class="opt-rewrite-col-text">' + (suggested ? _esc(suggested) : '') + '</div></div>'
           + '</div>'
           + (reason ? '<div class="opt-rewrite-reason">' + _esc(reason) + '</div>' : '')
@@ -10624,8 +10664,13 @@
       return { count: total, reviewCount: review };
     }
     function rewriteSection(label, icon, body) {
-      var slug = 'opt-sec-' + String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      body = String(body || '').trim();
       var counts = _countCardsInBody(body);
+      // Do not render empty sections. This happens when rewriteCard()
+      // intentionally skips identical Current/Suggested text. Skipping the
+      // _sectionMeta.push() also keeps the summary strip / counts honest.
+      if (!body || !counts.count) return '';
+      var slug = 'opt-sec-' + String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
       _sectionMeta.push({
         slug: slug, label: label, icon: icon,
         count: counts.count, reviewCount: counts.reviewCount
@@ -10663,21 +10708,38 @@
     }
 
     var blocks = [];
+    // Resolve "before" text from the pre-apply snapshot when optimization
+    // has already been applied. Without this, the left column would pull
+    // from live RB_STATE.resumeData, which now equals the suggestion --
+    // making the comparison look identical and confusing the user.
+    var _optApplied = !!RB_STATE.optimizationAppliedAt;
+    var _optSnap    = RB_STATE.preOptimizationSnapshot || null;
+    var _snapResume = (_optSnap && _optSnap.resumeData)  || null;
+    var _snapCv     = (_optSnap && _optSnap.coverLetter) || null;
+    var _cardOpts   = { applied: _optApplied };
+    var _inlineOpts = { applied: _optApplied, inline: true };
+
     if (resumeS.summaryRewrite) {
+      var _beforeSummary = (_optApplied && _snapResume)
+        ? (_snapResume.summary || '')
+        : ((RB_STATE.resumeData && RB_STATE.resumeData.summary) || '');
       blocks.push(rewriteSection('Resume Summary', 'align-left',
         rewriteCard('Summary rewrite',
-          (RB_STATE.resumeData && RB_STATE.resumeData.summary) || '',
+          _beforeSummary,
           resumeS.summaryRewrite, '',
           _hasPlaceholderTokens(resumeS.summaryRewrite),
-          /* inline */ true)));
+          _inlineOpts)));
     }
     if (resumeS.headlineRewrite) {
+      var _beforeHeadline = (_optApplied && _snapResume)
+        ? (_snapResume.headline || _snapResume.current_title || '')
+        : ((RB_STATE.resumeData && (RB_STATE.resumeData.headline || RB_STATE.resumeData.current_title)) || '');
       blocks.push(rewriteSection('Headline', 'tag',
         rewriteCard('Headline rewrite',
-          (RB_STATE.resumeData && (RB_STATE.resumeData.headline || RB_STATE.resumeData.current_title)) || '',
+          _beforeHeadline,
           resumeS.headlineRewrite, '',
           _hasPlaceholderTokens(resumeS.headlineRewrite),
-          /* inline */ true)));
+          _inlineOpts)));
     }
     if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
       blocks.push(rewriteSection('Skills to add', 'plus-circle',
@@ -10691,7 +10753,8 @@
         resumeS.experienceBulletRewrites.map(function (b) {
           return rewriteCard(
             (b.roleTitle || ('Role ' + b.roleIndex)) + ' \u2014 bullet ' + (Number(b.bulletIndex) + 1),
-            b.original, b.suggested, b.reason, _hasPlaceholderTokens(b.suggested));
+            b.original, b.suggested, b.reason, _hasPlaceholderTokens(b.suggested),
+            _cardOpts);
         }).join('')));
     }
     if (Array.isArray(resumeS.roleSummaryRewrites) && resumeS.roleSummaryRewrites.length) {
@@ -10699,28 +10762,39 @@
         resumeS.roleSummaryRewrites.map(function (r) {
           return rewriteCard(
             'Role ' + (Number(r.roleIndex) + 1) + ' summary',
-            r.original, r.suggested, r.reason, _hasPlaceholderTokens(r.suggested));
+            r.original, r.suggested, r.reason, _hasPlaceholderTokens(r.suggested),
+            _cardOpts);
         }).join('')));
     }
     if (cvS.openingRewrite || cvS.closingRewrite || (Array.isArray(cvS.bodyRewrites) && cvS.bodyRewrites.length) || (Array.isArray(cvS.bodyParagraphRewrites) && cvS.bodyParagraphRewrites.length)) {
       var cvBody = '';
-      if (cvS.openingRewrite) cvBody += rewriteCard('Opening', (cvS.originalOpening || (RB_STATE.coverLetter && RB_STATE.coverLetter.opening)) || '', cvS.openingRewrite, cvS.openingReason || '', _hasPlaceholderTokens(cvS.openingRewrite));
+      if (cvS.openingRewrite) {
+        var _beforeCvOpen = (_optApplied && _snapCv)
+          ? (_snapCv.opening || '')
+          : ((cvS.originalOpening || (RB_STATE.coverLetter && RB_STATE.coverLetter.opening)) || '');
+        cvBody += rewriteCard('Opening', _beforeCvOpen, cvS.openingRewrite, cvS.openingReason || '', _hasPlaceholderTokens(cvS.openingRewrite), _cardOpts);
+      }
       var cvBodyArr = Array.isArray(cvS.bodyRewrites) ? cvS.bodyRewrites : (cvS.bodyParagraphRewrites || []);
       cvBodyArr.forEach(function (b, i) {
         var idx = (b.paragraphIndex != null) ? Number(b.paragraphIndex) : i;
-        cvBody += rewriteCard('Body paragraph ' + (idx + 1), b.original || '', b.suggested || '', b.reason || '', _hasPlaceholderTokens(b.suggested));
+        cvBody += rewriteCard('Body paragraph ' + (idx + 1), b.original || '', b.suggested || '', b.reason || '', _hasPlaceholderTokens(b.suggested), _cardOpts);
       });
-      if (cvS.closingRewrite) cvBody += rewriteCard('Closing', (cvS.originalClosing || (RB_STATE.coverLetter && RB_STATE.coverLetter.closing)) || '', cvS.closingRewrite, cvS.closingReason || '', _hasPlaceholderTokens(cvS.closingRewrite));
-      blocks.push(rewriteSection('Cover Letter', 'mail', cvBody));
+      if (cvS.closingRewrite) {
+        var _beforeCvClose = (_optApplied && _snapCv)
+          ? (_snapCv.closing || '')
+          : ((cvS.originalClosing || (RB_STATE.coverLetter && RB_STATE.coverLetter.closing)) || '');
+        cvBody += rewriteCard('Closing', _beforeCvClose, cvS.closingRewrite, cvS.closingReason || '', _hasPlaceholderTokens(cvS.closingRewrite), _cardOpts);
+      }
+      if (cvBody) blocks.push(rewriteSection('Cover Letter', 'mail', cvBody));
     }
     if (planS.executiveSummaryRewrite || (Array.isArray(planS.phaseRewrites) && planS.phaseRewrites.length) || (Array.isArray(planS.phaseEnhancements) && planS.phaseEnhancements.length)) {
       var planBody = '';
-      if (planS.executiveSummaryRewrite) planBody += rewriteCard('Executive summary', planS.originalExecutiveSummary || '', planS.executiveSummaryRewrite, planS.summaryReason || '', _hasPlaceholderTokens(planS.executiveSummaryRewrite), /* inline */ true);
+      if (planS.executiveSummaryRewrite) planBody += rewriteCard('Executive summary', planS.originalExecutiveSummary || '', planS.executiveSummaryRewrite, planS.summaryReason || '', _hasPlaceholderTokens(planS.executiveSummaryRewrite), _inlineOpts);
       var planArr = Array.isArray(planS.phaseRewrites) ? planS.phaseRewrites : (planS.phaseEnhancements || []);
       planArr.forEach(function (p, i) {
         if (p.original || p.suggested) {
           // Direct rewrite shape
-          planBody += rewriteCard('Phase ' + (i + 1) + (p.timeframe ? ' \u2014 ' + p.timeframe : ''), p.original || '', p.suggested || '', p.reason || '', _hasPlaceholderTokens(p.suggested));
+          planBody += rewriteCard('Phase ' + (i + 1) + (p.timeframe ? ' \u2014 ' + p.timeframe : ''), p.original || '', p.suggested || '', p.reason || '', _hasPlaceholderTokens(p.suggested), _cardOpts);
         } else {
           // Enhancement shape (suggestedActions / suggestedMetrics / suggestedRisks).
           // Build a PLAIN-TEXT block; rewriteCard's _esc() will escape it and the
@@ -10733,14 +10807,16 @@
           if (p.suggestedRisks   && p.suggestedRisks.length)   lines.push('Risks: '   + p.suggestedRisks.join('; '));
           var bits = lines.join('\n');
           if (bits) {
-            planBody += rewriteCard('Phase ' + (Number(p.phaseIndex || i) + 1) + (p.phaseTitle ? ' \u2014 ' + p.phaseTitle : ''), '', bits, p.reason || '', false);
+            planBody += rewriteCard('Phase ' + (Number(p.phaseIndex || i) + 1) + (p.phaseTitle ? ' \u2014 ' + p.phaseTitle : ''), '', bits, p.reason || '', false, _cardOpts);
           }
         }
       });
-      blocks.push(rewriteSection('Career Plan', 'route', planBody));
+      if (planBody) blocks.push(rewriteSection('Career Plan', 'route', planBody));
     }
 
     if (sBody) {
+      // Drop any block whose rewriteSection() returned '' (empty section).
+      blocks = blocks.filter(function (x) { return !!String(x || '').trim(); });
       if (blocks.length) {
         // If no section has Review items, fall back to opening the first
         // section so the user lands on at least one expanded category.
@@ -10898,7 +10974,7 @@
           });
         }
       } else {
-        sBody.innerHTML = '<div class="opt-card tone-neutral"><div class="opt-card-head"><span class="opt-card-icon"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i></span><div class="opt-card-title">No suggested rewrites</div></div><div class="opt-card-empty">Your resume already aligns well with this target role.</div></div>';
+        sBody.innerHTML = '<div class="opt-card tone-neutral"><div class="opt-card-head"><span class="opt-card-icon"><i data-lucide="check-circle-2" style="width:16px;height:16px;"></i></span><div class="opt-card-title">No visible suggested updates to review</div></div><div class="opt-card-empty">Your resume already matches the safe recommendations from this optimization run.</div></div>';
       }
       try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
     }
