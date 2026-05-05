@@ -9630,6 +9630,27 @@
     // Build a one-line preview of the suggested text so collapsed cards
     // still convey what changed without dumping the full Current/Suggested
     // panels on the screen.
+    // ----- Persistent collapse state -----
+    // Remember which sections + cards the user had open/closed so the page
+    // looks the same after a refresh as it did before.
+    var _optCollapseKey = 'rb_opt_collapse_state_v1';
+    function _loadOptCollapseState() {
+      try {
+        var raw = localStorage.getItem(_optCollapseKey);
+        if (!raw) return { sections: {}, cards: {} };
+        var s = JSON.parse(raw);
+        if (!s || typeof s !== 'object') return { sections: {}, cards: {} };
+        if (!s.sections || typeof s.sections !== 'object') s.sections = {};
+        if (!s.cards    || typeof s.cards    !== 'object') s.cards    = {};
+        return s;
+      } catch (_) { return { sections: {}, cards: {} }; }
+    }
+    function _saveOptCollapseState(state) {
+      try { localStorage.setItem(_optCollapseKey, JSON.stringify(state || {})); } catch (_) {}
+    }
+    var _optCollapseState = _loadOptCollapseState();
+    var _cardKeyCounter = 0;
+
     function _previewLine(text) {
       var s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
       if (!s) return '';
@@ -9639,7 +9660,13 @@
 
     function rewriteCard(title, original, suggested, reason, flag) {
       var warn = flag ? ' has-warning' : '';
-      var openAttr = flag ? ' open' : '';
+      var cardKey = 'card-' + (++_cardKeyCounter);
+      // Open by default for Review items; otherwise honor stored state.
+      var defaultOpen = !!flag;
+      var stored = _optCollapseState.cards.hasOwnProperty(cardKey)
+        ? !!_optCollapseState.cards[cardKey]
+        : null;
+      var openAttr = (stored == null ? defaultOpen : stored) ? ' open' : '';
       var alreadyApplied = !!(window.RB_STATE && RB_STATE.optimizationAppliedAt);
       // Badge wording is explicit so users can see at a glance which items
       // get changed when they hit "Apply Safe Updates" and which require
@@ -9654,7 +9681,7 @@
         statusBadge = '<span class="opt-rewrite-status updated" title="This item will be applied when you click Apply Safe Updates.">Will apply</span>';
       }
       var preview = _previewLine(suggested) || _previewLine(original);
-      return '<details class="opt-rewrite-card' + warn + '"' + openAttr + '>'
+      return '<details class="opt-rewrite-card' + warn + '" data-card-key="' + cardKey + '"' + openAttr + '>'
         + '<summary class="opt-rewrite-card-summary">'
           + '<div class="opt-rewrite-card-summary-text">'
             + '<div class="opt-rewrite-card-title">' + _esc(title) + '</div>'
@@ -9702,7 +9729,12 @@
       // section (chosen by render order in `blocks`). We mark Review-bearing
       // sections here; the "first if no review" fallback is applied after
       // all sections are collected, just before assigning innerHTML.
-      var isOpen = counts.reviewCount > 0;
+      // Stored state takes precedence over the default.
+      var defaultOpen = counts.reviewCount > 0;
+      var storedSec = _optCollapseState.sections.hasOwnProperty(slug)
+        ? !!_optCollapseState.sections[slug]
+        : null;
+      var isOpen = (storedSec == null ? defaultOpen : storedSec);
       var countLabel = counts.count
         ? (counts.count + ' ' + (counts.count === 1 ? 'item' : 'items'))
         : '';
@@ -9809,15 +9841,21 @@
         var combined = blocks.join('');
         if (!anyReviewSection && _sectionMeta.length) {
           var firstSlug = _sectionMeta[0].slug;
-          combined = combined.replace(
-            'opt-rewrite-section opt-results-section" id="' + firstSlug + '"',
-            'opt-rewrite-section opt-results-section is-open" id="' + firstSlug + '"'
-          );
-          // Also flip aria-expanded for the first section's toggle.
-          combined = combined.replace(
-            'aria-expanded="false" aria-controls="' + firstSlug + '-body"',
-            'aria-expanded="true" aria-controls="' + firstSlug + '-body"'
-          );
+          // Only auto-open the first section if the user has not stored an
+          // explicit collapsed state for it.
+          var firstStored = _optCollapseState.sections.hasOwnProperty(firstSlug)
+            ? !!_optCollapseState.sections[firstSlug]
+            : null;
+          if (firstStored !== false) {
+            combined = combined.replace(
+              'opt-rewrite-section opt-results-section" id="' + firstSlug + '"',
+              'opt-rewrite-section opt-results-section is-open" id="' + firstSlug + '"'
+            );
+            combined = combined.replace(
+              'aria-expanded="false" aria-controls="' + firstSlug + '-body"',
+              'aria-expanded="true" aria-controls="' + firstSlug + '-body"'
+            );
+          }
         }
 
         // Compact summary strip + Expand/Collapse controls.
@@ -9873,6 +9911,18 @@
 
         sBody.innerHTML = summaryHtml + controlsHtml + combined;
 
+        // Helpers for persisting open/closed state.
+        function _persistSection(slug, open) {
+          if (!slug) return;
+          _optCollapseState.sections[slug] = !!open;
+          _saveOptCollapseState(_optCollapseState);
+        }
+        function _persistCard(key, open) {
+          if (!key) return;
+          _optCollapseState.cards[key] = !!open;
+          _saveOptCollapseState(_optCollapseState);
+        }
+
         // Wire summary strip clicks -> scroll + open the target section.
         sBody.querySelectorAll('[data-opt-scroll-target]').forEach(function (btn) {
           btn.addEventListener('click', function () {
@@ -9882,6 +9932,7 @@
             sec.classList.add('is-open');
             var t = sec.querySelector(':scope > .opt-section-toggle');
             if (t) t.setAttribute('aria-expanded', 'true');
+            _persistSection(slug, true);
             try { sec.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { sec.scrollIntoView(); }
           });
         });
@@ -9893,6 +9944,14 @@
             if (!sec) return;
             var open = sec.classList.toggle('is-open');
             btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            _persistSection(sec.id, open);
+          });
+        });
+
+        // Persist per-card open state (native <details> toggle event).
+        sBody.querySelectorAll('details.opt-rewrite-card').forEach(function (d) {
+          d.addEventListener('toggle', function () {
+            _persistCard(d.getAttribute('data-card-key'), d.open);
           });
         });
 
@@ -9905,8 +9964,14 @@
               sec.classList.add('is-open');
               var t = sec.querySelector(':scope > .opt-section-toggle');
               if (t) t.setAttribute('aria-expanded', 'true');
+              if (sec.id) _optCollapseState.sections[sec.id] = true;
             });
-            sBody.querySelectorAll('details.opt-rewrite-card').forEach(function (d) { d.open = true; });
+            sBody.querySelectorAll('details.opt-rewrite-card').forEach(function (d) {
+              d.open = true;
+              var k = d.getAttribute('data-card-key');
+              if (k) _optCollapseState.cards[k] = true;
+            });
+            _saveOptCollapseState(_optCollapseState);
           });
         }
         if (collapseAllBtn) {
@@ -9915,8 +9980,14 @@
               sec.classList.remove('is-open');
               var t = sec.querySelector(':scope > .opt-section-toggle');
               if (t) t.setAttribute('aria-expanded', 'false');
+              if (sec.id) _optCollapseState.sections[sec.id] = false;
             });
-            sBody.querySelectorAll('details.opt-rewrite-card').forEach(function (d) { d.open = false; });
+            sBody.querySelectorAll('details.opt-rewrite-card').forEach(function (d) {
+              d.open = false;
+              var k = d.getAttribute('data-card-key');
+              if (k) _optCollapseState.cards[k] = false;
+            });
+            _saveOptCollapseState(_optCollapseState);
           });
         }
       } else {
