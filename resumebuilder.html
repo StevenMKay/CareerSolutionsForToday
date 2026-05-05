@@ -5677,6 +5677,11 @@
         showToast(errorMsg || 'Google sign-in was cancelled.', 'warning');
         return;
       }
+      // ISS-026 follow-up: mirror the web sign-in paths and arm the first-run
+      // walkthrough flag so Android wrapper users get the auto-tour on a
+      // fresh sign-in. The auth listener consumes this flag once and then
+      // calls RB_TOUR.maybeAutoStart().
+      try { sessionStorage.setItem('rb_pending_first_run', '1'); } catch (_) {}
       var credential = firebase.auth.GoogleAuthProvider.credential(idToken);
       auth.signInWithCredential(credential)
         .then(function () { showToast('Signed in with Google.', 'success'); })
@@ -24096,8 +24101,10 @@
     var lifetimeBtn  = document.getElementById('paywall-lifetime-btn');
     var stripeBadge  = document.getElementById('stripe-subscribed-badge');
     var trialPill    = document.getElementById('paywall-trial-pill');
+    var manageRow    = document.getElementById('paywall-manage-row');
 
     if (stripeBadge) stripeBadge.classList.add('hidden');
+    if (manageRow)   manageRow.classList.add('hidden');
     if (subBtn) {
       subBtn.disabled = false;
       subBtn.innerHTML = hadPriorSubscription ? 'Renew Subscription' : 'Start 7-Day Free Trial';
@@ -24135,6 +24142,9 @@
         subBtn.innerHTML = cancelling ? 'Resubscribe' : 'Current Plan';
         subBtn.style.opacity = cancelling ? '1' : '.6';
       }
+      // Active monthly subscriber: surface the Stripe Customer Portal so they
+      // can update card / cancel / view invoices without emailing support.
+      if (manageRow) manageRow.classList.remove('hidden');
     }
 
     modal.classList.remove('hidden');
@@ -24162,9 +24172,46 @@
     window.location.href = buildStripeLink(STRIPE_LIFETIME_LINK);
   }
 
+  // Open the Stripe-hosted Customer Portal so a subscriber can update card,
+  // view invoices, or cancel without leaving Stripe's hosted UI. Backed by
+  // POST /api/builder/portal in projectbackend/server.js.
+  async function manageSubscription() {
+    if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
+    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    var btn = document.getElementById('paywall-manage-btn');
+    var orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Opening Stripe...'; }
+    try {
+      var token = await auth.currentUser.getIdToken();
+      var resp = await fetch(API_BASE + '/builder/portal', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: auth.currentUser.email || '' })
+      });
+      var data = await resp.json().catch(function () { return null; });
+      if (!resp.ok || !data || !data.url) {
+        var msg = (data && data.error) || ('Could not open billing portal (HTTP ' + resp.status + ').');
+        showToast(msg, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Manage Subscription'; }
+        return;
+      }
+      // Same-tab redirect so users return to the builder via the portal's
+      // configured return_url (resumebuilder.html).
+      window.location.href = data.url;
+    } catch (err) {
+      console.error('[manageSubscription] error:', err);
+      showToast('Could not open billing portal: ' + ((err && err.message) || err), 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = orig || 'Manage Subscription'; }
+    }
+  }
+
   function initPaywallEvents() {
     var upgradeBtn  = document.getElementById('paywall-upgrade-btn');
     var lifetimeBtn = document.getElementById('paywall-lifetime-btn');
+    var manageBtn   = document.getElementById('paywall-manage-btn');
     if (upgradeBtn && !upgradeBtn._paywallAttached) {
       upgradeBtn._paywallAttached = true;
       upgradeBtn.addEventListener('click', startStripeCheckout);
@@ -24172,6 +24219,10 @@
     if (lifetimeBtn && !lifetimeBtn._lifetimeAttached) {
       lifetimeBtn._lifetimeAttached = true;
       lifetimeBtn.addEventListener('click', startLifetimeCheckout);
+    }
+    if (manageBtn && !manageBtn._manageAttached) {
+      manageBtn._manageAttached = true;
+      manageBtn.addEventListener('click', manageSubscription);
     }
     document.querySelectorAll('[data-close-paywall]').forEach(function (el) {
       if (el._closePaywallAttached) return;
@@ -24186,6 +24237,7 @@
   window.hidePaywall              = hidePaywall;
   window.startStripeCheckout      = startStripeCheckout;
   window.startLifetimeCheckout    = startLifetimeCheckout;
+  window.manageSubscription       = manageSubscription;
   window.buildStripeLink          = buildStripeLink;
   window.loadBuilderAccessForUser = loadBuilderAccessForUser;
   window.debugAuthPaywall = function () {
@@ -27256,6 +27308,17 @@
           Get Lifetime Access
         </button>
       </div>
+    </div>
+    <!-- Manage Subscription (Stripe Customer Portal) — only shown when the
+         user has an active monthly subscription. Hidden by default; toggled
+         from showPaywall(). -->
+    <div id="paywall-manage-row" class="hidden" style="margin-top:1rem;text-align:center">
+      <button id="paywall-manage-btn" type="button" class="btn btn-secondary" style="min-width:240px">
+        Manage Subscription
+      </button>
+      <p style="margin:.5rem 0 0;font-size:.8rem;color:#64748B">
+        Update payment method, cancel, or view invoices on Stripe.
+      </p>
     </div>
     <p class="paywall-note">
       Payments are processed securely by Stripe. In the Android app, plans are managed on the web.
