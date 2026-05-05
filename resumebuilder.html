@@ -4218,7 +4218,7 @@
           <i data-lucide="eye" style="width:16px;height:16px;"></i>
         </button>
       </div>
-      <div id="confirm-password-row" class="confirm-password-wrapper hidden">
+      <div id="confirm-password-row" class="confirm-password-wrapper">
         <label class="field-label" for="login-password-confirm">Confirm password</label>
         <div class="password-wrapper">
           <input id="login-password-confirm" class="input" type="password" autocomplete="new-password" placeholder="Re-enter your password">
@@ -6609,6 +6609,9 @@
     var btn = acc.querySelector('[data-accordion-target]');
     if (btn) btn.setAttribute('aria-expanded', 'true');
   }
+  // Exposed so RB_TOUR.renderStep() can open a specific accordion when a
+  // walkthrough step targets a section that is collapsed by default.
+  try { window.openAccordion = openAccordion; } catch (_) {}
   function closeAccordion(id) {
     var acc = document.getElementById(id);
     if (!acc) return;
@@ -23816,11 +23819,13 @@
     });
   }
   function setSignupModeUI(isNewAccount) {
-    var confirmRow = document.getElementById('confirm-password-row');
+    // Confirm-password row is ALWAYS visible per user request — we no
+    // longer hide it based on whether the email is detected as new. The
+    // "new account" gating still happens server-side / in signInWithEmail()
+    // (it enforces match + requirements only when methods.length === 0).
     var reqBox     = document.getElementById('password-requirements');
     var pwInput    = document.getElementById('login-password');
     var emailBtn   = document.getElementById('login-email-btn');
-    if (confirmRow) confirmRow.classList.toggle('hidden', !isNewAccount);
     if (reqBox)     reqBox.classList.toggle('hidden',     !isNewAccount);
     if (pwInput) {
       pwInput.setAttribute('autocomplete', isNewAccount ? 'new-password' : 'current-password');
@@ -24017,8 +24022,11 @@
       passwordInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           e.preventDefault();
-          var confirmRow = document.getElementById('confirm-password-row');
-          if (confirmRow && !confirmRow.classList.contains('hidden') && confirmInput) {
+          // Signup mode is now signaled by #password-requirements being
+          // visible (the confirm row is always visible per user request).
+          var reqBox = document.getElementById('password-requirements');
+          var inSignup = !!(reqBox && !reqBox.classList.contains('hidden'));
+          if (inSignup && confirmInput) {
             confirmInput.focus();
           } else {
             signInWithEmail();
@@ -24819,6 +24827,10 @@
       var hasDraft = !!(window.currentPlanId || (typeof RB_STATE !== 'undefined' && RB_STATE && RB_STATE.currentPlanId));
       if (existingCount === 0 && !hasDraft) {
         try { showBuilderWorkspace(); } catch (_) {}
+        // Reset to Step 1 — the walkthrough may have left __activeStep on
+        // 'step-export', which would otherwise drop a brand-new user on
+        // the Preview & Export panel instead of Application Details.
+        try { if (typeof goToStep === 'function') goToStep('step-application'); } catch (_) {}
         return;
       }
     } catch (_) {}
@@ -25100,6 +25112,16 @@
         body: 'Import your resume, paste a target job description, then generate a cover letter and role plan. Each accordion shows a green check when it has content.'
       },
       {
+        id: 'target-role',
+        gotoView: 'builder',
+        gotoStep: 'step-application',
+        openAccordionId: 'acc-target-role',
+        anchor: '#acc-target-role',
+        align: 'below',
+        title: 'Target Role',
+        body: 'Paste a LinkedIn job URL or the job description here. Everything downstream — match score, optimization suggestions, cover letter, and role plan — uses this as the target. The more detail you give, the sharper the AI output.'
+      },
+      {
         id: 'optimize',
         gotoView: 'builder',
         gotoStep: 'step-optimize',
@@ -25243,6 +25265,11 @@
       }
       if (step.gotoStep && typeof window.goToStep === 'function') {
         try { window.goToStep(step.gotoStep); stepSwitched = true; } catch (_) {}
+      }
+      // Optional: open a specific accordion so the spotlight covers the
+      // expanded section content rather than just the closed header strip.
+      if (step.openAccordionId && typeof window.openAccordion === 'function') {
+        try { window.openAccordion(step.openAccordionId); } catch (_) {}
       }
       var delay = (viewSwitched ? 600 : 0) + (stepSwitched ? 300 : 0);
       if (delay === 0) delay = 320;
