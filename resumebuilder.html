@@ -5731,6 +5731,17 @@
   }
   var auth    = (typeof firebase !== 'undefined') ? firebase.auth()      : null;
   var db      = (typeof firebase !== 'undefined') ? firebase.firestore() : null;
+  // Mitigate intermittent Chrome HTTP/3 (QUIC) WebChannel resets on the
+  // Firestore Listen stream. The underlying request actually returns 200, but
+  // Chrome surfaces a noisy `ERR_QUIC_PROTOCOL_ERROR` and Firestore has to
+  // retry. Auto-detect long-polling falls back gracefully on flaky networks
+  // and corporate proxies that mishandle the streaming WebChannel transport.
+  // Must be called before any read/write \u2014 this runs at top-level init.
+  try {
+    if (db && typeof db.settings === 'function') {
+      db.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+    }
+  } catch (_) {}
   var storage = (typeof firebase !== 'undefined') ? firebase.storage()   : null;
   var googleProvider = (typeof firebase !== 'undefined') ? new firebase.auth.GoogleAuthProvider() : null;
 
