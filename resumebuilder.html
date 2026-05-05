@@ -1866,6 +1866,17 @@
     gap: .55rem;
   }
   .opt-rewrite-card.has-warning { border-color: #FDE68A; background: #FFFBEB; }
+  /* Inline cards: used for single-rewrite sections (Summary, Headline,
+     Executive Summary) so the user does not have to click into a third
+     collapsible level just to see one rewrite. The card stays always-open;
+     a slim header bar keeps the Will apply / Applied / Review only badge
+     visible and right-aligned. */
+  .opt-rewrite-card.opt-rewrite-card-inline { padding: 0; gap: 0; }
+  .opt-rewrite-card-inline-head {
+    display: flex; justify-content: flex-end; align-items: center;
+    padding: 8px 12px 0;
+  }
+  .opt-rewrite-card-inline > .opt-rewrite-card-body { padding: 8px 12px 12px; }
   .opt-rewrite-card-title {
     font-weight: 700;
     color: #0F172A;
@@ -10535,7 +10546,7 @@
       return s;
     }
 
-    function rewriteCard(title, original, suggested, reason, flag) {
+    function rewriteCard(title, original, suggested, reason, flag, inline) {
       var warn = flag ? ' has-warning' : '';
       var cardKey = 'card-' + (++_cardKeyCounter);
       // Open by default for Review items; otherwise honor stored state.
@@ -10557,6 +10568,26 @@
       } else {
         statusBadge = '<span class="opt-rewrite-status updated" title="This item will be applied when you click Apply Safe Updates.">Will apply</span>';
       }
+      var bodyHtml =
+        '<div class="opt-rewrite-card-body">'
+          + '<div class="opt-rewrite-grid">'
+            + '<div class="opt-rewrite-col"><div class="opt-rewrite-col-label"><i data-lucide="file-text" style="width:12px;height:12px;"></i> Current</div>'
+              + '<div class="opt-rewrite-col-text">' + (original ? _esc(original) : '<span style="color:#94A3B8;font-style:italic;">No current text</span>') + '</div></div>'
+            + '<div class="opt-rewrite-col is-suggested"><div class="opt-rewrite-col-label"><i data-lucide="sparkles" style="width:12px;height:12px;"></i> Suggested</div>'
+              + '<div class="opt-rewrite-col-text">' + (suggested ? _esc(suggested) : '') + '</div></div>'
+          + '</div>'
+          + (reason ? '<div class="opt-rewrite-reason">' + _esc(reason) + '</div>' : '')
+        + '</div>';
+      // Inline mode: used by single-rewrite sections (Summary, Headline,
+      // Executive Summary). Skip the inner <details>/<summary> wrapper so
+      // the user does not have to expand a third level of collapsible to
+      // see the rewrite. Status badge stays visible in a slim header bar.
+      if (inline) {
+        return '<div class="opt-rewrite-card opt-rewrite-card-inline' + warn + '" data-card-key="' + cardKey + '">'
+          + '<div class="opt-rewrite-card-inline-head">' + statusBadge + '</div>'
+          + bodyHtml
+          + '</div>';
+      }
       var preview = _previewLine(suggested) || _previewLine(original);
       return '<details class="opt-rewrite-card' + warn + '" data-card-key="' + cardKey + '"' + openAttr + '>'
         + '<summary class="opt-rewrite-card-summary">'
@@ -10569,15 +10600,7 @@
             + '<i data-lucide="chevron-down" class="opt-rewrite-chevron" style="width:16px;height:16px;"></i>'
           + '</div>'
         + '</summary>'
-        + '<div class="opt-rewrite-card-body">'
-          + '<div class="opt-rewrite-grid">'
-            + '<div class="opt-rewrite-col"><div class="opt-rewrite-col-label"><i data-lucide="file-text" style="width:12px;height:12px;"></i> Current</div>'
-              + '<div class="opt-rewrite-col-text">' + (original ? _esc(original) : '<span style="color:#94A3B8;font-style:italic;">No current text</span>') + '</div></div>'
-            + '<div class="opt-rewrite-col is-suggested"><div class="opt-rewrite-col-label"><i data-lucide="sparkles" style="width:12px;height:12px;"></i> Suggested</div>'
-              + '<div class="opt-rewrite-col-text">' + (suggested ? _esc(suggested) : '') + '</div></div>'
-          + '</div>'
-          + (reason ? '<div class="opt-rewrite-reason">' + _esc(reason) + '</div>' : '')
-        + '</div>'
+        + bodyHtml
         + '</details>';
     }
     // Track per-section counts so the summary strip + section header badges
@@ -10585,9 +10608,14 @@
     var _sectionMeta = []; // { slug, label, icon, count, reviewCount }
     function _countCardsInBody(body) {
       var s = String(body || '');
-      // Match only the outer <details> wrapper, not the inner card-* classes.
-      var total  = (s.match(/<details\s+class="opt-rewrite-card(?:\s+has-warning)?"/g) || []).length;
-      var review = (s.match(/<details\s+class="opt-rewrite-card\s+has-warning"/g) || []).length;
+      // Match both <details>-wrapped collapsible cards and inline cards
+      // (single-rewrite sections that skip the extra collapsible level).
+      var detailsTotal  = (s.match(/<details\s+class="opt-rewrite-card(?:\s+has-warning)?"/g) || []).length;
+      var detailsReview = (s.match(/<details\s+class="opt-rewrite-card\s+has-warning"/g) || []).length;
+      var inlineTotal   = (s.match(/<div\s+class="opt-rewrite-card\s+opt-rewrite-card-inline(?:\s+has-warning)?"/g) || []).length;
+      var inlineReview  = (s.match(/<div\s+class="opt-rewrite-card\s+opt-rewrite-card-inline\s+has-warning"/g) || []).length;
+      var total  = detailsTotal + inlineTotal;
+      var review = detailsReview + inlineReview;
       // Skill tags do not produce rewrite cards. Skills are surfaced as
       // suggestions only (we do NOT auto-apply them) so each tag is counted
       // as a review-only item to keep the legend / summary numbers honest.
@@ -10640,14 +10668,16 @@
         rewriteCard('Summary rewrite',
           (RB_STATE.resumeData && RB_STATE.resumeData.summary) || '',
           resumeS.summaryRewrite, '',
-          _hasPlaceholderTokens(resumeS.summaryRewrite))));
+          _hasPlaceholderTokens(resumeS.summaryRewrite),
+          /* inline */ true)));
     }
     if (resumeS.headlineRewrite) {
       blocks.push(rewriteSection('Headline', 'tag',
         rewriteCard('Headline rewrite',
           (RB_STATE.resumeData && (RB_STATE.resumeData.headline || RB_STATE.resumeData.current_title)) || '',
           resumeS.headlineRewrite, '',
-          _hasPlaceholderTokens(resumeS.headlineRewrite))));
+          _hasPlaceholderTokens(resumeS.headlineRewrite),
+          /* inline */ true)));
     }
     if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
       blocks.push(rewriteSection('Skills to add', 'plus-circle',
@@ -10685,7 +10715,7 @@
     }
     if (planS.executiveSummaryRewrite || (Array.isArray(planS.phaseRewrites) && planS.phaseRewrites.length) || (Array.isArray(planS.phaseEnhancements) && planS.phaseEnhancements.length)) {
       var planBody = '';
-      if (planS.executiveSummaryRewrite) planBody += rewriteCard('Executive summary', planS.originalExecutiveSummary || '', planS.executiveSummaryRewrite, planS.summaryReason || '', _hasPlaceholderTokens(planS.executiveSummaryRewrite));
+      if (planS.executiveSummaryRewrite) planBody += rewriteCard('Executive summary', planS.originalExecutiveSummary || '', planS.executiveSummaryRewrite, planS.summaryReason || '', _hasPlaceholderTokens(planS.executiveSummaryRewrite), /* inline */ true);
       var planArr = Array.isArray(planS.phaseRewrites) ? planS.phaseRewrites : (planS.phaseEnhancements || []);
       planArr.forEach(function (p, i) {
         if (p.original || p.suggested) {
@@ -11220,6 +11250,15 @@
     } catch (_) {}
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
     try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
+    // Re-render the optimization results card list so every per-item badge
+    // flips back from "Applied" to "Will apply" / "Review only" now that
+    // optimizationAppliedAt has been cleared. Without this, the cards stay
+    // green even though the underlying resume has been reverted.
+    try {
+      if (typeof renderOptimizationOutput === 'function' && opt && typeof opt === 'object') {
+        renderOptimizationOutput(opt);
+      }
+    } catch (_) {}
 
     var undoBtn = document.getElementById('opt-undo');
     if (undoBtn) undoBtn.hidden = true;
