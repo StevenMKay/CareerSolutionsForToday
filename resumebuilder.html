@@ -1642,7 +1642,7 @@
     font-size: .7rem; font-weight: 700;
     text-transform: uppercase; letter-spacing: .04em;
   }
-  .opt-rewrite-status.updated { background: #E0E7FF; color: #4338CA; }
+  .opt-rewrite-status.updated { background: #DCFCE7; color: #15803D; }
   .opt-rewrite-status.review  { background: #FEF3C7; color: #92400E; }
   .opt-rewrite-chevron { color: #94A3B8; transition: transform .18s ease; }
   details.opt-rewrite-card[open] .opt-rewrite-chevron { transform: rotate(180deg); }
@@ -1650,6 +1650,28 @@
     padding: 0 14px 14px;
     border-top: 1px solid #EEF2F7;
   }
+
+  /* Legend explaining "Will apply" vs "Review only" above the summary strip. */
+  .opt-results-legend {
+    display: flex; flex-direction: column; gap: 8px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 0 0 12px;
+    font-size: .82rem;
+    color: #334155;
+  }
+  .opt-results-legend-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    flex-wrap: wrap;
+  }
+  .opt-results-legend-item .opt-rewrite-status { flex-shrink: 0; margin-top: 1px; }
+  .opt-results-legend-text { line-height: 1.45; }
+
+  /* Summary strip pills now show two counts: green = will apply, amber = review only. */
+  .opt-results-summary-count.is-apply  { background: #DCFCE7; color: #15803D; }
+  .opt-results-summary-count.is-review { background: #FEF3C7; color: #92400E; }
   .opt-rewrite-card-body .opt-rewrite-grid { margin-top: 12px; }
   /* Soften the explanation note further. */
   .opt-rewrite-card-body .opt-rewrite-reason {
@@ -9599,9 +9621,12 @@
     function rewriteCard(title, original, suggested, reason, flag) {
       var warn = flag ? ' has-warning' : '';
       var openAttr = flag ? ' open' : '';
+      // Badge wording is explicit so users can see at a glance which items
+      // get changed when they hit "Apply Safe Updates" and which require
+      // manual review.
       var statusBadge = flag
-        ? '<span class="opt-rewrite-status review">Review</span>'
-        : '<span class="opt-rewrite-status updated">Suggested</span>';
+        ? '<span class="opt-rewrite-status review" title="This item has placeholder text and will NOT be applied automatically. Review it manually.">Review only</span>'
+        : '<span class="opt-rewrite-status updated" title="This item will be applied when you click Apply Safe Updates.">Will apply</span>';
       var preview = _previewLine(suggested) || _previewLine(original);
       return '<details class="opt-rewrite-card' + warn + '"' + openAttr + '>'
         + '<summary class="opt-rewrite-card-summary">'
@@ -9768,16 +9793,34 @@
 
         // Compact summary strip + Expand/Collapse controls.
         var summaryHtml = '';
+        var totalApply = 0, totalReview = 0;
+        _sectionMeta.forEach(function (m) {
+          totalApply  += Math.max(0, (m.count || 0) - (m.reviewCount || 0));
+          totalReview += (m.reviewCount || 0);
+        });
         if (_sectionMeta.length) {
-          summaryHtml = '<div class="opt-results-summary" role="list">'
+          var legendHtml = '<div class="opt-results-legend">'
+            + '<span class="opt-results-legend-item">'
+              + '<span class="opt-rewrite-status updated">Will apply</span>'
+              + '<span class="opt-results-legend-text">' + totalApply + ' item' + (totalApply === 1 ? '' : 's') + ' will be updated when you click <strong>Apply Safe Updates</strong>.</span>'
+            + '</span>'
+            + (totalReview
+                ? '<span class="opt-results-legend-item">'
+                  + '<span class="opt-rewrite-status review">Review only</span>'
+                  + '<span class="opt-results-legend-text">' + totalReview + ' item' + (totalReview === 1 ? '' : 's') + ' need' + (totalReview === 1 ? 's' : '') + ' your manual review (placeholders detected) and will <strong>not</strong> be applied.</span>'
+                + '</span>'
+                : '')
+            + '</div>';
+          summaryHtml = legendHtml + '<div class="opt-results-summary" role="list">'
             + _sectionMeta.map(function (m) {
                 var n = m.count || 0;
                 var rev = m.reviewCount || 0;
-                return '<button type="button" class="opt-results-summary-item" role="listitem" data-opt-scroll-target="' + m.slug + '">'
+                var willApply = Math.max(0, n - rev);
+                return '<button type="button" class="opt-results-summary-item" role="listitem" data-opt-scroll-target="' + m.slug + '" title="' + willApply + ' will apply' + (rev ? ', ' + rev + ' review only' : '') + '">'
                   + '<span class="opt-results-summary-label">' + _esc(m.label) + '</span>'
                   + '<span class="opt-results-summary-meta">'
-                    + '<span class="opt-results-summary-count">' + n + '</span>'
-                    + (rev ? '<span class="opt-section-badge review">' + rev + '</span>' : '')
+                    + (willApply ? '<span class="opt-results-summary-count is-apply">' + willApply + '</span>' : '')
+                    + (rev ? '<span class="opt-results-summary-count is-review">' + rev + '</span>' : '')
                   + '</span>'
                 + '</button>';
               }).join('')
@@ -9859,8 +9902,17 @@
       } else {
         applyBtn.classList.remove('is-applied');
         applyBtn.disabled = !opt.shouldApply;
+        var applyCountTotal = 0;
+        try {
+          (_sectionMeta || []).forEach(function (m) {
+            applyCountTotal += Math.max(0, (m.count || 0) - (m.reviewCount || 0));
+          });
+        } catch (_) {}
+        var applyLabel = applyCountTotal
+          ? ('Apply Safe Updates (' + applyCountTotal + ')')
+          : 'Apply Safe Updates';
         applyBtn.innerHTML = opt.shouldApply
-          ? '<i data-lucide="check" style="width:16px;height:16px;"></i> Apply Safe Updates'
+          ? '<i data-lucide="check" style="width:16px;height:16px;"></i> ' + applyLabel
           : '<i data-lucide="info" style="width:16px;height:16px;"></i> Updates Not Recommended';
       }
     }
