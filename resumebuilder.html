@@ -1644,6 +1644,25 @@
   }
   .opt-rewrite-status.updated { background: #DCFCE7; color: #15803D; }
   .opt-rewrite-status.review  { background: #FEF3C7; color: #92400E; }
+  .opt-rewrite-status.applied {
+    background: #15803D; color: #FFFFFF;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .opt-rewrite-status.applied i { width: 11px; height: 11px; }
+
+  /* Note above the Skills tag list explaining why it's review-only. */
+  .opt-skills-note {
+    display: flex; align-items: flex-start; gap: 8px;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin: 0 0 10px;
+    font-size: .82rem;
+    color: #78350F;
+    line-height: 1.45;
+  }
+  .opt-skills-note i { flex-shrink: 0; margin-top: 2px; color: #B45309; }
   .opt-rewrite-chevron { color: #94A3B8; transition: transform .18s ease; }
   details.opt-rewrite-card[open] .opt-rewrite-chevron { transform: rotate(180deg); }
   .opt-rewrite-card-body {
@@ -9621,12 +9640,19 @@
     function rewriteCard(title, original, suggested, reason, flag) {
       var warn = flag ? ' has-warning' : '';
       var openAttr = flag ? ' open' : '';
+      var alreadyApplied = !!(window.RB_STATE && RB_STATE.optimizationAppliedAt);
       // Badge wording is explicit so users can see at a glance which items
       // get changed when they hit "Apply Safe Updates" and which require
-      // manual review.
-      var statusBadge = flag
-        ? '<span class="opt-rewrite-status review" title="This item has placeholder text and will NOT be applied automatically. Review it manually.">Review only</span>'
-        : '<span class="opt-rewrite-status updated" title="This item will be applied when you click Apply Safe Updates.">Will apply</span>';
+      // manual review. After the user has applied updates, non-review items
+      // flip from "Will apply" to "Applied".
+      var statusBadge;
+      if (flag) {
+        statusBadge = '<span class="opt-rewrite-status review" title="This item has placeholder text and will NOT be applied automatically. Review it manually.">Review only</span>';
+      } else if (alreadyApplied) {
+        statusBadge = '<span class="opt-rewrite-status applied" title="This change has been applied to your resume draft."><i data-lucide="check" style="width:11px;height:11px;"></i> Applied</span>';
+      } else {
+        statusBadge = '<span class="opt-rewrite-status updated" title="This item will be applied when you click Apply Safe Updates.">Will apply</span>';
+      }
       var preview = _previewLine(suggested) || _previewLine(original);
       return '<details class="opt-rewrite-card' + warn + '"' + openAttr + '>'
         + '<summary class="opt-rewrite-card-summary">'
@@ -9658,9 +9684,11 @@
       // Match only the outer <details> wrapper, not the inner card-* classes.
       var total  = (s.match(/<details\s+class="opt-rewrite-card(?:\s+has-warning)?"/g) || []).length;
       var review = (s.match(/<details\s+class="opt-rewrite-card\s+has-warning"/g) || []).length;
-      // Skill tags do not produce rewrite cards; treat each tag as one item.
+      // Skill tags do not produce rewrite cards. Skills are surfaced as
+      // suggestions only (we do NOT auto-apply them) so each tag is counted
+      // as a review-only item to keep the legend / summary numbers honest.
       var tagCount = (s.match(/class="opt-skill-tag"/g) || []).length;
-      if (!total && tagCount) total = tagCount;
+      if (!total && tagCount) { total = tagCount; review = tagCount; }
       return { count: total, reviewCount: review };
     }
     function rewriteSection(label, icon, body) {
@@ -9714,7 +9742,8 @@
     }
     if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
       blocks.push(rewriteSection('Skills to add', 'plus-circle',
-        '<div class="opt-skill-tags">'
+        '<div class="opt-skills-note"><i data-lucide="info" style="width:13px;height:13px;"></i> These skills are <strong>review only</strong> &mdash; pick the ones that genuinely apply to you and add them to your Skills section manually.</div>'
+        + '<div class="opt-skill-tags">'
           + resumeS.skillsToAdd.map(function (s) { return '<span class="opt-skill-tag">' + _esc(s) + '</span>'; }).join('')
         + '</div>'));
     }
@@ -9799,15 +9828,22 @@
           totalReview += (m.reviewCount || 0);
         });
         if (_sectionMeta.length) {
+          var alreadyAppliedLegend = !!(window.RB_STATE && RB_STATE.optimizationAppliedAt);
+          var applyBadgeHtml = alreadyAppliedLegend
+            ? '<span class="opt-rewrite-status applied"><i data-lucide="check" style="width:11px;height:11px;"></i> Applied</span>'
+            : '<span class="opt-rewrite-status updated">Will apply</span>';
+          var applyText = alreadyAppliedLegend
+            ? (totalApply + ' item' + (totalApply === 1 ? ' was' : 's were') + ' updated in your resume draft.')
+            : (totalApply + ' item' + (totalApply === 1 ? '' : 's') + ' will be updated when you click <strong>Apply Safe Updates</strong>.');
           var legendHtml = '<div class="opt-results-legend">'
             + '<span class="opt-results-legend-item">'
-              + '<span class="opt-rewrite-status updated">Will apply</span>'
-              + '<span class="opt-results-legend-text">' + totalApply + ' item' + (totalApply === 1 ? '' : 's') + ' will be updated when you click <strong>Apply Safe Updates</strong>.</span>'
+              + applyBadgeHtml
+              + '<span class="opt-results-legend-text">' + applyText + '</span>'
             + '</span>'
             + (totalReview
                 ? '<span class="opt-results-legend-item">'
                   + '<span class="opt-rewrite-status review">Review only</span>'
-                  + '<span class="opt-results-legend-text">' + totalReview + ' item' + (totalReview === 1 ? '' : 's') + ' need' + (totalReview === 1 ? 's' : '') + ' your manual review (placeholders detected) and will <strong>not</strong> be applied.</span>'
+                  + '<span class="opt-results-legend-text">' + totalReview + ' item' + (totalReview === 1 ? '' : 's') + ' need' + (totalReview === 1 ? 's' : '') + ' your manual review and will <strong>not</strong> be applied automatically.</span>'
                 + '</span>'
                 : '')
             + '</div>';
@@ -10140,14 +10176,9 @@
       RB_STATE.resumeData.current_title = String(resumeS.headlineRewrite);
     }
     if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
-      var existing = Array.isArray(RB_STATE.resumeData.skills) ? RB_STATE.resumeData.skills.slice() : [];
-      resumeS.skillsToAdd.forEach(function (skill) {
-        var s = String(skill || '').trim();
-        if (!s || _hasPlaceholderTokens(s)) return;
-        var present = existing.some(function (x) { return String(x).toLowerCase() === s.toLowerCase(); });
-        if (!present) existing.push(s);
-      });
-      RB_STATE.resumeData.skills = existing;
+      // Skills are review-only suggestions: the user decides which (if any)
+      // genuinely apply to them and adds those manually to their Skills
+      // section. We deliberately do NOT auto-merge them here.
     }
     if (Array.isArray(resumeS.roleSummaryRewrites)) {
       resumeS.roleSummaryRewrites.forEach(function (r) {
@@ -10207,6 +10238,8 @@
       applyNote.textContent = 'Applied to your resume draft.';
       applyNote.style.color = '#15803D';
     }
+    // Re-render so per-card status badges flip from "Will apply" to "Applied".
+    try { if (typeof renderOptimizationOutput === 'function') renderOptimizationOutput(opt); } catch (_) {}
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
 
     showToast('Optimization updates applied to Application Details.', 'success');
