@@ -4718,7 +4718,7 @@
     <div class="nav-spacer"></div>
 
     <div class="nav-toolbar" role="group" aria-label="Document actions">
-      <button id="nav-my-resumes"  class="btn btn-secondary nav-utility-btn" type="button" data-action="showResumeDashboard" aria-label="My Resumes" title="My Resumes"><i data-lucide="folder" style="width:16px;height:16px;"></i> <span class="btn-label">My Resumes</span></button>
+      <button id="nav-my-resumes"  class="btn btn-secondary nav-utility-btn" type="button" data-action="myResumes" aria-label="My Resumes" title="My Resumes"><i data-lucide="folder" style="width:16px;height:16px;"></i> <span class="btn-label">My Resumes</span></button>
       <button id="nav-save"        class="btn btn-save"      type="button" data-action="saveDraft" aria-label="Save"><i data-lucide="save" style="width:16px;height:16px;"></i> <span class="btn-label">Save</span></button>
       <span id="lazy-save-status" class="lazy-save-status saved" aria-live="polite" title="Autosave status">Saved</span>
     </div>
@@ -5878,12 +5878,36 @@
   }
   try { window.fetchBuilderApiWithRetry = fetchBuilderApiWithRetry; } catch (_) {}
 
-  // NOTE: A warm-ping was previously fired against `/` to wake the
-  // Railway container on page load, but the root path returns 404 from
-  // the edge (only `/api/*` is mounted), which produced noisy
-  // ERR_ABORTED entries in the console without actually waking the
-  // dyno. Cold-starts are now handled exclusively by
-  // fetchBuilderApiWithRetry on the user's first real call.
+  // Warm-ping the backend on page load to wake a sleeping container before
+  // the user clicks anything. Fire-and-forget -- failures are harmless.
+  // Uses GET / (Express returns 200 with a small JSON banner) so it does
+  // not require auth. The retry wrapper is intentionally NOT used here
+  // because we do not want to block on cold-start; the user's first
+  // optimize/generate click will still benefit from its own retry.
+  (function warmPingBuilderApi() {
+    function _ping() {
+      try {
+        // Use no-cors so an unexpected CORS response does not throw in
+        // the console -- we only care about waking the container.
+        fetch(BUILDER_API_BASE.replace(/\/api$/, '') + '/', {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          keepalive: true
+        }).catch(function () {});
+      } catch (_) {}
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      // Defer slightly so the warm-ping does not compete with critical
+      // page-load fetches (Firebase, auth, plan hydrate).
+      setTimeout(_ping, 800);
+    } else {
+      window.addEventListener('DOMContentLoaded', function () {
+        setTimeout(_ping, 800);
+      }, { once: true });
+    }
+  })();
 
   // ---------- Owner gating ----------
   var OWNER_EMAIL = 'kay.m.steven@gmail.com';
@@ -9508,7 +9532,6 @@
     if (!url) { if (statusEl) statusEl.textContent = 'Paste a LinkedIn job URL first.'; showToast('Paste a LinkedIn job URL first.', 'warning'); return; }
     if (!/linkedin\.com\/(jobs|job)/i.test(url)) { if (statusEl) statusEl.textContent = 'That does not look like a LinkedIn job URL.'; showToast('Invalid LinkedIn job URL.', 'warning'); return; }
     if (statusEl) statusEl.textContent = 'Fetching job details…';
-    showAiTaskLoader({ title: 'Importing the LinkedIn job\u2026', subtitle: 'Pulling the title, company, and job description.' });
     getAuthHeaders().then(function (headers) {
       headers['Content-Type'] = 'application/json';
       return fetchBuilderApiWithRetry('/builder/import-linkedin-job', {
@@ -9558,8 +9581,6 @@
       if (statusEl) statusEl.textContent = msg;
       RB_STATE._aiLastError = msg;
       showToast(msg, 'error');
-    }).then(function () {
-      try { hideAiTaskLoader(); } catch (_) {}
     });
   }
   // ============================================================
@@ -9606,10 +9627,6 @@
 
   function buildOptimizePayload() {
     var resumeData = stripPlanKeysFromResumeDataForOptimize(RB_STATE.resumeData || {});
-    // Strip empty fields recursively so we don't ship 51 keys (most empty)
-    // to the optimizer. Smaller prompt = faster OpenAI round-trip = less
-    // likely to hit Railway's edge timeout.
-    resumeData = compactForOptimizePayload(resumeData);
     var targetRole = (typeof getTargetRoleFromDOM === 'function')
       ? getTargetRoleFromDOM()
       : {
@@ -9625,15 +9642,12 @@
           coverLetter: !!(document.getElementById('include-cv')     && document.getElementById('include-cv').checked),
           rolePlan:    !!(document.getElementById('include-plan')   && document.getElementById('include-plan').checked)
         };
-    var coverLetterCompact = compactForOptimizePayload(RB_STATE.coverLetter || RB_STATE.cvDraft || null);
-    var rolePlanCompact    = compactForOptimizePayload(RB_STATE.rolePlan || null);
-    var roleResearchCompact= compactForOptimizePayload(RB_STATE.roleResearch || null);
     return {
       resume_data: resumeData,
-      coverLetter: coverLetterCompact,
-      rolePlan:    rolePlanCompact,
-      targetRole:  compactForOptimizePayload(targetRole),
-      roleResearch: roleResearchCompact,
+      coverLetter: RB_STATE.coverLetter || RB_STATE.cvDraft || null,
+      rolePlan:    RB_STATE.rolePlan || null,
+      targetRole:  targetRole,
+      roleResearch: RB_STATE.roleResearch || null,
       selectedDocs: selectedDocs,
       additionalDetails: (document.getElementById('additional-resume-details') || {}).value || '',
       activeVersionId: (RB_STATE.currentPlanId || window.currentPlanId || ''),
@@ -9641,45 +9655,6 @@
       optimizeMode: (document.getElementById('optimize-mode') || {}).value || 'balanced'
     };
   }
-
-  // Drop empty strings, empty arrays, empty objects, null/undefined values
-  // recursively so the optimizer prompt only carries content that matters.
-  // Numbers and booleans are preserved as-is (0 / false are meaningful).
-  function compactForOptimizePayload(value) {
-    if (value == null) return null;
-    if (Array.isArray(value)) {
-      var out = [];
-      for (var i = 0; i < value.length; i++) {
-        var item = compactForOptimizePayload(value[i]);
-        if (item == null) continue;
-        if (typeof item === 'string' && !item.trim()) continue;
-        if (Array.isArray(item) && item.length === 0) continue;
-        if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 0) continue;
-        out.push(item);
-      }
-      return out;
-    }
-    if (typeof value === 'object') {
-      var obj = {};
-      var keys = Object.keys(value);
-      for (var k = 0; k < keys.length; k++) {
-        var key = keys[k];
-        var v = compactForOptimizePayload(value[key]);
-        if (v == null) continue;
-        if (typeof v === 'string' && !v.trim()) continue;
-        if (Array.isArray(v) && v.length === 0) continue;
-        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) continue;
-        obj[key] = v;
-      }
-      return obj;
-    }
-    if (typeof value === 'string') {
-      var t = value.trim();
-      return t ? value : '';
-    }
-    return value;
-  }
-  try { window.compactForOptimizePayload = compactForOptimizePayload; } catch (_) {}
 
   function makeOptimizationSnapshot() {
     return JSON.parse(JSON.stringify({
