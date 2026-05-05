@@ -10984,6 +10984,14 @@
     var undoBtn  = document.getElementById('opt-undo');
     var note     = document.getElementById('opt-apply-note');
     var alreadyApplied = !!RB_STATE.optimizationAppliedAt;
+    // Single source of truth: live plan before apply, frozen plan after.
+    // After apply, current values match suggestions, so a fresh build would
+    // report totalApply=0. Reading from the captured applied plan keeps the
+    // applied count visible and matches the per-card "Applied" badges.
+    var _activePlan = null;
+    try { _activePlan = getActiveOptimizationChangePlan(opt); } catch (_) {}
+    var _planApplyCount  = _activePlan ? (_activePlan.totalApply  || 0) : 0;
+    var _planReviewCount = _activePlan ? (_activePlan.totalReview || 0) : 0;
     if (applyBtn) {
       if (alreadyApplied) {
         applyBtn.disabled = true;
@@ -10991,19 +10999,23 @@
         applyBtn.innerHTML = '<i data-lucide="check-circle-2" style="width:16px;height:16px;"></i> Safe Updates Applied';
       } else {
         applyBtn.classList.remove('is-applied');
-        applyBtn.disabled = !opt.shouldApply;
-        var applyCountTotal = 0;
-        try {
-          (_sectionMeta || []).forEach(function (m) {
-            applyCountTotal += Math.max(0, (m.count || 0) - (m.reviewCount || 0));
-          });
-        } catch (_) {}
-        var applyLabel = applyCountTotal
-          ? ('Apply Safe Updates (' + applyCountTotal + ')')
-          : 'Apply Safe Updates';
-        applyBtn.innerHTML = opt.shouldApply
+        // Disable when the score gate blocks apply OR when there is nothing
+        // real to apply (all suggestions already match the draft).
+        var canApply = !!opt.shouldApply && _planApplyCount > 0;
+        applyBtn.disabled = !canApply;
+        var applyLabel;
+        if (!opt.shouldApply) {
+          applyLabel = 'Updates Not Recommended';
+        } else if (_planApplyCount > 0) {
+          applyLabel = 'Apply Safe Updates (' + _planApplyCount + ')';
+        } else if (_planReviewCount > 0) {
+          applyLabel = 'No Safe Auto-Updates';
+        } else {
+          applyLabel = 'No Updates To Apply';
+        }
+        applyBtn.innerHTML = canApply
           ? '<i data-lucide="check" style="width:16px;height:16px;"></i> ' + applyLabel
-          : '<i data-lucide="info" style="width:16px;height:16px;"></i> Updates Not Recommended';
+          : '<i data-lucide="info" style="width:16px;height:16px;"></i> ' + applyLabel;
       }
     }
     if (undoBtn) {
@@ -11011,13 +11023,21 @@
     }
     if (note) {
       if (alreadyApplied) {
-        note.textContent = 'Applied to your resume draft.';
+        note.textContent = _planApplyCount
+          ? (_planApplyCount + ' safe update' + (_planApplyCount === 1 ? '' : 's') + ' applied to your resume draft.')
+          : 'Applied to your resume draft.';
         note.style.color = '#15803D';
       } else if (status === 'rejected') {
         note.textContent = 'Resume edits were not applied, but your insights and interview prep are ready.';
         note.style.color = '#64748B';
       } else if (status === 'maintains') {
         note.textContent = 'Score would stay the same. Safe updates can still be applied for clarity / ATS.';
+        note.style.color = '#64748B';
+      } else if (opt.shouldApply && _planApplyCount === 0 && _planReviewCount > 0) {
+        note.textContent = 'No safe auto-updates. Review-only suggestions are listed below.';
+        note.style.color = '#64748B';
+      } else if (opt.shouldApply && _planApplyCount === 0 && _planReviewCount === 0) {
+        note.textContent = 'Your draft already matches the safe recommendations.';
         note.style.color = '#64748B';
       } else {
         note.textContent = '';
@@ -11145,6 +11165,393 @@
     return true;
   }
 
+  // -------------------------------------------------------------------------
+  // Optimization change plan -- single source of truth for "what will Apply
+  // Safe Updates actually change?". The Suggested Updates UI (apply-button
+  // count, summary strip, per-card badges) and applyOptimizationUpdates()
+  // both consult this plan so the displayed count and the real mutations
+  // are guaranteed to agree. Items where current === suggested are filtered
+  // out here. Review-only items (skills-to-add, safeToApply:false) are
+  // tracked separately so they never count as auto-apply.
+  //
+  // IMPORTANT: This builder reads CURRENT live values. Before apply, render
+  // from the live plan. AFTER apply, render from
+  // RB_STATE.appliedOptimizationChangePlan (captured at apply time) because
+  // current values now match suggestions and would otherwise show 0.
+  // -------------------------------------------------------------------------
+  function normalizeOptimizationCompareValue(value) {
+    return String(value == null ? '' : value)
+      .replace(/\s+/g, ' ')
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u2013\u2014]/g, '-')
+      .trim();
+  }
+  function optimizationValuesDiffer(a, b) {
+    return normalizeOptimizationCompareValue(a) !== normalizeOptimizationCompareValue(b);
+  }
+
+  function buildOptimizationChangePlan(opt) {
+    opt = opt || (window.RB_STATE && RB_STATE.optimization) || {};
+    var sug     = opt.suggestions || {};
+    var resumeS = sug.resume      || {};
+    var cvS     = sug.coverLetter || {};
+    var planS   = sug.rolePlan    || {};
+
+    var plan = {
+      resume: [],
+      coverLetter: [],
+      rolePlan: [],
+      reviewOnly: [],
+      skipped: [],
+      totalApply: 0,
+      totalReview: 0
+    };
+
+    function addScalar(group, label, path, currentValue, suggestedValue, applyFn, meta) {
+      var suggested = String(suggestedValue == null ? '' : suggestedValue).trim();
+      if (!suggested) {
+        plan.skipped.push({ group: group, label: label, path: path, reason: 'empty-suggestion' });
+        return;
+      }
+      if (_hasPlaceholderTokens(suggested)) {
+        plan.skipped.push({ group: group, label: label, path: path, reason: 'placeholder-token', suggested: suggested });
+        return;
+      }
+      if (!optimizationValuesDiffer(currentValue, suggested)) {
+        plan.skipped.push({
+          group: group, label: label, path: path,
+          reason: 'already-matches-current',
+          current: currentValue, suggested: suggested
+        });
+        return;
+      }
+      plan[group].push({
+        group: group, label: label, path: path,
+        current: currentValue, suggested: suggested,
+        apply: applyFn, meta: meta || {}
+      });
+    }
+
+    var r = (window.RB_STATE && RB_STATE.resumeData) || {};
+
+    // Resume summary
+    if (resumeS.summaryRewrite) {
+      addScalar(
+        'resume', 'Resume Summary', 'resumeData.summary',
+        r.summary || r.professional_summary || '',
+        resumeS.summaryRewrite,
+        function (value) {
+          if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+          RB_STATE.resumeData.summary = value;
+        }
+      );
+    }
+
+    // Headline
+    if (resumeS.headlineRewrite) {
+      addScalar(
+        'resume', 'Headline', 'resumeData.current_title',
+        r.headline || r.current_title || r.title || '',
+        resumeS.headlineRewrite,
+        function (value) {
+          if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+          RB_STATE.resumeData.headline      = value;
+          RB_STATE.resumeData.current_title = value;
+        }
+      );
+    }
+
+    // Skills to add -- review only (never auto-apply)
+    if (Array.isArray(resumeS.skillsToAdd)) {
+      resumeS.skillsToAdd.forEach(function (skill) {
+        var s = String(skill || '').trim();
+        if (!s) return;
+        plan.reviewOnly.push({
+          group: 'resume', label: 'Skill to add', path: 'resumeData.skills',
+          suggested: s, reason: 'skills-are-review-only'
+        });
+      });
+    }
+
+    // Role summaries
+    if (Array.isArray(resumeS.roleSummaryRewrites)) {
+      resumeS.roleSummaryRewrites.forEach(function (item) {
+        if (!item) return;
+        if (item.safeToApply === false) {
+          plan.reviewOnly.push({ group: 'resume', label: 'Role summary', reason: 'not-safe-to-apply', item: item });
+          return;
+        }
+        var idx  = Number(item.roleIndex);
+        var role = r.experience && r.experience[idx];
+        if (!role) {
+          plan.skipped.push({ group: 'resume', label: 'Role summary', reason: 'role-not-found', roleIndex: idx });
+          return;
+        }
+        addScalar(
+          'resume',
+          'Role summary ' + (idx + 1),
+          'resumeData.experience[' + idx + '].role_summary',
+          role.role_summary || role.summary || '',
+          item.suggested,
+          function (value) {
+            var target = RB_STATE.resumeData && RB_STATE.resumeData.experience && RB_STATE.resumeData.experience[idx];
+            if (target) target.role_summary = value;
+          },
+          { roleIndex: idx }
+        );
+      });
+    }
+
+    // Experience bullets
+    if (Array.isArray(resumeS.experienceBulletRewrites)) {
+      resumeS.experienceBulletRewrites.forEach(function (item) {
+        if (!item) return;
+        if (item.safeToApply === false) {
+          plan.reviewOnly.push({ group: 'resume', label: 'Experience bullet', reason: 'not-safe-to-apply', item: item });
+          return;
+        }
+        var roleIndex   = Number(item.roleIndex);
+        var bulletIndex = Number(item.bulletIndex);
+        var role = r.experience && r.experience[roleIndex];
+        if (!role || !Array.isArray(role.bullets)) {
+          plan.skipped.push({
+            group: 'resume', label: 'Experience bullet',
+            reason: 'role-or-bullets-not-found',
+            roleIndex: roleIndex, bulletIndex: bulletIndex
+          });
+          return;
+        }
+        addScalar(
+          'resume',
+          'Experience bullet r' + roleIndex + ' b' + bulletIndex,
+          'resumeData.experience[' + roleIndex + '].bullets[' + bulletIndex + ']',
+          role.bullets[bulletIndex] || '',
+          item.suggested,
+          function (value) {
+            var targetRole = RB_STATE.resumeData && RB_STATE.resumeData.experience && RB_STATE.resumeData.experience[roleIndex];
+            if (!targetRole) return;
+            if (!Array.isArray(targetRole.bullets)) targetRole.bullets = [];
+            targetRole.bullets[bulletIndex] = value;
+          },
+          { roleIndex: roleIndex, bulletIndex: bulletIndex }
+        );
+      });
+    }
+
+    // Cover letter -- mirror applyCoverLetterOptimization() targets exactly.
+    var cvCur = (window.RB_STATE && RB_STATE.coverLetter) || { opening: '', closing: '', body: [] };
+    if (cvS.openingRewrite) {
+      addScalar(
+        'coverLetter', 'Cover letter opening', 'coverLetter.opening',
+        cvCur.opening || '',
+        cvS.openingRewrite,
+        function (value) {
+          if (!RB_STATE.coverLetter || typeof RB_STATE.coverLetter !== 'object') {
+            RB_STATE.coverLetter = { heading: '', opening: '', body: [], closing: '' };
+          }
+          RB_STATE.coverLetter.opening = value;
+          RB_STATE.cvDraft = RB_STATE.cvDraft || RB_STATE.coverLetter;
+        }
+      );
+    }
+    if (cvS.closingRewrite) {
+      addScalar(
+        'coverLetter', 'Cover letter closing', 'coverLetter.closing',
+        cvCur.closing || '',
+        cvS.closingRewrite,
+        function (value) {
+          if (!RB_STATE.coverLetter || typeof RB_STATE.coverLetter !== 'object') {
+            RB_STATE.coverLetter = { heading: '', opening: '', body: [], closing: '' };
+          }
+          RB_STATE.coverLetter.closing = value;
+          RB_STATE.cvDraft = RB_STATE.cvDraft || RB_STATE.coverLetter;
+        }
+      );
+    }
+    if (Array.isArray(cvS.bodyParagraphRewrites)) {
+      cvS.bodyParagraphRewrites.forEach(function (p) {
+        if (!p) return;
+        if (p.safeToApply === false) {
+          plan.reviewOnly.push({ group: 'coverLetter', label: 'Cover letter paragraph', reason: 'not-safe-to-apply', item: p });
+          return;
+        }
+        var idx = Number(p.paragraphIndex);
+        if (!Number.isFinite(idx)) return;
+        var current = (Array.isArray(cvCur.body) && cvCur.body[idx]) || '';
+        addScalar(
+          'coverLetter',
+          'Cover letter paragraph ' + (idx + 1),
+          'coverLetter.body[' + idx + ']',
+          current,
+          p.suggested,
+          function (value) {
+            if (!RB_STATE.coverLetter || typeof RB_STATE.coverLetter !== 'object') {
+              RB_STATE.coverLetter = { heading: '', opening: '', body: [], closing: '' };
+            }
+            if (!Array.isArray(RB_STATE.coverLetter.body)) RB_STATE.coverLetter.body = [];
+            RB_STATE.coverLetter.body[idx] = value;
+            RB_STATE.cvDraft = RB_STATE.cvDraft || RB_STATE.coverLetter;
+          },
+          { paragraphIndex: idx }
+        );
+      });
+    }
+
+    // Role plan -- mirror applyRolePlanOptimization() targets exactly.
+    var rp = (window.RB_STATE && RB_STATE.rolePlan) || null;
+    if (rp && typeof rp === 'object') {
+      var bucketKey = rp.days90 ? 'days90' : rp.months12 ? 'months12' : rp.years2 ? 'years2' : null;
+      var bucket    = bucketKey ? rp[bucketKey] : null;
+      if (bucket && typeof bucket === 'object') {
+        if (planS.executiveSummaryRewrite) {
+          addScalar(
+            'rolePlan', 'Executive summary',
+            'rolePlan.' + bucketKey + '.executiveSummary',
+            bucket.executiveSummary || '',
+            planS.executiveSummaryRewrite,
+            (function (capturedKey) {
+              return function (value) {
+                var rp2 = RB_STATE.rolePlan; if (!rp2) return;
+                var b2  = rp2[capturedKey];  if (!b2) return;
+                b2.executiveSummary = value;
+              };
+            })(bucketKey)
+          );
+        }
+        // Phase enhancements: additive lists. Build one plan entry per
+        // (phase, key) where at least one suggested item is NOT already in
+        // the live array (case-insensitive, normalized).
+        if (Array.isArray(planS.phaseEnhancements) && Array.isArray(bucket.phases)) {
+          planS.phaseEnhancements.forEach(function (ph) {
+            if (!ph) return;
+            if (ph.safeToApply === false) {
+              plan.reviewOnly.push({ group: 'rolePlan', label: 'Phase enhancement', reason: 'not-safe-to-apply', item: ph });
+              return;
+            }
+            var idx   = Number(ph.phaseIndex);
+            var phase = bucket.phases[idx];
+            if (!phase) {
+              plan.skipped.push({ group: 'rolePlan', label: 'Phase enhancement', reason: 'phase-not-found', phaseIndex: idx });
+              return;
+            }
+            [
+              { key: 'actions',         label: 'actions', src: ph.suggestedActions },
+              { key: 'success_metrics', label: 'metrics', src: ph.suggestedMetrics },
+              { key: 'risks',           label: 'risks',   src: ph.suggestedRisks   }
+            ].forEach(function (spec) {
+              if (!Array.isArray(spec.src) || !spec.src.length) return;
+              var existing = Array.isArray(phase[spec.key]) ? phase[spec.key] : [];
+              var existingKeys = existing.map(function (e) {
+                return typeof e === 'string'
+                  ? normalizeOptimizationCompareValue(e).toLowerCase()
+                  : '';
+              });
+              var additions = [];
+              spec.src.forEach(function (raw) {
+                var s = String(raw || '').trim();
+                if (!s || _hasPlaceholderTokens(s)) return;
+                var k = normalizeOptimizationCompareValue(s).toLowerCase();
+                if (!k) return;
+                if (existingKeys.indexOf(k) !== -1) return;
+                if (additions.some(function (a) { return normalizeOptimizationCompareValue(a).toLowerCase() === k; })) return;
+                additions.push(s);
+              });
+              if (!additions.length) {
+                plan.skipped.push({
+                  group: 'rolePlan',
+                  label: 'Phase ' + (idx + 1) + ' ' + spec.label,
+                  reason: 'all-already-present',
+                  phaseIndex: idx, key: spec.key
+                });
+                return;
+              }
+              plan.rolePlan.push({
+                group: 'rolePlan',
+                label: 'Phase ' + (idx + 1) + ' ' + spec.label,
+                path: 'rolePlan.' + bucketKey + '.phases[' + idx + '].' + spec.key,
+                current: existing.slice(),
+                suggested: additions,
+                apply: (function (capturedBucket, capturedKey, capturedIdx, capturedAdditions) {
+                  return function () {
+                    var rp2 = RB_STATE.rolePlan; if (!rp2) return;
+                    var b2  = rp2[capturedBucket]; if (!b2) return;
+                    var ph2 = b2.phases && b2.phases[capturedIdx]; if (!ph2) return;
+                    if (!Array.isArray(ph2[capturedKey])) ph2[capturedKey] = [];
+                    var existingNorm = ph2[capturedKey].map(function (e) {
+                      return typeof e === 'string'
+                        ? normalizeOptimizationCompareValue(e).toLowerCase()
+                        : '';
+                    });
+                    capturedAdditions.forEach(function (a) {
+                      var k = normalizeOptimizationCompareValue(a).toLowerCase();
+                      if (existingNorm.indexOf(k) === -1) {
+                        ph2[capturedKey].push(a);
+                        existingNorm.push(k);
+                      }
+                    });
+                  };
+                })(bucketKey, spec.key, idx, additions),
+                meta: { phaseIndex: idx, key: spec.key, additions: additions }
+              });
+            });
+          });
+        }
+      }
+    }
+
+    plan.totalApply  = plan.resume.length + plan.coverLetter.length + plan.rolePlan.length;
+    plan.totalReview = plan.reviewOnly.length;
+    return plan;
+  }
+
+  // Returns the live plan when the optimization is NOT yet applied, and the
+  // captured applied plan when it IS applied. After apply, current values
+  // equal suggested values, so a freshly-built live plan would report
+  // totalApply=0 -- that would visually erase the Applied cards. Reading
+  // from the captured snapshot keeps counts stable across apply/undo.
+  function getActiveOptimizationChangePlan(opt) {
+    if (window.RB_STATE && RB_STATE.optimizationAppliedAt && RB_STATE.appliedOptimizationChangePlan) {
+      return RB_STATE.appliedOptimizationChangePlan;
+    }
+    return buildOptimizationChangePlan(opt);
+  }
+
+  // Debug-only inspector: shows exactly what Apply Safe Updates would do.
+  function debugOptimizationChangePlan() {
+    var plan = buildOptimizationChangePlan((window.RB_STATE && RB_STATE.optimization) || {});
+    function summarize(arr) {
+      return arr.map(function (x) {
+        return {
+          label: x.label, path: x.path,
+          current:   typeof x.current   === 'string' ? x.current.slice(0, 140)   : x.current,
+          suggested: typeof x.suggested === 'string' ? x.suggested.slice(0, 140) : x.suggested,
+          differs: typeof x.current === 'string' && typeof x.suggested === 'string'
+            ? optimizationValuesDiffer(x.current, x.suggested)
+            : true
+        };
+      });
+    }
+    return {
+      optimizationAppliedAt: (window.RB_STATE && RB_STATE.optimizationAppliedAt) || null,
+      hasAppliedPlan: !!(window.RB_STATE && RB_STATE.appliedOptimizationChangePlan),
+      totalApply:  plan.totalApply,
+      totalReview: plan.totalReview,
+      resume:      summarize(plan.resume),
+      coverLetter: summarize(plan.coverLetter),
+      rolePlan:    summarize(plan.rolePlan),
+      reviewOnly:  plan.reviewOnly,
+      skipped:     plan.skipped
+    };
+  }
+  try {
+    if (window.RB_DEBUG) {
+      window.debugOptimizationChangePlan = debugOptimizationChangePlan;
+      window.buildOptimizationChangePlan = buildOptimizationChangePlan;
+      window.getActiveOptimizationChangePlan = getActiveOptimizationChangePlan;
+    }
+  } catch (_) {}
+
   function applyCoverLetterOptimization(cvS) {
     if (!cvS || typeof cvS !== 'object') return;
     if (!RB_STATE.coverLetter || typeof RB_STATE.coverLetter !== 'object') {
@@ -11214,56 +11621,77 @@
       showToast((opt.scoreGate && opt.scoreGate.message) || 'No changes were applied because the match score would decrease.', 'warning');
       return;
     }
-    if (!RB_STATE.preOptimizationSnapshot) {
-      RB_STATE.preOptimizationSnapshot = makeOptimizationSnapshot();
+    // Re-apply guard: if already applied, do not re-stamp or re-mutate.
+    if (RB_STATE.optimizationAppliedAt) {
+      try { if (typeof renderOptimizationOutput === 'function') renderOptimizationOutput(opt); } catch (_) {}
+      return;
     }
 
-    var sug = opt.suggestions || {};
-    var resumeS = sug.resume || {};
-    if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+    // Build the change plan from CURRENT live values. Items where
+    // current === suggested are filtered out by the builder, so we never
+    // pretend to "apply" something that already matches the draft.
+    var plan = buildOptimizationChangePlan(opt);
 
-    if (resumeS.summaryRewrite && !_hasPlaceholderTokens(resumeS.summaryRewrite)) {
-      RB_STATE.resumeData.summary = String(resumeS.summaryRewrite);
-    }
-    if (resumeS.headlineRewrite && !_hasPlaceholderTokens(resumeS.headlineRewrite)) {
-      RB_STATE.resumeData.headline      = String(resumeS.headlineRewrite);
-      RB_STATE.resumeData.current_title = String(resumeS.headlineRewrite);
-    }
-    if (Array.isArray(resumeS.skillsToAdd) && resumeS.skillsToAdd.length) {
-      // Skills are review-only suggestions: the user decides which (if any)
-      // genuinely apply to them and adds those manually to their Skills
-      // section. We deliberately do NOT auto-merge them here.
-    }
-    if (Array.isArray(resumeS.roleSummaryRewrites)) {
-      resumeS.roleSummaryRewrites.forEach(function (r) {
-        if (!r || r.safeToApply === false) return;
-        if (_hasPlaceholderTokens(r.suggested)) return;
-        var idx = Number(r.roleIndex);
-        var suggested = String(r.suggested || '').trim();
-        if (!Number.isFinite(idx) || !suggested) return;
-        var role = RB_STATE.resumeData.experience && RB_STATE.resumeData.experience[idx];
-        if (role) role.role_summary = suggested;
-      });
-    }
-    if (Array.isArray(resumeS.experienceBulletRewrites)) {
-      resumeS.experienceBulletRewrites.forEach(function (r) {
-        if (!r || r.safeToApply === false) return;
-        if (_hasPlaceholderTokens(r.suggested)) return;
-        var roleIndex = Number(r.roleIndex);
-        var bulletIndex = Number(r.bulletIndex);
-        var suggested = String(r.suggested || '').trim();
-        if (!Number.isFinite(roleIndex) || !Number.isFinite(bulletIndex) || !suggested) return;
-        var role = RB_STATE.resumeData.experience && RB_STATE.resumeData.experience[roleIndex];
-        if (!role) return;
-        if (!Array.isArray(role.bullets)) role.bullets = [];
-        role.bullets[bulletIndex] = suggested;
-      });
+    if (!plan.totalApply) {
+      // Nothing real to apply. Do NOT stamp optimizationAppliedAt, do NOT
+      // show Applied badges, do NOT show Undo. Re-render so per-card
+      // badges reflect Will Apply / Review Only / Already aligned state.
+      RB_STATE.optimizationAppliedAt        = null;
+      RB_STATE.appliedOptimizationChangePlan = null;
+      var msg = plan.totalReview
+        ? 'No safe auto-updates to apply. Review-only suggestions are listed below.'
+        : 'No safe updates were applied because your draft already matches the recommendations.';
+      showToast(msg, 'info');
+      try { if (typeof renderOptimizationOutput === 'function') renderOptimizationOutput(opt); } catch (_) {}
+      return;
     }
 
-    applyCoverLetterOptimization(sug.coverLetter || {});
-    applyRolePlanOptimization(sug.rolePlan || {});
+    // Capture a FRESH undo snapshot immediately before mutation. This
+    // intentionally overwrites any stale snapshot left over from a prior
+    // optimization run -- without that, Undo could revert to wrong state.
+    RB_STATE.preOptimizationSnapshot = makeOptimizationSnapshot();
 
-    RB_STATE.optimizationAppliedAt = new Date().toISOString();
+    // Hash before mutation. We verify the apply actually changed
+    // something before flipping the UI to "Safe Updates Applied".
+    function _hashState() {
+      try {
+        return JSON.stringify(RB_STATE.resumeData  || null) + '|'
+             + JSON.stringify(RB_STATE.coverLetter || null) + '|'
+             + JSON.stringify(RB_STATE.cvDraft     || null) + '|'
+             + JSON.stringify(RB_STATE.rolePlan    || null);
+      } catch (_) { return String(Math.random()); }
+    }
+    var beforeHash = _hashState();
+
+    // Apply each planned change via its captured apply() closure. The
+    // closures target the same fields applyCoverLetterOptimization /
+    // applyRolePlanOptimization use, so save / preview / undo all line up.
+    plan.resume.concat(plan.coverLetter, plan.rolePlan).forEach(function (item) {
+      try {
+        if (typeof item.apply === 'function') item.apply(item.suggested);
+      } catch (err) {
+        try { console.warn('[optimize] failed to apply planned change:', item && item.path, err); } catch (_) {}
+      }
+    });
+
+    var afterHash = _hashState();
+    if (beforeHash === afterHash) {
+      // No real value changed. Treat this as a no-op apply: clear any
+      // applied state, drop the snapshot we just took, and tell the user.
+      RB_STATE.optimizationAppliedAt        = null;
+      RB_STATE.appliedOptimizationChangePlan = null;
+      RB_STATE.preOptimizationSnapshot       = null;
+      showToast('No safe updates were applied because no draft values changed.', 'info');
+      try { if (typeof renderOptimizationOutput === 'function') renderOptimizationOutput(opt); } catch (_) {}
+      return;
+    }
+
+    // Real mutation occurred. Stamp the apply timestamp and freeze the
+    // plan we just executed so the UI can render Applied counts/badges
+    // from a stable source (live values now match suggestions, so a
+    // freshly-built plan would report totalApply=0).
+    RB_STATE.optimizationAppliedAt        = new Date().toISOString();
+    RB_STATE.appliedOptimizationChangePlan = plan;
 
     try { if (typeof populateResumeFieldsFromData === 'function') populateResumeFieldsFromData(RB_STATE.resumeData); } catch (_) {}
     try {
@@ -11296,7 +11724,7 @@
     try { if (typeof renderOptimizationOutput === 'function') renderOptimizationOutput(opt); } catch (_) {}
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
 
-    showToast('Optimization updates applied to Application Details.', 'success');
+    showToast(plan.totalApply + ' safe update' + (plan.totalApply === 1 ? '' : 's') + ' applied to Application Details.', 'success');
     try { markBuilderDirty('optimization-applied'); } catch (_) {}
   }
 
@@ -11311,7 +11739,8 @@
     RB_STATE.coverLetter = snap.coverLetter || RB_STATE.coverLetter;
     RB_STATE.cvDraft     = snap.cvDraft     || RB_STATE.cvDraft;
     RB_STATE.rolePlan    = snap.rolePlan    || RB_STATE.rolePlan;
-    RB_STATE.optimizationAppliedAt = null;
+    RB_STATE.optimizationAppliedAt        = null;
+    RB_STATE.appliedOptimizationChangePlan = null;
 
     try { if (typeof populateResumeFieldsFromData === 'function') populateResumeFieldsFromData(RB_STATE.resumeData); } catch (_) {}
     try {
