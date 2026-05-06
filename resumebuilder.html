@@ -606,9 +606,8 @@
       gap: .5rem;
     }
 
-    /* Mobile toolbar: keep only My Resumes as icon. Save/New Version live in the menu. */
+    /* Mobile toolbar: show New Resume + My Resumes as icons. Save lives in the menu. */
     .nav-toolbar #nav-save,
-    .nav-toolbar #nav-new-version,
     .nav-toolbar .lazy-save-status { display: none !important; }
 
     /* Hide auth meta on mobile — covered by the account menu. */
@@ -618,6 +617,7 @@
 
     .nav-utility-btn,
     #nav-my-resumes,
+    #nav-new-version,
     #account-menu-btn {
       width: 42px !important;
       height: 42px !important;
@@ -666,11 +666,14 @@
     }
 
     #nav-my-resumes .btn-label,
+    #nav-new-version .btn-label,
     #account-menu-btn .acct-name,
     #account-menu-btn .acct-caret { display: none !important; }
 
     #nav-my-resumes i[data-lucide],
-    #nav-my-resumes svg {
+    #nav-my-resumes svg,
+    #nav-new-version i[data-lucide],
+    #nav-new-version svg {
       width: 20px !important;
       height: 20px !important;
       min-width: 20px !important;
@@ -735,6 +738,7 @@
 
     .nav-utility-btn,
     #nav-my-resumes,
+    #nav-new-version,
     #account-menu-btn {
       width: 38px !important;
       height: 38px !important;
@@ -746,7 +750,9 @@
     }
 
     #nav-my-resumes i[data-lucide],
-    #nav-my-resumes svg {
+    #nav-my-resumes svg,
+    #nav-new-version i[data-lucide],
+    #nav-new-version svg {
       width: 18px !important;
       height: 18px !important;
       min-width: 18px !important;
@@ -4718,6 +4724,7 @@
     <div class="nav-spacer"></div>
 
     <div class="nav-toolbar" role="group" aria-label="Document actions">
+      <button id="nav-new-version" class="btn btn-secondary nav-utility-btn" type="button" data-action="openNewVersionModal" aria-label="New Resume" title="New Resume"><i data-lucide="plus" style="width:16px;height:16px;"></i> <span class="btn-label">New Resume</span></button>
       <button id="nav-my-resumes"  class="btn btn-secondary nav-utility-btn" type="button" data-action="showResumeDashboard" aria-label="My Resumes" title="My Resumes"><i data-lucide="folder" style="width:16px;height:16px;"></i> <span class="btn-label">My Resumes</span></button>
       <button id="nav-save"        class="btn btn-save"      type="button" data-action="saveDraft" aria-label="Save"><i data-lucide="save" style="width:16px;height:16px;"></i> <span class="btn-label">Save</span></button>
       <span id="lazy-save-status" class="lazy-save-status saved" aria-live="polite" title="Autosave status">Saved</span>
@@ -4873,7 +4880,7 @@
       <label class="row"><input type="checkbox" id="nv-carry-cover"               > <span>Cover letter / Role CV</span></label>
       <label class="row"><input type="checkbox" id="nv-carry-plan"                > <span>Career plan / Role plan</span></label>
       <label class="row"><input type="checkbox" id="nv-carry-optimization"        > <span>Optimization results</span></label>
-      <label class="row"><input type="checkbox" id="nv-carry-style"         checked> <span>Selected documents &amp; style settings</span></label>
+      <label class="row"><input type="checkbox" id="nv-carry-style"                > <span>Selected documents &amp; style settings</span></label>
     </div>
     <div class="new-version-foot">
       <button type="button" class="btn btn-secondary" id="new-version-cancel">Cancel</button>
@@ -6393,6 +6400,18 @@
       // button stuck on "Signing in..." and disabled, which then carried
       // over after sign-out and blocked the user from signing back in.
       try { if (typeof setEmailLoginLoading === 'function') setEmailLoginLoading(false); } catch (_) {}
+      // SECURITY: If the active user changed (sign-out, sign-in as a
+      // different account, or initial sign-in following a stale session),
+      // wipe the previous user's RB_STATE + DOM input fields BEFORE we
+      // route. Otherwise the new account loads into the workspace
+      // pre-populated with the previous user's PII.
+      try {
+        var _newUid = user ? user.uid : null;
+        if (_newUid !== _lastSignedInUid) {
+          try { if (typeof clearBuilderStateForUserSwitch === 'function') clearBuilderStateForUserSwitch(); } catch (_) {}
+          _lastSignedInUid = _newUid;
+        }
+      } catch (_) {}
       applyAuthState(user);
       // body.signed-in toggles top-nav account menu visibility.
       if (user) document.body.classList.add('signed-in');
@@ -26017,6 +26036,77 @@
     if (jd && jd.value && jd.value.trim()) return true;
     return false;
   }
+
+  // SECURITY: When the active Firebase user changes (sign-out, sign-in as a
+  // different account, or initial sign-in after a previous session leaked
+  // state into RB_STATE / DOM), wipe ALL in-memory builder state and form
+  // inputs BEFORE we route. Without this, a freshly created account loads
+  // into the workspace pre-populated with the previous user's resume,
+  // contact info, cover letter, plan, and optimization. The dashboard
+  // hydration path will repopulate from Firestore for the new user.
+  var _lastSignedInUid = null;
+  function clearBuilderStateForUserSwitch() {
+    try {
+      // 1) In-memory state slices that influence routing + UI.
+      if (RB_STATE) {
+        RB_STATE.resumeData              = null;
+        RB_STATE.coverLetter             = null;
+        RB_STATE.cvDraft                 = null;
+        RB_STATE.rolePlan                = null;
+        RB_STATE.roleResearch            = null;
+        RB_STATE.optimization            = null;
+        RB_STATE.preOptimizationSnapshot = null;
+        RB_STATE.appliedOptimizationChangePlan = null;
+        RB_STATE.optimizationAppliedAt   = null;
+        RB_STATE.optimizationStatus      = null;
+        RB_STATE.optimizationLastError   = null;
+        RB_STATE.targetRole              = { job_title: '', company: '', job_description: '', plan_context: '', linkedin_url: '' };
+        RB_STATE.documentPackage         = null;
+        RB_STATE.profilePhotoUrl         = '';
+        RB_STATE.profilePhotoDataUrl     = null;
+        RB_STATE.versionName             = '';
+        RB_STATE.resumeBuildName         = '';
+        RB_STATE.lastManualSaveAt        = null;
+        RB_STATE.lastDownloadedAt        = null;
+        RB_STATE.exportCompletedAt       = null;
+        RB_STATE.lastPublishedAt         = null;
+        RB_STATE.publishedUrl            = null;
+        RB_STATE.shareUrl                = null;
+        RB_STATE.currentPlanId           = null;
+        RB_STATE._hasUnsavedChanges      = false;
+      }
+      try { window.currentPlanId = null; } catch (_) {}
+      try { currentPlanId = null; } catch (_) {}
+    } catch (_) {}
+
+    // 2) DOM inputs that hold previous user's text.
+    try {
+      var domIds = [
+        'pi-name','pi-title','pi-email','pi-phone','pi-location','pi-summary',
+        'pi-linkedin','pi-github','pi-website','pi-twitter',
+        'job-title','company','job-desc','plan-context','linkedin-job-url',
+        'resume-text','additional-resume-details','new-version-name'
+      ];
+      for (var i = 0; i < domIds.length; i++) {
+        var el = document.getElementById(domIds[i]);
+        if (el && 'value' in el) el.value = '';
+      }
+      // Re-render derived list UIs from the now-empty state.
+      try { if (typeof renderExperienceList === 'function') renderExperienceList([]); } catch (_) {}
+      try { if (typeof renderExtraSections   === 'function') renderExtraSections({}); } catch (_) {}
+      try { if (typeof syncSkillsState       === 'function') syncSkillsState(); } catch (_) {}
+      try {
+        var optOut = document.getElementById('optimize-output');
+        if (optOut) optOut.hidden = true;
+        var optStatus = document.getElementById('optimize-status');
+        if (optStatus) optStatus.textContent = 'Idle';
+        var staleBanner = document.getElementById('opt-stale-banner');
+        if (staleBanner && staleBanner.parentNode) staleBanner.parentNode.removeChild(staleBanner);
+      } catch (_) {}
+      try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
+    } catch (_) {}
+  }
+
   function routeAfterAuthChange(user) {
     if (!user) { showLoginLanding(); return; }
     if (hasInProgressBuilderContent()) { showBuilderWorkspace(); return; }
@@ -28743,3 +28833,5 @@
 
 </body>
 </html>
+
+
