@@ -9618,6 +9618,13 @@
           coverLetter: !!(document.getElementById('include-cv')     && document.getElementById('include-cv').checked),
           rolePlan:    !!(document.getElementById('include-plan')   && document.getElementById('include-plan').checked)
         };
+    // Normalize: if selectedDocs is missing or every flag is false, default
+    // to a resume-focused optimize so the backend never receives an
+    // all-false payload (which produced a confusing prompt). Existing
+    // user-selected values are preserved when at least one is true.
+    if (!selectedDocs || (selectedDocs.resume === false && selectedDocs.coverLetter === false && selectedDocs.rolePlan === false)) {
+      selectedDocs = { resume: true, coverLetter: false, rolePlan: false };
+    }
     return {
       resume_data: resumeData,
       coverLetter: RB_STATE.coverLetter || RB_STATE.cvDraft || null,
@@ -12049,21 +12056,31 @@
 
       RB_STATE.preOptimizationSnapshot = makeOptimizationSnapshot();
       RB_STATE.optimizationAppliedAt = null;
+      // Clear any stale-results banner from a previous failed attempt.
+      try {
+        var _sb = document.getElementById('opt-stale-banner');
+        if (_sb && _sb.parentNode) _sb.parentNode.removeChild(_sb);
+        RB_STATE.optimizationLastError = null;
+      } catch (_) {}
 
       var headers = await getAuthHeaders({ 'Content-Type': 'application/json' });
       if (!headers || !headers['Content-Type']) {
         headers = Object.assign({ 'Content-Type': 'application/json' }, headers || {});
       }
       // Cold-start aware fetch: shared retry wrapper handles 502/503/504 and
-      // network errors with backoff so the user does not see Railway's
-      // first-request boot failure.
+      // network errors with backoff. Optimize now caps frontend retries at
+      // one attempt because the backend already retries the OpenAI call
+      // internally on transient failures \u2014 we don't want both layers
+      // multiplying retries and burning OpenAI quota.
       var res = await fetchBuilderApiWithRetry('/builder/optimize', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(payload)
       }, {
+        maxAttempts: 2,
+        backoffs: [2500],
         onRetry: function () {
-          if (statusEl) statusEl.textContent = 'Waking the optimization service\u2026';
+          if (statusEl) statusEl.textContent = 'Optimization service was busy \u2014 retrying\u2026';
         }
       });
       // Safe non-JSON parse \u2014 Railway 502 returns an HTML body.
@@ -12072,10 +12089,27 @@
       var data = null;
       if (raw) { try { data = JSON.parse(raw); } catch (_) { data = null; } }
       if (!res.ok) {
-        var msg = (data && (data.message || data.error))
-          || (res.status === 502
-              ? 'Optimization service is temporarily unavailable. Please try again.'
-              : 'Optimization failed (HTTP ' + res.status + ').');
+        // Capture structured error for diagnostics. Backend now returns
+        // { success:false, stage, requestId, message, retryable } on
+        // controlled failures.
+        try {
+          RB_STATE.optimizationLastError = {
+            at: new Date().toISOString(),
+            status: res.status,
+            stage: (data && data.stage) || 'unknown',
+            requestId: (data && data.requestId) || null,
+            message: (data && (data.message || data.error)) || ('HTTP ' + res.status),
+            retryable: !!(data && data.retryable)
+          };
+        } catch (_) {}
+        var msg;
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          msg = 'The optimization service was temporarily unavailable. Please try again.';
+        } else if (data && (data.message || data.error)) {
+          msg = data.message || data.error;
+        } else {
+          msg = 'Optimization failed (HTTP ' + res.status + ').';
+        }
         throw new Error(msg);
       }
       if (!data) throw new Error('Optimization returned an unreadable response.');
@@ -12141,7 +12175,43 @@
     } catch (err) {
       console.error('[runOptimize] failed', err);
       if (statusEl) statusEl.textContent = 'Optimization failed.';
-      showToast('Optimize failed: ' + ((err && err.message) || err), 'error');
+      // Build a user-facing message. The retry wrapper has already done
+      // its single transient retry, so this catch is the final outcome.
+      var lastErr = RB_STATE.optimizationLastError || null;
+      var displayMsg = (err && err.message) || 'Optimization failed.';
+      if (lastErr && (lastErr.status === 502 || lastErr.status === 503 || lastErr.status === 504)) {
+        displayMsg = 'The optimization service was temporarily unavailable. Please try again.';
+      }
+      // Ensure state is recorded even when the failure was a thrown
+      // network/parse error (no Response object).
+      try {
+        if (!RB_STATE.optimizationLastError) {
+          RB_STATE.optimizationLastError = {
+            at: new Date().toISOString(),
+            status: 0,
+            stage: 'network_or_parse',
+            requestId: null,
+            message: displayMsg,
+            retryable: true
+          };
+        }
+      } catch (_) {}
+      showToast('Optimize failed: ' + displayMsg, 'error');
+      // If a previous successful optimization is still rendered, surface a
+      // banner so the user knows the visible results are stale.
+      try {
+        if (RB_STATE.optimization && RB_STATE.optimizationStatus === 'complete') {
+          var optSec = document.getElementById('opt-output') || document.getElementById('opt-section');
+          if (optSec && !document.getElementById('opt-stale-banner')) {
+            var banner = document.createElement('div');
+            banner.id = 'opt-stale-banner';
+            banner.className = 'opt-stale-banner';
+            banner.style.cssText = 'background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:10px 14px;border-radius:8px;margin:12px 0;font-size:13px;';
+            banner.textContent = 'Previous optimization results are still shown. The latest optimization attempt failed \u2014 click Run Optimization to try again.';
+            optSec.insertBefore(banner, optSec.firstChild);
+          }
+        }
+      } catch (_) {}
     } finally {
       try { if (_optProgressTimer) clearInterval(_optProgressTimer); } catch (_) {}
       try { optimizeAdvanceStep(4, { complete: true }); } catch (_) {}
@@ -28672,4 +28742,4 @@
 </div>
 
 </body>
-</html>s
+</html>
