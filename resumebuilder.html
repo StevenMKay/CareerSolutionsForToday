@@ -6207,6 +6207,30 @@
           }
         } catch (_) {}
       }
+    }).then(function () {
+      // Live Stripe check (best-effort). Picks up trial cancellations even
+      // when the customer.subscription.updated webhook was missed. The
+      // backend self-heals the Firestore doc, so subsequent reads are fresh.
+      if (!email || !builderSubscribed || lifetimePurchased) return;
+      return fetch(API_BASE + '/builder/check-subscription?email=' + encodeURIComponent(email))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (live) {
+          if (!live) return;
+          if (live.subscribed === false) {
+            builderSubscribed       = false;
+            stripeCancelAtPeriodEnd = false;
+            stripePeriodEndDate     = null;
+            return;
+          }
+          if (live.cancelAtPeriodEnd) {
+            stripeCancelAtPeriodEnd = true;
+            stripePeriodEndDate     = normalizeAccessDate(live.periodEndDate);
+          } else {
+            stripeCancelAtPeriodEnd = false;
+            stripePeriodEndDate     = null;
+          }
+        })
+        .catch(function () { /* offline / cors / cold start: ignore */ });
     }).catch(function (err) {
       console.warn('[paywall] failed to load builder access:', err);
     }).then(function () {
