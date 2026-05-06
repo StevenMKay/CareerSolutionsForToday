@@ -409,12 +409,19 @@
   /* ============================================================
      Top Nav
      ============================================================ */
+  /* Single source of truth for app/WebView top safe-area inset.
+     Default 0 on web; only iOS in-app needs the env() inset because
+     Android WebViews already render under the status bar via the
+     RN host, so adding env() there creates a duplicated blank band. */
+  :root { --app-safe-top: 0px; }
+  html.in-app-ios { --app-safe-top: env(safe-area-inset-top, 0px); }
+  html.in-app-android { --app-safe-top: 0px; }
   #site-header {
     position: sticky; top: 0; z-index: 50;
     background: var(--c-nav);
     border-bottom: 1px solid rgba(148, 163, 184, 0.12);
     box-shadow: 0 4px 18px rgba(0,0,0,.35);
-    padding-top: env(safe-area-inset-top, 0);
+    padding-top: var(--app-safe-top);
   }
   #main-nav {
     display: flex; align-items: center; gap: .75rem;
@@ -577,10 +584,9 @@
   @media (max-width: 720px) {
     #main-nav {
       min-height: 58px;
-      padding:
-        max(.48rem, env(safe-area-inset-top))
-        .75rem
-        .48rem;
+      /* Top safe-area inset is owned by #site-header (var(--app-safe-top)).
+         Keep nav padding constant so we don't double-apply on iOS in-app. */
+      padding: .48rem .75rem .48rem;
       gap: .55rem;
     }
 
@@ -2820,8 +2826,10 @@
   /* ============================================================
      In-App / WebView Overrides
      ============================================================ */
+  /* NOTE: top safe-area inset is intentionally NOT applied on body.
+     #site-header owns the top inset via var(--app-safe-top) so we
+     don't stack multiple status-bar-sized gaps inside the Android app. */
   html.in-app body {
-    padding-top: env(safe-area-inset-top, 0);
     padding-right: env(safe-area-inset-right, 0);
     padding-bottom: env(safe-area-inset-bottom, 0);
     padding-left: env(safe-area-inset-left, 0);
@@ -3552,20 +3560,28 @@
   .login-brand h1 { margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.45rem; color: var(--c-text, #E2E8F0); }
   .login-brand p  { margin: .25rem 0 0; color: var(--c-text-soft, #94A3B8); font-size: .9rem; }
 
-  .login-benefits {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: .75rem; margin-bottom: 1.5rem;
+  /* Hide the gradient logo tile on small screens / inside the app — it
+     duplicates the site-header brand icon and crowds the title row. */
+  @media (max-width: 720px) {
+    .login-brand { gap: 0; }
+    .login-brand .login-logo { display: none; }
   }
-  .login-benefits > div {
-    display: flex; align-items: center; gap: .55rem;
-    padding: .65rem .85rem;
-    background: rgba(15,23,42,0.55);
-    border: 1px solid rgba(148,163,184,0.12);
-    border-radius: 10px;
-    color: var(--c-text-soft, #CBD5E1);
-    font-size: .85rem;
+  html.in-app .login-brand { gap: 0; }
+  html.in-app .login-brand .login-logo { display: none; }
+
+  /* "View Site Features and Benefits" placeholder link */
+  .login-features-row {
+    margin: -.5rem 0 1rem;
+    text-align: center;
   }
-  .login-benefits i { color: #7C3AED; }
+  .login-features-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #7DD3FC; font-size: .88rem; font-weight: 600;
+    text-decoration: none; border-bottom: 1px dashed rgba(125,211,252,0.45);
+    padding-bottom: 1px;
+  }
+  .login-features-link:hover { color: #38BDF8; border-bottom-color: #38BDF8; }
+  .login-features-link i { color: #7C3AED; }
 
   .login-policy-box {
     background: rgba(15,23,42,0.55);
@@ -4771,6 +4787,8 @@
 <section id="login-landing" class="login-landing hidden" aria-labelledby="login-landing-title">
   <div class="login-card">
     <div class="login-brand">
+      <!-- .login-logo is hidden on mobile widths and inside the app via CSS
+           (see .login-brand .login-logo media/in-app rules). -->
       <div class="login-logo" aria-hidden="true">
         <i data-lucide="file-text" style="width:24px;height:24px;"></i>
       </div>
@@ -4779,11 +4797,13 @@
         <p>Build, optimize, save, and publish role-targeted resume portfolios.</p>
       </div>
     </div>
-    <div class="login-benefits">
-      <div><i data-lucide="sparkles" style="width:16px;height:16px;"></i><span>AI resume, CV, and plan support</span></div>
-      <div><i data-lucide="target" style="width:16px;height:16px;"></i><span>Target-role optimization</span></div>
-      <div><i data-lucide="share-2" style="width:16px;height:16px;"></i><span>Publishable web profile links</span></div>
-    </div>
+    <!-- Login features placeholder link (wire up later) -->
+    <p class="login-features-row">
+      <a href="#" id="login-features-link" class="login-features-link">
+        <i data-lucide="sparkles" style="width:14px;height:14px;"></i>
+        View Site Features and Benefits
+      </a>
+    </p>
     <div class="login-policy-box">
       <label class="policy-check-row">
         <input type="checkbox" id="login-policy-accept">
@@ -4844,9 +4864,6 @@
         New here? Enter your email and a password to create an account.
       </p>
     </div>
-    <p class="login-smallprint">
-      You can save multiple resume versions and control what gets published.
-    </p>
     <p class="login-smallprint" style="margin-top:.4rem;">
       <a href="https://www.stevenkay.info/" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;color:#7C3AED;text-decoration:none;font-weight:600;">
         <i data-lucide="external-link" style="width:14px;height:14px;"></i>
@@ -5796,7 +5813,16 @@
   try {
     var ua = navigator.userAgent || '';
     var inApp = !!window.ReactNativeWebView || /CareerResumeBuilder/i.test(ua);
-    document.documentElement.classList.add(inApp ? 'in-app' : 'on-web');
+    var rootEl = document.documentElement;
+    rootEl.classList.add(inApp ? 'in-app' : 'on-web');
+    if (inApp) {
+      var isIOS = /iPad|iPhone|iPod/i.test(ua) || (/Macintosh/i.test(ua) && 'ontouchend' in document);
+      var isAndroid = /Android/i.test(ua);
+      if (isIOS) rootEl.classList.add('in-app-ios');
+      // Default to android tagging when in-app and not iOS, so Android
+      // WebViews (which sometimes report odd UAs) still get the inset fix.
+      if (isAndroid || !isIOS) rootEl.classList.add('in-app-android');
+    }
   } catch (e) {}
 
   // ---------- RN error bridge ----------
