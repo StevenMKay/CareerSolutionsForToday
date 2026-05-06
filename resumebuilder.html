@@ -26992,14 +26992,60 @@
         var loginVisible = !!(login && !login.classList.contains('hidden'));
         if ((dashVisible || buildVisible) && !loginVisible) {
           clearInterval(iv);
-          // Small settle delay so the route transition + Lucide icons paint
-          // before we measure anchor rects.
-          setTimeout(function () { start({ force: false }); }, 600);
+          // Returning users (already created at least one resume) should
+          // NOT see the auto walkthrough on re-login. Only brand-new users
+          // with zero saved resumes get the auto-tour. We re-check the live
+          // `plans` collection because the legacy `tourCompleted` flag
+          // wasn't always written for users who used the app before tour
+          // persistence shipped — so localStorage / Firestore can both
+          // legitimately read "not completed" for an obviously-not-new user.
+          _gateOnExistingResumes(function (hasResumes) {
+            if (hasResumes) {
+              // Persist a definitive completion so this gate short-circuits
+              // next session without another Firestore read.
+              _completedFromServer = true;
+              try { localStorage.setItem('rb_tour_completed', '1'); } catch (_) {}
+              try {
+                var u = (typeof auth !== 'undefined' && auth && auth.currentUser) || null;
+                if (u && typeof db !== 'undefined' && db) {
+                  var patch = { tourCompleted: true };
+                  try { patch.tourCompletedAt = firebase.firestore.FieldValue.serverTimestamp(); } catch (_) {}
+                  try { patch.updatedAt       = firebase.firestore.FieldValue.serverTimestamp(); } catch (_) {}
+                  db.collection('builderUsage').doc(u.uid)
+                    .set(patch, { merge: true })
+                    .catch(function (err) { console.debug('[tour] auto-mark completed (returning user) failed', err); });
+                }
+              } catch (_) {}
+              return;
+            }
+            // Truly new user — small settle delay so the route transition
+            // + Lucide icons paint before we measure anchor rects.
+            setTimeout(function () { start({ force: false }); }, 600);
+          });
         } else if (tries > 60) {
           // ~15s ceiling — give up silently rather than spinning forever.
           clearInterval(iv);
         }
       }, 250);
+    }
+
+    // Returns hasResumes=true if the signed-in user already has at least
+    // one saved resume version in the `plans` collection. Best-effort: on
+    // any failure we resolve with `false` so we don't block a new user.
+    function _gateOnExistingResumes(cb) {
+      try {
+        var u = (typeof auth !== 'undefined' && auth && auth.currentUser) || null;
+        if (!u || typeof db === 'undefined' || !db) { cb(false); return; }
+        db.collection('plans')
+          .where('userId', '==', u.uid)
+          .limit(1)
+          .get()
+          .then(function (snap) { cb(!!(snap && !snap.empty)); })
+          .catch(function (err) {
+            console.debug('[tour] resume-existence check failed', err);
+            cb(false);
+          });
+      } catch (_) { cb(false); }
     }
 
     // Wire the modal buttons exactly once.
