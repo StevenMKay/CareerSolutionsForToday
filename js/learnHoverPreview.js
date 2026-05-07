@@ -1,6 +1,6 @@
 (function() {
   const preview = document.getElementById('learnHoverPreview');
-  const results = document.getElementById('learnResults');
+  const results = document.getElementById('learnResults') || document.getElementById('videosResults');
   if (!preview || !results) return;
 
   const imgEl = document.getElementById('learnPreviewImage');
