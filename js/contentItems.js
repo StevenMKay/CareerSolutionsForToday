@@ -24,7 +24,7 @@ AI:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9
   YouTube:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png",
   Simulations:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png",
   Calculators:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/34d06a0eb6b86667fd20f2e101719e15c08a8b8c/icons/calculatoricon.png",
-  'Career Tips':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/726c57d16d9da02d16411ce28c75f5c61e6a1294/icons/Career%20Icon%20Blue.png"
+  'Career Tips':"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/726c57d16d9da02d16411ce28c75f5c61e6a1294/icons/CareerIcon.png"
       // Add more as needed
 };
 
