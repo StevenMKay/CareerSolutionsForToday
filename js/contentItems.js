@@ -11823,6 +11823,190 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         topic:"Tab Management"
     },
 
+    // ===== YouTube uploads — last 5 months (April–May 2026) =====
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips - Creating Dropdown Lists | Everything You Need to Know",
+        description:"Learn how to create dropdown lists in Excel with shortcuts and helpful tips for setting them up.",
+        thumbnail:"https://i.ytimg.com/vi/Pxf9i76hOuI/hqdefault.jpg",
+        link:"https://youtu.be/Pxf9i76hOuI",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/Pxf9i76hOuI" },
+        topic:"Dropdown Lists"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts - Creating Dropdown Lists | Everything You Need to Know",
+        description:"A quick short on creating dropdown lists in Excel with shortcuts and helpful tips.",
+        thumbnail:"https://i.ytimg.com/vi/7-x-AQ9keJs/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/7-x-AQ9keJs",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/7-x-AQ9keJs" },
+        topic:"Dropdown Lists"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Career Solutions",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Career Shorts - This Free Shortcuts Site Replaces Thousands of YouTube Tutorials",
+        description:"A free tool that lets you instantly find Excel, Word, PowerPoint, Outlook, and more shortcuts in seconds — no signup, no scrolling through videos.",
+        thumbnail:"https://i.ytimg.com/vi/uFcTwCRYdsQ/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/uFcTwCRYdsQ",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/uFcTwCRYdsQ" },
+        topic:"Shortcuts"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Career Solutions",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"This Free Shortcuts Site Replaces Thousands of YouTube Tutorials | Free | No Signup",
+        description:"A free tool that lets you instantly find Excel, Word, PowerPoint, Outlook, and more shortcuts in seconds.",
+        thumbnail:"https://i.ytimg.com/vi/L89Y5bup35Q/hqdefault.jpg",
+        link:"https://youtu.be/L89Y5bup35Q",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/L89Y5bup35Q" },
+        topic:"Shortcuts"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts - Awesome Filter Trick to Save Time | Keyboard Shortcut Tip",
+        description:"A fast Excel filter trick using a keyboard shortcut to save time when working with data.",
+        thumbnail:"https://i.ytimg.com/vi/vMRyPTSfvR4/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/vMRyPTSfvR4",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/vMRyPTSfvR4" },
+        topic:"Filters"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips - Awesome Filter Trick to Save Time | Keyboard Shortcut Tip",
+        description:"A fast Excel filter trick using a keyboard shortcut to save time when working with data.",
+        thumbnail:"https://i.ytimg.com/vi/QdVXkOUhdJ0/hqdefault.jpg",
+        link:"https://youtu.be/QdVXkOUhdJ0",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/QdVXkOUhdJ0" },
+        topic:"Filters"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Word",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Word Shorts - Line Spacing Made Easy | Keyboard Shortcuts",
+        description:"Adjust line spacing in Word fast using keyboard shortcuts — no more digging through menus.",
+        thumbnail:"https://i.ytimg.com/vi/3iWZWnIcNVE/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/3iWZWnIcNVE",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/3iWZWnIcNVE" },
+        topic:"Formatting"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Word",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Word Tips - Line Spacing Made Easy | Keyboard Shortcuts",
+        description:"Adjust line spacing in Word fast using keyboard shortcuts — no more digging through menus.",
+        thumbnail:"https://i.ytimg.com/vi/4FO7HWZXL18/hqdefault.jpg",
+        link:"https://youtu.be/4FO7HWZXL18",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/4FO7HWZXL18" },
+        topic:"Formatting"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Career Solutions",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Stop Using Bad Email Signatures (Do This Instead) | Free Tool | No Signup",
+        description:"Create a clean, professional email signature in seconds using a free tool — works for Outlook, Gmail, and mobile.",
+        thumbnail:"https://i.ytimg.com/vi/-0odPihrHbg/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/-0odPihrHbg",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/-0odPihrHbg" },
+        topic:"Email Signature"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts - Easy Gantt Chart Setup | Free Template and Practice Workbook",
+        description:"Build a professional Gantt chart in Excel using a simple setup, with a free template included.",
+        thumbnail:"https://i.ytimg.com/vi/dIWiZ4pscaw/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/dIWiZ4pscaw",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/dIWiZ4pscaw" },
+        topic:"Gantt Chart"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips - Easy Gantt Chart Setup | Free Template and Practice Workbook",
+        description:"Build a professional Gantt chart in Excel using a simple setup, with a free template included.",
+        thumbnail:"https://i.ytimg.com/vi/7V7_8f8NAWY/hqdefault.jpg",
+        link:"https://youtu.be/7V7_8f8NAWY",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/7V7_8f8NAWY" },
+        topic:"Gantt Chart"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts – Create QR Codes Instantly (No Add-Ins Needed)",
+        description:"Generate QR codes in Excel using a simple IMAGE formula — no add-ins, no extra tools.",
+        thumbnail:"https://i.ytimg.com/vi/bg3U3k_XGvI/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/bg3U3k_XGvI",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/bg3U3k_XGvI" },
+        topic:"QR Codes"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips – Create QR Codes Instantly (No Add-Ins Needed)",
+        description:"Generate QR codes in Excel using a simple IMAGE formula — no add-ins, no extra tools.",
+        thumbnail:"https://i.ytimg.com/vi/KFYWiYd4cic/hqdefault.jpg",
+        link:"https://youtu.be/KFYWiYd4cic",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/KFYWiYd4cic" },
+        topic:"QR Codes"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Career Solutions",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Career Tips - Free Modern Project Management Tool | Easy | No Website Needed",
+        description:"A free modern project management tool you can use instead of Excel or OneNote to track projects visually and organize tasks by status and priority.",
+        thumbnail:"https://i.ytimg.com/vi/QCX0UtX_TX0/hqdefault.jpg",
+        link:"https://www.youtube.com/shorts/QCX0UtX_TX0",
+        related:{ text:"Check it out on YouTube", url:"https://www.youtube.com/shorts/QCX0UtX_TX0" },
+        topic:"Project Management"
+    },
+
 
 
   ];  // <-- close the array here
