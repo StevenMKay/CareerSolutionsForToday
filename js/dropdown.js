@@ -2,37 +2,41 @@
 // This file handles the Tools dropdown menu behavior for both desktop and mobile
 
 document.addEventListener('DOMContentLoaded', function() {
-  const toolsToggle = document.getElementById('toolsToggle');
-  const toolsDropdown = document.getElementById('toolsDropdown');
-  
-  if (toolsToggle && toolsDropdown) {
-    toolsToggle.addEventListener('click', function(e) {
+  // Wire up any .dropdown nav item that has a .dropdown-toggle inside.
+  const dropdowns = document.querySelectorAll('.nav-links .dropdown');
+
+  dropdowns.forEach(function (dropdown) {
+    const toggle = dropdown.querySelector('.dropdown-toggle');
+    if (!toggle) return;
+
+    toggle.addEventListener('click', function (e) {
       // Only handle clicks on mobile (screen width <= 768px)
       if (window.innerWidth <= 768) {
         e.preventDefault();
-        e.stopPropagation(); // Prevent event bubbling
-        
-        toolsDropdown.classList.toggle('active');
-        
-        // Close dropdown when clicking outside (only add listener if dropdown is open)
-        if (toolsDropdown.classList.contains('active')) {
-          setTimeout(() => {
+        e.stopPropagation();
+
+        dropdown.classList.toggle('active');
+
+        if (dropdown.classList.contains('active')) {
+          setTimeout(function () {
             document.addEventListener('click', function closeDropdown(event) {
-              if (!toolsDropdown.contains(event.target)) {
-                toolsDropdown.classList.remove('active');
+              if (!dropdown.contains(event.target)) {
+                dropdown.classList.remove('active');
                 document.removeEventListener('click', closeDropdown);
               }
             });
-          }, 10); // Small delay to prevent immediate closing
+          }, 10);
         }
       }
     });
-    
-    // Close dropdown when window is resized to desktop view
-    window.addEventListener('resize', function() {
-      if (window.innerWidth > 768) {
-        toolsDropdown.classList.remove('active');
-      }
-    });
-  }
+  });
+
+  // Close dropdowns when window is resized to desktop view
+  window.addEventListener('resize', function () {
+    if (window.innerWidth > 768) {
+      dropdowns.forEach(function (dropdown) {
+        dropdown.classList.remove('active');
+      });
+    }
+  });
 });
