@@ -11853,8 +11853,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
     {
         section:["Learning","Videos"],
         program:{
-            name:"Career Solutions",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+            name:"Career Tips",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7d5f2d6dca0085cb1fec3c4cd96d9cb941b5cbd3/icons/Career%20Icon%20Blue.png"
         },
         title:"Career Shorts - This Free Shortcuts Site Replaces Thousands of YouTube Tutorials",
         description:"A free tool that lets you instantly find Excel, Word, PowerPoint, Outlook, and more shortcuts in seconds — no signup, no scrolling through videos.",
@@ -11866,8 +11866,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
     {
         section:["Learning","Videos"],
         program:{
-            name:"Career Solutions",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+            name:"Career Tips",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7d5f2d6dca0085cb1fec3c4cd96d9cb941b5cbd3/icons/Career%20Icon%20Blue.png"
         },
         title:"This Free Shortcuts Site Replaces Thousands of YouTube Tutorials | Free | No Signup",
         description:"A free tool that lets you instantly find Excel, Word, PowerPoint, Outlook, and more shortcuts in seconds.",
@@ -11931,8 +11931,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
     {
         section:["Learning","Videos"],
         program:{
-            name:"Career Solutions",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+            name:"Career Tips",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7d5f2d6dca0085cb1fec3c4cd96d9cb941b5cbd3/icons/Career%20Icon%20Blue.png"
         },
         title:"Stop Using Bad Email Signatures (Do This Instead) | Free Tool | No Signup",
         description:"Create a clean, professional email signature in seconds using a free tool — works for Outlook, Gmail, and mobile.",
@@ -11996,8 +11996,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
     {
         section:["Learning","Videos"],
         program:{
-            name:"Career Solutions",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+            name:"Career Tips",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/7d5f2d6dca0085cb1fec3c4cd96d9cb941b5cbd3/icons/Career%20Icon%20Blue.png"
         },
         title:"Career Tips - Free Modern Project Management Tool | Easy | No Website Needed",
         description:"A free modern project management tool you can use instead of Excel or OneNote to track projects visually and organize tasks by status and priority.",
