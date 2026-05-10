@@ -49,6 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebar = document.getElementById('learnSidebar');
     searchInput = document.getElementById('learnSearch');
     resultsContainer = document.getElementById('learnResults');
+    // Collapse the Excel section by default on Learn.html so the page
+    // doesn't open with all Excel content already expanded.
+    sectionCollapseState['section-excel'] = true;
     getAllItems = () => {
       let items = (window.contentItems || []).filter(item =>
         (Array.isArray(item.section) && item.section.includes('Learning')) || item.section === 'Learning'
