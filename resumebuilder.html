@@ -3801,12 +3801,27 @@
     color: #FECACA;
     border-color: rgba(248,113,113,0.6);
   }
+  .version-rename {
+    width: 34px; height: 34px; border-radius: 8px;
+    border: 1px solid rgba(124,58,237,0.4);
+    background: rgba(124,58,237,0.12); color: #C4B5FD;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .version-rename:hover {
+    background: rgba(124,58,237,0.22);
+    color: #DDD6FE;
+    border-color: rgba(124,58,237,0.6);
+  }
+  .version-rename:disabled { opacity: .6; cursor: default; }
   .version-actions-spacer { flex: 1 1 auto; }
   .version-score { letter-spacing: .02em; }
   .opt-flash { box-shadow: 0 0 0 3px rgba(37,99,235,0.45); transition: box-shadow .6s ease; }
   @media (max-width: 720px) {
     .version-actions { gap: .4rem; }
     .version-delete { width: 38px; height: 38px; }
+    .version-rename { width: 38px; height: 38px; }
   }
   .resume-version-card:hover { transform: translateY(-1px); border-color: rgba(124,58,237,0.55); }
   .resume-version-card h3 {
@@ -25357,12 +25372,22 @@
       'Untitled Resume';
     var jobTitle = targetRole.job_title || targetRole.title || getBuilderFieldValue('job-title') || '';
     var company  = targetRole.company  || getBuilderFieldValue('company')   || '';
+    // Resume version title: prefer a user-set name (rename pencil / new-version
+    // modal). Otherwise derive it from the TARGET role they're applying for —
+    // not the user's name or the role on their existing resume. Falls back to
+    // displayName only when no target role has been entered yet.
+    var userSetVersionName = ((RB_STATE && (RB_STATE.versionName || RB_STATE.resumeBuildName)) || '').trim();
+    var autoVersionTitle = jobTitle
+      ? (company ? jobTitle + ' — ' + company : jobTitle)
+      : '';
+    var resolvedVersionTitle = userSetVersionName || autoVersionTitle || displayName;
     var rawTextEl = document.getElementById('resume-text');
     return {
       schemaVersion: 'resume-builder-clean-lean-v1',
       appVersion:    (window.ResumeBuilderBase && window.ResumeBuilderBase.version) || 'clean-lean',
       displayName:   displayName,
-      resumeBuildName: displayName + (jobTitle ? ' - ' + jobTitle : ''),
+      resumeBuildName: resolvedVersionTitle,
+      versionName:     resolvedVersionTitle,
       jobTitle:      jobTitle,
       company:       company,
       resumeData:    safeResumeData,
@@ -26272,6 +26297,12 @@
             '</div>' +
             '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' +
               '<button type="button" class="btn btn-primary" data-load-plan-id="' + _esc(entry.id) + '">Load</button>' +
+              '<button type="button" data-rename-plan-id="' + _esc(entry.id) + '" ' +
+                'data-rename-plan-title="' + _esc(title) + '" ' +
+                'aria-label="Rename resume" title="Rename resume" ' +
+                'style="width:36px;height:36px;border-radius:8px;border:1px solid #DDD6FE;background:#F5F3FF;color:#6D28D9;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>' +
+              '</button>' +
               '<button type="button" data-delete-plan-id="' + _esc(entry.id) + '" ' +
                 'data-delete-plan-title="' + _esc(title) + '" ' +
                 'aria-label="Delete resume" title="Delete resume" ' +
@@ -26287,6 +26318,22 @@
           var id = btn.getAttribute('data-load-plan-id');
           closeMyResumesModal();
           loadDraft(id);
+        });
+      });
+      host.querySelectorAll('[data-rename-plan-id]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var id    = btn.getAttribute('data-rename-plan-id');
+          var label = btn.getAttribute('data-rename-plan-title') || '';
+          if (!id) return;
+          var orig = btn.innerHTML;
+          btn.disabled = true;
+          try {
+            var changed = await renameResumeVersion(id, label);
+            if (changed) renderMyResumesList();
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = orig;
+          }
         });
       });
       host.querySelectorAll('[data-delete-plan-id]').forEach(function (btn) {
@@ -26329,6 +26376,49 @@
   function myResumes() {
     if (!requireAuth()) return;
     openMyResumesModal();
+  }
+
+  // Rename a saved resume version. Prompts the user for a new title, writes
+  // it to plans/{id}.resumeBuildName + versionName, and mirrors the change
+  // to RB_STATE + the New Version name input if the renamed plan is the
+  // currently-loaded one. Returns the new title string on success, or null
+  // if cancelled / unchanged / failed. Callers should re-render their list.
+  async function renameResumeVersion(id, currentTitle) {
+    if (!id) return null;
+    if (!requireAuth()) return null;
+    if (!db) { showToast('Firestore not ready', 'error'); return null; }
+    var current = String(currentTitle || '').trim();
+    var next;
+    try { next = window.prompt('Rename this resume version:', current); }
+    catch (_) { next = null; }
+    if (next === null) return null;
+    next = String(next || '').trim();
+    if (!next) { showToast('Name cannot be empty.', 'warning'); return null; }
+    if (next === current) return null;
+    try {
+      var patch = { resumeBuildName: next, versionName: next };
+      try { patch.updatedAt = firebase.firestore.FieldValue.serverTimestamp(); } catch (_) {}
+      await db.collection('plans').doc(id).update(patch);
+      try {
+        var loadedId = (typeof currentPlanId !== 'undefined' && currentPlanId) ||
+                       (RB_STATE && RB_STATE.currentPlanId) ||
+                       window.currentPlanId || null;
+        if (loadedId === id) {
+          if (RB_STATE) {
+            RB_STATE.resumeBuildName = next;
+            RB_STATE.versionName     = next;
+          }
+          var nvName = document.getElementById('new-version-name');
+          if (nvName) nvName.value = next;
+        }
+      } catch (_) {}
+      try { showToast('Renamed.', 'success'); } catch (_) {}
+      return next;
+    } catch (err) {
+      console.error('[renameResumeVersion] failed', err);
+      try { showToast('Rename failed: ' + ((err && err.message) || err), 'error'); } catch (_) {}
+      return null;
+    }
   }
 
   // Debug helpers for fast manual verification.
@@ -27674,6 +27764,11 @@
             '<path d="M10 11v6"></path><path d="M14 11v6"></path>' +
             '<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>' +
           '</svg>';
+        var pencilSvg =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M12 20h9"></path>' +
+            '<path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>' +
+          '</svg>';
         return '' +
           '<article class="resume-version-card" data-plan-id="' + _esc(row.id) + '">' +
             '<div class="version-top">' +
@@ -27687,6 +27782,12 @@
               '<button type="button" class="btn btn-primary" data-dashboard-load="' + _esc(row.id) + '">Open</button>' +
               (slug ? '<a class="btn btn-secondary" href="view.html?p=' + encodeURIComponent(slug) + '" target="_blank" rel="noopener">View Link</a>' : '') +
               '<span class="version-actions-spacer"></span>' +
+              '<button type="button" class="version-rename" ' +
+                'data-dashboard-rename="' + _esc(row.id) + '" ' +
+                'data-dashboard-rename-title="' + _esc(title) + '" ' +
+                'aria-label="Rename resume version" title="Rename resume version">' +
+                pencilSvg +
+              '</button>' +
               '<button type="button" class="version-delete" ' +
                 'data-dashboard-delete="' + _esc(row.id) + '" ' +
                 'data-dashboard-delete-title="' + _esc(title) + '" ' +
@@ -27717,6 +27818,25 @@
       if (btn._dashboardNewAttached) return;
       btn._dashboardNewAttached = true;
       btn.addEventListener('click', function () { openNewVersionModal(); });
+    });
+    document.querySelectorAll('[data-dashboard-rename]').forEach(function (btn) {
+      if (btn._dashboardRenameAttached) return;
+      btn._dashboardRenameAttached = true;
+      btn.addEventListener('click', async function (ev) {
+        ev.stopPropagation();
+        var id    = btn.getAttribute('data-dashboard-rename');
+        var label = btn.getAttribute('data-dashboard-rename-title') || '';
+        if (!id) return;
+        var orig = btn.innerHTML;
+        btn.disabled = true;
+        try {
+          var changed = await renameResumeVersion(id, label);
+          if (changed) { try { renderResumeDashboard(); } catch (_) {} }
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = orig;
+        }
+      });
     });
     document.querySelectorAll('[data-dashboard-delete]').forEach(function (btn) {
       if (btn._dashboardDeleteAttached) return;
@@ -27776,8 +27896,15 @@
     if (!modal) return;
     var nameInput = document.getElementById('new-version-name');
     if (nameInput) {
-      nameInput.value =
-        (RB_STATE && (RB_STATE.versionName || RB_STATE.resumeBuildName)) || '';
+      // Pre-fill with the TARGET role (what they're applying for), not the
+      // previous version's name. Empty if no target role entered yet; the
+      // save layer will auto-derive once they fill in Application Details.
+      var tr = (RB_STATE && RB_STATE.targetRole) || {};
+      var trTitle   = tr.job_title || tr.title || '';
+      var trCompany = tr.company || '';
+      nameInput.value = trTitle
+        ? (trCompany ? trTitle + ' — ' + trCompany : trTitle)
+        : '';
     }
     // Reset checkbox defaults: resume + photo + style on; rest off.
     var defaults = {
@@ -27813,7 +27940,8 @@
     lazySavePaused = true;
     try {
     var nameEl = document.getElementById('new-version-name');
-    var name   = (nameEl && nameEl.value || '').trim() || 'Untitled Version';
+    // Blank means "let the save layer derive it from the target role".
+    var name   = (nameEl && nameEl.value || '').trim();
     var keep = {
       resume:       !!document.getElementById('nv-carry-resume')       && document.getElementById('nv-carry-resume').checked,
       photo:        !!document.getElementById('nv-carry-photo')        && document.getElementById('nv-carry-photo').checked,
@@ -27875,6 +28003,16 @@
     RB_STATE.currentPlanId  = null;
     try { currentPlanId    = null; } catch (_) {}
 
+    // Empty `name` means the save layer will derive the title from the
+    // target role (job_title + company). Mirror that here so the toast +
+    // RB_STATE stay in sync with what's about to be persisted.
+    var tr2          = (RB_STATE && RB_STATE.targetRole) || {};
+    var tr2Title     = tr2.job_title || tr2.title || '';
+    var tr2Company   = tr2.company || '';
+    var derivedTitle = name ||
+      (tr2Title ? (tr2Company ? tr2Title + ' — ' + tr2Company : tr2Title) : '') ||
+      'New resume';
+
     RB_STATE.versionName     = name;
     RB_STATE.resumeBuildName = name;
 
@@ -27892,7 +28030,7 @@
 
     closeNewVersionModal();
     showBuilderWorkspace();
-    showToast('New version "' + name + '" started. Save to keep it.', 'success');
+    showToast('New version "' + derivedTitle + '" started.', 'success');
     } finally {
       lazySavePaused = false;
       try {
@@ -27901,6 +28039,18 @@
         updateLazySaveStatus('saved');
       } catch (_) {}
     }
+    // Auto-save the new version so it persists to Firestore immediately
+    // (and shows up in the dashboard) without requiring the user to click
+    // Save manually. saveDraft handles auth, paywall gating, and toasts on
+    // its own. Deferred so the workspace UI swap above has already painted.
+    setTimeout(function () {
+      try {
+        if (typeof saveDraft === 'function') {
+          Promise.resolve(saveDraft({ silent: true, source: 'new-version', skipButtonSpinner: true }))
+            .catch(function (err) { console.warn('[new-version] initial save failed', err); });
+        }
+      } catch (err) { console.warn('[new-version] initial save threw', err); }
+    }, 0);
   }
 
   // --- Account menu (top nav) ---
