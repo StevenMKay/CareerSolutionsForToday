@@ -2643,6 +2643,32 @@
   }
   .skills-suggestion-item:hover, .skills-suggestion-item.active { background: #EFF6FF; color: #1D4ED8; }
 
+  /* Shared autocomplete floater for university / certification inputs.
+     Body-attached so it overflows scrollable cards & accordions; sized at
+     show-time so it works on desktop and small mobile viewports. */
+  .rb-ac-floater {
+    position: absolute; z-index: 10000;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(15,23,42,.18);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-size: .9rem;
+  }
+  .rb-ac-floater[hidden] { display: none; }
+  .rb-ac-item {
+    padding: .55rem .75rem; cursor: pointer; color: #0F172A;
+    border-bottom: 1px solid #F1F5F9;
+    line-height: 1.3;
+  }
+  .rb-ac-item:last-child { border-bottom: 0; }
+  .rb-ac-item:hover, .rb-ac-item.active { background: #EFF6FF; color: #1D4ED8; }
+  @media (max-width: 600px) {
+    .rb-ac-floater { font-size: .95rem; max-height: 50vh; }
+    .rb-ac-item { padding: .75rem .85rem; min-height: 44px; }
+  }
+
   /* Extra resume sections (compact / collapsed by default) */
   .extra-sections-list { display: flex; flex-direction: column; gap: .4rem; }
   .extra-sections-list:empty { display: none; }
@@ -6148,6 +6174,10 @@
         </div>
 
       </div>
+      <!-- TODO(navigation): No explicit "Next" / "Continue" button exists at
+           the end of the Application Details accordion stack. Users rely on
+           the top chevron tabs to move to Optimize. Design a primary
+           Next button here so the forward path is obvious. -->
     </section>
 
     <!-- ============================================================
@@ -6306,6 +6336,10 @@
           </div>
         </div>
       </div>
+      <!-- TODO(navigation): No explicit "Next" / "Continue" button exists at
+           the bottom of the Optimize step. After optimization runs, users
+           have to scroll back up and click the Step 3 chevron to reach
+           Preview & Export. Design a primary Next button here. -->
     </section>
 
     <!-- ============================================================
@@ -7414,6 +7448,11 @@
   }
 
   function updateStepperState(activeStepId) {
+    // TODO(navigation): The stepper currently has no explicit "Next" or
+    // "Continue" affordance between steps — users have to click the chevron
+    // pills at the top to advance after finishing Application Details, then
+    // again after Optimize. Revisit: add a primary Next/Continue button at the
+    // bottom of each step so the flow is obvious without scrolling back up.
     activeStepId = activeStepId || getActiveStep();
     var completion = getStepCompletionState();
     document.querySelectorAll('.chev').forEach(function (btn) {
@@ -8552,7 +8591,7 @@
     certifications: {
       primary: 'name',
       fields: [
-        { key: 'name',   label: 'Name',   placeholder: 'Certification name' },
+        { key: 'name',   label: 'Name',   placeholder: 'Certification name', autocomplete: 'certifications' },
         { key: 'issuer', label: 'Issuer', placeholder: 'Issuing organization' },
         { key: 'year',   label: 'Year',   placeholder: 'e.g. 2024' }
       ],
@@ -8577,7 +8616,7 @@
       primary: 'degree',
       fields: [
         { key: 'degree',   label: 'Degree',   placeholder: 'B.S. Computer Science' },
-        { key: 'school',   label: 'School',   placeholder: 'University name' },
+        { key: 'school',   label: 'School',   placeholder: 'University name', autocomplete: 'universities' },
         { key: 'year',     label: 'Year',     placeholder: '2020' },
         { key: 'location', label: 'Location', placeholder: 'Optional' }
       ],
@@ -8700,6 +8739,12 @@
         ' data-section-field="' + _esc(f.key) + '"' +
         ' placeholder="' + _esc(f.placeholder || f.label) + '"' +
         ' aria-label="' + _esc(f.label) + '"';
+      // When the field opts in to an autocomplete bank, emit the data flag and
+      // disable native browser autofill so our suggestion floater is the only
+      // dropdown the user sees (works the same on desktop and mobile).
+      if (f.autocomplete && !f.textarea) {
+        attrs += ' data-autocomplete-bank="' + _esc(f.autocomplete) + '" autocomplete="off"';
+      }
       if (f.textarea) {
         return '<textarea class="textarea section-row-input section-row-input-textarea" rows="2"' + attrs + '>' + _esc(v) + '</textarea>';
       }
@@ -8840,14 +8885,623 @@
   // ============================================================
   // Skills pill editor (no AI; local suggestion bank only)
   // ============================================================
+  // Comprehensive cross-industry skill bank used for autocomplete in the
+  // Skills pill editor. Users can still press Enter on any custom value;
+  // the list only provides typing suggestions.
   var SKILL_BANK = [
-    'Excel','Power BI','Tableau','SQL','Python','Data Analysis','Process Improvement',
-    'Project Management','Stakeholder Management','Risk Management','Compliance',
-    'Reporting','Executive Communication','Change Management','Agile','Jira',
-    'SharePoint','Salesforce','Vendor Management','Strategic Planning',
-    'KPI Development','Root Cause Analysis','Quality Assurance','Customer Experience',
-    'Financial Analysis','Operations Management','Business Analysis'
+    // Programming languages
+    'Python','JavaScript','TypeScript','Java','C#','C++','C','Go','Rust','Ruby','PHP',
+    'Swift','Kotlin','Scala','R','MATLAB','Perl','Dart','Lua','Bash','PowerShell',
+    'Shell Scripting','SQL','PL/SQL','T-SQL','NoSQL','HTML','HTML5','CSS','CSS3',
+    'SASS','SCSS','LESS','XML','JSON','YAML','GraphQL','Solidity','VBA','Objective-C',
+    // Frontend frameworks/libraries
+    'React','React Native','Angular','Vue.js','Svelte','Next.js','Nuxt.js','Gatsby',
+    'jQuery','Redux','Zustand','RxJS','Bootstrap','Tailwind CSS','Material UI','Chakra UI',
+    'Webpack','Vite','Rollup','Babel','ESLint','Prettier','Storybook',
+    // Backend frameworks
+    'Node.js','Express.js','NestJS','Django','Flask','FastAPI','Spring','Spring Boot',
+    'Laravel','Symfony','Ruby on Rails','ASP.NET','ASP.NET Core','.NET','.NET Core',
+    'Phoenix','Gin','Echo','Fiber',
+    // Mobile
+    'iOS Development','Android Development','Flutter','Xamarin','Ionic','Cordova',
+    'SwiftUI','Jetpack Compose','Expo',
+    // Cloud / DevOps
+    'AWS','Amazon Web Services','Microsoft Azure','Google Cloud Platform','GCP',
+    'Oracle Cloud','IBM Cloud','Alibaba Cloud','DigitalOcean','Linode','Heroku',
+    'Vercel','Netlify','Cloudflare','Docker','Kubernetes','OpenShift','Helm','Istio',
+    'Terraform','Ansible','Puppet','Chef','SaltStack','Pulumi','CloudFormation',
+    'Jenkins','GitHub Actions','GitLab CI','CircleCI','Travis CI','Bamboo','TeamCity',
+    'ArgoCD','Spinnaker','FluxCD','Prometheus','Grafana','Datadog','New Relic','Splunk',
+    'ELK Stack','Elasticsearch','Logstash','Kibana','PagerDuty','OpsGenie','Sentry',
+    'Linux Administration','Windows Server','Unix','Red Hat','Ubuntu','CentOS','Debian',
+    'Nginx','Apache','HAProxy','Load Balancing','Site Reliability Engineering','SRE',
+    'CI/CD','Infrastructure as Code','Containerization','Microservices','Serverless',
+    'AWS Lambda','Azure Functions','Google Cloud Functions','API Gateway','REST APIs',
+    'gRPC','WebSockets','OAuth','OpenID Connect','SAML','JWT',
+    // Databases
+    'PostgreSQL','MySQL','MariaDB','Microsoft SQL Server','Oracle Database','SQLite',
+    'MongoDB','DynamoDB','Cassandra','Redis','Memcached','Couchbase','Neo4j','ArangoDB',
+    'Firestore','Firebase Realtime Database','Snowflake','Amazon Redshift','BigQuery',
+    'Azure Synapse','Databricks','Teradata','Vertica','ClickHouse','InfluxDB',
+    // Data engineering / analytics
+    'Apache Spark','Apache Kafka','Apache Airflow','Apache Hadoop','Apache Flink',
+    'Apache Beam','Hive','Presto','Trino','dbt','Fivetran','Stitch','Informatica',
+    'Talend','SSIS','SSRS','SSAS','ETL','ELT','Data Warehousing','Data Lake','Data Modeling',
+    'Dimensional Modeling','Star Schema','Snowflake Schema','OLAP','OLTP',
+    // BI & analytics tools
+    'Excel','Advanced Excel','Microsoft Excel','Power BI','Power Query','Power Pivot',
+    'Power Automate','Power Apps','Tableau','Looker','Looker Studio','Qlik','QlikView',
+    'Qlik Sense','Sisense','Domo','MicroStrategy','SAS','SPSS','Stata','Google Analytics',
+    'Google Analytics 4','Adobe Analytics','Mixpanel','Amplitude','Heap','Hotjar',
+    'Crystal Reports','Cognos','Alteryx',
+    // ML / AI / Data Science
+    'Machine Learning','Deep Learning','Natural Language Processing','NLP',
+    'Computer Vision','Reinforcement Learning','Generative AI','Large Language Models',
+    'LLMs','Prompt Engineering','OpenAI API','LangChain','LlamaIndex','Hugging Face',
+    'TensorFlow','PyTorch','Keras','scikit-learn','XGBoost','LightGBM','CatBoost',
+    'Pandas','NumPy','SciPy','Matplotlib','Seaborn','Plotly','Jupyter','JupyterLab',
+    'Google Colab','MLflow','Kubeflow','Weights & Biases','DVC','Vertex AI','SageMaker',
+    'Azure Machine Learning','Databricks ML','Statistical Analysis','A/B Testing',
+    'Predictive Modeling','Regression Analysis','Classification','Clustering',
+    'Recommendation Systems','Time Series Analysis','Forecasting','Feature Engineering',
+    // Design / UX
+    'Figma','Sketch','Adobe XD','Adobe Photoshop','Adobe Illustrator','Adobe InDesign',
+    'Adobe Premiere Pro','Adobe After Effects','Adobe Lightroom','Adobe Creative Suite',
+    'Canva','InVision','Marvel','Framer','Principle','Procreate','UI Design','UX Design',
+    'UX Research','User Research','User Testing','Usability Testing','Wireframing',
+    'Prototyping','Information Architecture','Interaction Design','Visual Design',
+    'Design Systems','Accessibility','WCAG','Section 508','Responsive Design',
+    'Mobile-First Design','Design Thinking','Service Design','Graphic Design',
+    'Typography','Branding','Logo Design','Print Design','Motion Graphics',
+    'Video Editing','3D Modeling','Blender','Cinema 4D','Maya','3ds Max','AutoCAD',
+    'SolidWorks','SketchUp','Revit',
+    // Project / Program Management
+    'Project Management','Program Management','Portfolio Management','Agile','Scrum',
+    'Kanban','Waterfall','SAFe','Scaled Agile Framework','Lean','Six Sigma',
+    'Lean Six Sigma','PRINCE2','PMP','PMI Practices','Hybrid Methodologies','XP',
+    'Extreme Programming','Risk Management','Issue Management','Stakeholder Management',
+    'Scope Management','Schedule Management','Resource Management','Budget Management',
+    'Cost Management','Change Management','Quality Management','Procurement Management',
+    'Vendor Management','Contract Management','Sprint Planning','Backlog Grooming',
+    'Retrospectives','Daily Standups','Release Management',
+    // PM tools
+    'Jira','Confluence','Trello','Asana','Monday.com','ClickUp','Notion','Smartsheet',
+    'Microsoft Project','Microsoft Planner','Wrike','Basecamp','Linear','Airtable',
+    'SharePoint','Microsoft Teams','Slack','Zoom','Webex','Google Workspace','Office 365',
+    // Business / Strategy
+    'Strategic Planning','Business Strategy','Business Analysis','Business Development',
+    'Business Process Reengineering','Business Process Management','Process Improvement',
+    'Continuous Improvement','Operational Excellence','Operations Management',
+    'Supply Chain Management','Logistics','Inventory Management','Procurement','Sourcing',
+    'KPI Development','OKR','Balanced Scorecard','SWOT Analysis','PESTLE Analysis',
+    'Competitive Analysis','Market Research','Market Analysis','Go-to-Market Strategy',
+    'Product Strategy','Product Management','Product Roadmapping','Product Marketing',
+    'Pricing Strategy','Forecasting','Demand Planning','Capacity Planning','S&OP',
+    'Sales and Operations Planning','Mergers and Acquisitions','M&A','Due Diligence',
+    'Corporate Development','Consulting','Management Consulting','Strategy Consulting',
+    // Finance / Accounting
+    'Financial Analysis','Financial Modeling','Financial Reporting','Financial Planning',
+    'FP&A','Budgeting','Variance Analysis','Cost Accounting','Cost Analysis',
+    'Management Accounting','General Accounting','Bookkeeping','Accounts Payable',
+    'Accounts Receivable','Payroll','General Ledger','Journal Entries','Reconciliations',
+    'Month-End Close','Quarter-End Close','Year-End Close','GAAP','IFRS','SOX',
+    'Sarbanes-Oxley','Internal Controls','Audit','Internal Audit','External Audit',
+    'Tax Preparation','Tax Compliance','Tax Planning','Corporate Tax','Sales Tax',
+    'Valuation','DCF Modeling','LBO Modeling','Capital Markets','Investment Banking',
+    'Private Equity','Venture Capital','Hedge Funds','Asset Management','Wealth Management',
+    'Credit Analysis','Underwriting','Treasury','Cash Flow Management',
+    'Working Capital Management','QuickBooks','QuickBooks Online','SAP','SAP S/4HANA',
+    'SAP FI','SAP CO','Oracle Financials','Oracle EBS','Oracle Fusion','NetSuite',
+    'Workday Financials','Xero','Sage Intacct','Hyperion','Anaplan','Adaptive Insights',
+    'Vena','OneStream','BlackLine','Concur','Coupa','Bill.com',
+    // Sales / Marketing
+    'Sales','B2B Sales','B2C Sales','Inside Sales','Outside Sales','Field Sales',
+    'Enterprise Sales','SaaS Sales','Solution Selling','Consultative Selling',
+    'Challenger Sale','Account Management','Account-Based Marketing','ABM',
+    'Key Account Management','Customer Success','Customer Experience','CX',
+    'Customer Service','Customer Support','Customer Retention','Customer Acquisition',
+    'Lead Generation','Cold Calling','Cold Emailing','Prospecting','Pipeline Management',
+    'Sales Forecasting','Quota Management','Territory Management','Channel Sales',
+    'Partner Management','Negotiation','Contract Negotiation','Closing','Upselling',
+    'Cross-Selling','CRM','Salesforce','Salesforce Lightning','Salesforce CPQ',
+    'Salesforce Marketing Cloud','HubSpot','Pipedrive','Zoho CRM',
+    'Microsoft Dynamics 365','Dynamics CRM','SugarCRM','Marketing','Digital Marketing',
+    'Content Marketing','Inbound Marketing','Outbound Marketing','Performance Marketing',
+    'Growth Marketing','Brand Marketing','Brand Strategy','Brand Management',
+    'Field Marketing','Event Marketing','SEO','Search Engine Optimization','SEM',
+    'Search Engine Marketing','PPC','Pay-Per-Click','Google Ads','Microsoft Ads',
+    'Bing Ads','Facebook Ads','Instagram Ads','LinkedIn Ads','Twitter Ads','TikTok Ads',
+    'YouTube Ads','Display Advertising','Programmatic Advertising','Retargeting',
+    'Affiliate Marketing','Influencer Marketing','Social Media Marketing',
+    'Social Media Management','Hootsuite','Buffer','Sprout Social','Email Marketing',
+    'Mailchimp','Klaviyo','Constant Contact','SendGrid','Marketo','Pardot',
+    'HubSpot Marketing','Eloqua','Iterable','Braze','Customer.io','Marketing Automation',
+    'Marketing Operations','Demand Generation','Copywriting','Content Strategy',
+    'Content Creation','Content Writing','Technical Writing','Blog Writing',
+    'Storytelling','Public Relations','PR','Media Relations','Crisis Communications',
+    'Press Releases','Webinars','Podcasts','Video Production',
+    'Conversion Rate Optimization','CRO','Landing Page Optimization',
+    'Funnel Analysis','Attribution Modeling',
+    // HR / People
+    'Human Resources','HR Management','Recruiting','Talent Acquisition','Sourcing',
+    'Boolean Search','LinkedIn Recruiter','Indeed','ZipRecruiter','Lever','Greenhouse',
+    'Workday','Workday HCM','SuccessFactors','BambooHR','ADP','Paychex','Gusto',
+    'Paycom','Ceridian Dayforce','UltiPro','UKG','Kronos','iCIMS','SmartRecruiters',
+    'JazzHR','Employee Relations','Performance Management','Compensation','Benefits',
+    'Total Rewards','Payroll Administration','HRIS','HR Analytics','People Analytics',
+    'Workforce Planning','Succession Planning','Onboarding','Offboarding','Orientation',
+    'Training','Learning and Development','L&D','Leadership Development',
+    'Organizational Development','Organizational Design','Culture','Engagement',
+    'Employee Engagement','Diversity Equity and Inclusion','DEI','Belonging',
+    'EEO','Affirmative Action','Labor Law','Employment Law','FLSA','FMLA','ADA',
+    'Title VII','I-9 Compliance','Background Checks','Workers Compensation',
+    'HR Policy Development','Employee Handbook',
+    // Support / IT
+    'Technical Support','Help Desk','Service Desk','IT Support','Tier 1 Support',
+    'Tier 2 Support','Zendesk','Freshdesk','Intercom','ServiceNow',
+    'Jira Service Management','Salesforce Service Cloud','Genesys','Five9','Talkdesk',
+    'Aircall','Dialpad','Active Listening','Empathy','Conflict Resolution',
+    'De-escalation','Call Center Operations','Contact Center','Workforce Management',
+    'CSAT','NPS','Net Promoter Score','First Call Resolution',
+    // Operations / Supply Chain
+    'Manufacturing','Lean Manufacturing','Kaizen','5S','Value Stream Mapping',
+    'Production Planning','Materials Requirements Planning','MRP',
+    'Enterprise Resource Planning','ERP','Warehouse Management','WMS','Distribution',
+    'Transportation Management','TMS','Fleet Management','Last Mile Delivery','3PL',
+    'Freight','Logistics Coordination','Import/Export','Customs Compliance',
+    'Trade Compliance','Quality Assurance','Quality Control','ISO 9001','ISO 14001',
+    'AS9100','TS 16949','GMP','HACCP','Root Cause Analysis','RCA','FMEA','SPC',
+    'Statistical Process Control',
+    // Healthcare / Clinical
+    'Patient Care','Clinical Care','Bedside Manner','Vital Signs','Medication Administration',
+    'IV Therapy','Wound Care','Phlebotomy','Triage','Emergency Care','Critical Care',
+    'Pediatric Care','Geriatric Care','Mental Health','Behavioral Health','Telehealth',
+    'EMR','EHR','Epic','Epic Systems','Cerner','Meditech','Allscripts','athenahealth',
+    'NextGen','eClinicalWorks','HIPAA','HIPAA Compliance','HL7','FHIR','ICD-10','ICD-11',
+    'CPT','HCPCS','Medical Coding','Medical Billing','Revenue Cycle Management',
+    'Healthcare Administration','Clinical Research','GCP','Good Clinical Practice',
+    'IRB','FDA Regulations','21 CFR Part 11','Pharmacovigilance','Clinical Trials',
+    'Case Management','Care Coordination','Utilization Review','Discharge Planning',
+    // Legal / Compliance
+    'Legal Research','Legal Writing','Litigation','Contract Law','Contract Drafting',
+    'Contract Review','Corporate Law','Commercial Law','IP Law',
+    'Intellectual Property','Patent Law','Trademark Law','Copyright Law',
+    'Real Estate Law','Estate Planning','Family Law','Immigration Law','Criminal Law',
+    'Tax Law','Securities Law','Bankruptcy','Westlaw','LexisNexis','Bloomberg Law',
+    'PACER','eDiscovery','Document Review','Paralegal Skills','Compliance',
+    'Regulatory Compliance','GDPR','CCPA','SOC 2','PCI DSS','FINRA','SEC','FDIC','OCC',
+    'Anti-Money Laundering','AML','KYC','Know Your Customer','Fraud Prevention',
+    'Ethics and Compliance','Records Management',
+    // Security / Cybersecurity
+    'Cybersecurity','Information Security','Network Security','Application Security',
+    'Cloud Security','Endpoint Security','Identity and Access Management','IAM',
+    'Single Sign-On','SSO','Multi-Factor Authentication','MFA','Zero Trust',
+    'Penetration Testing','Ethical Hacking','Vulnerability Assessment','Threat Modeling',
+    'Threat Intelligence','Threat Hunting','Incident Response','Digital Forensics',
+    'Malware Analysis','Reverse Engineering','SIEM','QRadar','ArcSight','LogRhythm',
+    'Sentinel','SOAR','Firewalls','Palo Alto','Fortinet','Cisco ASA','Check Point',
+    'Intrusion Detection','IDS','IPS','EDR','XDR','CrowdStrike','SentinelOne',
+    'Carbon Black','Cryptography','PKI','TLS/SSL','OWASP Top 10','Secure Coding',
+    'Code Review','SAST','DAST','Burp Suite','Metasploit','Wireshark','Nmap','Nessus',
+    'Kali Linux','Risk Assessment','NIST Framework','ISO 27001','CIS Controls',
+    // Testing / QA
+    'Manual Testing','Automated Testing','Test Automation','Test Planning',
+    'Test Case Design','Functional Testing','Regression Testing','Integration Testing',
+    'Unit Testing','System Testing','User Acceptance Testing','UAT','Performance Testing',
+    'Load Testing','Stress Testing','Security Testing','API Testing','Mobile Testing',
+    'Cross-Browser Testing','Accessibility Testing','Selenium','Cypress','Playwright',
+    'Puppeteer','TestCafe','Appium','Espresso','XCUITest','JUnit','TestNG','Mocha',
+    'Jest','Jasmine','Karma','Cucumber','Gherkin','SpecFlow','Postman','SoapUI',
+    'REST Assured','JMeter','LoadRunner','Gatling','BlazeMeter','TestRail','Zephyr',
+    'qTest','BrowserStack','Sauce Labs',
+    // Soft skills
+    'Leadership','Servant Leadership','Team Leadership','People Management',
+    'Cross-Functional Leadership','Communication','Verbal Communication',
+    'Written Communication','Executive Communication','Presentation Skills',
+    'Public Speaking','Storytelling','Teamwork','Collaboration',
+    'Cross-Functional Collaboration','Problem Solving','Critical Thinking',
+    'Analytical Thinking','Strategic Thinking','Decision Making','Creativity',
+    'Innovation','Time Management','Prioritization','Organization','Attention to Detail',
+    'Adaptability','Flexibility','Resilience','Emotional Intelligence','Self-Awareness',
+    'Empathy','Persuasion','Influencing','Mentoring','Coaching','Facilitation',
+    'Documentation','Research','Writing','Editing','Proofreading','Multitasking',
+    'Self-Motivation','Work Ethic','Initiative','Ownership','Accountability',
+    // Languages
+    'English','Spanish','French','German','Italian','Portuguese','Mandarin','Cantonese',
+    'Japanese','Korean','Arabic','Hindi','Russian','Dutch','Polish','Swedish',
+    'Norwegian','Danish','Finnish','Greek','Turkish','Hebrew','Vietnamese','Thai',
+    'Indonesian','Tagalog','Bilingual','Multilingual','Translation','Interpretation',
+    // Education / Teaching
+    'Teaching','Classroom Management','Curriculum Development','Lesson Planning',
+    'Instructional Design','eLearning Design','Course Design','Articulate Storyline',
+    'Articulate Rise','Adobe Captivate','Camtasia','LMS Administration','Canvas LMS',
+    'Blackboard','Moodle','Schoology','Google Classroom','Differentiated Instruction',
+    'Special Education','IEP','504 Plans','ESL','TESOL','Tutoring','Academic Advising',
+    // Trades / Other
+    'Carpentry','Plumbing','Electrical','HVAC','Welding','Masonry','Drywall','Painting',
+    'Landscaping','Construction Management','Estimating','Blueprint Reading',
+    'OSHA Compliance','Forklift Operation','CDL Driving','Heavy Equipment Operation',
+    'Auto Mechanics','Diesel Mechanics','Maintenance','Facilities Management',
+    'Custodial','Janitorial','Food Service','Food Safety','ServSafe','Bartending',
+    'Barista','Cooking','Baking','Catering','Event Planning','Wedding Planning',
+    'Hospitality','Hotel Management','Front Desk','Concierge','Housekeeping','Retail',
+    'Cashiering','Visual Merchandising','Inventory Control','POS Systems'
   ];
+
+  // ============================================================
+  // Education & Certification autocomplete banks
+  // Used by the structured-section editor for the Education School field
+  // and the Certifications Name field. Users can still type any custom value.
+  // ============================================================
+  var UNIVERSITY_BANK = [
+    // Ivy League + top private US
+    'Harvard University','Yale University','Princeton University','Columbia University',
+    'University of Pennsylvania','Brown University','Dartmouth College','Cornell University',
+    'Stanford University','Massachusetts Institute of Technology',
+    'California Institute of Technology','University of Chicago','Northwestern University',
+    'Duke University','Johns Hopkins University','Vanderbilt University','Rice University',
+    'Washington University in St. Louis','Emory University','Georgetown University',
+    'University of Notre Dame','Carnegie Mellon University','Tufts University',
+    'Wake Forest University','Boston College','Boston University','New York University',
+    'University of Southern California','University of Miami','Northeastern University',
+    'Case Western Reserve University','Tulane University','Lehigh University',
+    'Rensselaer Polytechnic Institute','Worcester Polytechnic Institute',
+    'Stevens Institute of Technology','Villanova University','Fordham University',
+    'Pepperdine University','Brandeis University','Syracuse University',
+    'American University','George Washington University','Howard University',
+    'Yeshiva University','Drexel University','Hofstra University','University of Rochester',
+    // Top public US (UC system, state flagships)
+    'University of California, Berkeley','University of California, Los Angeles',
+    'University of California, San Diego','University of California, Davis',
+    'University of California, Irvine','University of California, Santa Barbara',
+    'University of California, Santa Cruz','University of California, Riverside',
+    'University of California, Merced','University of Michigan','University of Virginia',
+    'University of North Carolina at Chapel Hill','University of Washington',
+    'University of Texas at Austin','University of Wisconsin-Madison',
+    'University of Illinois Urbana-Champaign','University of Florida',
+    'University of Georgia','University of Maryland, College Park',
+    'University of Minnesota','Ohio State University','Pennsylvania State University',
+    'Purdue University','Indiana University','University of Iowa','Iowa State University',
+    'University of Colorado Boulder','University of Arizona','Arizona State University',
+    'University of Connecticut','University of Massachusetts Amherst','Rutgers University',
+    'University of Pittsburgh','Michigan State University','University of Tennessee',
+    'University of Kentucky','University of Missouri','University of Kansas',
+    'University of Oregon','Oregon State University','University of Utah',
+    'University of Nebraska-Lincoln','University of Oklahoma','Oklahoma State University',
+    'University of Alabama','Auburn University','University of Mississippi',
+    'Mississippi State University','Louisiana State University','University of Arkansas',
+    'University of South Carolina','Clemson University','North Carolina State University',
+    'Virginia Tech','James Madison University','College of William & Mary',
+    'Georgia Institute of Technology','Florida State University',
+    'University of Central Florida','University of South Florida',
+    'Florida International University','University of New Hampshire',
+    'University of Vermont','University of Rhode Island','University of Delaware',
+    'University of Hawaii at Manoa','University of Alaska Fairbanks',
+    'University of Nevada, Las Vegas','University of Nevada, Reno','University of New Mexico',
+    'New Mexico State University','University of Wyoming','Montana State University',
+    'University of Idaho','University of Houston','Texas A&M University',
+    'Texas Tech University','Texas State University','Baylor University',
+    'Southern Methodist University','Texas Christian University',
+    // Other notable
+    'CUNY (City University of New York)','SUNY (State University of New York)',
+    'Binghamton University','Stony Brook University','University at Buffalo',
+    'Temple University','Cleveland State University','Wayne State University',
+    'DePaul University','Loyola University Chicago','Marquette University',
+    'University of San Diego','San Diego State University','San Jose State University',
+    'San Francisco State University','California State University, Los Angeles',
+    'California Polytechnic State University','University of Denver',
+    'Colorado State University','BYU (Brigham Young University)','Utah State University',
+    // HBCUs
+    'Spelman College','Morehouse College','Hampton University','Florida A&M University',
+    'North Carolina A&T State University','Tuskegee University',
+    'Xavier University of Louisiana',
+    // For-profit / online popular
+    'University of Phoenix','Southern New Hampshire University',
+    'Western Governors University','Liberty University','Grand Canyon University',
+    'Capella University','Walden University','Strayer University',
+    'Penn State World Campus','Arizona State University Online','Purdue University Global',
+    'Colorado Technical University','DeVry University','Full Sail University',
+    // International / global
+    'University of Oxford','University of Cambridge','Imperial College London',
+    'London School of Economics','University College London','King\u2019s College London',
+    'University of Edinburgh','University of Manchester','University of Warwick',
+    'University of Bristol','University of Glasgow','University of Toronto',
+    'McGill University','University of British Columbia','University of Waterloo',
+    'University of Montreal','University of Alberta','Western University',
+    'Queen\u2019s University','ETH Zurich','EPFL','University of Zurich',
+    'Sorbonne University','Sciences Po','INSEAD','HEC Paris','Bocconi University',
+    'University of Amsterdam','Delft University of Technology',
+    'Technical University of Munich','University of Heidelberg',
+    'Ludwig Maximilian University of Munich','Karolinska Institute',
+    'KTH Royal Institute of Technology','University of Copenhagen',
+    'Trinity College Dublin','National University of Singapore',
+    'Nanyang Technological University','University of Tokyo','Kyoto University',
+    'Seoul National University','KAIST','Tsinghua University','Peking University',
+    'Fudan University','Shanghai Jiao Tong University','University of Hong Kong',
+    'Hong Kong University of Science and Technology','Australian National University',
+    'University of Melbourne','University of Sydney','University of New South Wales',
+    'Monash University','University of Queensland','Indian Institute of Technology (IIT)',
+    'Indian Institute of Management (IIM)','University of Delhi',
+    'Universidad Nacional Aut\u00f3noma de M\u00e9xico (UNAM)',
+    'Tecnol\u00f3gico de Monterrey','Universidade de S\u00e3o Paulo',
+    'Pontifical Catholic University of Chile',
+    // Community / generic fallbacks
+    'Community College','Local Community College'
+  ];
+
+  var CERTIFICATION_BANK = [
+    // AWS
+    'AWS Certified Cloud Practitioner','AWS Certified Solutions Architect \u2013 Associate',
+    'AWS Certified Solutions Architect \u2013 Professional',
+    'AWS Certified Developer \u2013 Associate',
+    'AWS Certified SysOps Administrator \u2013 Associate',
+    'AWS Certified DevOps Engineer \u2013 Professional',
+    'AWS Certified Data Engineer \u2013 Associate',
+    'AWS Certified Machine Learning \u2013 Specialty',
+    'AWS Certified Security \u2013 Specialty',
+    'AWS Certified Advanced Networking \u2013 Specialty',
+    'AWS Certified Database \u2013 Specialty','AWS Certified Data Analytics \u2013 Specialty',
+    // Microsoft / Azure
+    'Microsoft Certified: Azure Fundamentals (AZ-900)',
+    'Microsoft Certified: Azure Administrator Associate (AZ-104)',
+    'Microsoft Certified: Azure Solutions Architect Expert (AZ-305)',
+    'Microsoft Certified: Azure Developer Associate (AZ-204)',
+    'Microsoft Certified: DevOps Engineer Expert (AZ-400)',
+    'Microsoft Certified: Azure Security Engineer Associate (AZ-500)',
+    'Microsoft Certified: Azure Data Engineer Associate (DP-203)',
+    'Microsoft Certified: Azure Data Scientist Associate (DP-100)',
+    'Microsoft Certified: Power BI Data Analyst Associate (PL-300)',
+    'Microsoft Certified: Power Platform Fundamentals (PL-900)',
+    'Microsoft Certified: Dynamics 365 Fundamentals (MB-910)',
+    'Microsoft 365 Certified: Fundamentals (MS-900)',
+    'Microsoft Office Specialist (MOS) \u2013 Excel',
+    'Microsoft Office Specialist (MOS) \u2013 Word',
+    'Microsoft Office Specialist (MOS) \u2013 PowerPoint',
+    'Microsoft Office Specialist (MOS) Master',
+    // Google Cloud
+    'Google Cloud Digital Leader','Google Associate Cloud Engineer',
+    'Google Professional Cloud Architect','Google Professional Cloud Developer',
+    'Google Professional Cloud DevOps Engineer','Google Professional Cloud Security Engineer',
+    'Google Professional Cloud Network Engineer','Google Professional Data Engineer',
+    'Google Professional Machine Learning Engineer','Google Professional Workspace Administrator',
+    // Google Career Certificates
+    'Google Data Analytics Professional Certificate',
+    'Google Digital Marketing & E-commerce Certificate',
+    'Google IT Support Professional Certificate',
+    'Google IT Automation with Python Certificate',
+    'Google Project Management Professional Certificate',
+    'Google UX Design Professional Certificate',
+    'Google Cybersecurity Professional Certificate',
+    'Google Ads Certification','Google Analytics Certification',
+    // CompTIA
+    'CompTIA A+','CompTIA Network+','CompTIA Security+','CompTIA CySA+','CompTIA PenTest+',
+    'CompTIA CASP+','CompTIA Linux+','CompTIA Cloud+','CompTIA Server+','CompTIA Data+',
+    'CompTIA Project+','CompTIA ITF+',
+    // Cisco
+    'Cisco Certified Network Associate (CCNA)','Cisco Certified Network Professional (CCNP)',
+    'Cisco Certified Internetwork Expert (CCIE)','Cisco Certified DevNet Associate',
+    'Cisco Certified CyberOps Associate',
+    // Security
+    'Certified Information Systems Security Professional (CISSP)',
+    'Certified Information Security Manager (CISM)',
+    'Certified Information Systems Auditor (CISA)',
+    'Certified in Risk and Information Systems Control (CRISC)',
+    'Certified Ethical Hacker (CEH)','Offensive Security Certified Professional (OSCP)',
+    'Offensive Security Certified Expert (OSCE)','GIAC Security Essentials (GSEC)',
+    'GIAC Certified Incident Handler (GCIH)','GIAC Penetration Tester (GPEN)',
+    'GIAC Reverse Engineering Malware (GREM)',
+    'Systems Security Certified Practitioner (SSCP)',
+    'Certified Cloud Security Professional (CCSP)',
+    'HealthCare Information Security and Privacy Practitioner (HCISPP)',
+    // DevOps / Container / Linux
+    'Certified Kubernetes Administrator (CKA)',
+    'Certified Kubernetes Application Developer (CKAD)',
+    'Certified Kubernetes Security Specialist (CKS)','Docker Certified Associate',
+    'HashiCorp Certified: Terraform Associate','HashiCorp Certified: Vault Associate',
+    'HashiCorp Certified: Consul Associate',
+    'Red Hat Certified System Administrator (RHCSA)','Red Hat Certified Engineer (RHCE)',
+    'Red Hat Certified Architect (RHCA)','Linux Professional Institute LPIC-1',
+    'Linux Professional Institute LPIC-2',
+    // ITIL / Service Management
+    'ITIL 4 Foundation','ITIL 4 Managing Professional','ITIL 4 Strategic Leader',
+    'ITIL Practitioner','ServiceNow Certified System Administrator',
+    // Project / Program Management
+    'Project Management Professional (PMP)',
+    'Certified Associate in Project Management (CAPM)',
+    'PMI Agile Certified Practitioner (PMI-ACP)','Program Management Professional (PgMP)',
+    'Portfolio Management Professional (PfMP)','PMI Risk Management Professional (PMI-RMP)',
+    'PMI Scheduling Professional (PMI-SP)','PRINCE2 Foundation','PRINCE2 Practitioner',
+    'PRINCE2 Agile','Certified ScrumMaster (CSM)','Advanced Certified ScrumMaster (A-CSM)',
+    'Certified Scrum Professional (CSP)','Certified Scrum Product Owner (CSPO)',
+    'Professional Scrum Master I (PSM I)','Professional Scrum Master II (PSM II)',
+    'Professional Scrum Product Owner I (PSPO I)','SAFe Agilist (SA)',
+    'SAFe Practitioner (SP)','SAFe Scrum Master (SSM)',
+    'SAFe Product Owner/Product Manager (POPM)','SAFe Program Consultant (SPC)',
+    'Lean Six Sigma Yellow Belt','Lean Six Sigma Green Belt','Lean Six Sigma Black Belt',
+    'Lean Six Sigma Master Black Belt','Certified Business Analysis Professional (CBAP)',
+    'Entry Certificate in Business Analysis (ECBA)',
+    'PMI Professional in Business Analysis (PMI-PBA)',
+    // Data / Analytics
+    'Tableau Desktop Specialist','Tableau Desktop Certified Associate',
+    'Tableau Server Certified Associate','Snowflake SnowPro Core Certification',
+    'Databricks Certified Data Engineer Associate',
+    'Databricks Certified Data Engineer Professional',
+    'Databricks Certified Machine Learning Associate',
+    'Cloudera Certified Data Analyst','Cloudera Certified Professional Data Engineer',
+    'IBM Data Science Professional Certificate',
+    'IBM AI Engineering Professional Certificate',
+    'SAS Certified Specialist: Base Programming','SAS Certified Data Scientist',
+    'Oracle Database Administrator Certified Professional',
+    'MongoDB Certified Developer Associate','MongoDB Certified DBA Associate',
+    'Alteryx Designer Core','Alteryx Designer Advanced',
+    // Finance / Accounting
+    'Certified Public Accountant (CPA)','Certified Management Accountant (CMA)',
+    'Chartered Financial Analyst (CFA) Level I','Chartered Financial Analyst (CFA) Level II',
+    'Chartered Financial Analyst (CFA) Level III','Financial Risk Manager (FRM)',
+    'Chartered Alternative Investment Analyst (CAIA)','Certified Financial Planner (CFP)',
+    'Chartered Financial Consultant (ChFC)','Chartered Life Underwriter (CLU)',
+    'Certified Fraud Examiner (CFE)','Certified Internal Auditor (CIA)',
+    'Enrolled Agent (EA)','Certified Treasury Professional (CTP)','FINRA Series 6',
+    'FINRA Series 7','FINRA Series 63','FINRA Series 65','FINRA Series 66',
+    'FINRA Series 79','FINRA Series 24','FINRA Series 99','FINRA SIE',
+    // HR
+    'SHRM Certified Professional (SHRM-CP)','SHRM Senior Certified Professional (SHRM-SCP)',
+    'Professional in Human Resources (PHR)','Senior Professional in Human Resources (SPHR)',
+    'Global Professional in Human Resources (GPHR)',
+    'Associate Professional in Human Resources (aPHR)',
+    'Certified Compensation Professional (CCP)','Certified Benefits Professional (CBP)',
+    // Marketing / Sales
+    'HubSpot Inbound Marketing Certification','HubSpot Content Marketing Certification',
+    'HubSpot Email Marketing Certification','HubSpot Sales Software Certification',
+    'Meta Certified Digital Marketing Associate','Meta Blueprint Certification',
+    'Hootsuite Social Marketing Certification','Hootsuite Platform Certification',
+    'Salesforce Certified Administrator','Salesforce Certified Advanced Administrator',
+    'Salesforce Certified Platform App Builder','Salesforce Certified Platform Developer I',
+    'Salesforce Certified Platform Developer II',
+    'Salesforce Certified Sales Cloud Consultant',
+    'Salesforce Certified Service Cloud Consultant',
+    'Salesforce Certified Marketing Cloud Email Specialist',
+    'Salesforce Certified Marketing Cloud Administrator',
+    'Pardot Specialist Certification','Marketo Certified Expert',
+    // Healthcare
+    'Basic Life Support (BLS)','Advanced Cardiovascular Life Support (ACLS)',
+    'Pediatric Advanced Life Support (PALS)','Neonatal Resuscitation Program (NRP)',
+    'CPR/AED Certified','First Aid Certified','Registered Nurse (RN) License',
+    'Licensed Practical Nurse (LPN)','Certified Nursing Assistant (CNA)','NCLEX-RN',
+    'NCLEX-PN','Critical Care Registered Nurse (CCRN)',
+    'Certified Medical Assistant (CMA)','Registered Medical Assistant (RMA)',
+    'Certified Professional Coder (CPC)','Certified Coding Specialist (CCS)',
+    'Registered Health Information Administrator (RHIA)',
+    'Registered Health Information Technician (RHIT)',
+    'Certified Pharmacy Technician (CPhT)','Medical Laboratory Technician (MLT)',
+    'Phlebotomy Certification',
+    // Education
+    'Teaching Credential','Teaching License','State Teaching Certification',
+    'TESOL Certification','TEFL Certification','CELTA','National Board Certification',
+    // Real Estate / Insurance
+    'Real Estate License','Real Estate Broker License','Insurance Producer License',
+    'Life and Health Insurance License','Property and Casualty Insurance License',
+    // Trades / Safety / Other
+    'OSHA 10','OSHA 30','OSHA 40 (HAZWOPER)','ServSafe Food Handler','ServSafe Manager',
+    'CDL Class A','CDL Class B','Forklift Operator Certification','Notary Public',
+    'EMT (Emergency Medical Technician)','Paramedic Certification','LEED Green Associate',
+    'LEED AP'
+  ];
+
+  // Map of bank keys used by autocomplete-enabled inputs.
+  var AUTOCOMPLETE_BANKS = {
+    universities:   UNIVERSITY_BANK,
+    certifications: CERTIFICATION_BANK
+  };
+
+  // Generic floating-suggestion box for inputs that opt in via the
+  // data-autocomplete-bank="<key>" attribute. The box is body-attached and
+  // shared across all such inputs so it can overflow scrollable section cards
+  // and work consistently on desktop + mobile (touch).
+  function _rbAutoEnsureFloater() {
+    var box = document.getElementById('rb-autocomplete-floater');
+    if (box) return box;
+    box = document.createElement('div');
+    box.id = 'rb-autocomplete-floater';
+    box.className = 'rb-ac-floater';
+    box.hidden = true;
+    document.body.appendChild(box);
+    return box;
+  }
+  function _rbAutoHide() {
+    var box = document.getElementById('rb-autocomplete-floater');
+    if (box) { box.hidden = true; box.innerHTML = ''; box._targetInput = null; }
+  }
+  function _rbAutoMatches(bankKey, query) {
+    var bank = AUTOCOMPLETE_BANKS[bankKey];
+    if (!bank || !bank.length) return [];
+    var q = String(query || '').toLowerCase().trim();
+    if (!q) return [];
+    var starts = [], contains = [];
+    for (var i = 0; i < bank.length; i++) {
+      var item = bank[i];
+      var lc = item.toLowerCase();
+      if (lc === q) continue;
+      var idx = lc.indexOf(q);
+      if (idx === 0) starts.push(item);
+      else if (idx > 0) contains.push(item);
+      if (starts.length >= 10) break;
+    }
+    return starts.concat(contains).slice(0, 10);
+  }
+  function _rbAutoShow(input, matches) {
+    var box = _rbAutoEnsureFloater();
+    if (!matches.length) { _rbAutoHide(); return; }
+    var rect = input.getBoundingClientRect();
+    var vw = window.innerWidth || document.documentElement.clientWidth || 320;
+    var vh = window.innerHeight || document.documentElement.clientHeight || 480;
+    // Mobile-friendly width: cap to viewport - 16px padding.
+    var width = Math.min(rect.width, vw - 16);
+    if (width < 160) width = Math.min(vw - 16, 240);
+    var left = rect.left + window.scrollX;
+    // Keep within viewport horizontally on small screens.
+    if (left + width > window.scrollX + vw - 8) {
+      left = Math.max(window.scrollX + 8, window.scrollX + vw - 8 - width);
+    }
+    // Vertical max-height shrinks on short viewports (e.g. phone w/ keyboard).
+    var maxH = Math.min(240, Math.max(120, vh - rect.bottom - 24));
+    box.style.left  = left + 'px';
+    box.style.top   = (rect.bottom + window.scrollY + 4) + 'px';
+    box.style.width = width + 'px';
+    box.style.maxHeight = maxH + 'px';
+    box.innerHTML = matches.map(function (s) {
+      return '<div class="rb-ac-item" data-rb-ac-suggest="' + _esc(s) + '">' + _esc(s) + '</div>';
+    }).join('');
+    box.hidden = false;
+    box._targetInput = input;
+  }
+  function _rbAutoCommit(input, value) {
+    if (!input) return;
+    input.value = value;
+    try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+    _rbAutoHide();
+    try { input.focus(); } catch (_) {}
+  }
+  function _rbAutoInit() {
+    if (window._rbAutoInited) return;
+    window._rbAutoInited = true;
+    document.addEventListener('input', function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute) return;
+      var bank = t.getAttribute('data-autocomplete-bank');
+      if (!bank) return;
+      _rbAutoShow(t, _rbAutoMatches(bank, t.value));
+    }, true);
+    document.addEventListener('focusin', function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute) return;
+      var bank = t.getAttribute('data-autocomplete-bank');
+      if (!bank) return;
+      if (t.value) _rbAutoShow(t, _rbAutoMatches(bank, t.value));
+    });
+    document.addEventListener('focusout', function (ev) {
+      var t = ev.target;
+      if (!t || !t.getAttribute) return;
+      if (!t.getAttribute('data-autocomplete-bank')) return;
+      // Slight delay so a click/touch on a suggestion fires first.
+      setTimeout(_rbAutoHide, 180);
+    });
+    // mousedown (desktop) and touchstart (mobile) so the input's blur doesn't
+    // fire before the selection is captured.
+    function pickFrom(ev) {
+      var item = ev.target && ev.target.closest && ev.target.closest('[data-rb-ac-suggest]');
+      if (!item) return;
+      var box = document.getElementById('rb-autocomplete-floater');
+      if (!box || !box._targetInput) return;
+      ev.preventDefault();
+      _rbAutoCommit(box._targetInput, item.getAttribute('data-rb-ac-suggest'));
+    }
+    document.addEventListener('mousedown', pickFrom);
+    document.addEventListener('touchstart', pickFrom, { passive: false });
+    window.addEventListener('scroll', _rbAutoHide, true);
+    window.addEventListener('resize', _rbAutoHide);
+  }
+  try { _rbAutoInit(); } catch (_) {}
   function _hasSkill(arr, skill) {
     var key = String(skill).toLowerCase().trim();
     return arr.some(function (s) { return String(s).toLowerCase().trim() === key; });
@@ -25750,7 +26404,10 @@
     var positioning   = r.positioning || r.recommendations || r.suggested_positioning || r.candidate_positioning_notes || null;
     var sourceNote    = r.source || r.source_note || r.research_source || '';
 
-    var html = '<details class="role-research-review-card" open>' +
+    // The AI Role Research Results panel is intentionally COLLAPSED by default
+    // after research completes so it does not push the rest of the Target Role
+    // section off-screen. Users can click the summary to expand it any time.
+    var html = '<details class="role-research-review-card">' +
       '<summary>' +
         '<span>AI Role Research Results</span>' +
         '<small>Review what the AI found for this target role</small>' +
