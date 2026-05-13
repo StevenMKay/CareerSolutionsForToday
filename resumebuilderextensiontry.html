@@ -30693,23 +30693,48 @@
 
     function buildProfile(resumeData) {
       var rd = resumeData || {};
-      var split = splitFullName(rd.name);
-      var addr  = splitAddress(rd.address, rd.location);
-      return {
-        firstName: split.first,
-        lastName:  split.last,
-        fullName:  (rd.name || '').trim(),
-        email:     (rd.email || '').trim(),
-        phone:     (rd.phone || '').trim(),
-        addressLine1: addr.line1,
-        city:         addr.city,
-        state:        addr.state,
-        postalCode:   addr.postal,
+      // Saved resumes may store the same value under several keys depending on when/how they were created
+      // (raw extraction vs. normalized). Pick the first non-empty for each.
+      function pick() {
+        for (var i = 0; i < arguments.length; i++) {
+          var v = arguments[i];
+          if (v != null && String(v).trim() !== '') return String(v).trim();
+        }
+        return '';
+      }
+      var fullName     = pick(rd.name, rd.full_name, rd.fullName, rd.displayName,
+                              ((rd.first_name || rd.firstName || '') + ' ' + (rd.last_name || rd.lastName || '')).trim());
+      var email        = pick(rd.email, rd.email_address, rd.emailAddress, rd.contact_email);
+      var phone        = pick(rd.phone, rd.phone_number, rd.phoneNumber, rd.mobile, rd.cell, rd.contact_phone);
+      var addressStr   = pick(rd.address, rd.street_address, rd.streetAddress, rd.mailing_address);
+      var locationStr  = pick(rd.location, rd.city_state, rd.cityState);
+      var explicitCity = pick(rd.city);
+      var explicitState= pick(rd.state, rd.region, rd.state_code, rd.stateCode);
+      var explicitZip  = pick(rd.postal_code, rd.postalCode, rd.zip, rd.zip_code, rd.zipCode);
+      var explicitLine1= pick(rd.address_line_1, rd.addressLine1, rd.street, rd.street_address);
+      var explicitFirst= pick(rd.first_name, rd.firstName, rd.given_name, rd.givenName);
+      var explicitLast = pick(rd.last_name, rd.lastName, rd.family_name, rd.familyName, rd.surname);
+
+      var split = splitFullName(fullName);
+      var addr  = splitAddress(addressStr, locationStr);
+
+      var profile = {
+        firstName:    explicitFirst || split.first,
+        lastName:     explicitLast  || split.last,
+        fullName:     fullName,
+        email:        email,
+        phone:        phone,
+        addressLine1: explicitLine1 || addr.line1,
+        city:         explicitCity  || addr.city,
+        state:        explicitState || addr.state,
+        postalCode:   explicitZip   || addr.postal,
         country:      addr.country || 'United States of America',
-        linkedin:  (rd.linkedin || '').trim(),
-        github:    (rd.github || '').trim(),
-        website:   (rd.website || '').trim()
+        linkedin:     pick(rd.linkedin, rd.linkedin_url, rd.linkedinProfile, rd.linkedIn),
+        github:       pick(rd.github, rd.github_url, rd.githubProfile),
+        website:      pick(rd.website, rd.portfolio, rd.personal_website, rd.website_url)
       };
+      try { console.log('[autofill] profile built:', profile, 'from rd keys:', Object.keys(rd)); } catch (e) {}
+      return profile;
     }
 
     // ---- Selector maps per ATS ----
