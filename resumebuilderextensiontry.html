@@ -30861,30 +30861,99 @@
           return;
         }
 
-        // --- React-safe value setter ---
+        // --- Framework-safe value setter ---
+        // Workday's frontend (OpenUI, not React) ignores plain `.value =` assignments and rebinds
+        // its internal state on focus/blur. The most reliable path is to focus the field, select
+        // any existing text, then dispatch a sequence of input events that mirror a real keystroke.
+        // We try execCommand('insertText') first (treated as real user input by every framework),
+        // then fall back to the native value setter + InputEvent for browsers where execCommand is gone.
         function setNativeValue(el, value) {
           var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
           var desc = Object.getOwnPropertyDescriptor(proto, 'value');
           if (desc && desc.set) desc.set.call(el, value);
           else el.value = value;
         }
-        function fire(el, type) {
-          el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+        function fire(el, type, init) {
+          var Ctor = (type === 'input' || type === 'beforeinput') && window.InputEvent ? window.InputEvent : Event;
+          var ev;
+          try { ev = new Ctor(type, Object.assign({ bubbles: true, cancelable: true }, init || {})); }
+          catch (_) { ev = new Event(type, { bubbles: true, cancelable: true }); }
+          el.dispatchEvent(ev);
         }
         function fillEl(el, value) {
           if (!el || value == null || value === '') return false;
-          // Skip if user already typed something different (safety)
-          if (el.value && String(el.value).trim() && String(el.value).trim() !== String(value).trim()) {
-            // We'll still fill, but record it for the toast.
+          var current = (el.value || '').trim();
+          var target  = String(value).trim();
+          if (current && current === target) return true; // already correct, treat as success
+          if (current && current !== target) {
             window.__autofillOverwrites = (window.__autofillOverwrites || 0) + 1;
           }
-          el.focus();
-          setNativeValue(el, value);
-          fire(el, 'input');
+          try {
+            el.focus({ preventScroll: true });
+          } catch (_) { try { el.focus(); } catch(__){} }
+          fire(el, 'focus');
+          fire(el, 'focusin');
+
+          // Strategy 1: select all existing text + execCommand('insertText'). Works for Workday.
+          var inserted = false;
+          try {
+            if (typeof el.setSelectionRange === 'function') {
+              try { el.setSelectionRange(0, (el.value || '').length); } catch (_) {}
+            } else if (typeof el.select === 'function') {
+              try { el.select(); } catch (_) {}
+            }
+            if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+              // Clear first (delete selection), then insert
+              if ((el.value || '').length) {
+                try { document.execCommand('delete', false); } catch (_) {}
+              }
+              inserted = document.execCommand('insertText', false, target);
+            }
+          } catch (_) { inserted = false; }
+
+          // Strategy 2: native setter + InputEvent fallback
+          if (!inserted || (el.value || '').trim() !== target) {
+            setNativeValue(el, '');
+            fire(el, 'beforeinput', { inputType: 'deleteContentBackward' });
+            fire(el, 'input',       { inputType: 'deleteContentBackward' });
+            setNativeValue(el, target);
+            fire(el, 'beforeinput', { inputType: 'insertText', data: target });
+            fire(el, 'input',       { inputType: 'insertText', data: target });
+          }
           fire(el, 'change');
-          el.blur();
+          fire(el, 'focusout');
+          try { el.blur(); } catch (_) {}
           fire(el, 'blur');
-          return true;
+
+          // Verify
+          return ((el.value || '').trim() === target);
+        }
+
+        // --- Click a radio whose visible label matches one of the given regexes ---
+        function clickRadioByLabel(scope, labelPatterns) {
+          var radios = (scope || document).querySelectorAll('input[type="radio"]');
+          for (var i = 0; i < radios.length; i++) {
+            var r = radios[i];
+            var label = '';
+            if (r.id) {
+              var lab = document.querySelector('label[for="' + r.id + '"]');
+              if (lab) label = (lab.textContent || '').trim();
+            }
+            if (!label) {
+              var parentLabel = r.closest && r.closest('label');
+              if (parentLabel) label = (parentLabel.textContent || '').trim();
+            }
+            if (!label) label = (r.getAttribute('aria-label') || '').trim();
+            for (var j = 0; j < labelPatterns.length; j++) {
+              if (labelPatterns[j].test(label)) {
+                try { r.focus(); } catch (_) {}
+                r.click();
+                fire(r, 'change');
+                return true;
+              }
+            }
+          }
+          return false;
         }
 
         // --- Pre-flight overwrite check (Option B from plan) ---
