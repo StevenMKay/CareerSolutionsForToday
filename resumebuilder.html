@@ -3753,6 +3753,18 @@
     color: #6EE7B7;
   }
   .email-login-box .confirm-password-wrapper.hidden { display: none; }
+  .login-link-inline {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    color: var(--c-accent, #60a5fa);
+    text-decoration: underline;
+    cursor: pointer;
+    font: inherit;
+  }
+  .login-link-inline:hover { color: var(--c-accent-hover, #93c5fd); }
 
   /* ---- Resume dashboard ---- */
   .resume-dashboard {
@@ -5570,7 +5582,7 @@
           <i data-lucide="eye" style="width:16px;height:16px;"></i>
         </button>
       </div>
-      <div id="confirm-password-row" class="confirm-password-wrapper">
+      <div id="confirm-password-row" class="confirm-password-wrapper hidden">
         <label class="field-label" for="login-password-confirm">Confirm password</label>
         <div class="password-wrapper">
           <input id="login-password-confirm" class="input" type="password" autocomplete="new-password" placeholder="Re-enter your password">
@@ -5590,14 +5602,19 @@
       </div>
       <div id="login-error" class="login-error hidden"></div>
       <button id="login-email-btn" type="button" class="btn btn-primary" disabled>
-        <i data-lucide="mail" style="width:16px;height:16px;"></i>
-        Continue with Email
+        <i data-lucide="log-in" style="width:16px;height:16px;"></i>
+        Sign In
       </button>
       <button id="forgot-password-btn" type="button" class="login-link-btn">
         Forgot password?
       </button>
-      <p class="login-email-note">
-        New here? Enter your email and a password to create an account.
+      <p class="login-email-note" id="login-mode-note-signin">
+        New here?
+        <button type="button" id="login-mode-create" class="login-link-btn login-link-inline">Create an account</button>
+      </p>
+      <p class="login-email-note hidden" id="login-mode-note-signup">
+        Already have an account?
+        <button type="button" id="login-mode-signin" class="login-link-btn login-link-inline">Sign in</button>
       </p>
     </div>
   </div>
@@ -26775,41 +26792,41 @@
       if (li) li.classList.toggle('met', !!map[id]);
     });
   }
-  function setSignupModeUI(isNewAccount) {
-    // Confirm-password row is ALWAYS visible per user request — we no
-    // longer hide it based on whether the email is detected as new. The
-    // "new account" gating still happens server-side / in signInWithEmail()
-    // (it enforces match + requirements only when methods.length === 0).
+  // Tracks which mode the email/password form is in. Switched explicitly
+  // by the user via the "Create an account" / "Sign in" toggle links —
+  // never auto-detected from the typed email. We intentionally do NOT
+  // call auth.fetchSignInMethodsForEmail to decide this, because Firebase
+  // Email Enumeration Protection makes that lookup unreliable (it can
+  // return an empty array for accounts that actually exist).
+  var _loginMode = 'signin';
+  function getLoginMode() { return _loginMode; }
+  function setLoginMode(mode) {
+    _loginMode = (mode === 'signup') ? 'signup' : 'signin';
+    var isSignup = _loginMode === 'signup';
+    var confirmRow = document.getElementById('confirm-password-row');
     var reqBox     = document.getElementById('password-requirements');
     var pwInput    = document.getElementById('login-password');
     var emailBtn   = document.getElementById('login-email-btn');
-    if (reqBox)     reqBox.classList.toggle('hidden',     !isNewAccount);
-    if (pwInput) {
-      pwInput.setAttribute('autocomplete', isNewAccount ? 'new-password' : 'current-password');
-    }
-    if (emailBtn && emailBtn.dataset.originalText) {
-      // refresh button label to reflect mode
-      emailBtn.dataset.originalText = isNewAccount
+    var noteSignin = document.getElementById('login-mode-note-signin');
+    var noteSignup = document.getElementById('login-mode-note-signup');
+    if (confirmRow) confirmRow.classList.toggle('hidden', !isSignup);
+    if (reqBox)     reqBox.classList.toggle('hidden', !isSignup);
+    if (pwInput)    pwInput.setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
+    if (noteSignin) noteSignin.classList.toggle('hidden', isSignup);
+    if (noteSignup) noteSignup.classList.toggle('hidden', !isSignup);
+    if (emailBtn) {
+      var label = isSignup
         ? '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Create account'
-        : '<i data-lucide="mail" style="width:16px;height:16px;"></i> Continue with Email';
+        : '<i data-lucide="log-in" style="width:16px;height:16px;"></i> Sign In';
+      emailBtn.dataset.originalText = label;
+      // Don't clobber a "Signing in..." spinner mid-request.
       if (!emailBtn.disabled || emailBtn.innerHTML.indexOf('Signing') === -1) {
-        emailBtn.innerHTML = emailBtn.dataset.originalText;
+        emailBtn.innerHTML = label;
         try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
       }
     }
-    if (isNewAccount) updatePasswordRequirementsUI();
-  }
-  function probeEmailForSignupMode() {
-    var email = getLoginEmail();
-    if (!email || !isValidEmailAddress(email)) {
-      setSignupModeUI(false);
-      return;
-    }
-    getSignInMethodsForEmailSafe(email).then(function (methods) {
-      methods = Array.isArray(methods) ? methods : [];
-      var isNew = methods.length === 0;
-      setSignupModeUI(isNew);
-    });
+    if (isSignup) updatePasswordRequirementsUI();
+    clearLoginError();
   }
   function showLoginError(message) {
     var errEl = document.getElementById('login-error');
@@ -26865,47 +26882,51 @@
     if (!isValidEmailAddress(email)) { showLoginError('Please enter a valid email address.'); return; }
     if (password.length < 1) { showLoginError('Please enter your password.'); return; }
 
+    var mode = getLoginMode();
     setEmailLoginLoading(true);
     markLoginPoliciesAccepted();
-    // Same first-run-walkthrough hint as the Google path; consumed by the
-    // auth listener once Firebase finishes the sign-in/create-account.
-    try { sessionStorage.setItem('rb_pending_first_run', '1'); } catch (_) {}
 
-    return getSignInMethodsForEmailSafe(email).then(function (methods) {
-      methods = Array.isArray(methods) ? methods : [];
-      var hasGoogle = methods.indexOf('google.com') !== -1;
-      var hasPassword = methods.indexOf('password') !== -1;
-      if (hasGoogle && !hasPassword) {
-        showLoginError('This email is registered with Google. Please use Continue with Google.');
+    var op;
+    if (mode === 'signup') {
+      var confirm = getLoginPasswordConfirm();
+      var reqs = checkPasswordRequirements(password, confirm);
+      if (!reqs.length || !reqs.letter || !reqs.number) {
+        showLoginError('Please choose a password with at least 8 characters including a letter and a number.');
         setEmailLoginLoading(false);
-        return null;
+        return;
       }
-      if (methods.length === 0) {
-        // New account — enforce confirm-password and requirements
-        setSignupModeUI(true);
-        var confirm = getLoginPasswordConfirm();
-        var reqs = checkPasswordRequirements(password, confirm);
-        if (!reqs.length || !reqs.letter || !reqs.number) {
-          showLoginError('Please choose a password with at least 8 characters including a letter and a number.');
-          setEmailLoginLoading(false);
-          return null;
-        }
-        if (!reqs.match) {
-          showLoginError('Passwords do not match. Please re-enter the same password in both fields.');
-          setEmailLoginLoading(false);
-          return null;
-        }
-        return auth.createUserWithEmailAndPassword(email, password);
+      if (!reqs.match) {
+        showLoginError('Passwords do not match. Please re-enter the same password in both fields.');
+        setEmailLoginLoading(false);
+        return;
       }
-      return auth.signInWithEmailAndPassword(email, password);
-    }).catch(function (e) {
+      // Only signal first-run walkthrough for an actual new-account creation.
+      // Returning users in sign-in mode must NOT trigger this flag.
+      try { sessionStorage.setItem('rb_pending_first_run', '1'); } catch (_) {}
+      op = auth.createUserWithEmailAndPassword(email, password);
+    } else {
+      // Sign-in mode: try the password directly. We do not probe with
+      // fetchSignInMethodsForEmail because Email Enumeration Protection
+      // makes that signal unreliable. Errors are surfaced via .catch().
+      op = auth.signInWithEmailAndPassword(email, password);
+    }
+
+    return op.catch(function (e) {
+      // If account creation hits an existing email, drop the first-run
+      // flag we just set and flip the UI back to sign-in mode.
+      if (e && e.code === 'auth/email-already-in-use') {
+        try { sessionStorage.removeItem('rb_pending_first_run'); } catch (_) {}
+        setLoginMode('signin');
+        showLoginError('An account already exists \u2014 please sign in.');
+        setEmailLoginLoading(false);
+        return;
+      }
+
       var code = e && e.code;
-      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        showLoginError('Incorrect password. Try again or click "Forgot password?"');
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/user-not-found') {
+        showLoginError('Email or password is incorrect. New here? Click \u201CCreate an account\u201D.');
       } else if (code === 'auth/weak-password') {
         showLoginError('Password must be at least 6 characters.');
-      } else if (code === 'auth/email-already-in-use') {
-        showLoginError('An account with this email already exists. Try your password or click "Forgot password?"');
       } else if (code === 'auth/too-many-requests') {
         showLoginError('Too many attempts. Please wait a moment and try again.');
       } else if (code === 'auth/operation-not-allowed' || code === 'auth/configuration-not-found') {
@@ -26918,6 +26939,11 @@
         showLoginError('Network error. Please check your connection and try again.');
       } else {
         showLoginError((e && e.message) || 'Email sign-in failed.');
+      }
+      // If a creation attempt failed for any other reason, clear the
+      // walkthrough hint so a later successful sign-in doesn't inherit it.
+      if (mode === 'signup') {
+        try { sessionStorage.removeItem('rb_pending_first_run'); } catch (_) {}
       }
       setEmailLoginLoading(false);
     });
@@ -26971,19 +26997,17 @@
           if (passwordInput) passwordInput.focus();
         }
       });
-      emailInput.addEventListener('blur', probeEmailForSignupMode);
-      emailInput.addEventListener('change', probeEmailForSignupMode);
+      // NOTE: We intentionally do NOT probe the email on blur/change with
+      // fetchSignInMethodsForEmail — Firebase Email Enumeration Protection
+      // makes that signal unreliable. Mode is controlled by the explicit
+      // "Create an account" / "Sign in" toggle links instead.
     }
     if (passwordInput && !passwordInput._passwordKeyAttached) {
       passwordInput._passwordKeyAttached = true;
       passwordInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
           e.preventDefault();
-          // Signup mode is now signaled by #password-requirements being
-          // visible (the confirm row is always visible per user request).
-          var reqBox = document.getElementById('password-requirements');
-          var inSignup = !!(reqBox && !reqBox.classList.contains('hidden'));
-          if (inSignup && confirmInput) {
+          if (getLoginMode() === 'signup' && confirmInput) {
             confirmInput.focus();
           } else {
             signInWithEmail();
@@ -27026,6 +27050,27 @@
         try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
       });
     }
+    var modeCreateBtn = document.getElementById('login-mode-create');
+    var modeSigninBtn = document.getElementById('login-mode-signin');
+    if (modeCreateBtn && !modeCreateBtn._modeAttached) {
+      modeCreateBtn._modeAttached = true;
+      modeCreateBtn.addEventListener('click', function () {
+        setLoginMode('signup');
+        var pwField = document.getElementById('login-password');
+        if (pwField) pwField.focus();
+      });
+    }
+    if (modeSigninBtn && !modeSigninBtn._modeAttached) {
+      modeSigninBtn._modeAttached = true;
+      modeSigninBtn.addEventListener('click', function () {
+        setLoginMode('signin');
+        var pwField = document.getElementById('login-password');
+        if (pwField) pwField.focus();
+      });
+    }
+    // Always start in sign-in mode on (re)init. Returning users who were
+    // previously signed out should never see signup UI by default.
+    setLoginMode('signin');
     updateLoginButtonStates();
   }
 
