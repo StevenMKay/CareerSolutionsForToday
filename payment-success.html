@@ -130,42 +130,24 @@
     </div>
     <script>
     (function(){
-      // If the user started checkout from the Resume Builder, auto-return them
-      // there so the builder can pick up ?upgraded=1 and unlock features.
+      // If the user started checkout from the Resume Builder, send them straight
+      // back so the builder can pick up ?upgraded=1 and unlock features. We skip
+      // rendering the interim "What happens next?" content entirely to avoid a
+      // jarring split-second flash before the redirect.
       try {
         var ts = parseInt(localStorage.getItem('_builderCheckoutPending') || '0', 10);
-        if (!ts || (Date.now() - ts) > 60 * 60 * 1000) return; // stale / missing
+        if (!ts || (Date.now() - ts) > 60 * 60 * 1000) return; // stale / missing — show normal success page
         localStorage.removeItem('_builderCheckoutPending');
+        // Forward the Stripe session_id so the builder can call
+        // /api/builder/verify-checkout for an instant unlock instead of
+        // waiting on the webhook.
+        var sessionId = '';
+        try { sessionId = (new URLSearchParams(window.location.search)).get('session_id') || ''; } catch (_) {}
+        var returnUrl = 'resumebuilder.html?upgraded=1' + (sessionId ? ('&session_id=' + encodeURIComponent(sessionId)) : '');
+        // Hide the success container immediately so nothing flashes, then redirect.
         var container = document.querySelector('.success-container');
-        var actions = document.querySelector('.action-buttons');
-        if (!container || !actions) { window.location.href = 'resumebuilder.html?upgraded=1'; return; }
-        // Replace the action-button row with builder-specific return controls
-        actions.innerHTML = '<a href="resumebuilder.html?upgraded=1" class="btn btn-primary" id="rb-return-btn">Return to Resume Builder</a>' +
-                            '<button type="button" class="btn btn-secondary" id="rb-stay-btn">Stay Here</button>';
-        // Countdown notice above the buttons
-        var note = document.createElement('p');
-        note.id = 'rb-countdown';
-        note.style.cssText = 'margin:0 0 12px;color:#0A2F6B;font-weight:600;font-size:0.95rem';
-        note.innerHTML = 'Taking you back to the Resume Builder in <span id="rb-sec">3</span>…';
-        actions.parentNode.insertBefore(note, actions);
-        var secs = 3, stopped = false;
-        var stayBtn = document.getElementById('rb-stay-btn');
-        stayBtn.addEventListener('click', function(){
-          stopped = true;
-          var n = document.getElementById('rb-countdown');
-          if (n) n.remove();
-          stayBtn.remove();
-        });
-        var t = setInterval(function(){
-          if (stopped) { clearInterval(t); return; }
-          secs--;
-          var s = document.getElementById('rb-sec');
-          if (s) s.textContent = String(Math.max(0, secs));
-          if (secs <= 0) {
-            clearInterval(t);
-            if (!stopped) window.location.href = 'resumebuilder.html?upgraded=1';
-          }
-        }, 1000);
+        if (container) container.style.display = 'none';
+        window.location.replace(returnUrl);
       } catch(e) { /* ignore and leave page as-is */ }
     })();
     </script>
