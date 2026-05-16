@@ -33,10 +33,26 @@
   // Google Ads conversion tracking / remarketing
   gtag('config', 'AW-11361526924');
 </script>
+<script>
+  // Pre-paint flag: Stripe redirects back to ?upgraded=1 after a successful
+  // checkout. We mark <html> immediately so CSS can hide the logged-out
+  // marketing landing (and reveal the dashboard placeholder) BEFORE the
+  // first paint, eliminating the brief flash of marketing content while
+  // Firebase auth hydrates. The flag is cleared after activation completes
+  // by stripUpgradedFromUrl() / refreshEntitlementsAndCelebrate().
+  (function () {
+    try {
+      var p = new URLSearchParams(window.location.search);
+      if (p.get('upgraded') === '1' || p.has('session_id')) {
+        document.documentElement.classList.add('post-checkout-pending');
+      }
+    } catch (_) {}
+  })();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Resume Portfolio</title>
-<meta name="description" content="Resume Portfolio — build, optimize, and share polished resume versions tailored to each role.">
+<meta name="description" content="Resume Portfolio Builder — upload your resume, add a job description, review AI match guidance, and create role-targeted documents or a shareable portfolio.">
 <meta name="application-name" content="Resume Portfolio">
 <meta name="apple-mobile-web-app-title" content="Resume Portfolio">
 
@@ -54,7 +70,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Resume Portfolio">
 <meta property="og:title" content="Resume Portfolio">
-<meta property="og:description" content="Build, optimize, and share polished resume versions tailored to each role.">
+<meta property="og:description" content="Upload your resume, add a job description, review AI match guidance, and create role-targeted documents or a shareable portfolio.">
 <meta property="og:image" content="https://www.careersolutionsfortoday.com/assets/icons/finalicon055050.png">
 <meta property="og:image:alt" content="Resume Portfolio logo">
 <meta property="og:image:width" content="512">
@@ -64,7 +80,7 @@
 <!-- Twitter / X link previews -->
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Resume Portfolio">
-<meta name="twitter:description" content="Build, optimize, and share polished resume versions tailored to each role.">
+<meta name="twitter:description" content="Upload your resume, add a job description, review AI match guidance, and create role-targeted documents or a shareable portfolio.">
 <meta name="twitter:image" content="https://www.careersolutionsfortoday.com/assets/icons/finalicon055050.png">
 <meta name="twitter:image:alt" content="Resume Portfolio logo">
 
@@ -3580,7 +3596,7 @@
 
   /* ---- Login landing ---- */
   .login-landing {
-    max-width: 720px;
+    max-width: 1200px;
     margin: 2.5rem auto;
     padding: 0 1.25rem;
   }
@@ -3649,23 +3665,570 @@
   }
   .login-features-link i { color: inherit; }
 
+  /* Attention-grabbing conic shimmer that sweeps around the entire login
+     card, triggered when a marketing CTA ("Start Free Resume Portfolio")
+     scrolls the user to the login. Site blue palette. The class is
+     auto-removed by focusLogin() after a couple of sweeps. */
+  @property --lp-shimmer-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+  @keyframes lpShimmerSpin {
+    to { --lp-shimmer-angle: 360deg; }
+  }
+  @keyframes lpShimmerFade {
+    0%   { opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .login-card.lp-attention-glow {
+    position: relative;
+    border-radius: 18px;
+    isolation: isolate;
+  }
+  /* The shimmer ring lives in a ::before so it doesn't disturb the card
+     layout or its existing border/box-shadow. */
+  .login-card.lp-attention-glow::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    padding: 3px;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      conic-gradient(
+        from var(--lp-shimmer-angle, 0deg),
+        rgba(37, 99, 235, 0)    0deg,
+        rgba(37, 99, 235, 0)    40deg,
+        rgba(59, 130, 246, 0.95) 90deg,
+        rgba(96, 165, 250, 1)   130deg,
+        rgba(37, 99, 235, 0)    180deg,
+        rgba(37, 99, 235, 0)    250deg,
+        rgba(59, 130, 246, 0.95) 300deg,
+        rgba(96, 165, 250, 1)   340deg,
+        rgba(37, 99, 235, 0)    360deg
+      );
+    /* Mask trims the gradient to a thin ring matching the card border. */
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.55))
+            drop-shadow(0 0 14px rgba(59, 130, 246, 0.35));
+    animation:
+      lpShimmerSpin 2.2s linear infinite,
+      lpShimmerFade 2.6s ease-out 1 forwards;
+    will-change: --lp-shimmer-angle, opacity;
+  }
+  /* Keep the card's own content above the shimmer ring. */
+  .login-card.lp-attention-glow > * { position: relative; z-index: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .login-card.lp-attention-glow::before { animation: none; opacity: 0; }
+  }
+
   .login-policy-box {
-    background: rgba(15,23,42,0.55);
-    border: 1px solid rgba(148,163,184,0.18);
-    border-radius: 12px;
-    padding: .9rem 1rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 12px 14px;
     margin-bottom: 1rem;
+    box-shadow: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .login-policy-box:focus-within {
+    border-color: rgba(16, 185, 129, 0.45);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
   }
   .policy-check-row {
-    display: flex; gap: .55rem; align-items: flex-start;
-    color: var(--c-text, #E2E8F0); font-size: .88rem; cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #334155;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    cursor: pointer;
   }
-  .policy-check-row input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; }
-  .policy-check-row a { color: #7DD3FC; text-decoration: underline; }
+  .policy-check-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    accent-color: #10B981;
+    flex: 0 0 auto;
+  }
+  .policy-check-row span { color: #334155; }
+  .policy-check-row a {
+    color: #2563EB;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .policy-check-row a:hover { color: #1D4ED8; }
   .login-policy-note {
-    margin: .55rem 0 0; padding-left: 1.5rem;
-    font-size: .76rem; color: var(--c-text-soft, #94A3B8); line-height: 1.45;
+    margin: .5rem 0 0; padding-left: 26px;
+    font-size: .76rem; color: #64748B; line-height: 1.45;
   }
+
+  /* ============================================================
+     Logged-out product landing page
+     Prefix: lp-  (landing-page)
+     ll-card-title kept for the login-card h2 element
+
+     Layout strategy:
+       • body gets a light SaaS background when #login-landing is visible
+         (via :has()), so the dark builder UI is unaffected when signed in.
+       • The .login-landing container is widened and given a light surface.
+       • All lp-* text colors are dark for readability on light surfaces.
+       • Screenshots sit in bright white frames with strong shadows so the
+         product imagery pops against the page.
+     ============================================================ */
+
+  /* When the logged-out landing is visible, switch the page to a light
+     premium SaaS background. Scoped via :has() so the signed-in builder
+     workspace keeps its dark theme. */
+  html:not(.signed-in) body:has(#login-landing:not(.hidden)) {
+    background:
+      radial-gradient(900px 500px at 85% -10%, #DCEBFF 0%, transparent 60%),
+      radial-gradient(700px 400px at -10% 10%, #E6F3FF 0%, transparent 55%),
+      #F4F8FF;
+    color: #0F172A;
+  }
+
+  /* Override .login-landing container to span wider with light surface,
+     but only when used as the lp- landing (children present). */
+  body:has(#login-landing:not(.hidden)) .login-landing {
+    max-width: 1240px;
+    margin: 1.25rem auto 0;
+    padding: 0 1.5rem;
+  }
+
+  /* ── Above-fold: 2-col grid — hero copy (left) + login card (right, sticky) ── */
+  .lp-above-fold {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 3rem;
+    align-items: start;
+    padding: 2.5rem 0 2rem;
+  }
+
+  /* ── Hero column ── */
+  .lp-eyebrow {
+    margin: 0 0 .6rem; font-size: .72rem; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: #2563EB;
+  }
+  .lp-headline {
+    margin: 0 0 1rem; font-family: 'Outfit', sans-serif;
+    font-size: 2.6rem; line-height: 1.18; font-weight: 800;
+    color: #0F172A; letter-spacing: -.02em;
+  }
+  .lp-subhead {
+    margin: 0 0 1.75rem; color: #475569;
+    font-size: 1.05rem; line-height: 1.7; max-width: 520px;
+  }
+  .lp-cta-row { display: flex; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.75rem; }
+
+  /* Primary CTA — green gradient, matches site-features page */
+  .lp-btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .95rem 1.85rem;
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: #FFFFFF; font-family: 'Outfit', sans-serif;
+    font-weight: 800; font-size: 1rem; letter-spacing: .01em;
+    border: none; border-radius: 14px; cursor: pointer;
+    box-shadow: 0 10px 28px rgba(16,185,129,0.38), 0 2px 6px rgba(5,150,105,0.25);
+    text-decoration: none; min-height: 48px;
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+  }
+  .lp-btn-primary:hover {
+    transform: translateY(-1px); filter: brightness(1.05);
+    box-shadow: 0 14px 34px rgba(16,185,129,0.46), 0 4px 10px rgba(5,150,105,0.3);
+  }
+  .lp-btn-primary:focus-visible {
+    outline: 3px solid rgba(16,185,129,0.45); outline-offset: 2px;
+  }
+
+  /* Secondary CTA — outlined, dark on light */
+  .lp-btn-secondary {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    padding: .9rem 1.5rem; background: #FFFFFF; color: #1E40AF;
+    font-weight: 700; font-size: .95rem;
+    border: 1.5px solid #BFDBFE; border-radius: 14px;
+    cursor: pointer; text-decoration: none; min-height: 48px;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+  }
+  .lp-btn-secondary:hover {
+    background: #EFF6FF; border-color: #2563EB; color: #1D4ED8;
+    transform: translateY(-1px);
+  }
+
+  .lp-trust-strip { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
+  .lp-trust-item {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font-size: .8rem; font-weight: 600; color: #475569;
+  }
+  .lp-trust-item i { color: #10B981; flex-shrink: 0; }
+
+  /* ── Login column (sticky on desktop, first on mobile) ── */
+  .lp-login-col { position: sticky; top: 1.25rem; }
+  html.in-app .lp-login-col { position: static; }
+
+  /* Login card — light surface when landing is light */
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-card {
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.08);
+    box-shadow: 0 30px 70px rgba(15,23,42,0.14), 0 4px 12px rgba(15,23,42,0.06);
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-brand h2,
+  body:has(#login-landing:not(.hidden)) .lp-login-col .ll-card-title { color: #0F172A; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-brand p { color: #475569; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .field-label { color: #475569; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .input {
+    background: #F8FAFC; color: #0F172A;
+    border: 1px solid #CBD5E1;
+  }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .input::placeholder { color: #94A3B8; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .input:focus {
+    border-color: #2563EB;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+    outline: none;
+  }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .policy-check-row { color: #334155; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .policy-check-row a { color: #2563EB; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-divider { color: #94A3B8; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-divider::before,
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-divider::after {
+    background: rgba(15,23,42,0.12);
+  }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .password-requirements {
+    background: #F1F5F9; border: 1px solid #E2E8F0; color: #475569;
+  }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .req-title { color: #0F172A; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-email-note { color: #64748B; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .login-link-btn { color: #2563EB; }
+  body:has(#login-landing:not(.hidden)) .lp-login-col .toggle-password { color: #64748B; }
+
+  /* Sign-in submit button uses the same green primary style as marketing CTAs.
+     This is purely visual — the button's id, text, and JS handlers are unchanged. */
+  body:has(#login-landing:not(.hidden)) #login-email-btn.btn.btn-primary {
+    background: linear-gradient(135deg, #10B981, #059669);
+    border: none; color: #FFFFFF;
+    box-shadow: 0 8px 22px rgba(16,185,129,0.34);
+    font-weight: 800;
+  }
+  body:has(#login-landing:not(.hidden)) #login-email-btn.btn.btn-primary:hover:not([disabled]) {
+    filter: brightness(1.05);
+  }
+  body:has(#login-landing:not(.hidden)) #login-email-btn.btn.btn-primary[disabled] {
+    background: linear-gradient(135deg, #94A3B8, #64748B);
+    box-shadow: none;
+    cursor: not-allowed; opacity: .7;
+  }
+
+  .ll-card-title { margin: 0; font-family: 'Outfit', sans-serif; font-size: 1.3rem; color: #0F172A; }
+
+  /* ── Scrolling sections below the fold ── */
+  .lp-sections { margin-top: 1rem; }
+
+  /* Alternating section surfaces. Default = transparent (page bg shows). */
+  .lp-section {
+    padding: 4rem 1.5rem;
+    border-top: 1px solid rgba(15,23,42,0.06);
+    margin: 0 -1.5rem;
+    border-radius: 24px;
+  }
+  .lp-section-centered { text-align: center; }
+
+  /* Soft blue tinted card surface — used to alternate section bands */
+  .lp-section.lp-band-soft {
+    background: linear-gradient(180deg, #EAF4FF 0%, #F3F8FF 100%);
+    border: 1px solid rgba(37,99,235,0.08);
+    border-top: 1px solid rgba(37,99,235,0.08);
+    box-shadow: 0 1px 0 rgba(15,23,42,0.03);
+  }
+  .lp-section.lp-band-white {
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.06);
+    border-top: 1px solid rgba(15,23,42,0.06);
+    box-shadow: 0 10px 30px rgba(15,23,42,0.04);
+  }
+
+  .lp-s-tag {
+    margin: 0 0 .5rem; font-size: .72rem; font-weight: 800;
+    letter-spacing: .14em; text-transform: uppercase; color: #2563EB;
+  }
+  .lp-s-heading {
+    margin: 0 0 .85rem; font-family: 'Outfit', sans-serif;
+    font-size: 1.85rem; line-height: 1.22; font-weight: 800; color: #0F172A;
+    letter-spacing: -.01em;
+  }
+  .lp-s-body { margin: 0; color: #475569; font-size: .98rem; line-height: 1.7; max-width: 560px; }
+  .lp-s-bullets { margin: 1.1rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .55rem; }
+  .lp-s-bullets li {
+    display: flex; gap: .65rem; align-items: flex-start;
+    font-size: .92rem; color: #334155; line-height: 1.55;
+  }
+  .lp-s-bullets li::before {
+    content: ''; flex-shrink: 0; margin-top: .45em;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #10B981;
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.18);
+  }
+
+  /* ── Feature row: text + screenshot alternating ── */
+  .lp-feat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5rem; align-items: center; }
+  .lp-feat-row.lp-flip { direction: rtl; }
+  .lp-feat-row.lp-flip > * { direction: ltr; }
+
+  /* Bright white screenshot frame — makes product imagery pop on any bg */
+  .lp-screen-frame {
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.10);
+    border-radius: 22px;
+    padding: 10px;
+    overflow: hidden;
+    box-shadow: 0 26px 70px rgba(15,23,42,0.18), 0 4px 12px rgba(15,23,42,0.08);
+  }
+  .lp-screen-frame img {
+    display: block; width: 100%; height: auto;
+    border-radius: 14px;
+    opacity: 1; filter: none;
+  }
+  .lp-screen-frame picture img { width: 100%; height: auto; }
+
+  /* ── How it works — 4-step grid ── */
+  .lp-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-top: 2.5rem; }
+  .lp-step-card {
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 16px; padding: 1.5rem 1.25rem; position: relative;
+    text-align: left;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.05);
+  }
+  .lp-step-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: 16px 16px 0 0;
+    background: linear-gradient(90deg, #10B981, #2563EB);
+  }
+  .lp-step-num {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: #fff; font-size: .85rem; font-weight: 800;
+    display: grid; place-items: center; margin-bottom: 1rem;
+    box-shadow: 0 6px 16px rgba(16,185,129,0.36);
+  }
+  .lp-step-card h3 {
+    margin: 0 0 .4rem; color: #0F172A;
+    font-family: 'Outfit', sans-serif; font-size: 1.02rem; font-weight: 800;
+  }
+  .lp-step-card p { margin: 0; color: #475569; font-size: .87rem; line-height: 1.6; }
+
+  /* ── Included features checklist ── */
+  .lp-feat-check-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: .6rem 1.5rem; margin-top: 2rem; text-align: left;
+  }
+  .lp-feat-check {
+    display: flex; align-items: center; gap: .75rem;
+    font-size: .92rem; color: #1E293B; font-weight: 600;
+    padding: .65rem .85rem;
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(15,23,42,0.03);
+  }
+  .lp-feat-check::before {
+    content: ''; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(16,185,129,0.14) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23059669' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") center/11px no-repeat;
+    border: 1.5px solid rgba(16,185,129,0.55);
+  }
+
+  /* ── You stay in control — 2×2 card grid ── */
+  .lp-control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .lp-control-card {
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 14px; padding: 1.25rem; display: flex; gap: .85rem;
+    box-shadow: 0 6px 18px rgba(15,23,42,0.05);
+  }
+  .lp-control-icon {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(37,99,235,0.10); border: 1px solid rgba(37,99,235,0.25);
+    color: #2563EB; display: grid; place-items: center;
+  }
+  .lp-control-card h4 {
+    margin: 0 0 .25rem; color: #0F172A;
+    font-size: .92rem; font-weight: 800;
+  }
+  .lp-control-card p { margin: 0; color: #475569; font-size: .83rem; line-height: 1.5; }
+
+  /* ── FAQ accordions ── */
+  .lp-faq { display: flex; flex-direction: column; gap: .55rem; margin-top: 2rem; }
+  .lp-faq-item {
+    background: #FFFFFF;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 4px 12px rgba(15,23,42,0.04);
+  }
+  .lp-faq-item summary {
+    padding: 1rem 1.25rem; cursor: pointer; list-style: none;
+    color: #0F172A; font-size: .94rem; font-weight: 700;
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+    user-select: none;
+  }
+  .lp-faq-item summary::-webkit-details-marker { display: none; }
+  .lp-faq-item summary::after {
+    content: '+'; flex-shrink: 0; font-size: 1.25rem; color: #2563EB;
+    transition: transform .2s ease;
+  }
+  .lp-faq-item[open] summary::after { transform: rotate(45deg); }
+  .lp-faq-a { padding: 0 1.25rem 1rem; color: #475569; font-size: .9rem; line-height: 1.65; }
+
+  /* ── Final CTA card ── */
+  .lp-final-cta {
+    margin-top: 3.5rem; margin-bottom: 2rem;
+    background:
+      linear-gradient(135deg, rgba(16,185,129,0.10), rgba(37,99,235,0.10)),
+      #FFFFFF;
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 22px;
+    padding: 3rem 2rem; text-align: center;
+    box-shadow: 0 20px 50px rgba(15,23,42,0.08);
+  }
+  .lp-final-cta h2 {
+    margin: 0 0 .75rem; font-family: 'Outfit', sans-serif;
+    font-size: 2rem; font-weight: 800; color: #0F172A;
+    letter-spacing: -.01em;
+  }
+  .lp-final-cta p {
+    margin: 0 auto 1.75rem; color: #475569; font-size: 1rem;
+    max-width: 520px; line-height: 1.65;
+  }
+
+  /* ── Logged-out nav links (added next to brand) ── */
+  .lp-nav-links {
+    display: none;
+    align-items: center; gap: .25rem;
+    margin-left: 1rem;
+  }
+  /* Show only when signed out AND landing is visible */
+  html.signed-out body:has(#login-landing:not(.hidden)) .lp-nav-links { display: inline-flex; }
+  .lp-nav-link {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .45rem .75rem; border-radius: 8px;
+    color: #CBD5E1; font-size: .85rem; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    background: transparent; border: none;
+    transition: background .15s ease, color .15s ease;
+  }
+  /* When body is light (landing visible) the nav stays dark so contrast is fine,
+     but adjust hover for that case */
+  .lp-nav-link:hover { background: rgba(148,163,184,0.12); color: #FFFFFF; }
+  .lp-nav-cta {
+    display: inline-flex; align-items: center; gap: .4rem;
+    margin-left: .35rem;
+    padding: .55rem 1rem; border-radius: 10px;
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: #FFFFFF; font-weight: 800; font-size: .85rem;
+    border: none; cursor: pointer; text-decoration: none;
+    box-shadow: 0 6px 16px rgba(16,185,129,0.34);
+    transition: transform .15s ease, filter .15s ease;
+    min-height: 40px;
+  }
+  .lp-nav-cta:hover { transform: translateY(-1px); filter: brightness(1.06); }
+
+  /* ── Mobile sticky bottom CTA ── */
+  .lp-mobile-cta {
+    display: none;
+    position: fixed; left: 0; right: 0; bottom: 0;
+    z-index: 950;
+    padding: .65rem 1rem calc(.65rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(255,255,255,0.94);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(15,23,42,0.10);
+    box-shadow: 0 -8px 24px rgba(15,23,42,0.08);
+  }
+  .lp-mobile-cta-primary {
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+    width: 100%; min-height: 50px;
+    padding: .85rem 1rem;
+    background: linear-gradient(135deg, #10B981, #059669);
+    color: #FFFFFF; font-family: 'Outfit', sans-serif;
+    font-weight: 800; font-size: 1rem;
+    border: none; border-radius: 14px; cursor: pointer;
+    box-shadow: 0 10px 28px rgba(16,185,129,0.42);
+  }
+  .lp-mobile-cta-primary:active { filter: brightness(.96); }
+  /* Show only on mobile when landing visible and signed out.
+     The actual reveal happens in the @media (max-width: 700px) block
+     below; this is intentionally left as a comment-only anchor.
+     Hide while a login input has focus (avoid covering keyboard area). */
+  /* Hide if any input/textarea inside the login card has focus */
+  body:has(#login-landing:not(.hidden) .login-card :is(input, textarea):focus) .lp-mobile-cta {
+    display: none !important;
+  }
+  /* Add extra bottom padding to the landing on mobile so content isn't hidden behind the sticky bar */
+  @media (max-width: 820px) {
+    html.signed-out body:has(#login-landing:not(.hidden)) .lp-mobile-cta { display: block; }
+    html.signed-out body:has(#login-landing:not(.hidden)) #login-landing { padding-bottom: 6rem; }
+  }
+  /* Always hide inside the signed-in builder workspace */
+  html.signed-in .lp-mobile-cta { display: none !important; }
+  /* Hide inside native app wrappers if needed (they have their own UI chrome) */
+  html.in-app .lp-mobile-cta { display: none !important; }
+
+  /* SAFETY NET: a signed-in user must never see the logged-out marketing
+     landing. The JS routing path (routeAfterAuthChange → showResumeDashboard)
+     adds .hidden, but if that path is delayed or skipped (e.g. cached
+     session reload after a Stripe redirect where onAuthStateChanged does
+     not re-fire for the same uid), this rule guarantees the landing is
+     visually hidden the instant `html.signed-in` is set by applyAuthState. */
+  html.signed-in #login-landing { display: none !important; }
+  html.signed-in .lp-nav-links  { display: none !important; }
+
+  /* NOTE: Earlier versions hid #login-landing / .lp-mobile-cta whenever
+     <html> carried the .post-checkout-pending class. That was too
+     aggressive — if Firebase auth never resolved (no signed-in user or
+     network hiccup) the page rendered blank because dashboard and builder
+     are also hidden by default. The post-checkout flow is now handled
+     purely in JS by handlePostCheckoutActivation(), which always clears
+     the .post-checkout-pending flag and routes via showResumeDashboard()
+     or showLoginLanding(). No CSS hide rule is applied for that flag. */
+
+  /* ── Responsive breakpoints ── */
+  @media (max-width: 960px) {
+    .lp-above-fold { grid-template-columns: 1fr; gap: 2rem; padding: 1.5rem 0; }
+    .lp-login-col { position: static; order: -1; }
+    .lp-headline { font-size: 2rem; }
+    .lp-steps { grid-template-columns: repeat(2, 1fr); }
+    .lp-feat-row { grid-template-columns: 1fr; gap: 2rem; }
+    .lp-feat-row.lp-flip { direction: ltr; }
+    .lp-feat-check-grid { grid-template-columns: repeat(2, 1fr); }
+    .lp-s-heading { font-size: 1.5rem; }
+    .lp-section { padding: 3rem 1rem; margin: 0 -.5rem; border-radius: 20px; }
+  }
+  @media (max-width: 820px) {
+    .lp-nav-links { display: none !important; }
+  }
+  @media (max-width: 600px) {
+    .lp-headline { font-size: 1.75rem; }
+    .lp-steps { grid-template-columns: 1fr; }
+    .lp-feat-check-grid { grid-template-columns: 1fr; }
+    .lp-control-grid { grid-template-columns: 1fr; }
+    .lp-cta-row { flex-direction: column; }
+    .lp-btn-primary, .lp-btn-secondary { width: 100%; justify-content: center; text-align: center; }
+    .lp-section { padding: 2.25rem 1rem; }
+    .lp-final-cta { padding: 2rem 1.25rem; }
+    .lp-final-cta h2 { font-size: 1.5rem; }
+    body:has(#login-landing:not(.hidden)) .login-landing { padding: 0 1rem; }
+  }
+
   #login-page-google-btn {
     width: 100%; justify-content: center; padding: .8rem 1rem; font-size: .95rem;
   }
@@ -3714,10 +4277,11 @@
   }
   #login-email-btn[disabled] { opacity: .55; cursor: not-allowed; }
   .login-error {
-    padding: .55rem .7rem; border-radius: 8px;
-    background: rgba(127, 29, 29, .35);
-    border: 1px solid rgba(248, 113, 113, .45);
-    color: #FECACA; font-size: .82rem;
+    padding: .65rem .8rem; border-radius: 10px;
+    background: #FEF2F2;
+    border: 1px solid #FCA5A5;
+    color: #991B1B; font-size: .85rem; font-weight: 600;
+    line-height: 1.4;
   }
   .login-link-btn {
     background: transparent; border: 0; color: #7DD3FC;
@@ -4052,6 +4616,106 @@
   }
   @media (min-width: 721px) {
     .opt-apply-bar .opt-apply-note { flex: 1 1 auto; text-align: right; }
+  }
+
+  /* Mobile polish for Optimization step controls.
+     PART 1: stack "Optimize Focus" select above the "Run Optimization" button.
+     PART 2: stack apply / preview / undo with intentional grid rows.
+     Desktop layout is unchanged. */
+  @media (max-width: 640px) {
+    .opt-run-controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: .75rem;
+      align-items: stretch;
+    }
+    .opt-run-controls > div {
+      width: 100%;
+    }
+    .opt-run-controls .field-label {
+      margin-bottom: .3rem;
+    }
+    .opt-run-controls select,
+    .opt-run-controls .field-input {
+      width: 100%;
+      min-width: 0;
+    }
+    .opt-run-controls .btn,
+    .opt-run-controls > button {
+      width: 100%;
+      min-height: 48px;
+      justify-content: center;
+    }
+    #optimize-status {
+      text-align: center;
+    }
+
+    /* Apply bar: 1-col before undo appears, 2-col when undo is visible. */
+    #opt-apply-row.opt-apply-bar {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: .7rem;
+      padding: .9rem;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    }
+    #opt-apply-row.opt-apply-bar .btn {
+      width: 100%;
+      min-height: 48px;
+      justify-content: center;
+      padding-left: .75rem;
+      padding-right: .75rem;
+    }
+    #opt-apply-row.opt-apply-bar #opt-undo[hidden] {
+      display: none !important;
+    }
+    #opt-apply-row.opt-apply-bar #opt-apply-note {
+      display: block;
+      width: 100%;
+      margin: .15rem 0 0;
+      font-size: .88rem;
+      line-height: 1.4;
+      text-align: left;
+    }
+    #opt-apply-row.opt-apply-bar.has-undo {
+      grid-template-columns: 1fr 1fr;
+    }
+    #opt-apply-row.opt-apply-bar.has-undo #opt-apply {
+      grid-column: 1 / -1;
+    }
+    #opt-apply-row.opt-apply-bar.has-undo #opt-preview,
+    #opt-apply-row.opt-apply-bar.has-undo #opt-undo {
+      grid-column: auto;
+      min-height: 46px;
+      white-space: nowrap;
+      font-size: .82rem;
+      padding-left: .35rem;
+      padding-right: .35rem;
+      letter-spacing: -.005em;
+    }
+    #opt-apply-row.opt-apply-bar.has-undo #opt-preview i,
+    #opt-apply-row.opt-apply-bar.has-undo #opt-undo i {
+      width: 14px !important;
+      height: 14px !important;
+      flex: 0 0 14px;
+    }
+  }
+
+  /* On very narrow phones, stack the post-apply controls so labels
+     ("View Changes" / "Undo Optimization") never wrap mid-word. */
+  @media (max-width: 400px) {
+    #opt-apply-row.opt-apply-bar.has-undo {
+      grid-template-columns: 1fr;
+    }
+    #opt-apply-row.opt-apply-bar.has-undo #opt-preview,
+    #opt-apply-row.opt-apply-bar.has-undo #opt-undo {
+      font-size: .88rem;
+    }
+    #opt-apply-row.opt-apply-bar.has-undo #opt-apply-note {
+      grid-column: 1 / -1;
+    }
   }
 
   /* (6) Input/textarea/select consistency — same height & focus ring
@@ -5490,6 +6154,18 @@
       </span>
     </div>
 
+    <!-- Logged-out marketing nav links (hidden when signed in, hidden on small screens via CSS) -->
+    <div class="lp-nav-links" role="navigation" aria-label="Landing">
+      <button type="button" class="lp-nav-link" data-lp-nav="lp-features">Features</button>
+      <button type="button" class="lp-nav-link" data-lp-nav="lp-how">How It Works</button>
+      <button type="button" class="lp-nav-link" data-lp-nav="lp-match">Match Score</button>
+      <a href="https://www.stevenkay.info/" class="lp-nav-link" target="_blank" rel="noopener noreferrer" data-lp-nav-example>Published Example</a>
+      <button type="button" class="lp-nav-cta" data-lp-nav-cta>
+        <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
+        Start Free Resume Portfolio
+      </button>
+    </div>
+
     <div class="nav-spacer"></div>
 
     <div class="nav-toolbar" role="group" aria-label="Document actions">
@@ -5531,94 +6207,509 @@
 
 <!-- ====== Login Landing (signed-out welcome) ====== -->
 <section id="login-landing" class="login-landing hidden" aria-labelledby="login-landing-title">
-  <div class="login-card">
-    <div class="login-brand">
-      <!-- .login-logo is hidden on mobile widths and inside the app via CSS
-           (see .login-brand .login-logo media/in-app rules). -->
-   
-      <div>
-        <h1 id="login-landing-title">Resume Portfolio Builder</h1>
-        <p>Build, optimize, save, and publish role-targeted resume portfolios.</p>
-      </div>
-    </div>
-    <!-- Login feature/example links (placeholder hrefs — wire up later) -->
-    <div class="login-features-row">
-      <a href="#" id="login-features-link" class="login-features-link">
-        <i data-lucide="sparkles" style="width:16px;height:16px;"></i>
-        View Site Features and Benefits
-      </a>
-      <a href="https://www.stevenkay.info/" id="login-example-link" class="login-features-link" target="_blank" rel="noopener noreferrer">
-        <i data-lucide="external-link" style="width:16px;height:16px;"></i>
-        See Published Site Example
-      </a>
-    </div>
-    <div class="login-policy-box">
-      <label class="policy-check-row">
-        <input type="checkbox" id="login-policy-accept">
-        <span>
-          I agree to the
-          <a href="#" id="login-terms-link">Terms of Use</a>
-          and
-          <a href="#" id="login-privacy-link">Privacy Policy</a>.
-        </span>
-      </label>
-      <p class="login-policy-note">
-        Uploaded resumes, job descriptions, and generated content may be processed
-        by AI services to provide extraction, optimization, and drafting features.
-      </p>
-    </div>
-    <button id="login-page-google-btn" type="button" class="btn btn-google-legacy" disabled>
-      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-      Continue with Google
-    </button>
-    <div class="login-divider"><span>or</span></div>
-    <div class="email-login-box">
-      <label class="field-label" for="login-email">Email</label>
-      <input id="login-email" class="input" type="email" autocomplete="email" placeholder="you@example.com">
-      <label class="field-label" for="login-password">Password</label>
-      <div class="password-wrapper">
-        <input id="login-password" class="input" type="password" autocomplete="current-password" placeholder="Enter your password">
-        <button id="toggle-login-password" type="button" class="toggle-password" aria-label="Show password">
-          <i data-lucide="eye" style="width:16px;height:16px;"></i>
+
+  <!-- ══ ABOVE THE FOLD: Hero copy (left) + Login card (right, sticky) ══ -->
+  <div class="lp-above-fold">
+
+    <!-- Hero / copy column -->
+    <div class="lp-hero">
+      <p class="lp-eyebrow">Resume Portfolio Builder</p>
+      <h1 id="login-landing-title" class="lp-headline">Build, optimize, and share role-targeted resume portfolios.</h1>
+      <p class="lp-subhead">Upload your resume, add a job description, review AI match guidance, and create targeted documents or a shareable portfolio from one workflow.</p>
+      <div class="lp-cta-row">
+        <button type="button" class="lp-btn-primary" data-lp-cta data-cta-location="hero">
+          <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+          Start Free Resume Portfolio
         </button>
+        <a href="https://www.stevenkay.info/" class="lp-btn-secondary" target="_blank" rel="noopener noreferrer"
+          data-lp-example data-cta-location="hero_example">
+          <i data-lucide="external-link" style="width:15px;height:15px;"></i>
+          See Published Example
+        </a>
       </div>
-      <div id="confirm-password-row" class="confirm-password-wrapper hidden">
-        <label class="field-label" for="login-password-confirm">Confirm password</label>
-        <div class="password-wrapper">
-          <input id="login-password-confirm" class="input" type="password" autocomplete="new-password" placeholder="Re-enter your password">
-          <button id="toggle-login-password-confirm" type="button" class="toggle-password" aria-label="Show password">
-            <i data-lucide="eye" style="width:16px;height:16px;"></i>
+      <div class="lp-trust-strip">
+        <span class="lp-trust-item"><i data-lucide="file-up" style="width:13px;height:13px;"></i> PDF/DOCX import</span>
+        <span class="lp-trust-item"><i data-lucide="target" style="width:13px;height:13px;"></i> Role-match guidance</span>
+        <span class="lp-trust-item"><i data-lucide="download" style="width:13px;height:13px;"></i> PDF / Word export</span>
+        <span class="lp-trust-item"><i data-lucide="share-2" style="width:13px;height:13px;"></i> Shareable portfolio</span>
+      </div>
+    </div>
+
+    <!-- Login / sign-up form column (sticky on desktop, shown first on mobile) -->
+    <div class="lp-login-col">
+      <div class="login-card">
+        <div class="login-brand">
+          <div>
+            <h2 class="ll-card-title">Resume Portfolio Builder</h2>
+            <p>Sign in to build, save, and publish your resume portfolio.</p>
+          </div>
+        </div>
+        <div class="login-policy-box">
+          <label class="policy-check-row">
+            <input type="checkbox" id="login-policy-accept">
+            <span>
+              I agree to the
+              <a href="#" id="login-terms-link">Terms of Use</a>
+              and
+              <a href="#" id="login-privacy-link">Privacy Policy</a>.
+            </span>
+          </label>
+        </div>
+        <button id="login-page-google-btn" type="button" class="btn btn-google-legacy" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+          Continue with Google
+        </button>
+        <div class="login-divider"><span>or</span></div>
+        <div class="email-login-box">
+          <label class="field-label" for="login-email">Email</label>
+          <input id="login-email" class="input" type="email" autocomplete="email" placeholder="you@example.com">
+          <label class="field-label" for="login-password">Password</label>
+          <div class="password-wrapper">
+            <input id="login-password" class="input" type="password" autocomplete="current-password" placeholder="Enter your password">
+            <button id="toggle-login-password" type="button" class="toggle-password" aria-label="Show password">
+              <i data-lucide="eye" style="width:16px;height:16px;"></i>
+            </button>
+          </div>
+          <div id="confirm-password-row" class="confirm-password-wrapper hidden">
+            <label class="field-label" for="login-password-confirm">Confirm password</label>
+            <div class="password-wrapper">
+              <input id="login-password-confirm" class="input" type="password" autocomplete="new-password" placeholder="Re-enter your password">
+              <button id="toggle-login-password-confirm" type="button" class="toggle-password" aria-label="Show password">
+                <i data-lucide="eye" style="width:16px;height:16px;"></i>
+              </button>
+            </div>
+          </div>
+          <div id="password-requirements" class="password-requirements hidden" aria-live="polite">
+            <div class="req-title">Password requirements (new accounts)</div>
+            <ul>
+              <li id="req-length">At least 8 characters</li>
+              <li id="req-letter">Contains a letter</li>
+              <li id="req-number">Contains a number</li>
+              <li id="req-match">Both passwords match</li>
+            </ul>
+          </div>
+          <div id="login-error" class="login-error hidden"></div>
+          <button id="login-email-btn" type="button" class="btn btn-primary" disabled>
+            <i data-lucide="log-in" style="width:16px;height:16px;"></i>
+            Sign In
           </button>
+          <button id="forgot-password-btn" type="button" class="login-link-btn">
+            Forgot password?
+          </button>
+          <p class="login-email-note" id="login-mode-note-signin">
+            New here?
+            <button type="button" id="login-mode-create" class="login-link-btn login-link-inline">Create an account</button>
+          </p>
+          <p class="login-email-note hidden" id="login-mode-note-signup">
+            Already have an account?
+            <button type="button" id="login-mode-signin" class="login-link-btn login-link-inline">Sign in</button>
+          </p>
+        </div>
+      </div><!-- end .login-card -->
+    </div><!-- end .lp-login-col -->
+
+  </div><!-- end .lp-above-fold -->
+
+  <!-- ══ SCROLLING PRODUCT SECTIONS ══ -->
+  <div class="lp-sections" id="lp-features">
+
+    <!-- ── A: How it works ── -->
+    <div class="lp-section lp-section-centered lp-band-white" id="lp-how">
+      <p class="lp-s-tag">How it works</p>
+      <h2 class="lp-s-heading" style="max-width:560px;margin-left:auto;margin-right:auto;margin-bottom:0">Four steps from upload to published portfolio.</h2>
+      <div class="lp-steps">
+        <div class="lp-step-card">
+          <div class="lp-step-num">1</div>
+          <h3>Upload your resume</h3>
+          <p>Paste text or upload a PDF or DOCX. The builder extracts your work history, skills, and education so you start from structured data, not a blank page.</p>
+        </div>
+        <div class="lp-step-card">
+          <div class="lp-step-num">2</div>
+          <h3>Add a job description</h3>
+          <p>Paste the target role and company. The builder captures the requirements and uses them as the basis for every optimization and document you create.</p>
+        </div>
+        <div class="lp-step-card">
+          <div class="lp-step-num">3</div>
+          <h3>Review AI guidance</h3>
+          <p>See your role-match score, keyword gaps, and suggested edits side by side. Review every recommendation before applying — nothing changes without your approval.</p>
+        </div>
+        <div class="lp-step-card">
+          <div class="lp-step-num">4</div>
+          <h3>Download or publish</h3>
+          <p>Export a polished PDF or Word document, or publish a shareable online portfolio you can update as your resume evolves.</p>
         </div>
       </div>
-      <div id="password-requirements" class="password-requirements hidden" aria-live="polite">
-        <div class="req-title">Password requirements (new accounts)</div>
-        <ul>
-          <li id="req-length">At least 8 characters</li>
-          <li id="req-letter">Contains a letter</li>
-          <li id="req-number">Contains a number</li>
-          <li id="req-match">Both passwords match</li>
-        </ul>
-      </div>
-      <div id="login-error" class="login-error hidden"></div>
-      <button id="login-email-btn" type="button" class="btn btn-primary" disabled>
-        <i data-lucide="log-in" style="width:16px;height:16px;"></i>
-        Sign In
-      </button>
-      <button id="forgot-password-btn" type="button" class="login-link-btn">
-        Forgot password?
-      </button>
-      <p class="login-email-note" id="login-mode-note-signin">
-        New here?
-        <button type="button" id="login-mode-create" class="login-link-btn login-link-inline">Create an account</button>
-      </p>
-      <p class="login-email-note hidden" id="login-mode-note-signup">
-        Already have an account?
-        <button type="button" id="login-mode-signin" class="login-link-btn login-link-inline">Sign in</button>
-      </p>
     </div>
-  </div>
+
+    <!-- ── B: Import & Target ── -->
+    <div class="lp-section">
+      <div class="lp-feat-row">
+        <div class="lp-feat-text">
+          <p class="lp-s-tag">Import &amp; Target</p>
+          <h2 class="lp-s-heading">Start with your resume and the job you want.</h2>
+          <p class="lp-s-body">Upload a PDF or DOCX resume, then add the target job description. The builder extracts your experience, skills, and education so you can start from structured resume data instead of retyping everything.</p>
+          <ul class="lp-s-bullets">
+            <li>Auto-extracts work history, skills, and education</li>
+            <li>Captures the target role, company, and job requirements</li>
+            <li>Becomes the foundation for every downstream feature</li>
+          </ul>
+        </div>
+        <div class="lp-feat-visual">
+          <div class="lp-screen-frame">
+            <picture>
+              <source media="(max-width: 720px)" srcset="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/ImportResumeandJobImagePhone.png">
+              <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/ImportResumeandJobImageDesktop.png"
+                alt="Import resume and job description into the builder" loading="lazy">
+            </picture>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── C: Optimize & Score ── -->
+    <div class="lp-section lp-band-soft" id="lp-match">
+      <div class="lp-feat-row lp-flip">
+        <div class="lp-feat-text">
+          <p class="lp-s-tag">Optimize &amp; Score</p>
+          <h2 class="lp-s-heading">Review your role-match score and targeted recommendations.</h2>
+          <p class="lp-s-body">Run an optimization pass against the target job to see where your resume aligns, where it may need more evidence, and which edits are worth reviewing before you apply them.</p>
+          <ul class="lp-s-bullets">
+            <li>Match-score guidance across keywords, role fit, impact, and clarity</li>
+            <li>AI recommendations tied to the target job description</li>
+            <li>Review changes before applying them — nothing is automatic</li>
+          </ul>
+        </div>
+        <div class="lp-feat-visual">
+          <div class="lp-screen-frame">
+            <picture>
+              <source media="(max-width: 720px)" srcset="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/OptimizationImagePhone.png">
+              <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/OptimizationImageDesktop.png"
+                alt="Resume optimization with role-match score and AI recommendations" loading="lazy">
+            </picture>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── D: Supporting Materials ── -->
+    <div class="lp-section">
+      <div class="lp-feat-row">
+        <div class="lp-feat-text">
+          <p class="lp-s-tag">Supporting Materials</p>
+          <h2 class="lp-s-heading">Create more than a resume.</h2>
+          <p class="lp-s-body">Generate supporting materials for the role, including cover letters, interview prep, and role plans — all connected to the same target job description.</p>
+          <ul class="lp-s-bullets">
+            <li>Generate a role-targeted cover letter</li>
+            <li>Create interview prep prompts for the target role</li>
+            <li>Build 90-day, 12-month, or 2-year role plans</li>
+            <li>Keep materials connected to the same target role</li>
+          </ul>
+        </div>
+        <div class="lp-feat-visual">
+          <div class="lp-screen-frame">
+            <picture>
+              <source media="(max-width: 720px)" srcset="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/InterviewQuestionsImagePhone.png">
+              <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/InterviewQuestionsImageDesktop.png"
+                alt="Interview prep questions and supporting materials" loading="lazy">
+            </picture>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── E: Publish & Share ── -->
+    <div class="lp-section lp-band-soft">
+      <div class="lp-feat-row lp-flip">
+        <div class="lp-feat-text">
+          <p class="lp-s-tag">Publish &amp; Share</p>
+          <h2 class="lp-s-heading">Turn your resume into a shareable portfolio.</h2>
+          <p class="lp-s-body">Publish a professional online resume portfolio with your selected resume and role-plan content, then share one clean link with recruiters or hiring managers.</p>
+          <ul class="lp-s-bullets">
+            <li>Publish a responsive web page</li>
+            <li>Choose what content appears publicly</li>
+            <li>Share one clean link</li>
+            <li>Update and republish as your resume changes</li>
+          </ul>
+          <div style="margin-top:1.25rem">
+            <a href="https://www.stevenkay.info/" class="lp-btn-secondary"
+              target="_blank" rel="noopener noreferrer"
+              style="font-size:.875rem;padding:.65rem 1.25rem;min-height:auto"
+              data-lp-example data-cta-location="publish_section">
+              <i data-lucide="external-link" style="width:15px;height:15px;"></i>
+              See Published Portfolio Example
+            </a>
+          </div>
+        </div>
+        <div class="lp-feat-visual">
+          <div class="lp-screen-frame">
+            <picture>
+              <source media="(max-width: 720px)" srcset="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/WebResumeImagePhone.png">
+              <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/WebResumeImageDesktop.png"
+                alt="Published web resume portfolio" loading="lazy">
+            </picture>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── F: Download Documents ── -->
+    <div class="lp-section">
+      <div class="lp-feat-row">
+        <div class="lp-feat-text">
+          <p class="lp-s-tag">Download Documents</p>
+          <h2 class="lp-s-heading">Download polished PDF or Word documents.</h2>
+          <p class="lp-s-body">Export traditional resume documents when you need a file attachment, while still keeping your online portfolio available.</p>
+          <ul class="lp-s-bullets">
+            <li>PDF resume export</li>
+            <li>Editable Word document export</li>
+            <li>Multiple resume styles</li>
+            <li>Works alongside the web portfolio</li>
+          </ul>
+        </div>
+        <div class="lp-feat-visual">
+          <div class="lp-screen-frame">
+            <picture>
+              <source media="(max-width: 720px)" srcset="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/ResumeDocumentImagePhone.png">
+              <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/ResumeDocumentImageDesktop.png"
+                alt="Resume document download in PDF and Word formats" loading="lazy">
+            </picture>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── G: Included in the workflow ── -->
+    <div class="lp-section lp-section-centered lp-band-white">
+      <p class="lp-s-tag">Included in the workflow</p>
+      <h2 class="lp-s-heading" style="max-width:480px;margin-left:auto;margin-right:auto;margin-bottom:0">Everything you need in one place.</h2>
+      <div class="lp-feat-check-grid">
+        <div class="lp-feat-check">Multiple resume versions</div>
+        <div class="lp-feat-check">Application status tracking</div>
+        <div class="lp-feat-check">Resume import (PDF / DOCX)</div>
+        <div class="lp-feat-check">Job description import</div>
+        <div class="lp-feat-check">AI match score &amp; recommendations</div>
+        <div class="lp-feat-check">ATS keyword guidance</div>
+        <div class="lp-feat-check">Cover letter generation</div>
+        <div class="lp-feat-check">Interview prep prompts</div>
+        <div class="lp-feat-check">Role plan generation</div>
+        <div class="lp-feat-check">PDF / Word export</div>
+        <div class="lp-feat-check">Shareable online portfolio</div>
+      </div>
+    </div>
+
+    <!-- ── H: You stay in control ── -->
+    <div class="lp-section">
+      <div class="lp-feat-row">
+        <div class="lp-feat-text">
+          <p class="lp-s-tag">Designed for review</p>
+          <h2 class="lp-s-heading">Built around your review — not automatic rewrites.</h2>
+          <p class="lp-s-body">AI suggestions are designed to support your review, not replace it. You choose what gets applied, what stays review-only, and what gets published.</p>
+        </div>
+        <div class="lp-control-grid">
+          <div class="lp-control-card">
+            <div class="lp-control-icon"><i data-lucide="eye" style="width:16px;height:16px;"></i></div>
+            <div>
+              <h4>Review before applying</h4>
+              <p>Every AI recommendation is presented for your review — not applied automatically.</p>
+            </div>
+          </div>
+          <div class="lp-control-card">
+            <div class="lp-control-icon"><i data-lucide="toggle-left" style="width:16px;height:16px;"></i></div>
+            <div>
+              <h4>Choose what's published</h4>
+              <p>Select which resume and plan content appears in your public portfolio before publishing.</p>
+            </div>
+          </div>
+          <div class="lp-control-card">
+            <div class="lp-control-icon"><i data-lucide="refresh-cw" style="width:16px;height:16px;"></i></div>
+            <div>
+              <h4>Republish updates</h4>
+              <p>Edit your resume and republish your portfolio whenever you need to update it.</p>
+            </div>
+          </div>
+          <div class="lp-control-card">
+            <div class="lp-control-icon"><i data-lucide="download" style="width:16px;height:16px;"></i></div>
+            <div>
+              <h4>Download anytime</h4>
+              <p>Export traditional PDF and Word documents whenever you need a file attachment.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── I: FAQ ── -->
+    <div class="lp-section lp-band-white">
+      <div class="lp-section-centered" style="margin-bottom:2rem">
+        <p class="lp-s-tag">FAQ</p>
+        <h2 class="lp-s-heading">Common questions</h2>
+      </div>
+      <div class="lp-faq" style="max-width:720px;margin:0 auto">
+        <details class="lp-faq-item">
+          <summary>Does uploading my resume make it public?</summary>
+          <div class="lp-faq-a">No. Your uploaded resume is stored in your account and is only made public if you explicitly choose to publish your portfolio and include that content.</div>
+        </details>
+        <details class="lp-faq-item">
+          <summary>Do I need an account to try the builder?</summary>
+          <div class="lp-faq-a">Yes. Creating a free account is required to save your resume data, track versions, and access the builder workspace. You can sign in with Google or create an email account above.</div>
+        </details>
+        <details class="lp-faq-item">
+          <summary>What file types can I upload?</summary>
+          <div class="lp-faq-a">The builder accepts PDF and DOCX resume files. You can also paste resume text directly if you prefer not to upload a file.</div>
+        </details>
+        <details class="lp-faq-item">
+          <summary>How does the role-match score work?</summary>
+          <div class="lp-faq-a">The builder compares your resume content against the target job description and scores alignment across keywords, role fit, impact language, and clarity. The score is a guide — you review and decide which suggestions to apply.</div>
+        </details>
+        <details class="lp-faq-item">
+          <summary>Can I download my resume?</summary>
+          <div class="lp-faq-a">Yes. You can export your resume as a formatted PDF or as a Word document for editing.</div>
+        </details>
+        <details class="lp-faq-item">
+          <summary>Can I publish a resume portfolio link?</summary>
+          <div class="lp-faq-a">Yes. The builder can publish a responsive web page with your resume and optional role plan. You get one shareable link that you can send to recruiters or hiring managers, and you can update it as your resume changes.</div>
+        </details>
+      </div>
+    </div>
+
+    <!-- ── Final CTA ── -->
+    <div class="lp-final-cta">
+      <h2>Ready to build yours?</h2>
+      <p>Start your first role-targeted resume portfolio and see how your resume matches the job before you apply.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:.75rem;justify-content:center">
+        <button type="button" class="lp-btn-primary" data-lp-cta data-cta-location="final_cta">
+          <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+          Start Free Resume Portfolio
+        </button>
+        <a href="https://www.stevenkay.info/" class="lp-btn-secondary" target="_blank" rel="noopener noreferrer"
+          data-lp-example data-cta-location="final_cta_example">
+          <i data-lucide="external-link" style="width:15px;height:15px;"></i>
+          See Published Example
+        </a>
+      </div>
+    </div>
+
+  </div><!-- end .lp-sections -->
+
 </section>
+
+<!-- ────────────────────────────────────────────────────────────
+     Logged-out mobile sticky CTA bar (visibility handled in CSS).
+     Hidden when signed in, when an input in the login card is
+     focused, inside in-app webviews, and on wide screens.
+     ──────────────────────────────────────────────────────────── -->
+<div class="lp-mobile-cta" role="complementary" aria-label="Quick start">
+  <button type="button" class="lp-mobile-cta-primary" data-lp-cta data-cta-location="mobile_sticky">
+    <i data-lucide="arrow-right" style="width:18px;height:18px;"></i>
+    Start Free Resume Portfolio
+  </button>
+</div>
+
+<!-- Logged-out landing CTA + nav-link delegation. Marketing-only:
+     scrolls to the login card and focuses email. Never auto-submits,
+     never auto-checks the Terms checkbox, never calls Firebase auth. -->
+<script>
+(function () {
+  'use strict';
+  function track(eventName, params) {
+    try { if (typeof window.gtag === 'function') window.gtag('event', eventName, params || {}); } catch (e) {}
+  }
+  function focusLogin() {
+    var card = document.querySelector('#login-landing .login-card');
+    var email = document.getElementById('login-email');
+    var target = card || email;
+    if (target && typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // Pulsing blue shimmer ring draws the eye to the login card after the
+    // CTA tap. We force a reflow before re-adding so repeat clicks restart
+    // the animation. The class is removed after the full sweep finishes
+    // (matches the lpShimmerFade duration in CSS).
+    if (card) {
+      card.classList.remove('lp-attention-glow');
+      void card.offsetWidth;
+      card.classList.add('lp-attention-glow');
+      setTimeout(function () {
+        try { card.classList.remove('lp-attention-glow'); } catch (_) {}
+      }, 2800);
+    }
+    // Defer focus slightly so smooth-scroll can start first.
+    if (email) {
+      setTimeout(function () { try { email.focus({ preventScroll: true }); } catch (e) { try { email.focus(); } catch (_) {} } }, 350);
+    }
+  }
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+
+    // Marketing primary CTAs → scroll to login, focus email, track click.
+    var cta = t.closest('[data-lp-cta]');
+    if (cta) {
+      ev.preventDefault();
+      var loc = cta.getAttribute('data-cta-location') || 'unknown';
+      track('open_builder_click', {
+        cta_location: loc,
+        source_page: 'resumebuilder_logged_out_landing',
+        link_text: 'Start Free Resume Portfolio'
+      });
+      focusLogin();
+      return;
+    }
+
+    // "See Published Example" / portfolio example external links.
+    var ex = t.closest('[data-lp-example]');
+    if (ex) {
+      var locEx = ex.getAttribute('data-cta-location') || 'example';
+      track('landing_example_click', {
+        cta_location: locEx,
+        source_page: 'resumebuilder_logged_out_landing'
+      });
+      // Let the anchor's default target=_blank navigation proceed.
+      return;
+    }
+
+    // Logged-out nav anchor-scroll links.
+    var nav = t.closest('[data-lp-nav]');
+    if (nav) {
+      ev.preventDefault();
+      var id = nav.getAttribute('data-lp-nav');
+      var el = id ? document.getElementById(id) : null;
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      track('landing_nav_click', {
+        cta_location: 'nav',
+        target_section: id || '',
+        source_page: 'resumebuilder_logged_out_landing'
+      });
+      return;
+    }
+
+    // Logged-out nav CTA (green "Start Free Resume Portfolio" in navbar).
+    var navCta = t.closest('[data-lp-nav-cta]');
+    if (navCta) {
+      ev.preventDefault();
+      track('open_builder_click', {
+        cta_location: 'nav',
+        source_page: 'resumebuilder_logged_out_landing',
+        link_text: 'Start Free Resume Portfolio'
+      });
+      focusLogin();
+      return;
+    }
+
+    // "Published Example" link in nav.
+    var navEx = t.closest('[data-lp-nav-example]');
+    if (navEx) {
+      track('landing_example_click', {
+        cta_location: 'nav',
+        source_page: 'resumebuilder_logged_out_landing'
+      });
+      return;
+    }
+  }, { passive: false });
+})();
+</script>
 
 <!-- ====== Resume Versions Dashboard (post-login landing) ====== -->
 <section id="resume-dashboard" class="resume-dashboard hidden" aria-labelledby="resume-dashboard-title">
@@ -6229,7 +7320,7 @@
             <i data-lucide="chevron-down" class="acc-chevron" style="width:18px;height:18px;"></i>
           </button>
           <div class="acc-body stack">
-            <div class="row" style="gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+            <div class="row opt-run-controls" style="gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
               <div style="display:flex;flex-direction:column;gap:.25rem;">
                 <label class="field-label" for="optimize-mode" style="font-size:.8rem;color:#475569;">Optimize Focus</label>
                 <select id="optimize-mode" class="field-input" style="min-width:180px;">
@@ -12628,6 +13719,8 @@
     if (undoBtn) {
       undoBtn.hidden = !alreadyApplied;
     }
+    var applyRowEl = document.getElementById('opt-apply-row');
+    if (applyRowEl) applyRowEl.classList.toggle('has-undo', !!alreadyApplied);
     if (note) {
       if (alreadyApplied) {
         note.textContent = _planApplyCount
@@ -13335,6 +14428,8 @@
     }
     var undoBtn = document.getElementById('opt-undo');
     if (undoBtn) undoBtn.hidden = false;
+    var applyRowEl = document.getElementById('opt-apply-row');
+    if (applyRowEl) applyRowEl.classList.add('has-undo');
     var applyNote = document.getElementById('opt-apply-note');
     if (applyNote) {
       applyNote.textContent = 'Applied to your resume draft.';
@@ -13387,6 +14482,8 @@
 
     var undoBtn = document.getElementById('opt-undo');
     if (undoBtn) undoBtn.hidden = true;
+    var applyRowEl = document.getElementById('opt-apply-row');
+    if (applyRowEl) applyRowEl.classList.remove('has-undo');
     var applyBtn = document.getElementById('opt-apply');
     if (applyBtn) {
       applyBtn.classList.remove('is-applied');
@@ -27384,6 +28481,16 @@
       try { showToast('Your subscription is active. Welcome aboard!', 'success'); } catch (_) {}
       try { hidePaywall(); } catch (_) {}
       stripUpgradedFromUrl();
+      // Clear the pre-paint guard now that activation completed.
+      try { clearPostCheckoutPending(); } catch (_) {}
+      // Post-payment routing: send the freshly-paid user to the resume versions
+      // dashboard so they can choose an existing version or click New Resume Version.
+      // onAuthStateChanged doesn't re-fire for the same uid after the Stripe
+      // redirect, so we route explicitly.
+      try {
+        if (typeof showResumeDashboard === 'function') showResumeDashboard();
+        else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
+      } catch (_) {}
       return true;
     }
     return false;
@@ -27437,22 +28544,35 @@
   }
 
   var _rbUpgradeRan = false;
+  function clearPostCheckoutPending() {
+    try { document.documentElement.classList.remove('post-checkout-pending'); } catch (_) {}
+  }
   async function handlePostCheckoutActivation() {
     if (_rbUpgradeRan) return;
     _rbUpgradeRan = true;
 
     var params;
-    try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    try { params = new URLSearchParams(window.location.search); } catch (_) { clearPostCheckoutPending(); return; }
     var upgraded  = params.get('upgraded') === '1';
     var sessionId = params.get('session_id') || '';
     var cancelled = params.get('cancelled') === '1';
 
     if (cancelled) {
+      clearPostCheckoutPending();
       try { showToast('Checkout was cancelled. No charge was made.', 'info'); } catch (_) {}
       stripUpgradedFromUrl();
+      // Allow the normal auth listener to drive routing.
+      try {
+        var u0 = auth && auth.currentUser;
+        if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(u0);
+      } catch (_) {}
       return;
     }
-    if (!upgraded && !sessionId) return;
+    if (!upgraded && !sessionId) {
+      // Nothing to activate — make sure the guard flag isn't stuck on.
+      clearPostCheckoutPending();
+      return;
+    }
 
     var user = auth && auth.currentUser;
     if (!user) {
@@ -27472,11 +28592,31 @@
       user = auth && auth.currentUser;
     }
     if (!user) {
-      // Not signed in after timeout — leave query params so a re-attempt
-      // after sign-in still works.
+      // Not signed in after timeout. Never leave the page blank — clear the
+      // pre-paint guard, show the login landing, and surface a hint so the
+      // user knows to finish sign-in. _rbUpgradeRan is reset so activation
+      // re-runs automatically once they sign in (the auth listener at the
+      // bottom of this IIFE re-invokes this function).
+      clearPostCheckoutPending();
+      try { if (typeof showLoginLanding === 'function') showLoginLanding(); } catch (_) {}
+      try {
+        showActivationBanner(
+          'Please sign in to finish activating your purchase.',
+          { retry: false, spinner: false }
+        );
+      } catch (_) {}
       _rbUpgradeRan = false;
       return;
     }
+
+    // Auth has now resolved. Clear the pre-paint guard and route to the
+    // resume versions dashboard. This lets the user choose an existing version
+    // or click New Resume Version themselves after payment.
+    clearPostCheckoutPending();
+    try {
+      if (typeof showResumeDashboard === 'function') showResumeDashboard();
+      else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
+    } catch (_) {}
 
     showActivationBanner('Activating your subscription…');
 
@@ -27498,7 +28638,9 @@
     }
 
     // Step 3: timed out. Stripe charged the card but our webhook hasn't
-    // landed yet. Leave a recoverable banner so the user can retry.
+    // landed yet. Leave the user on the resume dashboard with a
+    // recoverable banner so the page never goes blank.
+    clearPostCheckoutPending();
     showActivationBanner(
       'Payment received — finalizing your access. If this takes more than a minute, click Retry.',
       { retry: true, spinner: false }
@@ -27512,6 +28654,21 @@
       });
     }
   }
+
+  // Defensive recovery: if Firebase auth never resolves (e.g. blocked
+  // network), make sure the page is never permanently blank. After 9s,
+  // if the guard is still set and no user is signed in, drop the guard
+  // and show the login landing.
+  setTimeout(function () {
+    try {
+      var html = document.documentElement;
+      if (!html.classList.contains('post-checkout-pending')) return;
+      var u = auth && auth.currentUser;
+      if (u) return;
+      html.classList.remove('post-checkout-pending');
+      if (typeof showLoginLanding === 'function') showLoginLanding();
+    } catch (_) {}
+  }, 9000);
 
   // Trigger on auth-ready: run once immediately (in case user is already
   // signed in from a cached session) and once on the next sign-in event.
@@ -28015,8 +29172,29 @@
         if (el) el.value = '';
       });
     }
-    if (!keep.cover) { RB_STATE.coverLetter = null; }
-    if (!keep.plan)  { RB_STATE.rolePlan    = null; RB_STATE.roleResearch = RB_STATE.roleResearch || null; }
+    // Snapshot existing state BEFORE mutating RB_STATE so the previous
+    // version is not accidentally mutated if the save process fails mid-flight.
+    var _snapCover   = (keep.cover && RB_STATE.coverLetter)
+      ? (function () { try { return JSON.parse(JSON.stringify(RB_STATE.coverLetter)); } catch (_) { return RB_STATE.coverLetter; } })()
+      : null;
+    var _snapCvDraft = (keep.cover && RB_STATE.cvDraft)
+      ? (function () { try { return JSON.parse(JSON.stringify(RB_STATE.cvDraft));     } catch (_) { return RB_STATE.cvDraft;     } })()
+      : null;
+    var _snapPlan    = (keep.plan  && RB_STATE.rolePlan)
+      ? (function () { try { return JSON.parse(JSON.stringify(RB_STATE.rolePlan));    } catch (_) { return RB_STATE.rolePlan;    } })()
+      : null;
+    if (!keep.cover) {
+      RB_STATE.coverLetter = null;
+      RB_STATE.cvDraft     = null;
+    } else {
+      RB_STATE.coverLetter = _snapCover;
+      // Use the independent cvDraft clone if one existed; fall back to the
+      // coverLetter clone only when cvDraft was already derived from coverLetter
+      // (matches the existing app pattern at buildCvDraft / L12970).
+      RB_STATE.cvDraft = (_snapCvDraft !== null) ? _snapCvDraft : _snapCover;
+    }
+    if (!keep.plan) { RB_STATE.rolePlan = null; RB_STATE.roleResearch = RB_STATE.roleResearch || null; }
+    else            { RB_STATE.rolePlan = _snapPlan; }
     if (!keep.optimization) {
       RB_STATE.optimization            = null;
       RB_STATE.preOptimizationSnapshot = null;
@@ -28068,6 +29246,17 @@
         var pt = RB_STATE.rolePlanType ||
                  (typeof getSelectedPlanType === 'function' ? getSelectedPlanType() : '90-day');
         renderRolePlanOutput(RB_STATE.rolePlan || null, pt);
+      }
+    } catch (_) {}
+    // Hydrate cover letter form fields from the carried-forward state so
+    // the editor reflects the new version's content immediately.
+    try {
+      if (keep.cover && RB_STATE.coverLetter) {
+        var _cv = RB_STATE.coverLetter;
+        var _ch = document.getElementById('cv-heading');   if (_ch) _ch.value = _cv.heading  || '';
+        var _op = document.getElementById('cv-opening');   if (_op) _op.value = _cv.opening  || '';
+        var _al = document.getElementById('cv-alignment'); if (_al) _al.value = Array.isArray(_cv.body) ? _cv.body.join('\n\n') : (_cv.body || '');
+        var _cl = document.getElementById('cv-closing');   if (_cl) _cl.value = _cv.closing  || '';
       }
     } catch (_) {}
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
@@ -28670,11 +29859,8 @@
     }
 
     function _wire() {
-      var trigger = document.getElementById('login-features-link');
-      if (trigger && !trigger.__sfWired) {
-        trigger.__sfWired = true;
-        trigger.addEventListener('click', function (ev) { ev.preventDefault(); open(); });
-      }
+      // The login-features-link trigger was removed when the site-features
+      // content moved inline to the logged-out landing page (#ll-features).
       var closeBtn = document.getElementById('sf-close-btn');
       if (closeBtn && !closeBtn.__sfWired) { closeBtn.__sfWired = true; closeBtn.addEventListener('click', close); }
       var ctaBtn = document.getElementById('sf-cta-close');
@@ -30658,4 +31844,5 @@
 
 </body>
 </html>
+
 
