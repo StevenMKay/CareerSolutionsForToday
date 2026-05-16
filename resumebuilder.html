@@ -4128,6 +4128,15 @@
   /* Hide inside native app wrappers if needed (they have their own UI chrome) */
   html.in-app .lp-mobile-cta { display: none !important; }
 
+  /* SAFETY NET: a signed-in user must never see the logged-out marketing
+     landing. The JS routing path (routeAfterAuthChange → showResumeDashboard)
+     adds .hidden, but if that path is delayed or skipped (e.g. cached
+     session reload after a Stripe redirect where onAuthStateChanged does
+     not re-fire for the same uid), this rule guarantees the landing is
+     visually hidden the instant `html.signed-in` is set by applyAuthState. */
+  html.signed-in #login-landing { display: none !important; }
+  html.signed-in .lp-nav-links  { display: none !important; }
+
   /* ── Responsive breakpoints ── */
   @media (max-width: 960px) {
     .lp-above-fold { grid-template-columns: 1fr; gap: 2rem; padding: 1.5rem 0; }
@@ -28409,6 +28418,12 @@
       try { showToast('Your subscription is active. Welcome aboard!', 'success'); } catch (_) {}
       try { hidePaywall(); } catch (_) {}
       stripUpgradedFromUrl();
+      // Post-payment routing safety net: drive the page into the
+      // dashboard/builder view explicitly. onAuthStateChanged does not
+      // re-fire for a same-uid cached session after the Stripe redirect,
+      // so without this the logged-out landing can stay visible even
+      // though the user is signed-in and entitled.
+      try { if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user); } catch (_) {}
       return true;
     }
     return false;
@@ -28502,6 +28517,11 @@
       _rbUpgradeRan = false;
       return;
     }
+
+    // Auth has now resolved. Defensive route so the page leaves the
+    // logged-out landing immediately, even before entitlement verification
+    // finishes (e.g. while the webhook is still in flight).
+    try { if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user); } catch (_) {}
 
     showActivationBanner('Activating your subscription…');
 
