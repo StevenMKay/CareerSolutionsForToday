@@ -4192,12 +4192,14 @@
   html.signed-in #login-landing { display: none !important; }
   html.signed-in .lp-nav-links  { display: none !important; }
 
-  /* PRE-PAINT GUARD: when returning from Stripe checkout, hide the marketing
-     landing & sticky mobile CTA before Firebase auth hydrates. Avoids the
-     flash of "features" content while we wait for onAuthStateChanged. */
-  html.post-checkout-pending #login-landing,
-  html.post-checkout-pending .lp-mobile-cta,
-  html.post-checkout-pending .lp-nav-links { display: none !important; }
+  /* NOTE: Earlier versions hid #login-landing / .lp-mobile-cta whenever
+     <html> carried the .post-checkout-pending class. That was too
+     aggressive — if Firebase auth never resolved (no signed-in user or
+     network hiccup) the page rendered blank because dashboard and builder
+     are also hidden by default. The post-checkout flow is now handled
+     purely in JS by handlePostCheckoutActivation(), which always clears
+     the .post-checkout-pending flag and routes via showBuilderWorkspace()
+     or showLoginLanding(). No CSS hide rule is applied for that flag. */
 
   /* ── Responsive breakpoints ── */
   @media (max-width: 960px) {
@@ -28480,7 +28482,7 @@
       try { hidePaywall(); } catch (_) {}
       stripUpgradedFromUrl();
       // Clear the pre-paint guard now that activation completed.
-      try { document.documentElement.classList.remove('post-checkout-pending'); } catch (_) {}
+      try { clearPostCheckoutPending(); } catch (_) {}
       // Post-payment routing: send the freshly-paid user straight into the
       // resume builder workspace so they can start their first resume. The
       // dashboard is the wrong landing here because they have no saved
@@ -28544,22 +28546,35 @@
   }
 
   var _rbUpgradeRan = false;
+  function clearPostCheckoutPending() {
+    try { document.documentElement.classList.remove('post-checkout-pending'); } catch (_) {}
+  }
   async function handlePostCheckoutActivation() {
     if (_rbUpgradeRan) return;
     _rbUpgradeRan = true;
 
     var params;
-    try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    try { params = new URLSearchParams(window.location.search); } catch (_) { clearPostCheckoutPending(); return; }
     var upgraded  = params.get('upgraded') === '1';
     var sessionId = params.get('session_id') || '';
     var cancelled = params.get('cancelled') === '1';
 
     if (cancelled) {
+      clearPostCheckoutPending();
       try { showToast('Checkout was cancelled. No charge was made.', 'info'); } catch (_) {}
       stripUpgradedFromUrl();
+      // Allow the normal auth listener to drive routing.
+      try {
+        var u0 = auth && auth.currentUser;
+        if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(u0);
+      } catch (_) {}
       return;
     }
-    if (!upgraded && !sessionId) return;
+    if (!upgraded && !sessionId) {
+      // Nothing to activate — make sure the guard flag isn't stuck on.
+      clearPostCheckoutPending();
+      return;
+    }
 
     var user = auth && auth.currentUser;
     if (!user) {
@@ -28579,15 +28594,27 @@
       user = auth && auth.currentUser;
     }
     if (!user) {
-      // Not signed in after timeout — leave query params so a re-attempt
-      // after sign-in still works.
+      // Not signed in after timeout. Never leave the page blank — clear the
+      // pre-paint guard, show the login landing, and surface a hint so the
+      // user knows to finish sign-in. _rbUpgradeRan is reset so activation
+      // re-runs automatically once they sign in (the auth listener at the
+      // bottom of this IIFE re-invokes this function).
+      clearPostCheckoutPending();
+      try { if (typeof showLoginLanding === 'function') showLoginLanding(); } catch (_) {}
+      try {
+        showActivationBanner(
+          'Please sign in to finish activating your purchase.',
+          { retry: false, spinner: false }
+        );
+      } catch (_) {}
       _rbUpgradeRan = false;
       return;
     }
 
-    // Auth has now resolved. Defensive route into the builder workspace so
-    // the user goes directly to the create-resume flow (not the marketing
-    // landing or empty dashboard) while entitlement verification runs.
+    // Auth has now resolved. Clear the pre-paint guard and route into the
+    // builder workspace so the paid user goes directly to the create-resume
+    // flow (not the marketing/features landing or the empty dashboard).
+    clearPostCheckoutPending();
     try {
       if (typeof showBuilderWorkspace === 'function') showBuilderWorkspace();
       else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
@@ -28613,7 +28640,9 @@
     }
 
     // Step 3: timed out. Stripe charged the card but our webhook hasn't
-    // landed yet. Leave a recoverable banner so the user can retry.
+    // landed yet. Leave the user in the builder workspace with a
+    // recoverable banner so the page never goes blank.
+    clearPostCheckoutPending();
     showActivationBanner(
       'Payment received — finalizing your access. If this takes more than a minute, click Retry.',
       { retry: true, spinner: false }
@@ -28627,6 +28656,21 @@
       });
     }
   }
+
+  // Defensive recovery: if Firebase auth never resolves (e.g. blocked
+  // network), make sure the page is never permanently blank. After 9s,
+  // if the guard is still set and no user is signed in, drop the guard
+  // and show the login landing.
+  setTimeout(function () {
+    try {
+      var html = document.documentElement;
+      if (!html.classList.contains('post-checkout-pending')) return;
+      var u = auth && auth.currentUser;
+      if (u) return;
+      html.classList.remove('post-checkout-pending');
+      if (typeof showLoginLanding === 'function') showLoginLanding();
+    } catch (_) {}
+  }, 9000);
 
   // Trigger on auth-ready: run once immediately (in case user is already
   // signed in from a cached session) and once on the next sign-in event.
