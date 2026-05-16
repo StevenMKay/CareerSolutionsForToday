@@ -33,6 +33,22 @@
   // Google Ads conversion tracking / remarketing
   gtag('config', 'AW-11361526924');
 </script>
+<script>
+  // Pre-paint flag: Stripe redirects back to ?upgraded=1 after a successful
+  // checkout. We mark <html> immediately so CSS can hide the logged-out
+  // marketing landing (and reveal the dashboard placeholder) BEFORE the
+  // first paint, eliminating the brief flash of marketing content while
+  // Firebase auth hydrates. The flag is cleared after activation completes
+  // by stripUpgradedFromUrl() / refreshEntitlementsAndCelebrate().
+  (function () {
+    try {
+      var p = new URLSearchParams(window.location.search);
+      if (p.get('upgraded') === '1' || p.has('session_id')) {
+        document.documentElement.classList.add('post-checkout-pending');
+      }
+    } catch (_) {}
+  })();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Resume Portfolio</title>
@@ -3649,34 +3665,72 @@
   }
   .login-features-link i { color: inherit; }
 
-  /* Attention-grabbing blue glow pulse on the login card, triggered when a
-     marketing CTA ("Start Free Resume Portfolio") scrolls the user to the
-     login. The class is auto-removed after the animation completes. */
-  @keyframes lpAttentionGlow {
-    0% {
-      box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.55),
-                  0 0 0 0 rgba(37, 99, 235, 0.35);
-      border-color: rgba(37, 99, 235, 0.85);
-    }
-    60% {
-      box-shadow: 0 0 0 14px rgba(37, 99, 235, 0.10),
-                  0 0 36px 6px rgba(59, 130, 246, 0.55);
-      border-color: rgba(37, 99, 235, 0.65);
-    }
-    100% {
-      box-shadow: 0 0 0 22px rgba(37, 99, 235, 0),
-                  0 0 0 0 rgba(37, 99, 235, 0);
-      border-color: rgba(37, 99, 235, 0);
-    }
+  /* Attention-grabbing conic shimmer that sweeps around the entire login
+     card, triggered when a marketing CTA ("Start Free Resume Portfolio")
+     scrolls the user to the login. Site blue palette. The class is
+     auto-removed by focusLogin() after a couple of sweeps. */
+  @property --lp-shimmer-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+  @keyframes lpShimmerSpin {
+    to { --lp-shimmer-angle: 360deg; }
+  }
+  @keyframes lpShimmerFade {
+    0%   { opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { opacity: 0; }
   }
   .login-card.lp-attention-glow {
     position: relative;
     border-radius: 18px;
-    animation: lpAttentionGlow 1.25s ease-out 2;
-    will-change: box-shadow, border-color;
+    isolation: isolate;
   }
+  /* The shimmer ring lives in a ::before so it doesn't disturb the card
+     layout or its existing border/box-shadow. */
+  .login-card.lp-attention-glow::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    padding: 3px;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      conic-gradient(
+        from var(--lp-shimmer-angle, 0deg),
+        rgba(37, 99, 235, 0)    0deg,
+        rgba(37, 99, 235, 0)    40deg,
+        rgba(59, 130, 246, 0.95) 90deg,
+        rgba(96, 165, 250, 1)   130deg,
+        rgba(37, 99, 235, 0)    180deg,
+        rgba(37, 99, 235, 0)    250deg,
+        rgba(59, 130, 246, 0.95) 300deg,
+        rgba(96, 165, 250, 1)   340deg,
+        rgba(37, 99, 235, 0)    360deg
+      );
+    /* Mask trims the gradient to a thin ring matching the card border. */
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.55))
+            drop-shadow(0 0 14px rgba(59, 130, 246, 0.35));
+    animation:
+      lpShimmerSpin 2.2s linear infinite,
+      lpShimmerFade 2.6s ease-out 1 forwards;
+    will-change: --lp-shimmer-angle, opacity;
+  }
+  /* Keep the card's own content above the shimmer ring. */
+  .login-card.lp-attention-glow > * { position: relative; z-index: 1; }
   @media (prefers-reduced-motion: reduce) {
-    .login-card.lp-attention-glow { animation: none; }
+    .login-card.lp-attention-glow::before { animation: none; opacity: 0; }
   }
 
   .login-policy-box {
@@ -4136,6 +4190,13 @@
      visually hidden the instant `html.signed-in` is set by applyAuthState. */
   html.signed-in #login-landing { display: none !important; }
   html.signed-in .lp-nav-links  { display: none !important; }
+
+  /* PRE-PAINT GUARD: when returning from Stripe checkout, hide the marketing
+     landing & sticky mobile CTA before Firebase auth hydrates. Avoids the
+     flash of "features" content while we wait for onAuthStateChanged. */
+  html.post-checkout-pending #login-landing,
+  html.post-checkout-pending .lp-mobile-cta,
+  html.post-checkout-pending .lp-nav-links { display: none !important; }
 
   /* ── Responsive breakpoints ── */
   @media (max-width: 960px) {
@@ -6560,15 +6621,17 @@
     if (target && typeof target.scrollIntoView === 'function') {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    // Pulsing blue glow draws the eye to the login card after the CTA tap.
+    // Pulsing blue shimmer ring draws the eye to the login card after the
+    // CTA tap. We force a reflow before re-adding so repeat clicks restart
+    // the animation. The class is removed after the full sweep finishes
+    // (matches the lpShimmerFade duration in CSS).
     if (card) {
       card.classList.remove('lp-attention-glow');
-      // Force reflow so the animation restarts on repeat clicks.
       void card.offsetWidth;
       card.classList.add('lp-attention-glow');
       setTimeout(function () {
         try { card.classList.remove('lp-attention-glow'); } catch (_) {}
-      }, 2600);
+      }, 2800);
     }
     // Defer focus slightly so smooth-scroll can start first.
     if (email) {
@@ -28418,12 +28481,18 @@
       try { showToast('Your subscription is active. Welcome aboard!', 'success'); } catch (_) {}
       try { hidePaywall(); } catch (_) {}
       stripUpgradedFromUrl();
-      // Post-payment routing safety net: drive the page into the
-      // dashboard/builder view explicitly. onAuthStateChanged does not
-      // re-fire for a same-uid cached session after the Stripe redirect,
-      // so without this the logged-out landing can stay visible even
-      // though the user is signed-in and entitled.
-      try { if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user); } catch (_) {}
+      // Clear the pre-paint guard now that activation completed.
+      try { document.documentElement.classList.remove('post-checkout-pending'); } catch (_) {}
+      // Post-payment routing: send the freshly-paid user straight into the
+      // resume builder workspace so they can start their first resume. The
+      // dashboard is the wrong landing here because they have no saved
+      // versions yet — the empty-state would look like the "features" view
+      // they were just on. onAuthStateChanged doesn't re-fire for the same
+      // uid after the Stripe redirect, so we route explicitly.
+      try {
+        if (typeof showBuilderWorkspace === 'function') showBuilderWorkspace();
+        else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
+      } catch (_) {}
       return true;
     }
     return false;
@@ -28518,10 +28587,13 @@
       return;
     }
 
-    // Auth has now resolved. Defensive route so the page leaves the
-    // logged-out landing immediately, even before entitlement verification
-    // finishes (e.g. while the webhook is still in flight).
-    try { if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user); } catch (_) {}
+    // Auth has now resolved. Defensive route into the builder workspace so
+    // the user goes directly to the create-resume flow (not the marketing
+    // landing or empty dashboard) while entitlement verification runs.
+    try {
+      if (typeof showBuilderWorkspace === 'function') showBuilderWorkspace();
+      else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
+    } catch (_) {}
 
     showActivationBanner('Activating your subscription…');
 
