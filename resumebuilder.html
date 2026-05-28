@@ -7809,6 +7809,46 @@
   function normalizeEmail(e) { return (e || '').trim().toLowerCase(); }
   function isOwnerUser(user) { return !!(user && normalizeEmail(user.email) === OWNER_EMAIL); }
 
+  // ---------- Tester whitelist (Google Play closed/internal testers) ----------
+  // These accounts bypass the payment paywall entirely (no Stripe purchase
+  // required) but share a hard limit of TESTER_AI_LIMIT total AI calls
+  // across ALL AI features (Optimize + Cover Letter + Role Plan combined).
+  // The consumed-count is persisted in builderUsage/{uid}.testerAIUsesUsed
+  // so it survives sign-outs and device changes.
+  var TESTER_AI_LIMIT = 15;
+  var TESTER_EMAILS = (function () {
+    var list = [
+      'mussdiqfreefigma12@gmail.com','mhmuzamilhafeez@gmail.com',
+      'vipmailk808@gmail.com','hamzajawaiddgk@gmail.com',
+      'ghafarkhanlahoor@gmail.com','shiekhhammadbinsultan@gmail.com',
+      'samfatech@gmail.com','rabiyajaved77@gmail.com',
+      'wasishahp500@gmail.com','appistan.idealogics4@gmail.com',
+      'welaweli111@gmail.com','hassanlahoor@gmail.com',
+      'mussadiqhafeezuiux@gmail.com','appistan.idealogic@gmail.com',
+      'mmussadiqhafeez@gmail.com','mmuzamilhafeez@gmail.com',
+      '15bscs112@gmail.com','mustafa5655bscs@gmail.com',
+      'sohailarife@gmail.com','appistan.idealogics3@gmail.com',
+      'sultanbasitalik@gmail.com','asifhussainpak14@gmail.com',
+      'haideralidev570@gmail.com','zahidhussainit394@gmail.com',
+      'sanakhanitdev@gmail.com','abdulmanumit@gmail.com',
+      'chsamraseher@gmail.com'
+    ];
+    var s = Object.create(null);
+    for (var i = 0; i < list.length; i++) s[normalizeEmail(list[i])] = true;
+    return s;
+  })();
+  function isTesterUser(user) {
+    return !!(user && TESTER_EMAILS[normalizeEmail(user.email)]);
+  }
+  function isTester() {
+    return !!(typeof auth !== 'undefined' && auth && auth.currentUser && isTesterUser(auth.currentUser));
+  }
+  function testerAIUsesRemaining() {
+    var used = Number(testerAIUsesUsed) || 0;
+    var rem = TESTER_AI_LIMIT - used;
+    return rem < 0 ? 0 : rem;
+  }
+
   // ============================================================
   // Paywall / Subscription state (frontend; no Stripe secrets here)
   // Webhook on the server is responsible for writing
@@ -7833,6 +7873,11 @@
   var freeExportUsed     = false;
   var freeResumeCreated  = false;
 
+  // Tester (Google Play closed/internal tester) AI-call counter.
+  // Persisted in builderUsage/{uid}.testerAIUsesUsed. Incremented by
+  // markTesterAIUseConsumed() ONLY after a successful AI response.
+  var testerAIUsesUsed   = 0;
+
   // Hosted Stripe Payment Links (public).
   var STRIPE_MONTHLY_LINK  = 'https://buy.stripe.com/eVq7sMcgT561aPcatO43S0c';
   var STRIPE_LIFETIME_LINK = 'https://buy.stripe.com/aFa6oI5Svcyte1o45q43S0d';
@@ -7847,10 +7892,12 @@
     return (Date.now() - ts) < 30 * 24 * 60 * 60 * 1000;
   }
   function canUsePremium() {
-    return isOwner() || lifetimePurchased || builderSubscribed || (isSinglePurchaseActive() && aiUsesRemaining > 0);
+    return isOwner() || isTester() || lifetimePurchased || builderSubscribed || (isSinglePurchaseActive() && aiUsesRemaining > 0);
   }
   function canUseAI() {
-    return isOwner() || lifetimePurchased || builderSubscribed || aiUsesRemaining > 0;
+    if (isOwner() || lifetimePurchased || builderSubscribed) return true;
+    if (isTester()) return testerAIUsesRemaining() > 0;
+    return aiUsesRemaining > 0;
   }
   function requirePremium(featureName) {
     if (canUsePremium()) return true;
@@ -7859,6 +7906,10 @@
     return false;
   }
   function requireAIUse(featureName) {
+    if (isTester() && testerAIUsesRemaining() <= 0) {
+      showToast('Tester limit reached (' + TESTER_AI_LIMIT + '/' + TESTER_AI_LIMIT + '). Contact admin.', 'error', 6000);
+      return false;
+    }
     if (canUseAI()) return true;
     try { showPaywall(); } catch (_) {}
     showToast((featureName || 'AI features') + ' require an active plan.', 'warning');
@@ -7915,10 +7966,45 @@
       console.warn('[paywall] markFreeUseConsumed unexpected error:', err);
     }
   }
+  // Increment the tester AI-use counter (shared across all AI features).
+  // Call ONLY after a confirmed successful AI response. Local state is
+  // updated immediately so the UI gate reflects the new value; the
+  // Firestore write is best-effort and never throws.
+  function markTesterAIUseConsumed() {
+    try {
+      if (!isTester()) return;
+      testerAIUsesUsed = (Number(testerAIUsesUsed) || 0) + 1;
+    } catch (_) {}
+    try { updatePaywallBadges(); } catch (_) {}
+    try {
+      var user = (typeof auth !== 'undefined' && auth && auth.currentUser) || null;
+      if (!user || typeof db === 'undefined' || !db) return;
+      var patch = { testerAIUsesUsed: testerAIUsesUsed };
+      try {
+        patch.testerAIUsesUsedAt = firebase.firestore.FieldValue.serverTimestamp();
+        patch.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      } catch (_) {}
+      db.collection('builderUsage').doc(user.uid)
+        .set(patch, { merge: true })
+        .catch(function (err) {
+          console.warn('[paywall] markTesterAIUseConsumed write failed:', err);
+        });
+    } catch (err) {
+      console.warn('[paywall] markTesterAIUseConsumed unexpected error:', err);
+    }
+  }
   // Gate for AI actions (Optimize / Cover Letter / Role Plan).
   // Returns true if the caller is allowed to proceed; on success the caller
   // MUST call markFreeUseConsumed(field) after a confirmed result.
   function requireAIUseOrTrial(featureName, field) {
+    // Testers (Google Play whitelist) bypass the paywall but share a hard
+    // 15-call cap across ALL AI features. Check this BEFORE canUsePremium()
+    // because isTester() also makes canUsePremium() return true.
+    if (isTester()) {
+      if (testerAIUsesRemaining() > 0) return true;
+      showToast('Tester limit reached (' + TESTER_AI_LIMIT + '/' + TESTER_AI_LIMIT + '). Contact admin.', 'error', 6000);
+      return false;
+    }
     if (canUsePremium()) return true;
     if (!_isFreeTrialFlagUsed(field)) return true;
     try { showPaywall(); } catch (_) {}
@@ -8030,6 +8116,7 @@
     freeRolePlanUsed        = false;
     freeExportUsed          = false;
     freeResumeCreated       = false;
+    testerAIUsesUsed        = 0;
 
     if (!user || typeof db === 'undefined' || !db) {
       try { updatePaywallBadges(); } catch (_) {}
@@ -8094,6 +8181,7 @@
         freeRolePlanUsed   = !!usg.freeRolePlanUsed;
         freeExportUsed     = !!usg.freeExportUsed;
         freeResumeCreated  = !!usg.freeResumeCreated;
+        testerAIUsesUsed   = Number(usg.testerAIUsesUsed || 0) || 0;
         // Phase D — hand the per-user tour-completion flag to RB_TOUR so
         // its auto-start gate respects "already done on another device".
         try {
@@ -14801,7 +14889,8 @@
       try { restoreOptimizationOutputFromState(); } catch (_) {}
       try { updateStepperState(getActiveStep()); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Optimization complete.';
-      if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
+      if (isTester()) { try { markTesterAIUseConsumed(); } catch (_) {} }
+      else if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
       showToast('Optimization insights ready.', 'success');
       try { markBuilderDirty('optimize-result'); } catch (_) {}
       try {
@@ -15098,7 +15187,8 @@
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Cover letter generated.';
-      if (!canUsePremium()) { try { markFreeUseConsumed('freeCoverUsed'); } catch (_) {} }
+      if (isTester()) { try { markTesterAIUseConsumed(); } catch (_) {} }
+      else if (!canUsePremium()) { try { markFreeUseConsumed('freeCoverUsed'); } catch (_) {} }
       showToast('Cover letter generated.', 'success');
       try { markBuilderDirty('cover-letter-generated'); } catch (_) {}
     }).catch(function (err) {
@@ -15184,7 +15274,8 @@
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
-      if (!canUsePremium()) { try { markFreeUseConsumed('freeRolePlanUsed'); } catch (_) {} }
+      if (isTester()) { try { markTesterAIUseConsumed(); } catch (_) {} }
+      else if (!canUsePremium()) { try { markFreeUseConsumed('freeRolePlanUsed'); } catch (_) {} }
       showToast('Role plan generated.', 'success');
       try { markBuilderDirty('role-plan-generated'); } catch (_) {}
     }).catch(function (err) {
