@@ -6810,7 +6810,7 @@
       <p>Resume Portfolio Builder is offered as a single digital product. There is only one product: the Resume Portfolio Builder.</p>
       <ul style="padding-left:1.25rem">
         <li><strong>7-day free trial:</strong> You may explore the builder for 7 days at no cost. No payment is charged during the free trial.</li>
-        <li><strong>$99 lifetime access:</strong> A one-time $99 purchase unlocks lifetime access. The $99 is charged immediately at purchase and processed securely via Stripe.</li>
+        <li><strong>$99 lifetime access:</strong> A one-time $99 purchase unlocks lifetime access. Payment is processed securely through <strong>Stripe</strong> when you purchase on the web, or through <strong>Google Play</strong> when you purchase from inside the Android app. The price you are charged at checkout is the final price; local taxes and currency conversion may apply.</li>
       </ul>
       <p>There is no recurring monthly subscription tied to lifetime access. If a recurring plan is offered in the future, it will be clearly disclosed before purchase.</p>
       <h3 style="color:#0A2F6B;margin-top:1.25rem;font-size:1rem">7. Cancellation</h3>
@@ -6818,7 +6818,11 @@
       <p>The $99 lifetime access purchase is a one-time charge, so there is no recurring subscription to cancel. If any future recurring plan is offered, cancellation will stop future billing; charges already processed may not be refundable unless required by law or approved by Career Solutions for Today.</p>
       <p><strong>For cancellation help or billing questions:</strong> email <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Cancel%20or%20Billing%20Help" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a>.</p>
       <h3 style="color:#0A2F6B;margin-top:1.25rem;font-size:1rem">8. Refund Policy</h3>
-      <p>You may request a refund for the $99 lifetime access purchase within <strong>7 days</strong> of purchase by emailing <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Refund%20Request" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a>.</p>
+      <p>You may request a refund for the $99 lifetime access purchase within <strong>7 days</strong> of purchase. The way to request a refund depends on where you purchased:</p>
+      <ul style="padding-left:1.25rem">
+        <li><strong>Purchased on the web (Stripe):</strong> email <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Refund%20Request%20-%20Web" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a> within 7 days of purchase.</li>
+        <li><strong>Purchased in the Android app (Google Play):</strong> you may self-request a refund directly through the Google Play Store within 48 hours of purchase. Beyond 48 hours but within 7 days of purchase, email <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Refund%20Request%20-%20Google%20Play" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a> with your Google Play order ID and we will process the refund through Google Play. Upon refund, your lifetime access will be revoked from both the Android app and the website.</li>
+      </ul>
       <p>After 7 days, lifetime access purchases are generally non-refundable because access to the digital service has already been provided. Refunds may still be approved for duplicate charges, billing errors, or technical issues that prevent reasonable access.</p>
       <p>For full details, see our <a href="return-policy.html" style="color:#005EB8">Return, Refund &amp; Cancellation Policy</a>.</p>
       <h3 style="color:#0A2F6B;margin-top:1.25rem;font-size:1rem">9. Intellectual Property</h3>
@@ -8402,11 +8406,49 @@
     }
   }
 
+  // App-only first-launch convenience: when the login screen appears in the
+  // wrapper app and no Firebase session is restored from disk, auto-pop
+  // Android's Google account picker so a Play user can be in the workspace
+  // with a single tap. Cancelling once disables the auto-prompt on this
+  // device until the next successful sign-out + sign-in.
+  function maybeAutoStartAppGoogleSignIn() {
+    try {
+      if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
+      if (auth && auth.currentUser) return;                              // already signed in
+      if (!window.ReactNativeWebView || typeof window.ReactNativeWebView.postMessage !== 'function') return;
+      var dismissed = false;
+      try { dismissed = localStorage.getItem('rb_app_autosignin_dismissed') === '1'; } catch (_) {}
+      if (dismissed) return;
+      var firedThisTab = false;
+      try { firedThisTab = sessionStorage.getItem('rb_app_autosignin_fired') === '1'; } catch (_) {}
+      if (firedThisTab) return;
+      try { sessionStorage.setItem('rb_app_autosignin_fired', '1'); } catch (_) {}
+      // Tag body so existing CSS can dim the email/password form while
+      // the picker is up. Cleared by __handleNativeGoogleIdToken.
+      try { document.body.classList.add('app-autosignin-pending'); } catch (_) {}
+      // Small delay so the login screen paints first; a picker that
+      // appears mid-paint feels jarring on lower-end devices.
+      setTimeout(function () {
+        try { signInWithGoogle(); } catch (e) {
+          try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
+        }
+      }, 600);
+    } catch (_) {}
+  }
+
   // Native Android/WebView callback: bridge posts an ID token here.
   window.__handleNativeGoogleIdToken = function (idToken, errorMsg) {
     try {
+      // Always clear the "auto-prompt in progress" hint so the login UI
+      // is interactive again whether the picker succeeded, errored, or
+      // was cancelled.
+      try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
       if (errorMsg || !idToken) {
         setAuthLoading(false);
+        // User cancelled / picker errored: remember the dismissal so we
+        // never auto-prompt again on this device until the next manual
+        // sign-out (the auth listener clears this flag on real sign-ins).
+        try { localStorage.setItem('rb_app_autosignin_dismissed', '1'); } catch (_) {}
         showToast(errorMsg || 'Google sign-in was cancelled.', 'warning');
         return;
       }
@@ -8481,6 +8523,13 @@
       // body.signed-in toggles top-nav account menu visibility.
       if (user) document.body.classList.add('signed-in');
       else      document.body.classList.remove('signed-in');
+      // App-only: a successful sign-in clears the auto-Google-Sign-In
+      // dismissal flag so a future sign-out + relaunch can re-prompt.
+      // Doing this on success only (vs. on every auth state change)
+      // keeps the dismissal sticky across reloads of the login screen.
+      if (user) {
+        try { localStorage.removeItem('rb_app_autosignin_dismissed'); } catch (_) {}
+      }
       // On sign-out, clear the browser-scoped tour-completed flag so the
       // next user signing in on the same browser still gets the
       // walkthrough. The per-user truth lives in builderUsage/{uid}.
@@ -28361,6 +28410,96 @@
   var IAP_SKU_MONTHLY  = 'resume_builder_monthly';
   var IAP_SKU_LIFETIME = 'resume_builder_lifetime';
 
+  // App-only celebratory success modal: shows an animated green checkmark
+  // and a thank-you message after a successful Google Play purchase, then
+  // dismisses itself and resolves so the caller can close the paywall and
+  // refresh entitlements. Web users still get the toast / Stripe redirect.
+  function showAppPurchaseSuccess(opts) {
+    return new Promise(function (resolve) {
+      opts = opts || {};
+      var title     = opts.title    || 'Thank you!';
+      var subtitle  = opts.subtitle || 'Your purchase is now active.';
+      var dismissMs = (typeof opts.dismissMs === 'number') ? opts.dismissMs : 3500;
+
+      // Inject one-time CSS for the success card + checkmark animation.
+      if (!document.getElementById('app-purchase-success-styles')) {
+        var st = document.createElement('style');
+        st.id = 'app-purchase-success-styles';
+        st.textContent =
+          '@keyframes appSuccessFadeIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}' +
+          '@keyframes appCheckCircleDraw{0%{stroke-dashoffset:166}100%{stroke-dashoffset:0}}' +
+          '@keyframes appCheckTickDraw{0%{stroke-dashoffset:48}100%{stroke-dashoffset:0}}' +
+          '#app-purchase-success-overlay{position:fixed;inset:0;background:rgba(2,6,23,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:6000;padding:1rem;animation:appSuccessFadeIn .35s ease-out both}' +
+          '#app-purchase-success-card{background:#fff;border-radius:20px;max-width:400px;width:100%;padding:2rem 1.5rem 1.75rem;text-align:center;color:#0F172A;box-shadow:0 30px 90px rgba(0,0,0,.45);animation:appSuccessFadeIn .45s cubic-bezier(.2,.9,.3,1.2) both}' +
+          '#app-purchase-success-card svg{width:88px;height:88px;display:block;margin:0 auto 1rem}' +
+          '#app-purchase-success-card svg circle{fill:none;stroke:#10B981;stroke-width:5;stroke-linecap:round;stroke-dasharray:166;stroke-dashoffset:166;animation:appCheckCircleDraw .6s ease-out forwards}' +
+          '#app-purchase-success-card svg path{fill:none;stroke:#10B981;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:48;stroke-dashoffset:48;animation:appCheckTickDraw .35s .55s ease-out forwards}' +
+          '#app-purchase-success-card h3{margin:0 0 .35rem;color:#0F172A;font-size:1.5rem;font-weight:800}' +
+          '#app-purchase-success-card p{margin:0 0 1.25rem;color:#475569;line-height:1.5;font-size:.95rem}' +
+          '#app-purchase-success-continue{width:100%;background:#10B981;color:#fff;border:0;border-radius:10px;padding:.85rem 1.2rem;font-weight:700;font-size:1rem;cursor:pointer;transition:transform .15s ease,background .15s ease}' +
+          '#app-purchase-success-continue:hover{background:#059669}' +
+          '#app-purchase-success-continue:active{transform:scale(.97)}';
+        document.head.appendChild(st);
+      }
+
+      // Replace any existing card so a stale instance can't linger.
+      var existing = document.getElementById('app-purchase-success-overlay');
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+      var overlay = document.createElement('div');
+      overlay.id = 'app-purchase-success-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Purchase confirmation');
+
+      var card = document.createElement('div');
+      card.id = 'app-purchase-success-card';
+
+      // Inline SVG checkmark (animated via CSS above).
+      card.innerHTML =
+        '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          '<circle cx="30" cy="30" r="26"></circle>' +
+          '<path d="M18 30 L27 39 L43 22"></path>' +
+        '</svg>';
+
+      var h3 = document.createElement('h3');
+      h3.textContent = title;
+      card.appendChild(h3);
+
+      var p = document.createElement('p');
+      p.textContent = subtitle;
+      card.appendChild(p);
+
+      var btn = document.createElement('button');
+      btn.id = 'app-purchase-success-continue';
+      btn.type = 'button';
+      btn.textContent = 'Continue';
+      card.appendChild(btn);
+
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+
+      var done  = false;
+      var timer = null;
+      function dismiss() {
+        if (done) return;
+        done = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        try { overlay.style.transition = 'opacity .2s ease'; overlay.style.opacity = '0'; } catch (_) {}
+        setTimeout(function () {
+          try { overlay.parentNode && overlay.parentNode.removeChild(overlay); } catch (_) {}
+          resolve();
+        }, 220);
+      }
+      btn.addEventListener('click', dismiss);
+      // Tap outside the card also dismisses (matches Android UX expectations).
+      overlay.addEventListener('click', function (ev) {
+        if (ev.target === overlay) dismiss();
+      });
+      if (dismissMs > 0) timer = setTimeout(dismiss, dismissMs);
+    });
+  }
+
   // Promise resolvers keyed by productId so __handleIAPResult can dispatch
   // the right pending purchase. We don't queue overlapping requests —
   // requestPurchase() spawns the Play sheet which is modal.
@@ -28427,7 +28566,28 @@
         // Tell Play to finalize so the transaction leaves the queue.
         try { window.__nativeIAP.finishTransaction(token); } catch (_) {}
 
+        // App-only celebratory confirmation: animated checkmark + thank-you,
+        // shown BEFORE closing the paywall so the user gets a clear moment
+        // of "yes, the purchase went through." The card auto-dismisses after
+        // ~3.5s or when the user taps Continue / outside it.
+        var isInApp = (typeof isInAppWebView === 'function') && isInAppWebView();
+        var isLifetime = !pending.isSubscription || prodId === IAP_SKU_LIFETIME;
+        if (isInApp) {
+          try {
+            await showAppPurchaseSuccess({
+              title: 'Thank you!',
+              subtitle: isLifetime
+                ? 'Your lifetime access is now unlocked. Enjoy unlimited resumes \u2014 across both the app and the website.'
+                : 'Your 7\u2011day free trial has started. Enjoy unlimited resumes \u2014 across both the app and the website.'
+            });
+          } catch (_) {}
+        }
+
+        // Close the paywall now that the user has acknowledged the success card.
+        try { hidePaywall(); } catch (_) {}
+
         // Refresh entitlement state + UI; mirrors the Stripe success flow.
+        // (refreshEntitlementsAndCelebrate also routes to the dashboard.)
         try {
           if (typeof refreshEntitlementsAndCelebrate === 'function') {
             await refreshEntitlementsAndCelebrate();
@@ -28435,8 +28595,10 @@
             await loadBuilderAccessForUser(auth.currentUser.email || '');
           }
         } catch (_) {}
-        try { hidePaywall(); } catch (_) {}
-        try { showToast('Thanks! Your purchase is active.', 'success'); } catch (_) {}
+        // The success toast is redundant on app (we showed the card already).
+        if (!isInApp) {
+          try { showToast('Thanks! Your purchase is active.', 'success'); } catch (_) {}
+        }
 
         _iapPending = null;
         pending.resolve && pending.resolve(data);
@@ -29087,6 +29249,10 @@
     document.body.classList.remove('builder-active');
     document.body.classList.add('show-login');
     updateStickyStepperOffset();
+    // App-only: try to auto-fire Google Sign-In so a Play user gets to the
+    // workspace with a single tap. No-op on web and on subsequent calls
+    // after the user has cancelled the picker once on this device.
+    try { if (typeof maybeAutoStartAppGoogleSignIn === 'function') maybeAutoStartAppGoogleSignIn(); } catch (_) {}
   }
   function showResumeDashboard() {
     var login = document.getElementById('login-landing');
