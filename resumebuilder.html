@@ -2893,10 +2893,13 @@
   html.in-app .hide-in-app { display: none !important; }
   html:not(.in-app) .show-in-app-only { display: none !important; }
 
-  /* ---- Paywall: hide Stripe purchase UI inside Android/WebView (Google Play policy) ---- */
-  html.in-app #paywall-upgrade-btn,
-  html.in-app #paywall-lifetime-btn,
-  html.in-app .paywall-price { display: none !important; }
+  /* ---- Paywall: hide Stripe purchase UI inside Android/WebView (Google Play policy) ----
+     When the Android app has the native Google Play Billing bridge available
+     (html.iap-available, set by the in-app tagger below) we KEEP the buttons
+     visible — their click handlers route to Play Billing instead of Stripe. */
+  html.in-app:not(.iap-available) #paywall-upgrade-btn,
+  html.in-app:not(.iap-available) #paywall-lifetime-btn,
+  html.in-app:not(.iap-available) .paywall-price { display: none !important; }
 
   /* ---- Paywall modal ---- */
   .paywall-modal.hidden { display: none !important; }
@@ -7696,6 +7699,15 @@
       // Default to android tagging when in-app and not iOS, so Android
       // WebViews (which sometimes report odd UAs) still get the inset fix.
       if (isAndroid || !isIOS) rootEl.classList.add('in-app-android');
+      // Native Google Play Billing bridge — set by the RN host in
+      // injectedJavaScriptBeforeContentLoaded, so it's available
+      // synchronously here. Adding .iap-available unhides the paywall
+      // buttons (whose click handlers route to Play Billing via the bridge).
+      try {
+        if (window.__nativeIAP && window.__nativeIAP.available) {
+          rootEl.classList.add('iap-available');
+        }
+      } catch (_) {}
     }
   } catch (e) {}
 
@@ -28329,13 +28341,177 @@
     }
   }
 
+  // ============================================================
+  // Google Play Billing (in-app purchases) bridge
+  // ============================================================
+  // The Android app injects window.__nativeIAP (see app/index.tsx). When
+  // present, we route paywall buttons to the native Play purchase sheet
+  // instead of Stripe Checkout (Play policy requires native billing for
+  // digital goods inside Android apps). After purchase, we verify the
+  // purchase token with our backend (POST /api/billing/google-play/verify),
+  // which writes the same Firestore entitlement that Stripe writes — so the
+  // user can sign in on the website on a PC and keep using the service
+  // without buying again. The same Firebase account = same access everywhere.
+  function hasNativeIAP() {
+    try { return !!(window.__nativeIAP && window.__nativeIAP.available); } catch (_) { return false; }
+  }
+
+  // SKUs must match what's created in Google Play Console AND in the
+  // Android app constants (IAP_SKU_MONTHLY / IAP_SKU_LIFETIME).
+  var IAP_SKU_MONTHLY  = 'resume_builder_monthly';
+  var IAP_SKU_LIFETIME = 'resume_builder_lifetime';
+
+  // Promise resolvers keyed by productId so __handleIAPResult can dispatch
+  // the right pending purchase. We don't queue overlapping requests —
+  // requestPurchase() spawns the Play sheet which is modal.
+  var _iapPending = null; // { productId, isSubscription, resolve, reject, btnEl, btnOrig }
+
+  // Called by the native layer (via injectJavaScript) after Play returns a
+  // purchase or an error. Always JSON-serializable payload.
+  window.__handleIAPResult = async function (result) {
+    try {
+      var pending = _iapPending;
+      if (!pending) return; // no awaiter — nothing to do
+      if (!result || result.status !== 'success') {
+        var msg = (result && result.message) || 'Purchase did not complete.';
+        var code = result && result.code;
+        // User cancellation is not an error worth toasting loudly.
+        if (code !== 'E_USER_CANCELLED' && !/cancel/i.test(String(msg))) {
+          try { showToast(msg, 'error'); } catch (_) {}
+        }
+        if (pending.btnEl) {
+          pending.btnEl.disabled = false;
+          if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+        }
+        _iapPending = null;
+        pending.reject && pending.reject(new Error(msg));
+        return;
+      }
+      // Success path: verify with backend, refresh entitlement, finish tx.
+      var token  = result.purchaseToken || '';
+      var prodId = result.productId || pending.productId;
+      if (!token) {
+        try { showToast('Missing purchase token from Google Play.', 'error'); } catch (_) {}
+        _iapPending = null;
+        if (pending.btnEl) {
+          pending.btnEl.disabled = false;
+          if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+        }
+        pending.reject && pending.reject(new Error('Missing purchaseToken'));
+        return;
+      }
+
+      if (pending.btnEl) pending.btnEl.innerHTML = 'Verifying...';
+      try {
+        if (!auth || !auth.currentUser) {
+          throw new Error('You must be signed in to complete the purchase.');
+        }
+        var idToken = await auth.currentUser.getIdToken();
+        var resp = await fetch(API_BASE + '/billing/google-play/verify', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + idToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            purchaseToken: token,
+            productId: prodId,
+            isSubscription: !!pending.isSubscription
+          })
+        });
+        var data = await resp.json().catch(function () { return null; });
+        if (!resp.ok || !data || !data.ok) {
+          var emsg = (data && (data.error || data.message)) || ('Verification failed (HTTP ' + resp.status + ').');
+          throw new Error(emsg);
+        }
+        // Tell Play to finalize so the transaction leaves the queue.
+        try { window.__nativeIAP.finishTransaction(token); } catch (_) {}
+
+        // Refresh entitlement state + UI; mirrors the Stripe success flow.
+        try {
+          if (typeof refreshEntitlementsAndCelebrate === 'function') {
+            await refreshEntitlementsAndCelebrate();
+          } else if (typeof loadBuilderAccessForUser === 'function') {
+            await loadBuilderAccessForUser(auth.currentUser.email || '');
+          }
+        } catch (_) {}
+        try { hidePaywall(); } catch (_) {}
+        try { showToast('Thanks! Your purchase is active.', 'success'); } catch (_) {}
+
+        _iapPending = null;
+        pending.resolve && pending.resolve(data);
+      } catch (verr) {
+        try { showToast(((verr && verr.message) || 'Verification failed'), 'error'); } catch (_) {}
+        if (pending.btnEl) {
+          pending.btnEl.disabled = false;
+          if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+        }
+        _iapPending = null;
+        pending.reject && pending.reject(verr);
+      }
+    } catch (outer) {
+      try { console.error('[iap] handleIAPResult outer error', outer); } catch (_) {}
+    }
+  };
+
+  function startGooglePlayCheckout(productId, isSubscription, btnEl) {
+    if (!hasNativeIAP()) {
+      showAndroidWebPurchaseNotice();
+      return Promise.reject(new Error('Native IAP not available'));
+    }
+    if (!auth || !auth.currentUser) {
+      try { showToast('Please sign in first.', 'warning'); } catch (_) {}
+      return Promise.reject(new Error('Not signed in'));
+    }
+    if (_iapPending) {
+      try { showToast('Purchase already in progress.', 'warning'); } catch (_) {}
+      return Promise.reject(new Error('Purchase in progress'));
+    }
+    var origLabel = btnEl ? btnEl.innerHTML : null;
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = 'Opening Google Play...';
+    }
+    var p = new Promise(function (resolve, reject) {
+      _iapPending = {
+        productId: productId,
+        isSubscription: !!isSubscription,
+        resolve: resolve,
+        reject: reject,
+        btnEl: btnEl || null,
+        btnOrig: origLabel
+      };
+    });
+    try {
+      if (isSubscription) {
+        window.__nativeIAP.requestSubscribe(productId);
+      } else {
+        window.__nativeIAP.requestProduct(productId);
+      }
+    } catch (e) {
+      _iapPending = null;
+      if (btnEl) {
+        btnEl.disabled = false;
+        if (origLabel != null) btnEl.innerHTML = origLabel;
+      }
+      try { showToast('Could not start Google Play: ' + ((e && e.message) || e), 'error'); } catch (_) {}
+      return Promise.reject(e);
+    }
+    return p;
+  }
+
   function hidePaywall() {
     var modal = document.getElementById('paywall-modal');
     if (modal) modal.classList.add('hidden');
   }
 
   function showPaywall() {
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    // In-app on Android: if the native Google Play Billing bridge is
+    // available, show the regular paywall and route the existing buttons
+    // to Play (handled inside startStripeCheckout / startLifetimeCheckout).
+    // If the bridge is missing (e.g. older app build, IAP init failed),
+    // fall back to the "manage on web" notice so users have a path forward.
+    if (isInAppWebView() && !hasNativeIAP()) { showAndroidWebPurchaseNotice(); return; }
     var modal = document.getElementById('paywall-modal');
     if (!modal) { try { showToast('Paywall is unavailable.', 'error'); } catch (_) {} return; }
 
@@ -28396,7 +28572,17 @@
 
   function startStripeCheckout() {
     if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    if (isInAppWebView()) {
+      // Inside the Android app, route the existing "Subscribe" button to
+      // Google Play Billing (Play policy requires native billing for digital
+      // goods in Android apps). The Stripe Checkout link is the WEB path.
+      if (hasNativeIAP()) {
+        startGooglePlayCheckout(IAP_SKU_MONTHLY, true, document.getElementById('paywall-upgrade-btn'));
+        return;
+      }
+      showAndroidWebPurchaseNotice();
+      return;
+    }
     var btn = document.getElementById('paywall-upgrade-btn');
     if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting...'; }
     // Set both flags so the success page (legacy or new) recognizes the
@@ -28408,7 +28594,14 @@
 
   function startLifetimeCheckout() {
     if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    if (isInAppWebView()) {
+      if (hasNativeIAP()) {
+        startGooglePlayCheckout(IAP_SKU_LIFETIME, false, document.getElementById('paywall-lifetime-btn'));
+        return;
+      }
+      showAndroidWebPurchaseNotice();
+      return;
+    }
     var btn = document.getElementById('paywall-lifetime-btn');
     if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting...'; }
     try { localStorage.setItem('_builderLifetimePending', String(Date.now())); } catch (_) {}
@@ -28420,7 +28613,16 @@
   // POST /api/builder/portal in projectbackend/server.js.
   async function manageSubscription() {
     if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    if (isInAppWebView()) {
+      // Google Play subscriptions are managed through the Play Store, not
+      // Stripe — deep-link out to the Play subscription management screen.
+      if (hasNativeIAP() && typeof window.__nativeIAP.openManageSubscriptions === 'function') {
+        try { window.__nativeIAP.openManageSubscriptions(IAP_SKU_MONTHLY); } catch (_) {}
+        return;
+      }
+      showAndroidWebPurchaseNotice();
+      return;
+    }
     var btn = document.getElementById('paywall-manage-btn');
     var orig = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = 'Opening Stripe...'; }
