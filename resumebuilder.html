@@ -8411,6 +8411,58 @@
   // Android's Google account picker so a Play user can be in the workspace
   // with a single tap. Cancelling once disables the auto-prompt on this
   // device until the next successful sign-out + sign-in.
+  //
+  // Opt-out is easy: the picker is delayed 2.5s, and ANY interaction with
+  // the login form (focus / click / typing in email or password,
+  // tapping the email-sign-in button) cancels the auto-prompt and persists
+  // a "dismissed" flag so we never auto-prompt again on this device.
+  var _autoSignInTimer = null;
+  function _cancelAppAutoSignIn(persistDismissal) {
+    if (_autoSignInTimer) {
+      try { clearTimeout(_autoSignInTimer); } catch (_) {}
+      _autoSignInTimer = null;
+    }
+    if (persistDismissal) {
+      try { localStorage.setItem('rb_app_autosignin_dismissed', '1'); } catch (_) {}
+    }
+    try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
+    try { _detachAutoSignInOptOutListeners(); } catch (_) {}
+  }
+  var _autoSignInOptOutAttached = false;
+  var _autoSignInOptOutHandler = null;
+  function _attachAutoSignInOptOutListeners() {
+    if (_autoSignInOptOutAttached) return;
+    _autoSignInOptOutAttached = true;
+    _autoSignInOptOutHandler = function (ev) {
+      // If the click/focus came from a "Continue with Google" element,
+      // don't treat it as opt-out; the user is choosing Google explicitly.
+      try {
+        var t = ev && ev.target;
+        var btn = t && t.closest ? t.closest(
+          '#login-page-google-btn, #login-btn, [data-testid="google-signin-btn"], .google-signin-btn, [data-google-signin]'
+        ) : null;
+        if (btn) return;
+      } catch (_) {}
+      _cancelAppAutoSignIn(true);
+    };
+    try {
+      document.addEventListener('focusin',     _autoSignInOptOutHandler, true);
+      document.addEventListener('pointerdown', _autoSignInOptOutHandler, true);
+      document.addEventListener('keydown',     _autoSignInOptOutHandler, true);
+    } catch (_) {}
+  }
+  function _detachAutoSignInOptOutListeners() {
+    if (!_autoSignInOptOutAttached) return;
+    _autoSignInOptOutAttached = false;
+    try {
+      if (_autoSignInOptOutHandler) {
+        document.removeEventListener('focusin',     _autoSignInOptOutHandler, true);
+        document.removeEventListener('pointerdown', _autoSignInOptOutHandler, true);
+        document.removeEventListener('keydown',     _autoSignInOptOutHandler, true);
+      }
+    } catch (_) {}
+    _autoSignInOptOutHandler = null;
+  }
   function maybeAutoStartAppGoogleSignIn() {
     try {
       if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
@@ -8426,13 +8478,19 @@
       // Tag body so existing CSS can dim the email/password form while
       // the picker is up. Cleared by __handleNativeGoogleIdToken.
       try { document.body.classList.add('app-autosignin-pending'); } catch (_) {}
-      // Small delay so the login screen paints first; a picker that
-      // appears mid-paint feels jarring on lower-end devices.
-      setTimeout(function () {
+      // Listen for any user interaction with the login form during the
+      // delay so the user can easily opt out by tapping email/password.
+      _attachAutoSignInOptOutListeners();
+      // Slightly longer delay so the user has time to see the email/password
+      // form and tap it BEFORE the Google picker covers everything. Tested
+      // value: 2.5s feels intentional, not jarring.
+      _autoSignInTimer = setTimeout(function () {
+        _autoSignInTimer = null;
+        try { _detachAutoSignInOptOutListeners(); } catch (_) {}
         try { signInWithGoogle(); } catch (e) {
           try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
         }
-      }, 600);
+      }, 2500);
     } catch (_) {}
   }
 
@@ -8529,6 +8587,13 @@
       // keeps the dismissal sticky across reloads of the login screen.
       if (user) {
         try { localStorage.removeItem('rb_app_autosignin_dismissed'); } catch (_) {}
+      }
+      // App-only: drain any recovered Play purchases that arrived from the
+      // native layer before the user finished signing in. They were queued
+      // by __handleIAPResult; verify + acknowledge them now that we have
+      // a Firebase ID token available.
+      if (user) {
+        try { if (typeof _iapDrainRecoveryQueue === 'function') _iapDrainRecoveryQueue(); } catch (_) {}
       }
       // On sign-out, clear the browser-scoped tour-completed flag so the
       // next user signing in on the same browser still gets the
@@ -28505,42 +28570,120 @@
   // requestPurchase() spawns the Play sheet which is modal.
   var _iapPending = null; // { productId, isSubscription, resolve, reject, btnEl, btnOrig }
 
+  // Recovery queue: when the app surfaces an unacknowledged purchase from
+  // a previous session and the user isn't signed into Firebase yet, we
+  // stash it here and drain it once auth.onAuthStateChanged fires with a
+  // user. Without this, recovered purchases would be silently dropped on
+  // cold-start (the common case where __handleIAPResult fires before the
+  // user has finished Google Sign-In).
+  var _iapRecoveryQueue = [];
+  function _iapDrainRecoveryQueue() {
+    if (!auth || !auth.currentUser) return;
+    if (!_iapRecoveryQueue.length) return;
+    var queue = _iapRecoveryQueue.slice();
+    _iapRecoveryQueue = [];
+    for (var i = 0; i < queue.length; i++) {
+      try { window.__handleIAPResult(queue[i]); } catch (_) {}
+    }
+  }
+
+  // Map technical billing/library errors to friendlier copy. The raw
+  // debugMessage from Google Play (e.g. "Invalid arguments provided to
+  // the API") is too cryptic for end-users; log it but don't toast it.
+  function _iapFriendlyErrorMessage(code, rawMsg) {
+    var c = String(code || '').toUpperCase();
+    if (c === 'E_OFFER_TOKEN_MISSING') {
+      return 'Subscription details are still loading. Please try again in a moment.';
+    }
+    if (c === 'E_DEVELOPER_ERROR' || /invalid arguments/i.test(String(rawMsg || ''))) {
+      return 'Your purchase couldn\u2019t be started. Please reopen the app and try again.';
+    }
+    if (c === 'E_ITEM_ALREADY_OWNED') {
+      return 'You already have an active subscription on this Google account. Reopen the app to restore it.';
+    }
+    if (c === 'E_BILLING_UNAVAILABLE' || c === 'E_SERVICE_UNAVAILABLE') {
+      return 'Google Play Billing is unavailable right now. Please try again shortly.';
+    }
+    if (c === 'E_NETWORK_ERROR') {
+      return 'Network error reaching Google Play. Please check your connection and try again.';
+    }
+    return rawMsg || 'Purchase did not complete.';
+  }
+
   // Called by the native layer (via injectJavaScript) after Play returns a
   // purchase or an error. Always JSON-serializable payload.
+  // Result shape:
+  //   { status:'success', purchaseToken, productId, isAcknowledged?, recovery?, ... }
+  //   { status:'pending', purchaseToken, productId }
+  //   { status:'error',   code, message }
   window.__handleIAPResult = async function (result) {
     try {
-      var pending = _iapPending;
-      if (!pending) return; // no awaiter — nothing to do
-      if (!result || result.status !== 'success') {
-        var msg = (result && result.message) || 'Purchase did not complete.';
-        var code = result && result.code;
-        // User cancellation is not an error worth toasting loudly.
-        if (code !== 'E_USER_CANCELLED' && !/cancel/i.test(String(msg))) {
-          try { showToast(msg, 'error'); } catch (_) {}
+      var pending    = _iapPending;
+      var isRecovery = !pending && !!(result && result.recovery);
+
+      // PENDING: Play has accepted the purchase but payment hasn't cleared
+      // (e.g. cash-at-7-eleven, parental approval). Don't grant access,
+      // don't acknowledge — Play will re-fire purchaseUpdated when it clears.
+      if (result && result.status === 'pending') {
+        if (pending) {
+          if (pending.btnEl) {
+            pending.btnEl.disabled = false;
+            if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+          }
+          try { showToast('Your purchase is processing. We\u2019ll activate it as soon as Google confirms payment.', 'info'); } catch (_) {}
+          _iapPending = null;
+          pending.resolve && pending.resolve({ ok: false, pending: true });
         }
-        if (pending.btnEl) {
-          pending.btnEl.disabled = false;
-          if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
-        }
-        _iapPending = null;
-        pending.reject && pending.reject(new Error(msg));
-        return;
-      }
-      // Success path: verify with backend, refresh entitlement, finish tx.
-      var token  = result.purchaseToken || '';
-      var prodId = result.productId || pending.productId;
-      if (!token) {
-        try { showToast('Missing purchase token from Google Play.', 'error'); } catch (_) {}
-        _iapPending = null;
-        if (pending.btnEl) {
-          pending.btnEl.disabled = false;
-          if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
-        }
-        pending.reject && pending.reject(new Error('Missing purchaseToken'));
         return;
       }
 
-      if (pending.btnEl) pending.btnEl.innerHTML = 'Verifying...';
+      // ERROR: pending purchase only — recovery purchases never produce
+      // error results (purchaseErrorListener fires for the live request).
+      if (!result || result.status !== 'success') {
+        var rawMsg = (result && result.message) || 'Purchase did not complete.';
+        var code   = result && result.code;
+        var nice   = _iapFriendlyErrorMessage(code, rawMsg);
+        try { console.warn('[iap] error code=' + code + ' raw=' + rawMsg); } catch (_) {}
+        if (pending) {
+          // User cancellation is not an error worth toasting loudly.
+          if (code !== 'E_USER_CANCELLED' && !/cancel/i.test(String(rawMsg))) {
+            try { showToast(nice, 'error'); } catch (_) {}
+          }
+          if (pending.btnEl) {
+            pending.btnEl.disabled = false;
+            if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+          }
+          _iapPending = null;
+          pending.reject && pending.reject(new Error(rawMsg));
+        }
+        return;
+      }
+
+      // SUCCESS path (live or recovery).
+      var token  = result.purchaseToken || '';
+      var prodId = result.productId || (pending && pending.productId) || '';
+      var isSub  = pending ? !!pending.isSubscription : (prodId === IAP_SKU_MONTHLY);
+      if (!token) {
+        if (pending) {
+          try { showToast('Missing purchase token from Google Play.', 'error'); } catch (_) {}
+          _iapPending = null;
+          if (pending.btnEl) {
+            pending.btnEl.disabled = false;
+            if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+          }
+          pending.reject && pending.reject(new Error('Missing purchaseToken'));
+        }
+        return;
+      }
+
+      // Recovery without auth: queue and drain when onAuthStateChanged fires.
+      if (isRecovery && (!auth || !auth.currentUser)) {
+        try { console.log('[iap] recovery queued (auth not ready) tokenTail=' + token.slice(-8)); } catch (_) {}
+        _iapRecoveryQueue.push(result);
+        return;
+      }
+
+      if (pending && pending.btnEl) pending.btnEl.innerHTML = 'Verifying...';
       try {
         if (!auth || !auth.currentUser) {
           throw new Error('You must be signed in to complete the purchase.');
@@ -28555,23 +28698,42 @@
           body: JSON.stringify({
             purchaseToken: token,
             productId: prodId,
-            isSubscription: !!pending.isSubscription
+            isSubscription: isSub
           })
         });
         var data = await resp.json().catch(function () { return null; });
         if (!resp.ok || !data || !data.ok) {
           var emsg = (data && (data.error || data.message)) || ('Verification failed (HTTP ' + resp.status + ').');
+          // For recovery: don't surface the error loudly — log + retry next launch.
+          if (isRecovery) {
+            try { console.warn('[iap] recovery verify failed:', resp.status, emsg); } catch (_) {}
+            return;
+          }
           throw new Error(emsg);
         }
         // Tell Play to finalize so the transaction leaves the queue.
         try { window.__nativeIAP.finishTransaction(token); } catch (_) {}
 
-        // App-only celebratory confirmation: animated checkmark + thank-you,
-        // shown BEFORE closing the paywall so the user gets a clear moment
-        // of "yes, the purchase went through." The card auto-dismisses after
-        // ~3.5s or when the user taps Continue / outside it.
+        // RECOVERY path: low-key UI, just refresh entitlements and toast.
+        if (isRecovery) {
+          try { console.log('[iap] recovery verified ok lifetime=' + !!data.lifetime); } catch (_) {}
+          try {
+            if (typeof refreshEntitlementsAndCelebrate === 'function') {
+              await refreshEntitlementsAndCelebrate();
+            } else if (typeof loadBuilderAccessForUser === 'function') {
+              await loadBuilderAccessForUser(auth.currentUser.email || '');
+            }
+          } catch (_) {}
+          try { showToast('Welcome back \u2014 your previous purchase has been restored.', 'success'); } catch (_) {}
+          return;
+        }
+
+        // LIVE path: app-only celebratory confirmation, animated checkmark
+        // + thank-you, shown BEFORE closing the paywall so the user gets a
+        // clear moment of "yes, the purchase went through." The card
+        // auto-dismisses after ~3.5s or when the user taps Continue.
         var isInApp = (typeof isInAppWebView === 'function') && isInAppWebView();
-        var isLifetime = !pending.isSubscription || prodId === IAP_SKU_LIFETIME;
+        var isLifetime = !isSub || prodId === IAP_SKU_LIFETIME;
         if (isInApp) {
           try {
             await showAppPurchaseSuccess({
@@ -28587,7 +28749,6 @@
         try { hidePaywall(); } catch (_) {}
 
         // Refresh entitlement state + UI; mirrors the Stripe success flow.
-        // (refreshEntitlementsAndCelebrate also routes to the dashboard.)
         try {
           if (typeof refreshEntitlementsAndCelebrate === 'function') {
             await refreshEntitlementsAndCelebrate();
@@ -28600,16 +28761,24 @@
           try { showToast('Thanks! Your purchase is active.', 'success'); } catch (_) {}
         }
 
-        _iapPending = null;
-        pending.resolve && pending.resolve(data);
+        if (pending) {
+          _iapPending = null;
+          pending.resolve && pending.resolve(data);
+        }
       } catch (verr) {
+        if (isRecovery) {
+          try { console.warn('[iap] recovery verify threw:', verr && verr.message); } catch (_) {}
+          return;
+        }
         try { showToast(((verr && verr.message) || 'Verification failed'), 'error'); } catch (_) {}
-        if (pending.btnEl) {
+        if (pending && pending.btnEl) {
           pending.btnEl.disabled = false;
           if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
         }
-        _iapPending = null;
-        pending.reject && pending.reject(verr);
+        if (pending) {
+          _iapPending = null;
+          pending.reject && pending.reject(verr);
+        }
       }
     } catch (outer) {
       try { console.error('[iap] handleIAPResult outer error', outer); } catch (_) {}
