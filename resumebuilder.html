@@ -8243,6 +8243,29 @@
       console.warn('[paywall] failed to load builder access:', err);
     }).then(function () {
       try { updatePaywallBadges(); } catch (_) {}
+      // If the paywall is currently visible AND the user just became
+      // premium, re-paint the modal to show the active state and then
+      // auto-close after a short pause so they get a clear visual
+      // confirmation before the modal disappears. Covers Google Play
+      // live success, recovery flow, return-from-background, and pending
+      // poll \u2014 every path that flips entitlement state benefits from
+      // this single hook.
+      try {
+        if (typeof _isPaywallVisible === 'function' && _isPaywallVisible()) {
+          var nowPremium = !!(builderSubscribed || lifetimePurchased || isOwner());
+          var wasPremium = !!(_lastPaywallAppliedState && _lastPaywallAppliedState.premium);
+          if (typeof _applyPaywallState === 'function') _applyPaywallState();
+          if (nowPremium && !wasPremium) {
+            try { _clearPendingPollTimer(); } catch (_) {}
+            // Slight delay so the green "Subscription activated" banner
+            // painted by _applyPaywallState is visible before close.
+            setTimeout(function () {
+              try { hidePaywall(); } catch (_) {}
+              try { showToast('Your subscription is active \u2014 welcome aboard!', 'success'); } catch (_) {}
+            }, 1200);
+          }
+        }
+      } catch (_) {}
     });
   }
 
@@ -27111,6 +27134,32 @@
         try { flushLazySave('visibility-hidden'); } catch (_) {}
       }
     });
+    // Reactive paywall: when the user returns to the app while the paywall
+    // is open, refresh entitlement state from Firestore. Catches the case
+    // where the Google Play purchase event landed while the WebView was
+    // suspended, or the user backgrounded mid-purchase. Throttled to at
+    // most one refresh per 4 seconds so rapid focus toggles don't hammer
+    // Firestore. The auto-close behavior lives inside loadBuilderAccessForUser.
+    var _paywallReturnLastRefreshAt = 0;
+    function _maybeRefreshPaywallOnReturn() {
+      try {
+        if (document.visibilityState !== 'visible') return;
+        if (typeof _isPaywallVisible !== 'function' || !_isPaywallVisible()) return;
+        if (typeof auth === 'undefined' || !auth || !auth.currentUser) return;
+        if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
+        var nowMs = Date.now();
+        if (nowMs - _paywallReturnLastRefreshAt < 4000) return;
+        _paywallReturnLastRefreshAt = nowMs;
+        if (typeof loadBuilderAccessForUser === 'function') {
+          loadBuilderAccessForUser(auth.currentUser);
+        }
+      } catch (_) {}
+    }
+    document.addEventListener('visibilitychange', _maybeRefreshPaywallOnReturn);
+    // Some Android WebView versions fire 'pageshow' but not 'visibilitychange'
+    // when transitioning back from another activity. Cover both.
+    window.addEventListener('pageshow', _maybeRefreshPaywallOnReturn);
+    window.addEventListener('focus',    _maybeRefreshPaywallOnReturn);
     window.addEventListener('online', function () {
       if (RB_STATE && RB_STATE._hasUnsavedChanges) scheduleLazySave('online');
     });
@@ -28630,18 +28679,81 @@
       var isRecovery = !pending && !!(result && result.recovery);
 
       // PENDING: Play has accepted the purchase but payment hasn't cleared
-      // (e.g. cash-at-7-eleven, parental approval). Don't grant access,
-      // don't acknowledge — Play will re-fire purchaseUpdated when it clears.
+      // (e.g. cash-at-7-eleven, parental approval, anti-fraud hold). Don't
+      // grant access, don't acknowledge \u2014 Play will re-fire
+      // purchaseUpdated when it clears. While we wait, swap the Subscribe
+      // button to a clear "Activation in progress" state and poll the
+      // server every 6s for up to 90s so the paywall auto-flips to active
+      // the moment Google releases the hold.
       if (result && result.status === 'pending') {
         if (pending) {
           if (pending.btnEl) {
-            pending.btnEl.disabled = false;
-            if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+            pending.btnEl.disabled = true;
+            pending.btnEl.style.opacity = '.85';
+            pending.btnEl.innerHTML =
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;margin-right:.4rem;animation:rb-iap-spin 1s linear infinite" aria-hidden="true">' +
+                '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path>' +
+              '</svg>Activation in progress\u2026';
           }
-          try { showToast('Your purchase is processing. We\u2019ll activate it as soon as Google confirms payment.', 'info'); } catch (_) {}
-          _iapPending = null;
+          // Inject the spin keyframes once.
+          if (!document.getElementById('rb-iap-spin-style')) {
+            var styleEl = document.createElement('style');
+            styleEl.id = 'rb-iap-spin-style';
+            styleEl.textContent = '@keyframes rb-iap-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
+            document.head.appendChild(styleEl);
+          }
+          var pendingBanner = document.getElementById('paywall-plan-status');
+          if (pendingBanner) {
+            pendingBanner.innerHTML =
+              '<div id="rb-iap-pending-banner" style="background:#ECFDF5;border:1px solid #A7F3D0;color:#047857;border-radius:10px;padding:.7rem .85rem;margin-bottom:.8rem;font-weight:700;text-align:center;line-height:1.35">' +
+                'Google Play is finalizing your purchase. This usually takes a minute or two \u2014 please keep the app open and we\u2019ll activate access automatically.' +
+              '</div>';
+          }
+          // Resolve the original promise as a non-error pending result so
+          // any callers know the request landed cleanly. We DON'T null out
+          // _iapPending here \u2014 the success/error handlers above will
+          // take over once Play re-fires purchaseUpdated.
           pending.resolve && pending.resolve({ ok: false, pending: true });
+          // Don't clear _iapPending; we want the success/error path that
+          // fires next to still find it and update the same button. But we
+          // do null out the resolve/reject so we don't double-resolve.
+          pending.resolve = null;
+          pending.reject  = null;
         }
+
+        // Start the 90-second activation poll. Every 6 seconds we re-read
+        // the entitlement doc; the moment it flips, loadBuilderAccessForUser's
+        // post-load hook auto-closes the paywall (Phase 1) and clears this
+        // timer for us.
+        _clearPendingPollTimer();
+        _pendingPollDeadline = Date.now() + 90 * 1000;
+        _pendingPollTimer = setInterval(function () {
+          try {
+            if (Date.now() > _pendingPollDeadline) {
+              _clearPendingPollTimer();
+              // Timeout fallback: tell the user we're still waiting and
+              // hand the Subscribe button back so they can dismiss/retry.
+              var stuckBanner = document.getElementById('paywall-plan-status');
+              if (stuckBanner) {
+                stuckBanner.innerHTML =
+                  '<div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#047857;border-radius:10px;padding:.7rem .85rem;margin-bottom:.8rem;font-weight:700;text-align:center;line-height:1.35">' +
+                    'Still waiting on Google Play. Your access will activate automatically once Google clears the purchase \u2014 you can close this and come back any time.' +
+                  '</div>';
+              }
+              if (_iapPending && _iapPending.btnEl) {
+                _iapPending.btnEl.disabled = false;
+                _iapPending.btnEl.style.opacity = '1';
+                if (_iapPending.btnOrig != null) {
+                  _iapPending.btnEl.innerHTML = _iapPending.btnOrig;
+                }
+              }
+              return;
+            }
+            if (auth && auth.currentUser && typeof loadBuilderAccessForUser === 'function') {
+              loadBuilderAccessForUser(auth.currentUser);
+            }
+          } catch (_) {}
+        }, 6000);
         return;
       }
 
@@ -28652,6 +28764,11 @@
         var code   = result && result.code;
         var nice   = _iapFriendlyErrorMessage(code, rawMsg);
         try { console.warn('[iap] error code=' + code + ' raw=' + rawMsg); } catch (_) {}
+        // If we had a pending-poll timer running (PENDING -> ERROR
+        // transition, e.g. Google ultimately declined the payment), tear
+        // it down so we stop hammering Firestore for an entitlement that
+        // is never going to flip.
+        try { _clearPendingPollTimer(); } catch (_) {}
         if (pending) {
           // User cancellation is not an error worth toasting loudly.
           if (code !== 'E_USER_CANCELLED' && !/cancel/i.test(String(rawMsg))) {
@@ -28659,7 +28776,15 @@
           }
           if (pending.btnEl) {
             pending.btnEl.disabled = false;
+            pending.btnEl.style.opacity = '1';
             if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+          }
+          // Also wipe any "Activation in progress" banner the pending
+          // branch may have painted earlier so the user isn't left
+          // staring at a stale message after a real error.
+          var pwBanner = document.getElementById('paywall-plan-status');
+          if (pwBanner && pwBanner.querySelector('#rb-iap-pending-banner')) {
+            pwBanner.innerHTML = '';
           }
           _iapPending = null;
           pending.reject && pending.reject(new Error(rawMsg));
@@ -28839,20 +28964,48 @@
     return p;
   }
 
+  function _isPaywallVisible() {
+    var modal = document.getElementById('paywall-modal');
+    return !!(modal && !modal.classList.contains('hidden'));
+  }
+
+  // Module-scoped snapshot of the last entitlement state painted into the
+  // paywall. Lets _applyPaywallState detect a "no entitlement -> premium"
+  // transition while the modal is open and play a brief activation flourish.
+  var _lastPaywallAppliedState = null;
+
+  // 90-second pending-purchase poll timer. While set, loadBuilderAccessForUser
+  // is being called every few seconds to detect when Google Play clears a
+  // pending payment. Cleared by hidePaywall, by a successful entitlement flip,
+  // or by the timeout fallback inside the pending UX itself.
+  var _pendingPollTimer = null;
+  var _pendingPollDeadline = 0;
+
+  function _clearPendingPollTimer() {
+    if (_pendingPollTimer) {
+      try { clearInterval(_pendingPollTimer); } catch (_) {}
+      _pendingPollTimer = null;
+    }
+    _pendingPollDeadline = 0;
+  }
+
   function hidePaywall() {
     var modal = document.getElementById('paywall-modal');
     if (modal) modal.classList.add('hidden');
+    // Always tear down any in-flight pending-purchase poller so it doesn't
+    // keep hammering Firestore after the user has dismissed the modal.
+    _clearPendingPollTimer();
   }
 
-  function showPaywall() {
-    // In-app on Android: if the native Google Play Billing bridge is
-    // available, show the regular paywall and route the existing buttons
-    // to Play (handled inside startStripeCheckout / startLifetimeCheckout).
-    // If the bridge is missing (e.g. older app build, IAP init failed),
-    // fall back to the "manage on web" notice so users have a path forward.
-    if (isInAppWebView() && !hasNativeIAP()) { showAndroidWebPurchaseNotice(); return; }
+  // Apply current entitlement state to the paywall modal. Safe to call any
+  // time, whether the modal is open or closed; it only mutates DOM children
+  // of the modal. Pulls all state from the global paywall flags
+  // (builderSubscribed, lifetimePurchased, hadPriorSubscription, etc.) so a
+  // single call produces the correct UI for every user state.
+  function _applyPaywallState(opts) {
+    opts = opts || {};
     var modal = document.getElementById('paywall-modal');
-    if (!modal) { try { showToast('Paywall is unavailable.', 'error'); } catch (_) {} return; }
+    if (!modal) return;
 
     var statusBanner = document.getElementById('paywall-plan-status');
     var subBtn       = document.getElementById('paywall-upgrade-btn');
@@ -28861,6 +29014,7 @@
     var trialPill    = document.getElementById('paywall-trial-pill');
     var manageRow    = document.getElementById('paywall-manage-row');
 
+    // Reset to defaults; then specialize per-state below.
     if (stripeBadge) stripeBadge.classList.add('hidden');
     if (manageRow)   manageRow.classList.add('hidden');
     if (subBtn) {
@@ -28905,6 +29059,40 @@
       if (manageRow) manageRow.classList.remove('hidden');
     }
 
+    // Detect a "no-entitlement \u2192 premium" transition WHILE the modal is
+    // visible. That signals a freshly-completed purchase, so we paint a green
+    // "Subscription activated" flourish before the auto-close fires elsewhere.
+    var nowPremium = !!(builderSubscribed || lifetimePurchased || isOwner());
+    var wasPremium = !!(_lastPaywallAppliedState && _lastPaywallAppliedState.premium);
+    if (statusBanner && _isPaywallVisible() && nowPremium && !wasPremium && !opts.suppressFlourish) {
+      statusBanner.innerHTML =
+        '<div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#047857;border-radius:10px;padding:.7rem .85rem;margin-bottom:.8rem;font-weight:700;text-align:center;display:flex;align-items:center;justify-content:center;gap:.5rem">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<path d="M5 12.5l4.5 4.5L19 7" />' +
+          '</svg>' +
+          '<span>Subscription activated</span>' +
+        '</div>';
+    }
+    _lastPaywallAppliedState = { premium: nowPremium, lifetime: !!lifetimePurchased };
+  }
+
+  function showPaywall() {
+    // In-app on Android: if the native Google Play Billing bridge is
+    // available, show the regular paywall and route the existing buttons
+    // to Play (handled inside startStripeCheckout / startLifetimeCheckout).
+    // If the bridge is missing (e.g. older app build, IAP init failed),
+    // fall back to the "manage on web" notice so users have a path forward.
+    if (isInAppWebView() && !hasNativeIAP()) { showAndroidWebPurchaseNotice(); return; }
+    var modal = document.getElementById('paywall-modal');
+    if (!modal) { try { showToast('Paywall is unavailable.', 'error'); } catch (_) {} return; }
+
+    // Reset baseline tracking so the activation flourish only fires for
+    // transitions that happen WHILE the modal is open (not on first open).
+    _lastPaywallAppliedState = {
+      premium: !!(builderSubscribed || lifetimePurchased || isOwner()),
+      lifetime: !!lifetimePurchased
+    };
+    _applyPaywallState({ suppressFlourish: true });
     modal.classList.remove('hidden');
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
   }
