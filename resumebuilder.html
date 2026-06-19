@@ -572,6 +572,21 @@
   html:not(.signed-in) #account-menu { display: none; }
   html:not(.is-owner) .owner-only { display: none !important; }
 
+  /* Owner Testing section in the account menu — visible ONLY to the owner
+     AND only on phone-sized viewports. Gated by html.is-owner + a width
+     media query so non-owners never see it and desktop owners aren't
+     distracted by the test harness shortcuts. */
+  .owner-mobile-only { display: none; }
+  @media (max-width: 720px) {
+    html.is-owner .owner-mobile-only { display: block; }
+  }
+  .account-menu-section-title {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .55rem .75rem .15rem;
+    font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: #94A3B8;
+  }
+
   /* Hide the inline Sign-out button — already in the account menu. */
   #logout-btn.btn { display: none !important; }
 
@@ -6200,6 +6215,19 @@
           <button type="button" role="menuitem" data-menu-open="how-ai"><i data-lucide="sparkles" style="width:16px;height:16px;"></i> How AI is Used</button>
           <button type="button" role="menuitem" data-menu-open="terms"><i data-lucide="file-text" style="width:16px;height:16px;"></i> Terms of Use</button>
           <button type="button" role="menuitem" data-menu-open="about-creator"><i data-lucide="info" style="width:16px;height:16px;"></i> About the Creator</button>
+          <!-- Owner Testing — phone-only, owner-only quick links to the
+               console test harnesses and the Expo build dashboard. Visibility
+               is enforced by the .owner-mobile-only CSS rule (html.is-owner
+               + max-width: 720px) AND each handler re-checks isOwner(). -->
+          <div class="owner-mobile-only" role="group" aria-label="Owner Testing">
+            <hr>
+            <div class="account-menu-section-title"><i data-lucide="wrench" style="width:14px;height:14px;"></i> Owner Testing</div>
+            <button type="button" role="menuitem" data-action="ownerRunUIPreview"><i data-lucide="layout-template" style="width:16px;height:16px;"></i> Preview UI States (founder / payment)</button>
+            <button type="button" role="menuitem" data-action="ownerRunAITestBatch"><i data-lucide="bot" style="width:16px;height:16px;"></i> Run AI Test (30 resumes)</button>
+            <button type="button" role="menuitem" data-action="ownerRunFullPipeline"><i data-lucide="git-branch" style="width:16px;height:16px;"></i> Run Full Pipeline Test</button>
+            <button type="button" role="menuitem" data-action="ownerRunOptAudit"><i data-lucide="clipboard-check" style="width:16px;height:16px;"></i> Run Optimization Audit</button>
+            <a href="https://expo.dev/accounts/career-solutions-for-today/projects/resume-portfolio/builds" target="_blank" rel="noopener" role="menuitem"><i data-lucide="external-link" style="width:16px;height:16px;"></i> Open Expo Builds</a>
+          </div>
           <hr>
           <button type="button" role="menuitem" data-action="signOut"><i data-lucide="log-out" style="width:16px;height:16px;"></i> Sign Out</button>
         </div>
@@ -8637,7 +8665,17 @@
       try { if (user) syncTermsAcceptanceForUser(user); } catch (_) {}
       // Best-effort: load subscription/usage state. Never blocks UI.
       try {
-        Promise.resolve(loadBuilderAccessForUser(user)).catch(function (e) {
+        Promise.resolve(loadBuilderAccessForUser(user)).then(function () {
+          // After entitlement state is hydrated (so we know whether the
+          // user is already premium), check the app-only Founder Offer.
+          // maybeShowFounderOffer() hard-fails closed when conditions
+          // aren't met, so this is safe to call on every auth change.
+          try {
+            if (user && typeof maybeShowFounderOffer === 'function') {
+              maybeShowFounderOffer(user);
+            }
+          } catch (_) {}
+        }).catch(function (e) {
           console.debug('[paywall] load failed:', e);
         });
       } catch (e) { console.debug('[paywall] load threw:', e); }
@@ -28532,6 +28570,345 @@
   var IAP_SKU_MONTHLY  = 'resume_builder_monthly';
   var IAP_SKU_LIFETIME = 'resume_builder_lifetime';
 
+  // ===== FOUNDER OFFER (app-only) ====================================
+  // Promotional 20%-off-forever subscription for the first 20 customers.
+  // App-only because the website's Stripe paywall has its own pricing
+  // and we don't want to introduce a second Stripe price for what's
+  // intentionally a Google Play exclusive.
+  //
+  // Google Play Console:
+  //   Product ID:    founder_plan
+  //   Base plan ID:  founder-monthly-20
+  //
+  // Constants are duplicated in:
+  //   Android: Android App Files - Resume Portfolio/app/index.tsx
+  //   Backend: projectbackend/server.js (PLAY_PRODUCTS map)
+  // Keep all three in sync if you ever rename them.
+  var IAP_SKU_FOUNDER       = 'founder_plan';
+  var IAP_FOUNDER_BASE_PLAN = 'founder-monthly-20';
+  var FOUNDER_LIMIT         = 20;
+
+  // Cached founder-offer status from the backend (enabled flag, claim
+  // count, available spots). Refreshed at most once every 5 minutes so
+  // the banner copy stays roughly accurate without spamming the API.
+  var _founderOfferStatus    = null;
+  var _founderOfferLastFetch = 0;
+  var FOUNDER_STATUS_TTL_MS  = 5 * 60 * 1000;
+
+  // Per-user "seen" key. Stored in localStorage scoped to the Firebase
+  // uid so the banner never re-shows after the user dismisses or
+  // claims it. TODO: move into builderUsage/{uid} so the flag persists
+  // across uninstall/device-switch \u2014 localStorage is fine for
+  // single-device first-time UX.
+  function _founderSeenKey(uid) {
+    return 'rb_founder_offer_seen_v1_' + (uid || 'anon');
+  }
+  function hasSeenFounderOffer(uid) {
+    try { return localStorage.getItem(_founderSeenKey(uid)) === '1'; }
+    catch (_) { return false; }
+  }
+  function markFounderOfferSeen(uid) {
+    try { localStorage.setItem(_founderSeenKey(uid), '1'); } catch (_) {}
+  }
+
+  // Fetch /api/billing/founder-offer-status. Public endpoint (no auth)
+  // so we can read it before the Firebase ID token is ready. Returns
+  // null on network error \u2014 callers should treat that as "don't
+  // show" so we never display a stale or wrong counter.
+  function fetchFounderOfferStatus(force) {
+    var now = Date.now();
+    if (!force && _founderOfferStatus && (now - _founderOfferLastFetch) < FOUNDER_STATUS_TTL_MS) {
+      return Promise.resolve(_founderOfferStatus);
+    }
+    return fetch(API_BASE + '/billing/founder-offer-status', { method: 'GET' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (data && typeof data === 'object') {
+          _founderOfferStatus    = data;
+          _founderOfferLastFetch = now;
+        }
+        return data;
+      })
+      .catch(function () { return null; });
+  }
+
+  // Inject founder-offer modal styles once. Deferred so the CSS only
+  // ever lives in the DOM of users who actually see the banner (i.e.
+  // app users on Android), keeping the website's CSS surface minimal.
+  function _ensureFounderOfferStyles() {
+    if (document.getElementById('founder-offer-styles')) return;
+    var st = document.createElement('style');
+    st.id = 'founder-offer-styles';
+    st.textContent =
+      '#founder-offer-modal{position:fixed;inset:0;z-index:6200;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(2,6,23,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:foundFadeIn .35s ease-out both}' +
+      '#founder-offer-modal.hidden,#founder-offer-modal[hidden]{display:none !important}' +
+      '@keyframes foundFadeIn{from{opacity:0}to{opacity:1}}' +
+      '@keyframes foundCardIn{from{opacity:0;transform:translateY(20px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}' +
+      '@keyframes foundShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}' +
+      '@keyframes foundSparklePulse{0%,100%{transform:scale(1) rotate(0);opacity:.95}50%{transform:scale(1.18) rotate(8deg);opacity:1}}' +
+      '#founder-offer-modal .founder-offer-backdrop{position:absolute;inset:0;cursor:pointer}' +
+      '#founder-offer-modal .founder-offer-card{position:relative;z-index:1;width:100%;max-width:440px;background:linear-gradient(135deg,#0F172A 0%,#1E293B 60%,#0F172A 100%);color:#F8FAFC;border-radius:22px;padding:2rem 1.6rem 1.5rem;box-shadow:0 30px 90px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);text-align:center;animation:foundCardIn .45s cubic-bezier(.2,.9,.3,1.2) both;overflow:hidden;border:1px solid rgba(251,191,36,.35)}' +
+      '#founder-offer-modal .founder-offer-card::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 30%,rgba(251,191,36,.12) 50%,transparent 70%);background-size:200% 100%;animation:foundShimmer 6s linear infinite;pointer-events:none}' +
+      '#founder-offer-modal .founder-offer-close{position:absolute;top:.6rem;right:.85rem;background:transparent;border:0;color:rgba(248,250,252,.65);font-size:1.6rem;line-height:1;cursor:pointer;padding:.2rem .45rem;border-radius:8px;transition:background .15s ease,color .15s ease;z-index:2}' +
+      '#founder-offer-modal .founder-offer-close:hover{background:rgba(248,250,252,.08);color:#F8FAFC}' +
+      '#founder-offer-modal .founder-offer-badge{display:inline-flex;align-items:center;gap:.45rem;background:linear-gradient(135deg,#FBBF24,#F59E0B);color:#0F172A;font-weight:800;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;padding:.4rem .85rem;border-radius:999px;margin-bottom:1rem;box-shadow:0 6px 18px rgba(251,191,36,.4);position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-badge .founder-offer-sparkle{font-size:1.05rem;display:inline-block;animation:foundSparklePulse 2.4s ease-in-out infinite}' +
+      '#founder-offer-modal .founder-offer-card h3{margin:0 0 .35rem;font-size:1.7rem;font-weight:800;line-height:1.2;background:linear-gradient(135deg,#FCD34D,#F59E0B);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-sub{margin:0 0 .25rem;color:#FCD34D;font-weight:700;font-size:.95rem;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-spots-left{margin:0 0 1rem;color:#CBD5E1;font-size:.85rem;font-weight:600;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-body{margin:0 0 1.4rem;color:#E2E8F0;line-height:1.55;font-size:.95rem;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-actions{display:flex;flex-direction:column;gap:.55rem;margin-bottom:1rem;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-claim{background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:0;border-radius:12px;padding:.95rem 1.2rem;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 8px 22px rgba(16,185,129,.42);transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease}' +
+      '#founder-offer-modal .founder-offer-claim:hover{box-shadow:0 12px 28px rgba(16,185,129,.55)}' +
+      '#founder-offer-modal .founder-offer-claim:active{transform:scale(.98)}' +
+      '#founder-offer-modal .founder-offer-claim:disabled{opacity:.6;cursor:not-allowed;box-shadow:none}' +
+      '#founder-offer-modal .founder-offer-later{background:transparent;color:#CBD5E1;border:1px solid rgba(203,213,225,.25);border-radius:12px;padding:.75rem 1.2rem;font-weight:600;font-size:.95rem;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}' +
+      '#founder-offer-modal .founder-offer-later:hover{background:rgba(248,250,252,.06);color:#F8FAFC;border-color:rgba(203,213,225,.4)}' +
+      '#founder-offer-modal .founder-offer-terms{margin:0;color:#94A3B8;font-size:.72rem;line-height:1.45;position:relative;z-index:1}';
+    document.head.appendChild(st);
+  }
+
+  // Decide whether to show the founder-offer banner. Called once per
+  // auth-state change (after entitlement load completes) so we have
+  // correct premium state. Hard-fails closed on every condition we
+  // can't satisfy \u2014 it's a promo, not a paywall, so a missed
+  // showing is harmless but a wrong showing would be embarrassing.
+  //
+  // Coordination with the first-time walkthrough: if the RB_TOUR is
+  // currently open OR about to auto-start, we DEFER the offer until
+  // the tour ends (RB_TOUR.end() flushes it). Showing both at once
+  // would have the founder modal sit on top of the walkthrough, which
+  // is what the user reported as "blocking the step walkthrough from
+  // being viewable".
+  function _tourIsLiveOrPending() {
+    try {
+      var st = (window.RB_TOUR && typeof RB_TOUR._getState === 'function')
+        ? RB_TOUR._getState() : null;
+      if (!st) return false;
+      // Tour overlay is currently visible.
+      if (st.openedNow) return true;
+      // Tour has decided to auto-start and is in the polling /
+      // existing-resume gate phase \u2014 the overlay hasn't mounted yet
+      // but it will momentarily. RB_TOUR clears autoStartArmed once it
+      // commits (start() fires) or when it bails out (existing user,
+      // polling timeout), at which point _flushPendingFounderOffer()
+      // runs to release any deferred modal.
+      if (st.autoStartArmed) return true;
+      return false;
+    } catch (_) { return false; }
+  }
+
+  // Surface the deferred founder-offer modal once the tour has
+  // ended, completed, or bailed out without ever showing.
+  function _flushPendingFounderOffer() {
+    try {
+      var pending = window.__founderOfferPending;
+      if (!pending) return;
+      window.__founderOfferPending = null;
+      // Small delay lets any tour overlay tear-down paint first.
+      setTimeout(function () {
+        try {
+          if (typeof showFounderOfferModal === 'function') {
+            showFounderOfferModal(pending);
+          }
+        } catch (_) {}
+      }, 250);
+    } catch (_) {}
+  }
+  // Exposed so RB_TOUR.maybeAutoStart() can flush from inside its IIFE
+  // when it bails out without ever showing the overlay.
+  window._flushPendingFounderOffer = _flushPendingFounderOffer;
+
+  function maybeShowFounderOffer(user) {
+    try {
+      if (!user) return;
+      if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
+      if (typeof hasNativeIAP !== 'function' || !hasNativeIAP()) return;
+      if (hasSeenFounderOffer(user.uid)) return;
+      // User already premium \u2014 the founder offer doesn't help them
+      // and we'd just be showing them another paywall.
+      var isPremium = !!(
+        (typeof builderSubscribed   !== 'undefined' && builderSubscribed) ||
+        (typeof lifetimePurchased   !== 'undefined' && lifetimePurchased) ||
+        (typeof isOwner === 'function' && isOwner())
+      );
+      if (isPremium) return;
+
+      fetchFounderOfferStatus(false).then(function (status) {
+        if (!status) return;                              // network error -> stay silent
+        if (status.enabled === false) return;             // ops kill switch
+        var claimed   = +status.claimedCount || 0;
+        var limit     = +status.limit        || FOUNDER_LIMIT;
+        var available = (typeof status.available === 'boolean')
+          ? status.available
+          : (claimed < limit);
+        if (!available) return;
+        var spotsLeft = Math.max(0, limit - claimed);
+        var modalOpts = {
+          spotsLeft: spotsLeft,
+          claimed:   claimed,
+          limit:     limit
+        };
+        // Defer until the walkthrough is done (or skipped). RB_TOUR.end()
+        // and RB_TOUR.maybeAutoStart() bail-out paths both call
+        // _flushPendingFounderOffer() to surface this when the tour is
+        // out of the way.
+        if (_tourIsLiveOrPending()) {
+          window.__founderOfferPending = modalOpts;
+          return;
+        }
+        showFounderOfferModal(modalOpts);
+      });
+    } catch (_) { /* never block sign-in on a promo */ }
+  }
+
+  // Render the founder-offer modal. Idempotent \u2014 calling twice in
+  // a row replaces the existing element rather than stacking.
+  function showFounderOfferModal(opts) {
+    opts = opts || {};
+    var spotsLeft = (typeof opts.spotsLeft === 'number') ? opts.spotsLeft : FOUNDER_LIMIT;
+    var limit     = (typeof opts.limit     === 'number') ? opts.limit     : FOUNDER_LIMIT;
+    var claimed   = (typeof opts.claimed   === 'number') ? opts.claimed   : 0;
+
+    _ensureFounderOfferStyles();
+
+    // Compose counter copy. We prefer a concrete "X of Y claimed" when
+    // we have a real claimed count; otherwise fall back to the generic
+    // "first 20" line so we never display "Only 20 spots left" before
+    // anyone has actually bought (which would feel like a fake scarcity
+    // tactic and make the user trust us less).
+    var counterText;
+    if (claimed > 0 && claimed < limit) {
+      counterText = 'Only ' + spotsLeft + ' founder spot' + (spotsLeft === 1 ? '' : 's') + ' left';
+    } else if (claimed === 0) {
+      counterText = 'Limited to the first ' + limit + ' subscribers';
+    } else {
+      // claimed >= limit: shouldn't reach here (maybeShowFounderOffer
+      // would have filtered this out), but guard anyway.
+      counterText = 'Limited to the first ' + limit + ' subscribers';
+    }
+
+    var existing = document.getElementById('founder-offer-modal');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    var modal = document.createElement('div');
+    modal.id = 'founder-offer-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'founder-offer-title');
+    modal.innerHTML =
+      '<div class="founder-offer-backdrop" data-close-founder="1"></div>' +
+      '<div class="founder-offer-card">' +
+        '<button type="button" class="founder-offer-close" data-close-founder="1" aria-label="Close">&times;</button>' +
+        '<div class="founder-offer-badge"><span class="founder-offer-sparkle" aria-hidden="true">\u2728</span> Founder Offer</div>' +
+        '<h3 id="founder-offer-title">Founder Offer: 20% Off</h3>' +
+        '<p class="founder-offer-sub">First ' + limit + ' subscribers only</p>' +
+        '<p class="founder-offer-spots-left">' + counterText + '</p>' +
+        '<p class="founder-offer-body">Get early supporter pricing for as long as your subscription stays active.</p>' +
+        '<div class="founder-offer-actions">' +
+          '<button id="founder-offer-claim-btn" type="button" class="founder-offer-claim">Claim Founder Discount</button>' +
+          '<button id="founder-offer-later-btn" type="button" class="founder-offer-later">Maybe Later</button>' +
+        '</div>' +
+        '<p class="founder-offer-terms">Renews automatically. Cancel anytime through Google Play.</p>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    // Wire up handlers. Backdrop + close-X + Maybe Later all dismiss;
+    // Claim kicks off the founder-plan Google Play Billing flow.
+    var dismiss = function () { closeFounderOfferModal(true); };
+    modal.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute('data-close-founder')) dismiss();
+    });
+    var laterBtn = modal.querySelector('#founder-offer-later-btn');
+    if (laterBtn) laterBtn.addEventListener('click', dismiss);
+    var claimBtn = modal.querySelector('#founder-offer-claim-btn');
+    if (claimBtn) claimBtn.addEventListener('click', function () { claimFounderOffer(claimBtn); });
+  }
+
+  function closeFounderOfferModal(markSeen) {
+    try {
+      var modal = document.getElementById('founder-offer-modal');
+      if (!modal) return;
+      if (markSeen) {
+        var uid = (auth && auth.currentUser && auth.currentUser.uid) || null;
+        markFounderOfferSeen(uid);
+      }
+      if (modal.parentNode) modal.parentNode.removeChild(modal);
+    } catch (_) {}
+  }
+
+  // Start the founder-plan purchase flow. Uses the same
+  // startGooglePlayCheckout() machinery as the regular monthly
+  // subscription so all of the existing PENDING / RECOVERY / verify
+  // logic works automatically. The native side handles the offer
+  // token lookup for the "founder-monthly-20" base plan.
+  function claimFounderOffer(btnEl) {
+    try {
+      // Mark seen on click, even before the purchase completes \u2014 we
+      // don't want to nag the user with the modal again if they back
+      // out of the Play sheet, and the actual entitlement state is the
+      // source of truth for whether they got the discount.
+      var uid = (auth && auth.currentUser && auth.currentUser.uid) || null;
+      markFounderOfferSeen(uid);
+
+      if (!auth || !auth.currentUser) {
+        try { showToast('Please sign in first.', 'warning'); } catch (_) {}
+        closeFounderOfferModal(false);
+        return;
+      }
+      if (typeof isInAppWebView !== 'function' || !isInAppWebView() || !hasNativeIAP()) {
+        // Should never reach here \u2014 maybeShowFounderOffer gates on
+        // these \u2014 but if someone calls claimFounderOffer() manually
+        // outside the app, fall back to the standard paywall.
+        closeFounderOfferModal(false);
+        try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
+        return;
+      }
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.style.opacity = '.7';
+        btnEl.innerHTML = 'Opening Google Play\u2026';
+      }
+
+      // Hand off to the existing IAP plumbing. startGooglePlayCheckout
+      // returns a Promise that resolves on success and rejects on error
+      // \u2014 we use that to swap to a standard-plan fallback if Google
+      // Play didn't return the founder offer (offer token missing,
+      // wrong base plan, etc.).
+      startGooglePlayCheckout(IAP_SKU_FOUNDER, true, btnEl).then(function () {
+        // Success path: __handleIAPResult already showed the celebration
+        // card and refreshed entitlements. Just clean up the modal.
+        closeFounderOfferModal(false);
+      }).catch(function (err) {
+        // Error path: surface a friendly fallback that points to the
+        // standard plan so a missing-founder-offer doesn't dead-end the
+        // user. _iapFriendlyErrorMessage already toasted the technical
+        // detail; we add the plan-pivot copy here.
+        try { console.warn('[founder] claim failed:', err && err.message); } catch (_) {}
+        try {
+          showToast('The founder offer is no longer available, but you can still subscribe to the standard plan.', 'info');
+        } catch (_) {}
+        closeFounderOfferModal(false);
+        try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
+      });
+    } catch (e) {
+      try { console.warn('[founder] claim threw:', e && e.message); } catch (_) {}
+      closeFounderOfferModal(false);
+      try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
+    }
+  }
+
+  // Expose for debugging (DevTools) and for external callers (e.g. a
+  // future "View Founder Offer" menu item if anyone wants to revive it).
+  window.maybeShowFounderOffer = maybeShowFounderOffer;
+  window.showFounderOfferModal = showFounderOfferModal;
+  window.closeFounderOfferModal = closeFounderOfferModal;
+  // Exposed so the Owner Testing UI Preview harness (and any future
+  // owner-only tooling) can render the success card without a real
+  // Google Play / Stripe purchase. Production code paths still call the
+  // local closure reference, so this is a read-only debug handle.
+
   // App-only celebratory success modal: shows an animated green checkmark
   // and a thank-you message after a successful Google Play purchase, then
   // dismisses itself and resolves so the caller can close the paywall and
@@ -29218,6 +29595,11 @@
   window.manageSubscription       = manageSubscription;
   window.buildStripeLink          = buildStripeLink;
   window.loadBuilderAccessForUser = loadBuilderAccessForUser;
+  // Owner Testing / UI preview hooks — expose the post-purchase success
+  // modal so console-ui-preview-test.js can render it without going
+  // through a real Google Play / Stripe purchase. Read-only handle;
+  // production code still calls the local closure reference.
+  window.showAppPurchaseSuccess   = showAppPurchaseSuccess;
   window.debugAuthPaywall = function () {
     var user = auth && auth.currentUser;
     var providerIds = [];
@@ -30326,6 +30708,13 @@
     // a fast in-memory short-circuit so we never need to wait on Firestore
     // before deciding whether to auto-start.
     var _completedFromServer = false;
+    // True from the moment maybeAutoStart() decides the tour will run
+    // (gates passed) until either the tour actually starts (openedNow
+    // takes over) or auto-start definitively bails out (existing user,
+    // timeout, etc.). Read by maybeShowFounderOffer() so the founder
+    // modal never stacks on top of the walkthrough during the brief
+    // window between sign-in and the tour overlay actually mounting.
+    var _autoStartArmed = false;
 
     function $(sel) { try { return document.querySelector(sel); } catch (_) { return null; } }
     function findAnchor(spec) {
@@ -30481,6 +30870,9 @@
       idx = 0;
       overlay.hidden = false;
       openedNow = true;
+      // openedNow is the source of truth from here on; auto-start has
+      // landed successfully so the armed flag isn't needed anymore.
+      _autoStartArmed = false;
       renderStep();
       // Re-position on resize / scroll.
       window.addEventListener('resize', _reposition, true);
@@ -30543,6 +30935,14 @@
       _startedFromView = null;
       _startedFromStep = null;
       openedNow = false;
+      // If the founder-offer modal was deferred while the tour was open
+      // (so the two wouldn't stack and block each other), surface it now.
+      // Shared helper handles the small settle delay.
+      try {
+        if (typeof window._flushPendingFounderOffer === 'function') {
+          window._flushPendingFounderOffer();
+        }
+      } catch (_) {}
     }
 
     function maybeAutoStart() {
@@ -30550,6 +30950,9 @@
       try { if (localStorage.getItem('rb_tour_completed') === '1') return; } catch (_) {}
       if (_completedFromServer) return;
       try { if (sessionStorage.getItem('rb_tour_dismissed') === '1') return; } catch (_) {}
+      // Gates passed — auto-start is now armed. Cleared in three places
+      // below: existing-resumes bail-out, polling timeout, and start().
+      _autoStartArmed = true;
       // Wait until the user is past the login landing AND a real signed-in
       // surface (dashboard or builder) is visible. Anchors for the tour
       // steps live inside #main-nav + the builder, so we need a stable
@@ -30589,6 +30992,9 @@
                     .catch(function (err) { console.debug('[tour] auto-mark completed (returning user) failed', err); });
                 }
               } catch (_) {}
+              // Tour will not run — release the founder-offer gate.
+              _autoStartArmed = false;
+              _flushPendingFounderOffer();
               return;
             }
             // Truly new user — small settle delay so the route transition
@@ -30598,6 +31004,8 @@
         } else if (tries > 60) {
           // ~15s ceiling — give up silently rather than spinning forever.
           clearInterval(iv);
+          _autoStartArmed = false;
+          _flushPendingFounderOffer();
         }
       }, 250);
     }
@@ -30652,6 +31060,7 @@
           completedFromServer: !!_completedFromServer,
           dismissedThisSession: ss === '1',
           openedNow: !!openedNow,
+          autoStartArmed: !!_autoStartArmed,
           stepIndex: idx,
           stepCount: STEPS.length,
           currentView: _detectCurrentView()
@@ -30827,8 +31236,43 @@
     openTermsForReview: openTermsForReview,
     openPrivacyForReview: openPrivacyForReview,
     showPaywall: function () { try { if (typeof window.showPaywall === 'function') window.showPaywall(); } catch (_) {} },
-    showWalkthrough: function () { try { if (window.RB_TOUR && RB_TOUR.start) RB_TOUR.start({ force: true }); } catch (_) {} }
+    showWalkthrough: function () { try { if (window.RB_TOUR && RB_TOUR.start) RB_TOUR.start({ force: true }); } catch (_) {} },
+    // ─── Owner Testing quick-links (phone view, kay.m.steven@gmail.com only).
+    // Each loads the matching same-origin console harness as a <script src>
+    // tag — equivalent to pasting it into DevTools, but reachable from the
+    // account menu on mobile. Gated by isOwner() in addition to CSS.
+    ownerRunAITestBatch:  function () { ownerRunConsoleScript('console-ai-test-10-resumes.js',     'AI Test Batch'); },
+    ownerRunFullPipeline: function () { ownerRunConsoleScript('console-full-pipeline-test.js',     'Full Pipeline Test'); },
+    ownerRunOptAudit:     function () { ownerRunConsoleScript('console-optimization-data-audit.js', 'Optimization Audit'); },
+    ownerRunUIPreview:    function () { ownerRunConsoleScript('console-ui-preview-test.js',         'UI Preview'); }
   };
+
+  // Loader for owner-only console harnesses. Uses a <script src> tag so we
+  // do not need eval() and respect any future CSP. Re-checks isOwner() at
+  // call time — never trust visibility alone.
+  function ownerRunConsoleScript(scriptName, label) {
+    try {
+      if (typeof isOwner !== 'function' || !isOwner()) {
+        try { showToast('Owner access required', 'error'); } catch (_) {}
+        return;
+      }
+      try { showToast('Loading ' + (label || scriptName) + '…', 'info'); } catch (_) {}
+      var s = document.createElement('script');
+      // Cache-bust so the latest version is always fetched while iterating.
+      s.src = '/' + scriptName + '?_=' + Date.now();
+      s.async = true;
+      s.onload = function () {
+        try { showToast((label || scriptName) + ' loaded — see console / floating panel', 'success'); } catch (_) {}
+      };
+      s.onerror = function () {
+        console.error('[OwnerTesting] failed to load ' + scriptName);
+        try { showToast('Failed to load ' + (label || scriptName), 'error'); } catch (_) {}
+      };
+      document.head.appendChild(s);
+    } catch (e) {
+      console.error('[OwnerTesting] fatal:', e);
+    }
+  }
 
   function wireBaseEvents() {
     // Lazy-save / autosave listeners (idempotent).
@@ -32698,3 +33142,5 @@
 
 </body>
 </html>
+
+
