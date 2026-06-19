@@ -33,6 +33,22 @@
   // Google Ads conversion tracking / remarketing
   gtag('config', 'AW-11361526924');
 </script>
+<script>
+  // Pre-paint flag: Stripe redirects back to ?upgraded=1 after a successful
+  // checkout. We mark <html> immediately so CSS can hide the logged-out
+  // marketing landing (and reveal the dashboard placeholder) BEFORE the
+  // first paint, eliminating the brief flash of marketing content while
+  // Firebase auth hydrates. The flag is cleared after activation completes
+  // by stripUpgradedFromUrl() / refreshEntitlementsAndCelebrate().
+  (function () {
+    try {
+      var p = new URLSearchParams(window.location.search);
+      if (p.get('upgraded') === '1' || p.has('session_id')) {
+        document.documentElement.classList.add('post-checkout-pending');
+      }
+    } catch (_) {}
+  })();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Resume Portfolio</title>
@@ -555,6 +571,21 @@
   html:not(.signed-in) #logout-btn,
   html:not(.signed-in) #account-menu { display: none; }
   html:not(.is-owner) .owner-only { display: none !important; }
+
+  /* Owner Testing section in the account menu — visible ONLY to the owner
+     AND only on phone-sized viewports. Gated by html.is-owner + a width
+     media query so non-owners never see it and desktop owners aren't
+     distracted by the test harness shortcuts. */
+  .owner-mobile-only { display: none; }
+  @media (max-width: 720px) {
+    html.is-owner .owner-mobile-only { display: block; }
+  }
+  .account-menu-section-title {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .55rem .75rem .15rem;
+    font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: #94A3B8;
+  }
 
   /* Hide the inline Sign-out button — already in the account menu. */
   #logout-btn.btn { display: none !important; }
@@ -2877,10 +2908,13 @@
   html.in-app .hide-in-app { display: none !important; }
   html:not(.in-app) .show-in-app-only { display: none !important; }
 
-  /* ---- Paywall: hide Stripe purchase UI inside Android/WebView (Google Play policy) ---- */
-  html.in-app #paywall-upgrade-btn,
-  html.in-app #paywall-lifetime-btn,
-  html.in-app .paywall-price { display: none !important; }
+  /* ---- Paywall: hide Stripe purchase UI inside Android/WebView (Google Play policy) ----
+     When the Android app has the native Google Play Billing bridge available
+     (html.iap-available, set by the in-app tagger below) we KEEP the buttons
+     visible — their click handlers route to Play Billing instead of Stripe. */
+  html.in-app:not(.iap-available) #paywall-upgrade-btn,
+  html.in-app:not(.iap-available) #paywall-lifetime-btn,
+  html.in-app:not(.iap-available) .paywall-price { display: none !important; }
 
   /* ---- Paywall modal ---- */
   .paywall-modal.hidden { display: none !important; }
@@ -3649,6 +3683,74 @@
   }
   .login-features-link i { color: inherit; }
 
+  /* Attention-grabbing conic shimmer that sweeps around the entire login
+     card, triggered when a marketing CTA ("Start Free Resume Portfolio")
+     scrolls the user to the login. Site blue palette. The class is
+     auto-removed by focusLogin() after a couple of sweeps. */
+  @property --lp-shimmer-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+  @keyframes lpShimmerSpin {
+    to { --lp-shimmer-angle: 360deg; }
+  }
+  @keyframes lpShimmerFade {
+    0%   { opacity: 0; }
+    12%  { opacity: 1; }
+    88%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  .login-card.lp-attention-glow {
+    position: relative;
+    border-radius: 18px;
+    isolation: isolate;
+  }
+  /* The shimmer ring lives in a ::before so it doesn't disturb the card
+     layout or its existing border/box-shadow. */
+  .login-card.lp-attention-glow::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 22px;
+    padding: 3px;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      conic-gradient(
+        from var(--lp-shimmer-angle, 0deg),
+        rgba(37, 99, 235, 0)    0deg,
+        rgba(37, 99, 235, 0)    40deg,
+        rgba(59, 130, 246, 0.95) 90deg,
+        rgba(96, 165, 250, 1)   130deg,
+        rgba(37, 99, 235, 0)    180deg,
+        rgba(37, 99, 235, 0)    250deg,
+        rgba(59, 130, 246, 0.95) 300deg,
+        rgba(96, 165, 250, 1)   340deg,
+        rgba(37, 99, 235, 0)    360deg
+      );
+    /* Mask trims the gradient to a thin ring matching the card border. */
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+            mask-composite: exclude;
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.55))
+            drop-shadow(0 0 14px rgba(59, 130, 246, 0.35));
+    animation:
+      lpShimmerSpin 2.2s linear infinite,
+      lpShimmerFade 2.6s ease-out 1 forwards;
+    will-change: --lp-shimmer-angle, opacity;
+  }
+  /* Keep the card's own content above the shimmer ring. */
+  .login-card.lp-attention-glow > * { position: relative; z-index: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .login-card.lp-attention-glow::before { animation: none; opacity: 0; }
+  }
+
   .login-policy-box {
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
@@ -4082,8 +4184,9 @@
   }
   .lp-mobile-cta-primary:active { filter: brightness(.96); }
   /* Show only on mobile when landing visible and signed out.
+     The actual reveal happens in the @media (max-width: 700px) block
+     below; this is intentionally left as a comment-only anchor.
      Hide while a login input has focus (avoid covering keyboard area). */
-  html.signed-out body:has(#login-landing:not(.hidden)) .lp-mobile-cta { /* default still hidden, breakpoint will reveal */ }
   /* Hide if any input/textarea inside the login card has focus */
   body:has(#login-landing:not(.hidden) .login-card :is(input, textarea):focus) .lp-mobile-cta {
     display: none !important;
@@ -4097,6 +4200,24 @@
   html.signed-in .lp-mobile-cta { display: none !important; }
   /* Hide inside native app wrappers if needed (they have their own UI chrome) */
   html.in-app .lp-mobile-cta { display: none !important; }
+
+  /* SAFETY NET: a signed-in user must never see the logged-out marketing
+     landing. The JS routing path (routeAfterAuthChange → showResumeDashboard)
+     adds .hidden, but if that path is delayed or skipped (e.g. cached
+     session reload after a Stripe redirect where onAuthStateChanged does
+     not re-fire for the same uid), this rule guarantees the landing is
+     visually hidden the instant `html.signed-in` is set by applyAuthState. */
+  html.signed-in #login-landing { display: none !important; }
+  html.signed-in .lp-nav-links  { display: none !important; }
+
+  /* NOTE: Earlier versions hid #login-landing / .lp-mobile-cta whenever
+     <html> carried the .post-checkout-pending class. That was too
+     aggressive — if Firebase auth never resolved (no signed-in user or
+     network hiccup) the page rendered blank because dashboard and builder
+     are also hidden by default. The post-checkout flow is now handled
+     purely in JS by handlePostCheckoutActivation(), which always clears
+     the .post-checkout-pending flag and routes via showResumeDashboard()
+     or showLoginLanding(). No CSS hide rule is applied for that flag. */
 
   /* ── Responsive breakpoints ── */
   @media (max-width: 960px) {
@@ -6094,6 +6215,18 @@
           <button type="button" role="menuitem" data-menu-open="how-ai"><i data-lucide="sparkles" style="width:16px;height:16px;"></i> How AI is Used</button>
           <button type="button" role="menuitem" data-menu-open="terms"><i data-lucide="file-text" style="width:16px;height:16px;"></i> Terms of Use</button>
           <button type="button" role="menuitem" data-menu-open="about-creator"><i data-lucide="info" style="width:16px;height:16px;"></i> About the Creator</button>
+          <!-- Owner Testing — phone-only, owner-only quick links to the
+               console test harnesses and the Expo build dashboard. Visibility
+               is enforced by the .owner-mobile-only CSS rule (html.is-owner
+               + max-width: 720px) AND each handler re-checks isOwner(). -->
+          <div class="owner-mobile-only" role="group" aria-label="Owner Testing">
+            <hr>
+            <div class="account-menu-section-title"><i data-lucide="wrench" style="width:14px;height:14px;"></i> Owner Testing</div>
+            <button type="button" role="menuitem" data-action="ownerRunAITestBatch"><i data-lucide="bot" style="width:16px;height:16px;"></i> Run AI Test (30 resumes)</button>
+            <button type="button" role="menuitem" data-action="ownerRunFullPipeline"><i data-lucide="git-branch" style="width:16px;height:16px;"></i> Run Full Pipeline Test</button>
+            <button type="button" role="menuitem" data-action="ownerRunOptAudit"><i data-lucide="clipboard-check" style="width:16px;height:16px;"></i> Run Optimization Audit</button>
+            <a href="https://expo.dev/accounts/career-solutions-for-today/projects/resume-portfolio/builds" target="_blank" rel="noopener" role="menuitem"><i data-lucide="external-link" style="width:16px;height:16px;"></i> Open Expo Builds</a>
+          </div>
           <hr>
           <button type="button" role="menuitem" data-action="signOut"><i data-lucide="log-out" style="width:16px;height:16px;"></i> Sign Out</button>
         </div>
@@ -6136,9 +6269,6 @@
     <div class="lp-login-col">
       <div class="login-card">
         <div class="login-brand">
-          <div class="login-logo" aria-hidden="true">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          </div>
           <div>
             <h2 class="ll-card-title">Resume Portfolio Builder</h2>
             <p>Sign in to build, save, and publish your resume portfolio.</p>
@@ -6438,6 +6568,30 @@
       </div>
     </div>
 
+    <!-- ── H2: Career Hub included ── -->
+    <div class="lp-section lp-band-soft">
+      <div class="lp-feat-row">
+        <div>
+          <p class="lp-s-tag">Included with your account</p>
+          <h2 class="lp-s-heading">Your resume builder also comes with access to the Career Hub.</h2>
+          <p class="lp-s-body">In addition to the Resume Portfolio Builder, your account includes access to the Career Hub &mdash; a growing library of career resources designed to support your job search, planning, and application workflow in one place.</p>
+          <ul class="lp-s-bullets">
+            <li>Extra career resources beyond the resume builder</li>
+            <li>Tools and support materials for your job search</li>
+            <li>Helpful content you can revisit as you refine applications</li>
+            <li>Included as part of the broader Career Solutions experience</li>
+          </ul>
+          <p class="lp-s-body" style="margin-top:1rem;font-size:.88rem;color:#64748B">You&rsquo;ll see the full Career Hub inside the broader experience after signing in &mdash; no separate link needed here.</p>
+        </div>
+        <div class="lp-screen-frame">
+          <picture>
+            <source media="(max-width: 720px)" srcset="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/career%20hub%20phone%20verion.jpg">
+            <img src="https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/main/assets/site-features-photos/career%20hub.jpg" alt="Career Hub resources available with your account" loading="lazy" decoding="async">
+          </picture>
+        </div>
+      </div>
+    </div>
+
     <!-- ── I: FAQ ── -->
     <div class="lp-section lp-band-white">
       <div class="lp-section-centered" style="margin-bottom:2rem">
@@ -6520,6 +6674,18 @@
     var target = card || email;
     if (target && typeof target.scrollIntoView === 'function') {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    // Pulsing blue shimmer ring draws the eye to the login card after the
+    // CTA tap. We force a reflow before re-adding so repeat clicks restart
+    // the animation. The class is removed after the full sweep finishes
+    // (matches the lpShimmerFade duration in CSS).
+    if (card) {
+      card.classList.remove('lp-attention-glow');
+      void card.offsetWidth;
+      card.classList.add('lp-attention-glow');
+      setTimeout(function () {
+        try { card.classList.remove('lp-attention-glow'); } catch (_) {}
+      }, 2800);
     }
     // Defer focus slightly so smooth-scroll can start first.
     if (email) {
@@ -6671,7 +6837,7 @@
       <p>Resume Portfolio Builder is offered as a single digital product. There is only one product: the Resume Portfolio Builder.</p>
       <ul style="padding-left:1.25rem">
         <li><strong>7-day free trial:</strong> You may explore the builder for 7 days at no cost. No payment is charged during the free trial.</li>
-        <li><strong>$99 lifetime access:</strong> A one-time $99 purchase unlocks lifetime access. The $99 is charged immediately at purchase and processed securely via Stripe.</li>
+        <li><strong>$99 lifetime access:</strong> A one-time $99 purchase unlocks lifetime access. Payment is processed securely through <strong>Stripe</strong> when you purchase on the web, or through <strong>Google Play</strong> when you purchase from inside the Android app. The price you are charged at checkout is the final price; local taxes and currency conversion may apply.</li>
       </ul>
       <p>There is no recurring monthly subscription tied to lifetime access. If a recurring plan is offered in the future, it will be clearly disclosed before purchase.</p>
       <h3 style="color:#0A2F6B;margin-top:1.25rem;font-size:1rem">7. Cancellation</h3>
@@ -6679,7 +6845,11 @@
       <p>The $99 lifetime access purchase is a one-time charge, so there is no recurring subscription to cancel. If any future recurring plan is offered, cancellation will stop future billing; charges already processed may not be refundable unless required by law or approved by Career Solutions for Today.</p>
       <p><strong>For cancellation help or billing questions:</strong> email <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Cancel%20or%20Billing%20Help" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a>.</p>
       <h3 style="color:#0A2F6B;margin-top:1.25rem;font-size:1rem">8. Refund Policy</h3>
-      <p>You may request a refund for the $99 lifetime access purchase within <strong>7 days</strong> of purchase by emailing <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Refund%20Request" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a>.</p>
+      <p>You may request a refund for the $99 lifetime access purchase within <strong>7 days</strong> of purchase. The way to request a refund depends on where you purchased:</p>
+      <ul style="padding-left:1.25rem">
+        <li><strong>Purchased on the web (Stripe):</strong> email <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Refund%20Request%20-%20Web" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a> within 7 days of purchase.</li>
+        <li><strong>Purchased in the Android app (Google Play):</strong> you may self-request a refund directly through the Google Play Store within 48 hours of purchase. Beyond 48 hours but within 7 days of purchase, email <a href="mailto:stevenk@careersolutionsfortoday.com?subject=Refund%20Request%20-%20Google%20Play" style="color:#005EB8">stevenk@careersolutionsfortoday.com</a> with your Google Play order ID and we will process the refund through Google Play. Upon refund, your lifetime access will be revoked from both the Android app and the website.</li>
+      </ul>
       <p>After 7 days, lifetime access purchases are generally non-refundable because access to the digital service has already been provided. Refunds may still be approved for duplicate charges, billing errors, or technical issues that prevent reasonable access.</p>
       <p>For full details, see our <a href="return-policy.html" style="color:#005EB8">Return, Refund &amp; Cancellation Policy</a>.</p>
       <h3 style="color:#0A2F6B;margin-top:1.25rem;font-size:1rem">9. Intellectual Property</h3>
@@ -7560,6 +7730,15 @@
       // Default to android tagging when in-app and not iOS, so Android
       // WebViews (which sometimes report odd UAs) still get the inset fix.
       if (isAndroid || !isIOS) rootEl.classList.add('in-app-android');
+      // Native Google Play Billing bridge — set by the RN host in
+      // injectedJavaScriptBeforeContentLoaded, so it's available
+      // synchronously here. Adding .iap-available unhides the paywall
+      // buttons (whose click handlers route to Play Billing via the bridge).
+      try {
+        if (window.__nativeIAP && window.__nativeIAP.available) {
+          rootEl.classList.add('iap-available');
+        }
+      } catch (_) {}
     }
   } catch (e) {}
 
@@ -7673,6 +7852,46 @@
   function normalizeEmail(e) { return (e || '').trim().toLowerCase(); }
   function isOwnerUser(user) { return !!(user && normalizeEmail(user.email) === OWNER_EMAIL); }
 
+  // ---------- Tester whitelist (Google Play closed/internal testers) ----------
+  // These accounts bypass the payment paywall entirely (no Stripe purchase
+  // required) but share a hard limit of TESTER_AI_LIMIT total AI calls
+  // across ALL AI features (Optimize + Cover Letter + Role Plan combined).
+  // The consumed-count is persisted in builderUsage/{uid}.testerAIUsesUsed
+  // so it survives sign-outs and device changes.
+  var TESTER_AI_LIMIT = 15;
+  var TESTER_EMAILS = (function () {
+    var list = [
+      'mussdiqfreefigma12@gmail.com','mhmuzamilhafeez@gmail.com',
+      'vipmailk808@gmail.com','hamzajawaiddgk@gmail.com',
+      'ghafarkhanlahoor@gmail.com','shiekhhammadbinsultan@gmail.com',
+      'samfatech@gmail.com','rabiyajaved77@gmail.com',
+      'wasishahp500@gmail.com','appistan.idealogics4@gmail.com',
+      'welaweli111@gmail.com','hassanlahoor@gmail.com',
+      'mussadiqhafeezuiux@gmail.com','appistan.idealogic@gmail.com',
+      'mmussadiqhafeez@gmail.com','mmuzamilhafeez@gmail.com',
+      '15bscs112@gmail.com','mustafa5655bscs@gmail.com',
+      'sohailarife@gmail.com','appistan.idealogics3@gmail.com',
+      'sultanbasitalik@gmail.com','asifhussainpak14@gmail.com',
+      'haideralidev570@gmail.com','zahidhussainit394@gmail.com',
+      'sanakhanitdev@gmail.com','abdulmanumit@gmail.com',
+      'chsamraseher@gmail.com','fiverr.demo@email.com'
+    ];
+    var s = Object.create(null);
+    for (var i = 0; i < list.length; i++) s[normalizeEmail(list[i])] = true;
+    return s;
+  })();
+  function isTesterUser(user) {
+    return !!(user && TESTER_EMAILS[normalizeEmail(user.email)]);
+  }
+  function isTester() {
+    return !!(typeof auth !== 'undefined' && auth && auth.currentUser && isTesterUser(auth.currentUser));
+  }
+  function testerAIUsesRemaining() {
+    var used = Number(testerAIUsesUsed) || 0;
+    var rem = TESTER_AI_LIMIT - used;
+    return rem < 0 ? 0 : rem;
+  }
+
   // ============================================================
   // Paywall / Subscription state (frontend; no Stripe secrets here)
   // Webhook on the server is responsible for writing
@@ -7697,6 +7916,11 @@
   var freeExportUsed     = false;
   var freeResumeCreated  = false;
 
+  // Tester (Google Play closed/internal tester) AI-call counter.
+  // Persisted in builderUsage/{uid}.testerAIUsesUsed. Incremented by
+  // markTesterAIUseConsumed() ONLY after a successful AI response.
+  var testerAIUsesUsed   = 0;
+
   // Hosted Stripe Payment Links (public).
   var STRIPE_MONTHLY_LINK  = 'https://buy.stripe.com/eVq7sMcgT561aPcatO43S0c';
   var STRIPE_LIFETIME_LINK = 'https://buy.stripe.com/aFa6oI5Svcyte1o45q43S0d';
@@ -7711,10 +7935,12 @@
     return (Date.now() - ts) < 30 * 24 * 60 * 60 * 1000;
   }
   function canUsePremium() {
-    return isOwner() || lifetimePurchased || builderSubscribed || (isSinglePurchaseActive() && aiUsesRemaining > 0);
+    return isOwner() || isTester() || lifetimePurchased || builderSubscribed || (isSinglePurchaseActive() && aiUsesRemaining > 0);
   }
   function canUseAI() {
-    return isOwner() || lifetimePurchased || builderSubscribed || aiUsesRemaining > 0;
+    if (isOwner() || lifetimePurchased || builderSubscribed) return true;
+    if (isTester()) return testerAIUsesRemaining() > 0;
+    return aiUsesRemaining > 0;
   }
   function requirePremium(featureName) {
     if (canUsePremium()) return true;
@@ -7723,6 +7949,10 @@
     return false;
   }
   function requireAIUse(featureName) {
+    if (isTester() && testerAIUsesRemaining() <= 0) {
+      showToast('Tester limit reached (' + TESTER_AI_LIMIT + '/' + TESTER_AI_LIMIT + '). Contact admin.', 'error', 6000);
+      return false;
+    }
     if (canUseAI()) return true;
     try { showPaywall(); } catch (_) {}
     showToast((featureName || 'AI features') + ' require an active plan.', 'warning');
@@ -7779,10 +8009,45 @@
       console.warn('[paywall] markFreeUseConsumed unexpected error:', err);
     }
   }
+  // Increment the tester AI-use counter (shared across all AI features).
+  // Call ONLY after a confirmed successful AI response. Local state is
+  // updated immediately so the UI gate reflects the new value; the
+  // Firestore write is best-effort and never throws.
+  function markTesterAIUseConsumed() {
+    try {
+      if (!isTester()) return;
+      testerAIUsesUsed = (Number(testerAIUsesUsed) || 0) + 1;
+    } catch (_) {}
+    try { updatePaywallBadges(); } catch (_) {}
+    try {
+      var user = (typeof auth !== 'undefined' && auth && auth.currentUser) || null;
+      if (!user || typeof db === 'undefined' || !db) return;
+      var patch = { testerAIUsesUsed: testerAIUsesUsed };
+      try {
+        patch.testerAIUsesUsedAt = firebase.firestore.FieldValue.serverTimestamp();
+        patch.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+      } catch (_) {}
+      db.collection('builderUsage').doc(user.uid)
+        .set(patch, { merge: true })
+        .catch(function (err) {
+          console.warn('[paywall] markTesterAIUseConsumed write failed:', err);
+        });
+    } catch (err) {
+      console.warn('[paywall] markTesterAIUseConsumed unexpected error:', err);
+    }
+  }
   // Gate for AI actions (Optimize / Cover Letter / Role Plan).
   // Returns true if the caller is allowed to proceed; on success the caller
   // MUST call markFreeUseConsumed(field) after a confirmed result.
   function requireAIUseOrTrial(featureName, field) {
+    // Testers (Google Play whitelist) bypass the paywall but share a hard
+    // 15-call cap across ALL AI features. Check this BEFORE canUsePremium()
+    // because isTester() also makes canUsePremium() return true.
+    if (isTester()) {
+      if (testerAIUsesRemaining() > 0) return true;
+      showToast('Tester limit reached (' + TESTER_AI_LIMIT + '/' + TESTER_AI_LIMIT + '). Contact admin.', 'error', 6000);
+      return false;
+    }
     if (canUsePremium()) return true;
     if (!_isFreeTrialFlagUsed(field)) return true;
     try { showPaywall(); } catch (_) {}
@@ -7894,6 +8159,7 @@
     freeRolePlanUsed        = false;
     freeExportUsed          = false;
     freeResumeCreated       = false;
+    testerAIUsesUsed        = 0;
 
     if (!user || typeof db === 'undefined' || !db) {
       try { updatePaywallBadges(); } catch (_) {}
@@ -7958,6 +8224,7 @@
         freeRolePlanUsed   = !!usg.freeRolePlanUsed;
         freeExportUsed     = !!usg.freeExportUsed;
         freeResumeCreated  = !!usg.freeResumeCreated;
+        testerAIUsesUsed   = Number(usg.testerAIUsesUsed || 0) || 0;
         // Phase D — hand the per-user tour-completion flag to RB_TOUR so
         // its auto-start gate respects "already done on another device".
         try {
@@ -8003,6 +8270,29 @@
       console.warn('[paywall] failed to load builder access:', err);
     }).then(function () {
       try { updatePaywallBadges(); } catch (_) {}
+      // If the paywall is currently visible AND the user just became
+      // premium, re-paint the modal to show the active state and then
+      // auto-close after a short pause so they get a clear visual
+      // confirmation before the modal disappears. Covers Google Play
+      // live success, recovery flow, return-from-background, and pending
+      // poll \u2014 every path that flips entitlement state benefits from
+      // this single hook.
+      try {
+        if (typeof _isPaywallVisible === 'function' && _isPaywallVisible()) {
+          var nowPremium = !!(builderSubscribed || lifetimePurchased || isOwner());
+          var wasPremium = !!(_lastPaywallAppliedState && _lastPaywallAppliedState.premium);
+          if (typeof _applyPaywallState === 'function') _applyPaywallState();
+          if (nowPremium && !wasPremium) {
+            try { _clearPendingPollTimer(); } catch (_) {}
+            // Slight delay so the green "Subscription activated" banner
+            // painted by _applyPaywallState is visible before close.
+            setTimeout(function () {
+              try { hidePaywall(); } catch (_) {}
+              try { showToast('Your subscription is active \u2014 welcome aboard!', 'success'); } catch (_) {}
+            }, 1200);
+          }
+        }
+      } catch (_) {}
     });
   }
 
@@ -8166,12 +8456,116 @@
     }
   }
 
+  // App-only first-launch convenience: when the login screen appears in the
+  // wrapper app and no Firebase session is restored from disk, auto-pop
+  // Android's Google account picker so a Play user can be in the workspace
+  // with a single tap. Cancelling once disables the auto-prompt on this
+  // device until the next successful sign-out + sign-in.
+  //
+  // Opt-out is easy: the picker is delayed 2.5s, and ANY interaction with
+  // the login form (focus / click / typing in email or password,
+  // tapping the email-sign-in button) cancels the auto-prompt and persists
+  // a "dismissed" flag so we never auto-prompt again on this device.
+  var _autoSignInTimer = null;
+  function _cancelAppAutoSignIn(persistDismissal) {
+    if (_autoSignInTimer) {
+      try { clearTimeout(_autoSignInTimer); } catch (_) {}
+      _autoSignInTimer = null;
+    }
+    if (persistDismissal) {
+      try { localStorage.setItem('rb_app_autosignin_dismissed', '1'); } catch (_) {}
+    }
+    try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
+    try { _detachAutoSignInOptOutListeners(); } catch (_) {}
+  }
+  var _autoSignInOptOutAttached = false;
+  var _autoSignInOptOutHandler = null;
+  function _attachAutoSignInOptOutListeners() {
+    if (_autoSignInOptOutAttached) return;
+    _autoSignInOptOutAttached = true;
+    _autoSignInOptOutHandler = function (ev) {
+      // If the click/focus came from a "Continue with Google" element,
+      // don't treat it as opt-out; the user is choosing Google explicitly.
+      try {
+        var t = ev && ev.target;
+        var btn = t && t.closest ? t.closest(
+          '#login-page-google-btn, #login-btn, [data-testid="google-signin-btn"], .google-signin-btn, [data-google-signin]'
+        ) : null;
+        if (btn) return;
+      } catch (_) {}
+      _cancelAppAutoSignIn(true);
+    };
+    try {
+      document.addEventListener('focusin',     _autoSignInOptOutHandler, true);
+      document.addEventListener('pointerdown', _autoSignInOptOutHandler, true);
+      document.addEventListener('keydown',     _autoSignInOptOutHandler, true);
+    } catch (_) {}
+  }
+  function _detachAutoSignInOptOutListeners() {
+    if (!_autoSignInOptOutAttached) return;
+    _autoSignInOptOutAttached = false;
+    try {
+      if (_autoSignInOptOutHandler) {
+        document.removeEventListener('focusin',     _autoSignInOptOutHandler, true);
+        document.removeEventListener('pointerdown', _autoSignInOptOutHandler, true);
+        document.removeEventListener('keydown',     _autoSignInOptOutHandler, true);
+      }
+    } catch (_) {}
+    _autoSignInOptOutHandler = null;
+  }
+  function maybeAutoStartAppGoogleSignIn() {
+    try {
+      if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
+      if (auth && auth.currentUser) return;                              // already signed in
+      if (!window.ReactNativeWebView || typeof window.ReactNativeWebView.postMessage !== 'function') return;
+      var dismissed = false;
+      try { dismissed = localStorage.getItem('rb_app_autosignin_dismissed') === '1'; } catch (_) {}
+      if (dismissed) return;
+      var firedThisTab = false;
+      try { firedThisTab = sessionStorage.getItem('rb_app_autosignin_fired') === '1'; } catch (_) {}
+      if (firedThisTab) return;
+      try { sessionStorage.setItem('rb_app_autosignin_fired', '1'); } catch (_) {}
+      // Tag body so existing CSS can dim the email/password form while
+      // the picker is up. Cleared by __handleNativeGoogleIdToken.
+      try { document.body.classList.add('app-autosignin-pending'); } catch (_) {}
+      // Listen for any user interaction with the login form during the
+      // delay so the user can easily opt out by tapping email/password.
+      _attachAutoSignInOptOutListeners();
+      // Slightly longer delay so the user has time to see the email/password
+      // form and tap it BEFORE the Google picker covers everything. Tested
+      // value: 2.5s feels intentional, not jarring.
+      _autoSignInTimer = setTimeout(function () {
+        _autoSignInTimer = null;
+        try { _detachAutoSignInOptOutListeners(); } catch (_) {}
+        try { signInWithGoogle(); } catch (e) {
+          try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
+        }
+      }, 2500);
+    } catch (_) {}
+  }
+
   // Native Android/WebView callback: bridge posts an ID token here.
   window.__handleNativeGoogleIdToken = function (idToken, errorMsg) {
     try {
+      // Always clear the "auto-prompt in progress" hint so the login UI
+      // is interactive again whether the picker succeeded, errored, or
+      // was cancelled.
+      try { document.body.classList.remove('app-autosignin-pending'); } catch (_) {}
       if (errorMsg || !idToken) {
         setAuthLoading(false);
-        showToast(errorMsg || 'Google sign-in was cancelled.', 'warning');
+        // Whether this came from a real cancellation OR a generic error,
+        // remember it so we never auto-prompt again on this device until
+        // the next manual sign-out (the auth listener clears this flag
+        // on real sign-ins).
+        try { localStorage.setItem('rb_app_autosignin_dismissed', '1'); } catch (_) {}
+        // Sentinel from index.tsx: user dismissed the Google picker. Stay
+        // SILENT \u2014 no toast, no scary error. The dismissal flag above
+        // already prevents the auto-prompt from firing again. Anything
+        // else (real Play Services error, network failure, etc.) gets
+        // surfaced as a warning toast as before.
+        if (errorMsg !== '__cancelled__') {
+          showToast(errorMsg || 'Google sign-in was cancelled.', 'warning');
+        }
         return;
       }
       // ISS-026 follow-up: mirror the web sign-in paths and arm the first-run
@@ -8245,6 +8639,20 @@
       // body.signed-in toggles top-nav account menu visibility.
       if (user) document.body.classList.add('signed-in');
       else      document.body.classList.remove('signed-in');
+      // App-only: a successful sign-in clears the auto-Google-Sign-In
+      // dismissal flag so a future sign-out + relaunch can re-prompt.
+      // Doing this on success only (vs. on every auth state change)
+      // keeps the dismissal sticky across reloads of the login screen.
+      if (user) {
+        try { localStorage.removeItem('rb_app_autosignin_dismissed'); } catch (_) {}
+      }
+      // App-only: drain any recovered Play purchases that arrived from the
+      // native layer before the user finished signing in. They were queued
+      // by __handleIAPResult; verify + acknowledge them now that we have
+      // a Firebase ID token available.
+      if (user) {
+        try { if (typeof _iapDrainRecoveryQueue === 'function') _iapDrainRecoveryQueue(); } catch (_) {}
+      }
       // On sign-out, clear the browser-scoped tour-completed flag so the
       // next user signing in on the same browser still gets the
       // walkthrough. The per-user truth lives in builderUsage/{uid}.
@@ -8256,7 +8664,17 @@
       try { if (user) syncTermsAcceptanceForUser(user); } catch (_) {}
       // Best-effort: load subscription/usage state. Never blocks UI.
       try {
-        Promise.resolve(loadBuilderAccessForUser(user)).catch(function (e) {
+        Promise.resolve(loadBuilderAccessForUser(user)).then(function () {
+          // After entitlement state is hydrated (so we know whether the
+          // user is already premium), check the app-only Founder Offer.
+          // maybeShowFounderOffer() hard-fails closed when conditions
+          // aren't met, so this is safe to call on every auth change.
+          try {
+            if (user && typeof maybeShowFounderOffer === 'function') {
+              maybeShowFounderOffer(user);
+            }
+          } catch (_) {}
+        }).catch(function (e) {
           console.debug('[paywall] load failed:', e);
         });
       } catch (e) { console.debug('[paywall] load threw:', e); }
@@ -14665,7 +15083,8 @@
       try { restoreOptimizationOutputFromState(); } catch (_) {}
       try { updateStepperState(getActiveStep()); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Optimization complete.';
-      if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
+      if (isTester()) { try { markTesterAIUseConsumed(); } catch (_) {} }
+      else if (!canUsePremium()) { try { markFreeUseConsumed('freeOptimizeUsed'); } catch (_) {} }
       showToast('Optimization insights ready.', 'success');
       try { markBuilderDirty('optimize-result'); } catch (_) {}
       try {
@@ -14962,7 +15381,8 @@
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = 'Cover letter generated.';
-      if (!canUsePremium()) { try { markFreeUseConsumed('freeCoverUsed'); } catch (_) {} }
+      if (isTester()) { try { markTesterAIUseConsumed(); } catch (_) {} }
+      else if (!canUsePremium()) { try { markFreeUseConsumed('freeCoverUsed'); } catch (_) {} }
       showToast('Cover letter generated.', 'success');
       try { markBuilderDirty('cover-letter-generated'); } catch (_) {}
     }).catch(function (err) {
@@ -15048,7 +15468,8 @@
       try { updateGeneratedDocumentReadinessUI(); } catch (_) {}
       try { maybeRefreshPreview(); } catch (_) {}
       if (statusEl) statusEl.textContent = planTypeApi + ' plan generated.';
-      if (!canUsePremium()) { try { markFreeUseConsumed('freeRolePlanUsed'); } catch (_) {} }
+      if (isTester()) { try { markTesterAIUseConsumed(); } catch (_) {} }
+      else if (!canUsePremium()) { try { markFreeUseConsumed('freeRolePlanUsed'); } catch (_) {} }
       showToast('Role plan generated.', 'success');
       try { markBuilderDirty('role-plan-generated'); } catch (_) {}
     }).catch(function (err) {
@@ -26750,6 +27171,32 @@
         try { flushLazySave('visibility-hidden'); } catch (_) {}
       }
     });
+    // Reactive paywall: when the user returns to the app while the paywall
+    // is open, refresh entitlement state from Firestore. Catches the case
+    // where the Google Play purchase event landed while the WebView was
+    // suspended, or the user backgrounded mid-purchase. Throttled to at
+    // most one refresh per 4 seconds so rapid focus toggles don't hammer
+    // Firestore. The auto-close behavior lives inside loadBuilderAccessForUser.
+    var _paywallReturnLastRefreshAt = 0;
+    function _maybeRefreshPaywallOnReturn() {
+      try {
+        if (document.visibilityState !== 'visible') return;
+        if (typeof _isPaywallVisible !== 'function' || !_isPaywallVisible()) return;
+        if (typeof auth === 'undefined' || !auth || !auth.currentUser) return;
+        if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
+        var nowMs = Date.now();
+        if (nowMs - _paywallReturnLastRefreshAt < 4000) return;
+        _paywallReturnLastRefreshAt = nowMs;
+        if (typeof loadBuilderAccessForUser === 'function') {
+          loadBuilderAccessForUser(auth.currentUser);
+        }
+      } catch (_) {}
+    }
+    document.addEventListener('visibilitychange', _maybeRefreshPaywallOnReturn);
+    // Some Android WebView versions fire 'pageshow' but not 'visibilitychange'
+    // when transitioning back from another activity. Cover both.
+    window.addEventListener('pageshow', _maybeRefreshPaywallOnReturn);
+    window.addEventListener('focus',    _maybeRefreshPaywallOnReturn);
     window.addEventListener('online', function () {
       if (RB_STATE && RB_STATE._hasUnsavedChanges) scheduleLazySave('online');
     });
@@ -28102,15 +28549,786 @@
     }
   }
 
+  // ============================================================
+  // Google Play Billing (in-app purchases) bridge
+  // ============================================================
+  // The Android app injects window.__nativeIAP (see app/index.tsx). When
+  // present, we route paywall buttons to the native Play purchase sheet
+  // instead of Stripe Checkout (Play policy requires native billing for
+  // digital goods inside Android apps). After purchase, we verify the
+  // purchase token with our backend (POST /api/billing/google-play/verify),
+  // which writes the same Firestore entitlement that Stripe writes — so the
+  // user can sign in on the website on a PC and keep using the service
+  // without buying again. The same Firebase account = same access everywhere.
+  function hasNativeIAP() {
+    try { return !!(window.__nativeIAP && window.__nativeIAP.available); } catch (_) { return false; }
+  }
+
+  // SKUs must match what's created in Google Play Console AND in the
+  // Android app constants (IAP_SKU_MONTHLY / IAP_SKU_LIFETIME).
+  var IAP_SKU_MONTHLY  = 'resume_builder_monthly';
+  var IAP_SKU_LIFETIME = 'resume_builder_lifetime';
+
+  // ===== FOUNDER OFFER (app-only) ====================================
+  // Promotional 20%-off-forever subscription for the first 20 customers.
+  // App-only because the website's Stripe paywall has its own pricing
+  // and we don't want to introduce a second Stripe price for what's
+  // intentionally a Google Play exclusive.
+  //
+  // Google Play Console:
+  //   Product ID:    founder_plan
+  //   Base plan ID:  founder-monthly-20
+  //
+  // Constants are duplicated in:
+  //   Android: Android App Files - Resume Portfolio/app/index.tsx
+  //   Backend: projectbackend/server.js (PLAY_PRODUCTS map)
+  // Keep all three in sync if you ever rename them.
+  var IAP_SKU_FOUNDER       = 'founder_plan';
+  var IAP_FOUNDER_BASE_PLAN = 'founder-monthly-20';
+  var FOUNDER_LIMIT         = 20;
+
+  // Cached founder-offer status from the backend (enabled flag, claim
+  // count, available spots). Refreshed at most once every 5 minutes so
+  // the banner copy stays roughly accurate without spamming the API.
+  var _founderOfferStatus    = null;
+  var _founderOfferLastFetch = 0;
+  var FOUNDER_STATUS_TTL_MS  = 5 * 60 * 1000;
+
+  // Per-user "seen" key. Stored in localStorage scoped to the Firebase
+  // uid so the banner never re-shows after the user dismisses or
+  // claims it. TODO: move into builderUsage/{uid} so the flag persists
+  // across uninstall/device-switch \u2014 localStorage is fine for
+  // single-device first-time UX.
+  function _founderSeenKey(uid) {
+    return 'rb_founder_offer_seen_v1_' + (uid || 'anon');
+  }
+  function hasSeenFounderOffer(uid) {
+    try { return localStorage.getItem(_founderSeenKey(uid)) === '1'; }
+    catch (_) { return false; }
+  }
+  function markFounderOfferSeen(uid) {
+    try { localStorage.setItem(_founderSeenKey(uid), '1'); } catch (_) {}
+  }
+
+  // Fetch /api/billing/founder-offer-status. Public endpoint (no auth)
+  // so we can read it before the Firebase ID token is ready. Returns
+  // null on network error \u2014 callers should treat that as "don't
+  // show" so we never display a stale or wrong counter.
+  function fetchFounderOfferStatus(force) {
+    var now = Date.now();
+    if (!force && _founderOfferStatus && (now - _founderOfferLastFetch) < FOUNDER_STATUS_TTL_MS) {
+      return Promise.resolve(_founderOfferStatus);
+    }
+    return fetch(API_BASE + '/billing/founder-offer-status', { method: 'GET' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (data && typeof data === 'object') {
+          _founderOfferStatus    = data;
+          _founderOfferLastFetch = now;
+        }
+        return data;
+      })
+      .catch(function () { return null; });
+  }
+
+  // Inject founder-offer modal styles once. Deferred so the CSS only
+  // ever lives in the DOM of users who actually see the banner (i.e.
+  // app users on Android), keeping the website's CSS surface minimal.
+  function _ensureFounderOfferStyles() {
+    if (document.getElementById('founder-offer-styles')) return;
+    var st = document.createElement('style');
+    st.id = 'founder-offer-styles';
+    st.textContent =
+      '#founder-offer-modal{position:fixed;inset:0;z-index:6200;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(2,6,23,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:foundFadeIn .35s ease-out both}' +
+      '#founder-offer-modal.hidden,#founder-offer-modal[hidden]{display:none !important}' +
+      '@keyframes foundFadeIn{from{opacity:0}to{opacity:1}}' +
+      '@keyframes foundCardIn{from{opacity:0;transform:translateY(20px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}' +
+      '@keyframes foundShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}' +
+      '@keyframes foundSparklePulse{0%,100%{transform:scale(1) rotate(0);opacity:.95}50%{transform:scale(1.18) rotate(8deg);opacity:1}}' +
+      '#founder-offer-modal .founder-offer-backdrop{position:absolute;inset:0;cursor:pointer}' +
+      '#founder-offer-modal .founder-offer-card{position:relative;z-index:1;width:100%;max-width:440px;background:linear-gradient(135deg,#0F172A 0%,#1E293B 60%,#0F172A 100%);color:#F8FAFC;border-radius:22px;padding:2rem 1.6rem 1.5rem;box-shadow:0 30px 90px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);text-align:center;animation:foundCardIn .45s cubic-bezier(.2,.9,.3,1.2) both;overflow:hidden;border:1px solid rgba(251,191,36,.35)}' +
+      '#founder-offer-modal .founder-offer-card::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 30%,rgba(251,191,36,.12) 50%,transparent 70%);background-size:200% 100%;animation:foundShimmer 6s linear infinite;pointer-events:none}' +
+      '#founder-offer-modal .founder-offer-close{position:absolute;top:.6rem;right:.85rem;background:transparent;border:0;color:rgba(248,250,252,.65);font-size:1.6rem;line-height:1;cursor:pointer;padding:.2rem .45rem;border-radius:8px;transition:background .15s ease,color .15s ease;z-index:2}' +
+      '#founder-offer-modal .founder-offer-close:hover{background:rgba(248,250,252,.08);color:#F8FAFC}' +
+      '#founder-offer-modal .founder-offer-badge{display:inline-flex;align-items:center;gap:.45rem;background:linear-gradient(135deg,#FBBF24,#F59E0B);color:#0F172A;font-weight:800;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;padding:.4rem .85rem;border-radius:999px;margin-bottom:1rem;box-shadow:0 6px 18px rgba(251,191,36,.4);position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-badge .founder-offer-sparkle{font-size:1.05rem;display:inline-block;animation:foundSparklePulse 2.4s ease-in-out infinite}' +
+      '#founder-offer-modal .founder-offer-card h3{margin:0 0 .35rem;font-size:1.7rem;font-weight:800;line-height:1.2;background:linear-gradient(135deg,#FCD34D,#F59E0B);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-sub{margin:0 0 .25rem;color:#FCD34D;font-weight:700;font-size:.95rem;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-spots-left{margin:0 0 1rem;color:#CBD5E1;font-size:.85rem;font-weight:600;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-body{margin:0 0 1.4rem;color:#E2E8F0;line-height:1.55;font-size:.95rem;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-actions{display:flex;flex-direction:column;gap:.55rem;margin-bottom:1rem;position:relative;z-index:1}' +
+      '#founder-offer-modal .founder-offer-claim{background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:0;border-radius:12px;padding:.95rem 1.2rem;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 8px 22px rgba(16,185,129,.42);transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease}' +
+      '#founder-offer-modal .founder-offer-claim:hover{box-shadow:0 12px 28px rgba(16,185,129,.55)}' +
+      '#founder-offer-modal .founder-offer-claim:active{transform:scale(.98)}' +
+      '#founder-offer-modal .founder-offer-claim:disabled{opacity:.6;cursor:not-allowed;box-shadow:none}' +
+      '#founder-offer-modal .founder-offer-later{background:transparent;color:#CBD5E1;border:1px solid rgba(203,213,225,.25);border-radius:12px;padding:.75rem 1.2rem;font-weight:600;font-size:.95rem;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}' +
+      '#founder-offer-modal .founder-offer-later:hover{background:rgba(248,250,252,.06);color:#F8FAFC;border-color:rgba(203,213,225,.4)}' +
+      '#founder-offer-modal .founder-offer-terms{margin:0;color:#94A3B8;font-size:.72rem;line-height:1.45;position:relative;z-index:1}';
+    document.head.appendChild(st);
+  }
+
+  // Decide whether to show the founder-offer banner. Called once per
+  // auth-state change (after entitlement load completes) so we have
+  // correct premium state. Hard-fails closed on every condition we
+  // can't satisfy \u2014 it's a promo, not a paywall, so a missed
+  // showing is harmless but a wrong showing would be embarrassing.
+  function maybeShowFounderOffer(user) {
+    try {
+      if (!user) return;
+      if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
+      if (typeof hasNativeIAP !== 'function' || !hasNativeIAP()) return;
+      if (hasSeenFounderOffer(user.uid)) return;
+      // User already premium \u2014 the founder offer doesn't help them
+      // and we'd just be showing them another paywall.
+      var isPremium = !!(
+        (typeof builderSubscribed   !== 'undefined' && builderSubscribed) ||
+        (typeof lifetimePurchased   !== 'undefined' && lifetimePurchased) ||
+        (typeof isOwner === 'function' && isOwner())
+      );
+      if (isPremium) return;
+
+      fetchFounderOfferStatus(false).then(function (status) {
+        if (!status) return;                              // network error -> stay silent
+        if (status.enabled === false) return;             // ops kill switch
+        var claimed   = +status.claimedCount || 0;
+        var limit     = +status.limit        || FOUNDER_LIMIT;
+        var available = (typeof status.available === 'boolean')
+          ? status.available
+          : (claimed < limit);
+        if (!available) return;
+        var spotsLeft = Math.max(0, limit - claimed);
+        showFounderOfferModal({
+          spotsLeft: spotsLeft,
+          claimed:   claimed,
+          limit:     limit
+        });
+      });
+    } catch (_) { /* never block sign-in on a promo */ }
+  }
+
+  // Render the founder-offer modal. Idempotent \u2014 calling twice in
+  // a row replaces the existing element rather than stacking.
+  function showFounderOfferModal(opts) {
+    opts = opts || {};
+    var spotsLeft = (typeof opts.spotsLeft === 'number') ? opts.spotsLeft : FOUNDER_LIMIT;
+    var limit     = (typeof opts.limit     === 'number') ? opts.limit     : FOUNDER_LIMIT;
+    var claimed   = (typeof opts.claimed   === 'number') ? opts.claimed   : 0;
+
+    _ensureFounderOfferStyles();
+
+    // Compose counter copy. We prefer a concrete "X of Y claimed" when
+    // we have a real claimed count; otherwise fall back to the generic
+    // "first 20" line so we never display "Only 20 spots left" before
+    // anyone has actually bought (which would feel like a fake scarcity
+    // tactic and make the user trust us less).
+    var counterText;
+    if (claimed > 0 && claimed < limit) {
+      counterText = 'Only ' + spotsLeft + ' founder spot' + (spotsLeft === 1 ? '' : 's') + ' left';
+    } else if (claimed === 0) {
+      counterText = 'Limited to the first ' + limit + ' subscribers';
+    } else {
+      // claimed >= limit: shouldn't reach here (maybeShowFounderOffer
+      // would have filtered this out), but guard anyway.
+      counterText = 'Limited to the first ' + limit + ' subscribers';
+    }
+
+    var existing = document.getElementById('founder-offer-modal');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    var modal = document.createElement('div');
+    modal.id = 'founder-offer-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'founder-offer-title');
+    modal.innerHTML =
+      '<div class="founder-offer-backdrop" data-close-founder="1"></div>' +
+      '<div class="founder-offer-card">' +
+        '<button type="button" class="founder-offer-close" data-close-founder="1" aria-label="Close">&times;</button>' +
+        '<div class="founder-offer-badge"><span class="founder-offer-sparkle" aria-hidden="true">\u2728</span> Founder Offer</div>' +
+        '<h3 id="founder-offer-title">Founder Offer: 20% Off</h3>' +
+        '<p class="founder-offer-sub">First ' + limit + ' subscribers only</p>' +
+        '<p class="founder-offer-spots-left">' + counterText + '</p>' +
+        '<p class="founder-offer-body">Get early supporter pricing for as long as your subscription stays active.</p>' +
+        '<div class="founder-offer-actions">' +
+          '<button id="founder-offer-claim-btn" type="button" class="founder-offer-claim">Claim Founder Discount</button>' +
+          '<button id="founder-offer-later-btn" type="button" class="founder-offer-later">Maybe Later</button>' +
+        '</div>' +
+        '<p class="founder-offer-terms">Renews automatically. Cancel anytime through Google Play.</p>' +
+      '</div>';
+    document.body.appendChild(modal);
+
+    // Wire up handlers. Backdrop + close-X + Maybe Later all dismiss;
+    // Claim kicks off the founder-plan Google Play Billing flow.
+    var dismiss = function () { closeFounderOfferModal(true); };
+    modal.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t && t.getAttribute && t.getAttribute('data-close-founder')) dismiss();
+    });
+    var laterBtn = modal.querySelector('#founder-offer-later-btn');
+    if (laterBtn) laterBtn.addEventListener('click', dismiss);
+    var claimBtn = modal.querySelector('#founder-offer-claim-btn');
+    if (claimBtn) claimBtn.addEventListener('click', function () { claimFounderOffer(claimBtn); });
+  }
+
+  function closeFounderOfferModal(markSeen) {
+    try {
+      var modal = document.getElementById('founder-offer-modal');
+      if (!modal) return;
+      if (markSeen) {
+        var uid = (auth && auth.currentUser && auth.currentUser.uid) || null;
+        markFounderOfferSeen(uid);
+      }
+      if (modal.parentNode) modal.parentNode.removeChild(modal);
+    } catch (_) {}
+  }
+
+  // Start the founder-plan purchase flow. Uses the same
+  // startGooglePlayCheckout() machinery as the regular monthly
+  // subscription so all of the existing PENDING / RECOVERY / verify
+  // logic works automatically. The native side handles the offer
+  // token lookup for the "founder-monthly-20" base plan.
+  function claimFounderOffer(btnEl) {
+    try {
+      // Mark seen on click, even before the purchase completes \u2014 we
+      // don't want to nag the user with the modal again if they back
+      // out of the Play sheet, and the actual entitlement state is the
+      // source of truth for whether they got the discount.
+      var uid = (auth && auth.currentUser && auth.currentUser.uid) || null;
+      markFounderOfferSeen(uid);
+
+      if (!auth || !auth.currentUser) {
+        try { showToast('Please sign in first.', 'warning'); } catch (_) {}
+        closeFounderOfferModal(false);
+        return;
+      }
+      if (typeof isInAppWebView !== 'function' || !isInAppWebView() || !hasNativeIAP()) {
+        // Should never reach here \u2014 maybeShowFounderOffer gates on
+        // these \u2014 but if someone calls claimFounderOffer() manually
+        // outside the app, fall back to the standard paywall.
+        closeFounderOfferModal(false);
+        try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
+        return;
+      }
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.style.opacity = '.7';
+        btnEl.innerHTML = 'Opening Google Play\u2026';
+      }
+
+      // Hand off to the existing IAP plumbing. startGooglePlayCheckout
+      // returns a Promise that resolves on success and rejects on error
+      // \u2014 we use that to swap to a standard-plan fallback if Google
+      // Play didn't return the founder offer (offer token missing,
+      // wrong base plan, etc.).
+      startGooglePlayCheckout(IAP_SKU_FOUNDER, true, btnEl).then(function () {
+        // Success path: __handleIAPResult already showed the celebration
+        // card and refreshed entitlements. Just clean up the modal.
+        closeFounderOfferModal(false);
+      }).catch(function (err) {
+        // Error path: surface a friendly fallback that points to the
+        // standard plan so a missing-founder-offer doesn't dead-end the
+        // user. _iapFriendlyErrorMessage already toasted the technical
+        // detail; we add the plan-pivot copy here.
+        try { console.warn('[founder] claim failed:', err && err.message); } catch (_) {}
+        try {
+          showToast('The founder offer is no longer available, but you can still subscribe to the standard plan.', 'info');
+        } catch (_) {}
+        closeFounderOfferModal(false);
+        try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
+      });
+    } catch (e) {
+      try { console.warn('[founder] claim threw:', e && e.message); } catch (_) {}
+      closeFounderOfferModal(false);
+      try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
+    }
+  }
+
+  // Expose for debugging (DevTools) and for external callers (e.g. a
+  // future "View Founder Offer" menu item if anyone wants to revive it).
+  window.maybeShowFounderOffer = maybeShowFounderOffer;
+  window.showFounderOfferModal = showFounderOfferModal;
+  window.closeFounderOfferModal = closeFounderOfferModal;
+
+  // App-only celebratory success modal: shows an animated green checkmark
+  // and a thank-you message after a successful Google Play purchase, then
+  // dismisses itself and resolves so the caller can close the paywall and
+  // refresh entitlements. Web users still get the toast / Stripe redirect.
+  function showAppPurchaseSuccess(opts) {
+    return new Promise(function (resolve) {
+      opts = opts || {};
+      var title     = opts.title    || 'Thank you!';
+      var subtitle  = opts.subtitle || 'Your purchase is now active.';
+      var dismissMs = (typeof opts.dismissMs === 'number') ? opts.dismissMs : 3500;
+
+      // Inject one-time CSS for the success card + checkmark animation.
+      if (!document.getElementById('app-purchase-success-styles')) {
+        var st = document.createElement('style');
+        st.id = 'app-purchase-success-styles';
+        st.textContent =
+          '@keyframes appSuccessFadeIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}' +
+          '@keyframes appCheckCircleDraw{0%{stroke-dashoffset:166}100%{stroke-dashoffset:0}}' +
+          '@keyframes appCheckTickDraw{0%{stroke-dashoffset:48}100%{stroke-dashoffset:0}}' +
+          '#app-purchase-success-overlay{position:fixed;inset:0;background:rgba(2,6,23,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;z-index:6000;padding:1rem;animation:appSuccessFadeIn .35s ease-out both}' +
+          '#app-purchase-success-card{background:#fff;border-radius:20px;max-width:400px;width:100%;padding:2rem 1.5rem 1.75rem;text-align:center;color:#0F172A;box-shadow:0 30px 90px rgba(0,0,0,.45);animation:appSuccessFadeIn .45s cubic-bezier(.2,.9,.3,1.2) both}' +
+          '#app-purchase-success-card svg{width:88px;height:88px;display:block;margin:0 auto 1rem}' +
+          '#app-purchase-success-card svg circle{fill:none;stroke:#10B981;stroke-width:5;stroke-linecap:round;stroke-dasharray:166;stroke-dashoffset:166;animation:appCheckCircleDraw .6s ease-out forwards}' +
+          '#app-purchase-success-card svg path{fill:none;stroke:#10B981;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:48;stroke-dashoffset:48;animation:appCheckTickDraw .35s .55s ease-out forwards}' +
+          '#app-purchase-success-card h3{margin:0 0 .35rem;color:#0F172A;font-size:1.5rem;font-weight:800}' +
+          '#app-purchase-success-card p{margin:0 0 1.25rem;color:#475569;line-height:1.5;font-size:.95rem}' +
+          '#app-purchase-success-continue{width:100%;background:#10B981;color:#fff;border:0;border-radius:10px;padding:.85rem 1.2rem;font-weight:700;font-size:1rem;cursor:pointer;transition:transform .15s ease,background .15s ease}' +
+          '#app-purchase-success-continue:hover{background:#059669}' +
+          '#app-purchase-success-continue:active{transform:scale(.97)}';
+        document.head.appendChild(st);
+      }
+
+      // Replace any existing card so a stale instance can't linger.
+      var existing = document.getElementById('app-purchase-success-overlay');
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+      var overlay = document.createElement('div');
+      overlay.id = 'app-purchase-success-overlay';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', 'Purchase confirmation');
+
+      var card = document.createElement('div');
+      card.id = 'app-purchase-success-card';
+
+      // Inline SVG checkmark (animated via CSS above).
+      card.innerHTML =
+        '<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+          '<circle cx="30" cy="30" r="26"></circle>' +
+          '<path d="M18 30 L27 39 L43 22"></path>' +
+        '</svg>';
+
+      var h3 = document.createElement('h3');
+      h3.textContent = title;
+      card.appendChild(h3);
+
+      var p = document.createElement('p');
+      p.textContent = subtitle;
+      card.appendChild(p);
+
+      var btn = document.createElement('button');
+      btn.id = 'app-purchase-success-continue';
+      btn.type = 'button';
+      btn.textContent = 'Continue';
+      card.appendChild(btn);
+
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+
+      var done  = false;
+      var timer = null;
+      function dismiss() {
+        if (done) return;
+        done = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        try { overlay.style.transition = 'opacity .2s ease'; overlay.style.opacity = '0'; } catch (_) {}
+        setTimeout(function () {
+          try { overlay.parentNode && overlay.parentNode.removeChild(overlay); } catch (_) {}
+          resolve();
+        }, 220);
+      }
+      btn.addEventListener('click', dismiss);
+      // Tap outside the card also dismisses (matches Android UX expectations).
+      overlay.addEventListener('click', function (ev) {
+        if (ev.target === overlay) dismiss();
+      });
+      if (dismissMs > 0) timer = setTimeout(dismiss, dismissMs);
+    });
+  }
+
+  // Promise resolvers keyed by productId so __handleIAPResult can dispatch
+  // the right pending purchase. We don't queue overlapping requests —
+  // requestPurchase() spawns the Play sheet which is modal.
+  var _iapPending = null; // { productId, isSubscription, resolve, reject, btnEl, btnOrig }
+
+  // Recovery queue: when the app surfaces an unacknowledged purchase from
+  // a previous session and the user isn't signed into Firebase yet, we
+  // stash it here and drain it once auth.onAuthStateChanged fires with a
+  // user. Without this, recovered purchases would be silently dropped on
+  // cold-start (the common case where __handleIAPResult fires before the
+  // user has finished Google Sign-In).
+  var _iapRecoveryQueue = [];
+  function _iapDrainRecoveryQueue() {
+    if (!auth || !auth.currentUser) return;
+    if (!_iapRecoveryQueue.length) return;
+    var queue = _iapRecoveryQueue.slice();
+    _iapRecoveryQueue = [];
+    for (var i = 0; i < queue.length; i++) {
+      try { window.__handleIAPResult(queue[i]); } catch (_) {}
+    }
+  }
+
+  // Map technical billing/library errors to friendlier copy. The raw
+  // debugMessage from Google Play (e.g. "Invalid arguments provided to
+  // the API") is too cryptic for end-users; log it but don't toast it.
+  function _iapFriendlyErrorMessage(code, rawMsg) {
+    var c = String(code || '').toUpperCase();
+    if (c === 'E_OFFER_TOKEN_MISSING') {
+      return 'Subscription details are still loading. Please try again in a moment.';
+    }
+    if (c === 'E_DEVELOPER_ERROR' || /invalid arguments/i.test(String(rawMsg || ''))) {
+      return 'Your purchase couldn\u2019t be started. Please reopen the app and try again.';
+    }
+    if (c === 'E_ITEM_ALREADY_OWNED') {
+      return 'You already have an active subscription on this Google account. Reopen the app to restore it.';
+    }
+    if (c === 'E_BILLING_UNAVAILABLE' || c === 'E_SERVICE_UNAVAILABLE') {
+      return 'Google Play Billing is unavailable right now. Please try again shortly.';
+    }
+    if (c === 'E_NETWORK_ERROR') {
+      return 'Network error reaching Google Play. Please check your connection and try again.';
+    }
+    return rawMsg || 'Purchase did not complete.';
+  }
+
+  // Called by the native layer (via injectJavaScript) after Play returns a
+  // purchase or an error. Always JSON-serializable payload.
+  // Result shape:
+  //   { status:'success', purchaseToken, productId, isAcknowledged?, recovery?, ... }
+  //   { status:'pending', purchaseToken, productId }
+  //   { status:'error',   code, message }
+  window.__handleIAPResult = async function (result) {
+    try {
+      var pending    = _iapPending;
+      var isRecovery = !pending && !!(result && result.recovery);
+
+      // PENDING: Play has accepted the purchase but payment hasn't cleared
+      // (e.g. cash-at-7-eleven, parental approval, anti-fraud hold). Don't
+      // grant access, don't acknowledge \u2014 Play will re-fire
+      // purchaseUpdated when it clears. While we wait, swap the Subscribe
+      // button to a clear "Activation in progress" state and poll the
+      // server every 6s for up to 90s so the paywall auto-flips to active
+      // the moment Google releases the hold.
+      if (result && result.status === 'pending') {
+        // Inject the spin keyframes once \u2014 needed for both the live
+        // purchase flow and the IAPSim browser-DevTools simulator.
+        if (!document.getElementById('rb-iap-spin-style')) {
+          var styleEl = document.createElement('style');
+          styleEl.id = 'rb-iap-spin-style';
+          styleEl.textContent = '@keyframes rb-iap-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
+          document.head.appendChild(styleEl);
+        }
+        // Paint the green "Activation in progress" banner into the
+        // paywall modal regardless of whether a tracked button-tap is
+        // pending. This way the sim and the live flow both surface the
+        // same UX, and a recovery-style PENDING (no button) still gets
+        // the message.
+        var pendingBanner = document.getElementById('paywall-plan-status');
+        if (pendingBanner) {
+          pendingBanner.innerHTML =
+            '<div id="rb-iap-pending-banner" style="background:#ECFDF5;border:1px solid #A7F3D0;color:#047857;border-radius:10px;padding:.7rem .85rem;margin-bottom:.8rem;font-weight:700;text-align:center;line-height:1.35">' +
+              'Google Play is finalizing your purchase. This usually takes a minute or two \u2014 please keep the app open and we\u2019ll activate access automatically.' +
+            '</div>';
+        }
+        if (pending) {
+          if (pending.btnEl) {
+            pending.btnEl.disabled = true;
+            pending.btnEl.style.opacity = '.85';
+            pending.btnEl.innerHTML =
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-3px;margin-right:.4rem;animation:rb-iap-spin 1s linear infinite" aria-hidden="true">' +
+                '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path>' +
+              '</svg>Activation in progress\u2026';
+          }
+          // Resolve the original promise as a non-error pending result so
+          // any callers know the request landed cleanly. We DON'T null out
+          // _iapPending here \u2014 the success/error handlers above will
+          // take over once Play re-fires purchaseUpdated.
+          pending.resolve && pending.resolve({ ok: false, pending: true });
+          // Don't clear _iapPending; we want the success/error path that
+          // fires next to still find it and update the same button. But we
+          // do null out the resolve/reject so we don't double-resolve.
+          pending.resolve = null;
+          pending.reject  = null;
+        }
+
+        // Start the 90-second activation poll. Every 6 seconds we re-read
+        // the entitlement doc; the moment it flips, loadBuilderAccessForUser's
+        // post-load hook auto-closes the paywall (Phase 1) and clears this
+        // timer for us.
+        _clearPendingPollTimer();
+        _pendingPollDeadline = Date.now() + 90 * 1000;
+        _pendingPollTimer = setInterval(function () {
+          try {
+            if (Date.now() > _pendingPollDeadline) {
+              _clearPendingPollTimer();
+              // Timeout fallback: tell the user we're still waiting and
+              // hand the Subscribe button back so they can dismiss/retry.
+              var stuckBanner = document.getElementById('paywall-plan-status');
+              if (stuckBanner) {
+                stuckBanner.innerHTML =
+                  '<div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#047857;border-radius:10px;padding:.7rem .85rem;margin-bottom:.8rem;font-weight:700;text-align:center;line-height:1.35">' +
+                    'Still waiting on Google Play. Your access will activate automatically once Google clears the purchase \u2014 you can close this and come back any time.' +
+                  '</div>';
+              }
+              if (_iapPending && _iapPending.btnEl) {
+                _iapPending.btnEl.disabled = false;
+                _iapPending.btnEl.style.opacity = '1';
+                if (_iapPending.btnOrig != null) {
+                  _iapPending.btnEl.innerHTML = _iapPending.btnOrig;
+                }
+              }
+              return;
+            }
+            if (auth && auth.currentUser && typeof loadBuilderAccessForUser === 'function') {
+              loadBuilderAccessForUser(auth.currentUser);
+            }
+          } catch (_) {}
+        }, 6000);
+        return;
+      }
+
+      // ERROR: pending purchase only — recovery purchases never produce
+      // error results (purchaseErrorListener fires for the live request).
+      if (!result || result.status !== 'success') {
+        var rawMsg = (result && result.message) || 'Purchase did not complete.';
+        var code   = result && result.code;
+        var nice   = _iapFriendlyErrorMessage(code, rawMsg);
+        try { console.warn('[iap] error code=' + code + ' raw=' + rawMsg); } catch (_) {}
+        // If we had a pending-poll timer running (PENDING -> ERROR
+        // transition, e.g. Google ultimately declined the payment), tear
+        // it down so we stop hammering Firestore for an entitlement that
+        // is never going to flip.
+        try { _clearPendingPollTimer(); } catch (_) {}
+        if (pending) {
+          // User cancellation is not an error worth toasting loudly.
+          if (code !== 'E_USER_CANCELLED' && !/cancel/i.test(String(rawMsg))) {
+            try { showToast(nice, 'error'); } catch (_) {}
+          }
+          if (pending.btnEl) {
+            pending.btnEl.disabled = false;
+            pending.btnEl.style.opacity = '1';
+            if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+          }
+          // Also wipe any "Activation in progress" banner the pending
+          // branch may have painted earlier so the user isn't left
+          // staring at a stale message after a real error.
+          var pwBanner = document.getElementById('paywall-plan-status');
+          if (pwBanner && pwBanner.querySelector('#rb-iap-pending-banner')) {
+            pwBanner.innerHTML = '';
+          }
+          _iapPending = null;
+          pending.reject && pending.reject(new Error(rawMsg));
+        }
+        return;
+      }
+
+      // SUCCESS path (live or recovery).
+      var token  = result.purchaseToken || '';
+      var prodId = result.productId || (pending && pending.productId) || '';
+      var isSub  = pending ? !!pending.isSubscription : (prodId === IAP_SKU_MONTHLY);
+      if (!token) {
+        if (pending) {
+          try { showToast('Missing purchase token from Google Play.', 'error'); } catch (_) {}
+          _iapPending = null;
+          if (pending.btnEl) {
+            pending.btnEl.disabled = false;
+            if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+          }
+          pending.reject && pending.reject(new Error('Missing purchaseToken'));
+        }
+        return;
+      }
+
+      // Recovery without auth: queue and drain when onAuthStateChanged fires.
+      if (isRecovery && (!auth || !auth.currentUser)) {
+        try { console.log('[iap] recovery queued (auth not ready) tokenTail=' + token.slice(-8)); } catch (_) {}
+        _iapRecoveryQueue.push(result);
+        return;
+      }
+
+      if (pending && pending.btnEl) pending.btnEl.innerHTML = 'Verifying...';
+      try {
+        if (!auth || !auth.currentUser) {
+          throw new Error('You must be signed in to complete the purchase.');
+        }
+        var idToken = await auth.currentUser.getIdToken();
+        var resp = await fetch(API_BASE + '/billing/google-play/verify', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + idToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            purchaseToken: token,
+            productId: prodId,
+            isSubscription: isSub
+          })
+        });
+        var data = await resp.json().catch(function () { return null; });
+        if (!resp.ok || !data || !data.ok) {
+          var emsg = (data && (data.error || data.message)) || ('Verification failed (HTTP ' + resp.status + ').');
+          // For recovery: don't surface the error loudly — log + retry next launch.
+          if (isRecovery) {
+            try { console.warn('[iap] recovery verify failed:', resp.status, emsg); } catch (_) {}
+            return;
+          }
+          throw new Error(emsg);
+        }
+        // Tell Play to finalize so the transaction leaves the queue.
+        try { window.__nativeIAP.finishTransaction(token); } catch (_) {}
+
+        // RECOVERY path: low-key UI, just refresh entitlements and toast.
+        if (isRecovery) {
+          try { console.log('[iap] recovery verified ok lifetime=' + !!data.lifetime); } catch (_) {}
+          try {
+            if (typeof refreshEntitlementsAndCelebrate === 'function') {
+              await refreshEntitlementsAndCelebrate();
+            } else if (typeof loadBuilderAccessForUser === 'function') {
+              await loadBuilderAccessForUser(auth.currentUser.email || '');
+            }
+          } catch (_) {}
+          try { showToast('Welcome back \u2014 your previous purchase has been restored.', 'success'); } catch (_) {}
+          return;
+        }
+
+        // LIVE path: app-only celebratory confirmation, animated checkmark
+        // + thank-you, shown BEFORE closing the paywall so the user gets a
+        // clear moment of "yes, the purchase went through." The card
+        // auto-dismisses after ~3.5s or when the user taps Continue.
+        var isInApp = (typeof isInAppWebView === 'function') && isInAppWebView();
+        var isLifetime = !isSub || prodId === IAP_SKU_LIFETIME;
+        if (isInApp) {
+          try {
+            await showAppPurchaseSuccess({
+              title: 'Thank you!',
+              subtitle: isLifetime
+                ? 'Your lifetime access is now unlocked. Enjoy unlimited resumes \u2014 across both the app and the website.'
+                : 'Your 7\u2011day free trial has started. Enjoy unlimited resumes \u2014 across both the app and the website.'
+            });
+          } catch (_) {}
+        }
+
+        // Close the paywall now that the user has acknowledged the success card.
+        try { hidePaywall(); } catch (_) {}
+
+        // Refresh entitlement state + UI; mirrors the Stripe success flow.
+        try {
+          if (typeof refreshEntitlementsAndCelebrate === 'function') {
+            await refreshEntitlementsAndCelebrate();
+          } else if (typeof loadBuilderAccessForUser === 'function') {
+            await loadBuilderAccessForUser(auth.currentUser.email || '');
+          }
+        } catch (_) {}
+        // The success toast is redundant on app (we showed the card already).
+        if (!isInApp) {
+          try { showToast('Thanks! Your purchase is active.', 'success'); } catch (_) {}
+        }
+
+        if (pending) {
+          _iapPending = null;
+          pending.resolve && pending.resolve(data);
+        }
+      } catch (verr) {
+        if (isRecovery) {
+          try { console.warn('[iap] recovery verify threw:', verr && verr.message); } catch (_) {}
+          return;
+        }
+        try { showToast(((verr && verr.message) || 'Verification failed'), 'error'); } catch (_) {}
+        if (pending && pending.btnEl) {
+          pending.btnEl.disabled = false;
+          if (pending.btnOrig != null) pending.btnEl.innerHTML = pending.btnOrig;
+        }
+        if (pending) {
+          _iapPending = null;
+          pending.reject && pending.reject(verr);
+        }
+      }
+    } catch (outer) {
+      try { console.error('[iap] handleIAPResult outer error', outer); } catch (_) {}
+    }
+  };
+
+  function startGooglePlayCheckout(productId, isSubscription, btnEl) {
+    if (!hasNativeIAP()) {
+      showAndroidWebPurchaseNotice();
+      return Promise.reject(new Error('Native IAP not available'));
+    }
+    if (!auth || !auth.currentUser) {
+      try { showToast('Please sign in first.', 'warning'); } catch (_) {}
+      return Promise.reject(new Error('Not signed in'));
+    }
+    if (_iapPending) {
+      try { showToast('Purchase already in progress.', 'warning'); } catch (_) {}
+      return Promise.reject(new Error('Purchase in progress'));
+    }
+    var origLabel = btnEl ? btnEl.innerHTML : null;
+    if (btnEl) {
+      btnEl.disabled = true;
+      btnEl.innerHTML = 'Opening Google Play...';
+    }
+    var p = new Promise(function (resolve, reject) {
+      _iapPending = {
+        productId: productId,
+        isSubscription: !!isSubscription,
+        resolve: resolve,
+        reject: reject,
+        btnEl: btnEl || null,
+        btnOrig: origLabel
+      };
+    });
+    try {
+      if (isSubscription) {
+        window.__nativeIAP.requestSubscribe(productId);
+      } else {
+        window.__nativeIAP.requestProduct(productId);
+      }
+    } catch (e) {
+      _iapPending = null;
+      if (btnEl) {
+        btnEl.disabled = false;
+        if (origLabel != null) btnEl.innerHTML = origLabel;
+      }
+      try { showToast('Could not start Google Play: ' + ((e && e.message) || e), 'error'); } catch (_) {}
+      return Promise.reject(e);
+    }
+    return p;
+  }
+
+  function _isPaywallVisible() {
+    var modal = document.getElementById('paywall-modal');
+    return !!(modal && !modal.classList.contains('hidden'));
+  }
+
+  // Module-scoped snapshot of the last entitlement state painted into the
+  // paywall. Lets _applyPaywallState detect a "no entitlement -> premium"
+  // transition while the modal is open and play a brief activation flourish.
+  var _lastPaywallAppliedState = null;
+
+  // 90-second pending-purchase poll timer. While set, loadBuilderAccessForUser
+  // is being called every few seconds to detect when Google Play clears a
+  // pending payment. Cleared by hidePaywall, by a successful entitlement flip,
+  // or by the timeout fallback inside the pending UX itself.
+  var _pendingPollTimer = null;
+  var _pendingPollDeadline = 0;
+
+  function _clearPendingPollTimer() {
+    if (_pendingPollTimer) {
+      try { clearInterval(_pendingPollTimer); } catch (_) {}
+      _pendingPollTimer = null;
+    }
+    _pendingPollDeadline = 0;
+  }
+
   function hidePaywall() {
     var modal = document.getElementById('paywall-modal');
     if (modal) modal.classList.add('hidden');
+    // Always tear down any in-flight pending-purchase poller so it doesn't
+    // keep hammering Firestore after the user has dismissed the modal.
+    _clearPendingPollTimer();
   }
 
-  function showPaywall() {
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+  // Apply current entitlement state to the paywall modal. Safe to call any
+  // time, whether the modal is open or closed; it only mutates DOM children
+  // of the modal. Pulls all state from the global paywall flags
+  // (builderSubscribed, lifetimePurchased, hadPriorSubscription, etc.) so a
+  // single call produces the correct UI for every user state.
+  function _applyPaywallState(opts) {
+    opts = opts || {};
     var modal = document.getElementById('paywall-modal');
-    if (!modal) { try { showToast('Paywall is unavailable.', 'error'); } catch (_) {} return; }
+    if (!modal) return;
 
     var statusBanner = document.getElementById('paywall-plan-status');
     var subBtn       = document.getElementById('paywall-upgrade-btn');
@@ -28119,6 +29337,7 @@
     var trialPill    = document.getElementById('paywall-trial-pill');
     var manageRow    = document.getElementById('paywall-manage-row');
 
+    // Reset to defaults; then specialize per-state below.
     if (stripeBadge) stripeBadge.classList.add('hidden');
     if (manageRow)   manageRow.classList.add('hidden');
     if (subBtn) {
@@ -28163,13 +29382,57 @@
       if (manageRow) manageRow.classList.remove('hidden');
     }
 
+    // Detect a "no-entitlement \u2192 premium" transition WHILE the modal is
+    // visible. That signals a freshly-completed purchase, so we paint a green
+    // "Subscription activated" flourish before the auto-close fires elsewhere.
+    var nowPremium = !!(builderSubscribed || lifetimePurchased || isOwner());
+    var wasPremium = !!(_lastPaywallAppliedState && _lastPaywallAppliedState.premium);
+    if (statusBanner && _isPaywallVisible() && nowPremium && !wasPremium && !opts.suppressFlourish) {
+      statusBanner.innerHTML =
+        '<div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#047857;border-radius:10px;padding:.7rem .85rem;margin-bottom:.8rem;font-weight:700;text-align:center;display:flex;align-items:center;justify-content:center;gap:.5rem">' +
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<path d="M5 12.5l4.5 4.5L19 7" />' +
+          '</svg>' +
+          '<span>Subscription activated</span>' +
+        '</div>';
+    }
+    _lastPaywallAppliedState = { premium: nowPremium, lifetime: !!lifetimePurchased };
+  }
+
+  function showPaywall() {
+    // In-app on Android: if the native Google Play Billing bridge is
+    // available, show the regular paywall and route the existing buttons
+    // to Play (handled inside startStripeCheckout / startLifetimeCheckout).
+    // If the bridge is missing (e.g. older app build, IAP init failed),
+    // fall back to the "manage on web" notice so users have a path forward.
+    if (isInAppWebView() && !hasNativeIAP()) { showAndroidWebPurchaseNotice(); return; }
+    var modal = document.getElementById('paywall-modal');
+    if (!modal) { try { showToast('Paywall is unavailable.', 'error'); } catch (_) {} return; }
+
+    // Reset baseline tracking so the activation flourish only fires for
+    // transitions that happen WHILE the modal is open (not on first open).
+    _lastPaywallAppliedState = {
+      premium: !!(builderSubscribed || lifetimePurchased || isOwner()),
+      lifetime: !!lifetimePurchased
+    };
+    _applyPaywallState({ suppressFlourish: true });
     modal.classList.remove('hidden');
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
   }
 
   function startStripeCheckout() {
     if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    if (isInAppWebView()) {
+      // Inside the Android app, route the existing "Subscribe" button to
+      // Google Play Billing (Play policy requires native billing for digital
+      // goods in Android apps). The Stripe Checkout link is the WEB path.
+      if (hasNativeIAP()) {
+        startGooglePlayCheckout(IAP_SKU_MONTHLY, true, document.getElementById('paywall-upgrade-btn'));
+        return;
+      }
+      showAndroidWebPurchaseNotice();
+      return;
+    }
     var btn = document.getElementById('paywall-upgrade-btn');
     if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting...'; }
     // Set both flags so the success page (legacy or new) recognizes the
@@ -28181,7 +29444,14 @@
 
   function startLifetimeCheckout() {
     if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    if (isInAppWebView()) {
+      if (hasNativeIAP()) {
+        startGooglePlayCheckout(IAP_SKU_LIFETIME, false, document.getElementById('paywall-lifetime-btn'));
+        return;
+      }
+      showAndroidWebPurchaseNotice();
+      return;
+    }
     var btn = document.getElementById('paywall-lifetime-btn');
     if (btn) { btn.disabled = true; btn.innerHTML = 'Redirecting...'; }
     try { localStorage.setItem('_builderLifetimePending', String(Date.now())); } catch (_) {}
@@ -28193,7 +29463,16 @@
   // POST /api/builder/portal in projectbackend/server.js.
   async function manageSubscription() {
     if (!auth || !auth.currentUser) { showToast('Please sign in first.', 'warning'); return; }
-    if (isInAppWebView()) { showAndroidWebPurchaseNotice(); return; }
+    if (isInAppWebView()) {
+      // Google Play subscriptions are managed through the Play Store, not
+      // Stripe — deep-link out to the Play subscription management screen.
+      if (hasNativeIAP() && typeof window.__nativeIAP.openManageSubscriptions === 'function') {
+        try { window.__nativeIAP.openManageSubscriptions(IAP_SKU_MONTHLY); } catch (_) {}
+        return;
+      }
+      showAndroidWebPurchaseNotice();
+      return;
+    }
     var btn = document.getElementById('paywall-manage-btn');
     var orig = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = 'Opening Stripe...'; }
@@ -28369,6 +29648,16 @@
       try { showToast('Your subscription is active. Welcome aboard!', 'success'); } catch (_) {}
       try { hidePaywall(); } catch (_) {}
       stripUpgradedFromUrl();
+      // Clear the pre-paint guard now that activation completed.
+      try { clearPostCheckoutPending(); } catch (_) {}
+      // Post-payment routing: send the freshly-paid user to the resume versions
+      // dashboard so they can choose an existing version or click New Resume Version.
+      // onAuthStateChanged doesn't re-fire for the same uid after the Stripe
+      // redirect, so we route explicitly.
+      try {
+        if (typeof showResumeDashboard === 'function') showResumeDashboard();
+        else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
+      } catch (_) {}
       return true;
     }
     return false;
@@ -28422,22 +29711,35 @@
   }
 
   var _rbUpgradeRan = false;
+  function clearPostCheckoutPending() {
+    try { document.documentElement.classList.remove('post-checkout-pending'); } catch (_) {}
+  }
   async function handlePostCheckoutActivation() {
     if (_rbUpgradeRan) return;
     _rbUpgradeRan = true;
 
     var params;
-    try { params = new URLSearchParams(window.location.search); } catch (_) { return; }
+    try { params = new URLSearchParams(window.location.search); } catch (_) { clearPostCheckoutPending(); return; }
     var upgraded  = params.get('upgraded') === '1';
     var sessionId = params.get('session_id') || '';
     var cancelled = params.get('cancelled') === '1';
 
     if (cancelled) {
+      clearPostCheckoutPending();
       try { showToast('Checkout was cancelled. No charge was made.', 'info'); } catch (_) {}
       stripUpgradedFromUrl();
+      // Allow the normal auth listener to drive routing.
+      try {
+        var u0 = auth && auth.currentUser;
+        if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(u0);
+      } catch (_) {}
       return;
     }
-    if (!upgraded && !sessionId) return;
+    if (!upgraded && !sessionId) {
+      // Nothing to activate — make sure the guard flag isn't stuck on.
+      clearPostCheckoutPending();
+      return;
+    }
 
     var user = auth && auth.currentUser;
     if (!user) {
@@ -28457,11 +29759,31 @@
       user = auth && auth.currentUser;
     }
     if (!user) {
-      // Not signed in after timeout — leave query params so a re-attempt
-      // after sign-in still works.
+      // Not signed in after timeout. Never leave the page blank — clear the
+      // pre-paint guard, show the login landing, and surface a hint so the
+      // user knows to finish sign-in. _rbUpgradeRan is reset so activation
+      // re-runs automatically once they sign in (the auth listener at the
+      // bottom of this IIFE re-invokes this function).
+      clearPostCheckoutPending();
+      try { if (typeof showLoginLanding === 'function') showLoginLanding(); } catch (_) {}
+      try {
+        showActivationBanner(
+          'Please sign in to finish activating your purchase.',
+          { retry: false, spinner: false }
+        );
+      } catch (_) {}
       _rbUpgradeRan = false;
       return;
     }
+
+    // Auth has now resolved. Clear the pre-paint guard and route to the
+    // resume versions dashboard. This lets the user choose an existing version
+    // or click New Resume Version themselves after payment.
+    clearPostCheckoutPending();
+    try {
+      if (typeof showResumeDashboard === 'function') showResumeDashboard();
+      else if (typeof routeAfterAuthChange === 'function') routeAfterAuthChange(user);
+    } catch (_) {}
 
     showActivationBanner('Activating your subscription…');
 
@@ -28483,7 +29805,9 @@
     }
 
     // Step 3: timed out. Stripe charged the card but our webhook hasn't
-    // landed yet. Leave a recoverable banner so the user can retry.
+    // landed yet. Leave the user on the resume dashboard with a
+    // recoverable banner so the page never goes blank.
+    clearPostCheckoutPending();
     showActivationBanner(
       'Payment received — finalizing your access. If this takes more than a minute, click Retry.',
       { retry: true, spinner: false }
@@ -28497,6 +29821,21 @@
       });
     }
   }
+
+  // Defensive recovery: if Firebase auth never resolves (e.g. blocked
+  // network), make sure the page is never permanently blank. After 9s,
+  // if the guard is still set and no user is signed in, drop the guard
+  // and show the login landing.
+  setTimeout(function () {
+    try {
+      var html = document.documentElement;
+      if (!html.classList.contains('post-checkout-pending')) return;
+      var u = auth && auth.currentUser;
+      if (u) return;
+      html.classList.remove('post-checkout-pending');
+      if (typeof showLoginLanding === 'function') showLoginLanding();
+    } catch (_) {}
+  }, 9000);
 
   // Trigger on auth-ready: run once immediately (in case user is already
   // signed in from a cached session) and once on the next sign-in event.
@@ -28598,6 +29937,10 @@
     document.body.classList.remove('builder-active');
     document.body.classList.add('show-login');
     updateStickyStepperOffset();
+    // App-only: try to auto-fire Google Sign-In so a Play user gets to the
+    // workspace with a single tap. No-op on web and on subsequent calls
+    // after the user has cancelled the picker once on this device.
+    try { if (typeof maybeAutoStartAppGoogleSignIn === 'function') maybeAutoStartAppGoogleSignIn(); } catch (_) {}
   }
   function showResumeDashboard() {
     var login = document.getElementById('login-landing');
@@ -29801,8 +31144,42 @@
     openTermsForReview: openTermsForReview,
     openPrivacyForReview: openPrivacyForReview,
     showPaywall: function () { try { if (typeof window.showPaywall === 'function') window.showPaywall(); } catch (_) {} },
-    showWalkthrough: function () { try { if (window.RB_TOUR && RB_TOUR.start) RB_TOUR.start({ force: true }); } catch (_) {} }
+    showWalkthrough: function () { try { if (window.RB_TOUR && RB_TOUR.start) RB_TOUR.start({ force: true }); } catch (_) {} },
+    // ─── Owner Testing quick-links (phone view, kay.m.steven@gmail.com only).
+    // Each loads the matching same-origin console harness as a <script src>
+    // tag — equivalent to pasting it into DevTools, but reachable from the
+    // account menu on mobile. Gated by isOwner() in addition to CSS.
+    ownerRunAITestBatch:  function () { ownerRunConsoleScript('console-ai-test-10-resumes.js',     'AI Test Batch'); },
+    ownerRunFullPipeline: function () { ownerRunConsoleScript('console-full-pipeline-test.js',     'Full Pipeline Test'); },
+    ownerRunOptAudit:     function () { ownerRunConsoleScript('console-optimization-data-audit.js', 'Optimization Audit'); }
   };
+
+  // Loader for owner-only console harnesses. Uses a <script src> tag so we
+  // do not need eval() and respect any future CSP. Re-checks isOwner() at
+  // call time — never trust visibility alone.
+  function ownerRunConsoleScript(scriptName, label) {
+    try {
+      if (typeof isOwner !== 'function' || !isOwner()) {
+        try { showToast('Owner access required', 'error'); } catch (_) {}
+        return;
+      }
+      try { showToast('Loading ' + (label || scriptName) + '…', 'info'); } catch (_) {}
+      var s = document.createElement('script');
+      // Cache-bust so the latest version is always fetched while iterating.
+      s.src = '/' + scriptName + '?_=' + Date.now();
+      s.async = true;
+      s.onload = function () {
+        try { showToast((label || scriptName) + ' loaded — see console / floating panel', 'success'); } catch (_) {}
+      };
+      s.onerror = function () {
+        console.error('[OwnerTesting] failed to load ' + scriptName);
+        try { showToast('Failed to load ' + (label || scriptName), 'error'); } catch (_) {}
+      };
+      document.head.appendChild(s);
+    } catch (e) {
+      console.error('[OwnerTesting] fatal:', e);
+    }
+  }
 
   function wireBaseEvents() {
     // Lazy-save / autosave listeners (idempotent).
