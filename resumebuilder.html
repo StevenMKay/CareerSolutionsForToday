@@ -28673,6 +28673,35 @@
   // correct premium state. Hard-fails closed on every condition we
   // can't satisfy \u2014 it's a promo, not a paywall, so a missed
   // showing is harmless but a wrong showing would be embarrassing.
+  //
+  // Coordination with the first-time walkthrough: if the RB_TOUR is
+  // currently open OR about to auto-start, we DEFER the offer until
+  // the tour ends (RB_TOUR.end() flushes it). Showing both at once
+  // would have the founder modal sit on top of the walkthrough, which
+  // is what the user reported as "blocking the step walkthrough from
+  // being viewable".
+  function _tourIsLiveOrPending() {
+    try {
+      var st = (window.RB_TOUR && typeof RB_TOUR._getState === 'function')
+        ? RB_TOUR._getState() : null;
+      if (st && st.openedNow) return true;
+      // Tour about to auto-start: rb_pending_first_run was just set
+      // by a sign-in handler AND the tour hasn't been completed or
+      // dismissed for this user/session.
+      var pending = false;
+      try { pending = sessionStorage.getItem('rb_pending_first_run') === '1'; } catch (_) {}
+      if (!pending) return false;
+      var completed = false;
+      try { completed = localStorage.getItem('rb_tour_completed') === '1'; } catch (_) {}
+      if (completed) return false;
+      if (st && st.completedFromServer) return false;
+      var dismissed = false;
+      try { dismissed = sessionStorage.getItem('rb_tour_dismissed') === '1'; } catch (_) {}
+      if (dismissed) return false;
+      return true;
+    } catch (_) { return false; }
+  }
+
   function maybeShowFounderOffer(user) {
     try {
       if (!user) return;
@@ -28698,11 +28727,18 @@
           : (claimed < limit);
         if (!available) return;
         var spotsLeft = Math.max(0, limit - claimed);
-        showFounderOfferModal({
+        var modalOpts = {
           spotsLeft: spotsLeft,
           claimed:   claimed,
           limit:     limit
-        });
+        };
+        // Defer until the walkthrough is done (or skipped). RB_TOUR.end()
+        // reads window.__founderOfferPending and shows the modal then.
+        if (_tourIsLiveOrPending()) {
+          window.__founderOfferPending = modalOpts;
+          return;
+        }
+        showFounderOfferModal(modalOpts);
       });
     } catch (_) { /* never block sign-in on a promo */ }
   }
@@ -30870,6 +30906,18 @@
       _startedFromView = null;
       _startedFromStep = null;
       openedNow = false;
+      // If the founder-offer modal was deferred while the tour was open
+      // (so the two wouldn't stack and block each other), surface it now.
+      // Small delay lets the tour overlay fully tear down first.
+      try {
+        if (window.__founderOfferPending && typeof window.showFounderOfferModal === 'function') {
+          var pending = window.__founderOfferPending;
+          window.__founderOfferPending = null;
+          setTimeout(function () {
+            try { window.showFounderOfferModal(pending); } catch (_) {}
+          }, 250);
+        }
+      } catch (_) {}
     }
 
     function maybeAutoStart() {
