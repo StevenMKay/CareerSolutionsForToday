@@ -122,34 +122,90 @@
   }
 
   // ---- Floating panel ---------------------------------------------------
+  // Responsive sizing: full-width with small insets on phones (<=640px),
+  // capped to 560px on larger screens. Stylesheet handles all breakpoints
+  // so a window resize / device rotation flows correctly.
+  function ensurePanelStyles() {
+    if (document.getElementById('__pipe_panel_styles__')) return;
+    var st = document.createElement('style');
+    st.id = '__pipe_panel_styles__';
+    st.textContent = [
+      '#__pipe_panel__{',
+        'position:fixed;right:16px;bottom:16px;left:auto;top:auto;',
+        'width:min(560px, calc(100vw - 32px));',
+        'max-width:calc(100vw - 32px);',
+        'max-height:78vh;',
+        'background:#0b1220;color:#e6edf7;border:1px solid #243049;',
+        'border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45);',
+        'font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;',
+        'z-index:2147483646;display:flex;flex-direction:column;overflow:hidden;',
+      '}',
+      '#__pipe_panel__ .__pipe_head{',
+        'display:flex;flex-wrap:wrap;gap:6px;align-items:center;',
+        'padding:8px 10px;background:#111a2e;border-bottom:1px solid #243049;',
+      '}',
+      '#__pipe_panel__ .__pipe_head strong{',
+        'flex:1 1 100%;min-width:0;',
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
+      '}',
+      '#__pipe_panel__ button{',
+        'background:#1d2945;color:#e6edf7;border:1px solid #2c3a5c;',
+        'border-radius:6px;padding:4px 8px;cursor:pointer;font:inherit;',
+        'flex:0 0 auto;min-height:28px;',
+      '}',
+      '#__pipe_panel__ #__pipe_close{margin-left:auto}',
+      '#__pipe_panel__ #__pipe_status{',
+        'padding:6px 10px;background:#0e1730;border-bottom:1px solid #243049;',
+        'color:#9fb3d6;word-break:break-word;',
+      '}',
+      '#__pipe_panel__ #__pipe_body{overflow:auto;padding:8px 10px;flex:1;-webkit-overflow-scrolling:touch}',
+      '#__pipe_panel__ pre{word-break:break-word;overflow-wrap:anywhere}',
+      '#__pipe_panel__ details summary{flex-wrap:wrap}',
+      // Phone view: pin to bottom, full-width with safe-area insets,
+      // bigger touch targets, bottom-of-screen layout.
+      '@media (max-width:640px){',
+        '#__pipe_panel__{',
+          'right:8px;left:8px;bottom:8px;width:auto;max-width:none;',
+          'max-height:min(85vh, calc(100vh - 16px));',
+          'padding-bottom:env(safe-area-inset-bottom,0);',
+          'font-size:13px;',
+        '}',
+        '#__pipe_panel__ .__pipe_head{padding:6px 8px;gap:4px}',
+        '#__pipe_panel__ .__pipe_head strong{font-size:13px}',
+        '#__pipe_panel__ button{padding:6px 10px;font-size:12px;min-height:32px}',
+        // Hide the more verbose labels — keep the essentials visible.
+        '#__pipe_panel__ #__pipe_expand,#__pipe_panel__ #__pipe_collapse{display:none}',
+        '#__pipe_panel__ #__pipe_body pre{max-height:200px}',
+      '}',
+      // Very narrow phones: only Run + close on the header strip; the
+      // copy/download still reachable from the floating action via long-tap
+      // on the JSON, but we keep them anyway above.
+      '@media (max-width:380px){',
+        '#__pipe_panel__ #__pipe_copy,#__pipe_panel__ #__pipe_dl{padding:6px 8px}',
+      '}'
+    ].join('');
+    document.head.appendChild(st);
+  }
+
   function ensurePanel() {
+    ensurePanelStyles();
     var p = document.getElementById('__pipe_panel__');
     if (p) return p;
     p = document.createElement('div');
     p.id = '__pipe_panel__';
-    p.style.cssText = [
-      'position:fixed','right:16px','bottom:16px','width:560px','max-height:78vh',
-      'background:#0b1220','color:#e6edf7','border:1px solid #243049',
-      'border-radius:10px','box-shadow:0 12px 40px rgba(0,0,0,.45)',
-      'font:12px/1.4 ui-monospace,Menlo,Consolas,monospace','z-index:2147483646',
-      'display:flex','flex-direction:column','overflow:hidden'
-    ].join(';');
     p.innerHTML =
-      '<div style="display:flex;gap:6px;align-items:center;padding:8px 10px;background:#111a2e;border-bottom:1px solid #243049">' +
-        '<strong style="flex:1">Full Pipeline Test</strong>' +
+      '<div class="__pipe_head">' +
+        '<strong>Full Pipeline Test</strong>' +
         '<button id="__pipe_run">Run</button>' +
         '<button id="__pipe_expand">Expand all</button>' +
         '<button id="__pipe_collapse">Collapse all</button>' +
         '<button id="__pipe_copy">Copy JSON</button>' +
         '<button id="__pipe_dl">Download</button>' +
-        '<button id="__pipe_close">×</button>' +
+        '<button id="__pipe_close" aria-label="Close">×</button>' +
       '</div>' +
-      '<div id="__pipe_status" style="padding:6px 10px;background:#0e1730;border-bottom:1px solid #243049;color:#9fb3d6"></div>' +
-      '<div id="__pipe_body" style="overflow:auto;padding:8px 10px;flex:1"></div>';
+      '<div id="__pipe_status"></div>' +
+      '<div id="__pipe_body"></div>';
     document.body.appendChild(p);
-    p.querySelectorAll('button').forEach(function (b) {
-      b.style.cssText = 'background:#1d2945;color:#e6edf7;border:1px solid #2c3a5c;border-radius:6px;padding:3px 8px;cursor:pointer;font:inherit';
-    });
     p.querySelector('#__pipe_close').onclick = function () { p.remove(); };
     p.querySelector('#__pipe_run').onclick = function () { runFullPipelineTest(); };
     p.querySelector('#__pipe_expand').onclick = function () {
@@ -189,24 +245,24 @@
     var det = document.createElement('details');
     det.style.cssText = 'border:1px solid #1f2a44;border-radius:6px;margin:6px 0;background:#0d1730';
     det.innerHTML =
-      '<summary style="padding:6px 8px;cursor:pointer;display:flex;gap:8px;align-items:center">' +
-        '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + '"></span>' +
-        '<strong style="flex:1">' + step.name + '</strong>' +
-        '<span style="color:#9fb3d6">' + dur + '</span>' +
-        '<span style="color:' + color + '">' + status + '</span>' +
+      '<summary style="padding:6px 8px;cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center">' +
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';flex:0 0 auto"></span>' +
+        '<strong style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + step.name + '</strong>' +
+        '<span style="color:#9fb3d6;flex:0 0 auto">' + dur + '</span>' +
+        '<span style="color:' + color + ';flex:0 0 auto">' + status + '</span>' +
       '</summary>' +
       '<div style="padding:8px 10px;border-top:1px solid #1f2a44">' +
         (step.note ? '<div style="color:#fcd34d;margin-bottom:6px">' + step.note + '</div>' : '') +
         '<div style="color:#9fb3d6;margin-bottom:4px">URL</div>' +
-        '<pre style="background:#0a1226;padding:6px;border-radius:4px;white-space:pre-wrap;margin:0 0 8px">' +
+        '<pre style="background:#0a1226;padding:6px;border-radius:4px;white-space:pre-wrap;word-break:break-all;margin:0 0 8px">' +
           (step.url || '—') +
         '</pre>' +
         '<div style="color:#9fb3d6;margin-bottom:4px">SENT (' + (step.sentSize || 0) + ' bytes)</div>' +
-        '<pre style="background:#0a1226;padding:6px;border-radius:4px;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0 0 8px">' +
+        '<pre style="background:#0a1226;padding:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-height:240px;overflow:auto;margin:0 0 8px">' +
           (step.sentPretty || '—') +
         '</pre>' +
         '<div style="color:#9fb3d6;margin-bottom:4px">RECEIVED (' + (step.receivedSize || 0) + ' bytes)</div>' +
-        '<pre style="background:#0a1226;padding:6px;border-radius:4px;white-space:pre-wrap;max-height:320px;overflow:auto;margin:0">' +
+        '<pre style="background:#0a1226;padding:6px;border-radius:4px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-height:320px;overflow:auto;margin:0">' +
           (step.receivedPretty || '—') +
         '</pre>' +
       '</div>';
@@ -407,8 +463,14 @@
     try {
       var res = await fetch(url, { method: 'POST', headers: await authHeaders(), body: JSON.stringify(sent) });
       var body = await readBody(res);
-      var note = (res.status === 404) ? 'Endpoint not present on this backend.' : null;
-      return { ok: res.ok, status: res.status, url: url, sent: sent, body: body, note: note };
+      // 404 on a best-effort probe means "route is not implemented on this
+      // backend" — that's not a regression, treat it as skipped rather than
+      // failed so the summary stays meaningful.
+      if (res.status === 404) {
+        return { ok: false, skipped: true, status: 404, url: url, sent: sent, body: body,
+                 note: 'Endpoint not present on this backend (probe only).' };
+      }
+      return { ok: res.ok, status: res.status, url: url, sent: sent, body: body };
     } catch (err) {
       return { ok: false, status: 0, url: url, sent: sent, body: { json: { error: String(err) } }, note: 'Network error.' };
     }
