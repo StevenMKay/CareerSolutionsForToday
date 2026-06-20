@@ -11947,13 +11947,22 @@
     var pillsEl = document.getElementById('ai-readiness-pills');
     var rOk = hasResumeReady();
     var tOk = hasTargetRoleReady();
+    var researchReady = hasTargetRoleReadyForResearch();
     if (pillsEl) {
+      // Target role pill has three states:
+      //   ready     -> strict gate satisfied (title + (company OR desc))  -> ok
+      //   research  -> only enough for Run AI Role Research (desc 30+)    -> warn-ish, but clarifies intent
+      //   missing   -> nothing usable                                     -> warn
+      var trClass, trLabel;
+      if (tOk)                  { trClass = 'pill-ok';   trLabel = 'Target role ready \u2713'; }
+      else if (researchReady)   { trClass = 'pill-warn'; trLabel = 'Target role: research-ready (add title for CV/Plan)'; }
+      else                      { trClass = 'pill-warn'; trLabel = 'Target role incomplete \u2717'; }
       pillsEl.innerHTML =
         '<span class="pill ' + (rOk ? 'pill-ok' : 'pill-warn') + '">Resume ' + (rOk ? 'ready \u2713' : 'missing \u2717') + '</span>' +
-        '<span class="pill ' + (tOk ? 'pill-ok' : 'pill-warn') + '">Target role ' + (tOk ? 'ready \u2713' : 'incomplete \u2717') + '</span>' +
+        '<span class="pill ' + trClass + '">' + trLabel + '</span>' +
         '<span class="pill ' + (RB_STATE.roleResearch ? 'pill-ok' : 'pill-warn') + '">Research ' + (RB_STATE.roleResearch ? 'ready \u2713' : 'pending') + '</span>';
     }
-    var canResearch = rOk && hasTargetRoleReadyForResearch() && !RB_STATE._roleResearchInFlight;
+    var canResearch = rOk && researchReady && !RB_STATE._roleResearchInFlight;
     var canCv = rOk && tOk && !RB_STATE._cvInFlight;
     var canPlan = rOk && tOk && !RB_STATE._planInFlight;
     var rb = document.getElementById('btn-role-research'); if (rb) rb.disabled = !canResearch;
@@ -11962,7 +11971,6 @@
     // Explain WHY each AI button is disabled (title tooltip + aria-label for SR),
     // install one-time click-to-explain overlays, and hide gated sections until prereqs met.
     try {
-      var researchReady = hasTargetRoleReadyForResearch();
       var reasonResearch = _whyResearchDisabled(rOk, researchReady, !!RB_STATE._roleResearchInFlight);
       var reasonCv       = _whyDisabled(rOk, tOk, !!RB_STATE._cvInFlight);
       var reasonPlan     = _whyDisabled(rOk, tOk, !!RB_STATE._planInFlight);
@@ -12091,6 +12099,32 @@
     var hint = document.getElementById('gated-sections-hint');
     if (hint) hint.hidden = ready;
   }
+  // Shared helper: render a small info/warning callout describing how thin
+  // the AI inputs were. Used by renderRoleResearchSummary and
+  // renderOptimizationOutput so the user understands when results were
+  // best-effort rather than refused.
+  function _dataQualityCalloutHtml(dq, opts) {
+    if (!dq || typeof dq !== 'object') return '';
+    var warns = Array.isArray(dq.warnings) ? dq.warnings : [];
+    if (!warns.length) return '';
+    opts = opts || {};
+    var conf = String(dq.confidence || '').toLowerCase();
+    var isLow = conf === 'low';
+    var bg     = isLow ? '#FEE2E2' : '#FEF3C7';
+    var border = isLow ? '#F87171' : '#F59E0B';
+    var text   = isLow ? '#7F1D1D' : '#78350F';
+    var title  = (opts.title) || (isLow
+      ? 'Limited input \u2014 results are best-effort'
+      : 'Heads up \u2014 results may be less specific than usual');
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+    var items = warns.slice(0, 8).map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('');
+    return ''
+      + '<div role="status" aria-live="polite" style="background:' + bg + ';border:1px solid ' + border + ';border-radius:8px;padding:10px 12px;margin:0 0 12px;color:' + text + ';font-size:14px;line-height:1.45;">'
+      +   '<div style="display:flex;align-items:center;gap:6px;font-weight:600;margin-bottom:6px;">&#x26A0; ' + esc(title) + '</div>'
+      +   '<ul style="margin:0 0 0 18px;padding:0;">' + items + '</ul>'
+      +   '<div style="margin-top:6px;font-size:12px;opacity:0.85;">Confidence: <strong>' + esc(conf || 'unknown') + '</strong>. You can keep working with these results, or fill in the missing fields and re-run for a sharper analysis.</div>'
+      + '</div>';
+  }
   function renderRoleResearchSummary() {
     var el = document.getElementById('role-research-summary');
     if (!el) return;
@@ -12113,6 +12147,8 @@
       .filter(function (k) { var x = String(k).toLowerCase(); if (seen[x]) return false; seen[x] = 1; return true; });
 
     var topHtml = '<strong>Role Research</strong>';
+    // Input-quality callout (only renders if backend flagged thin inputs).
+    try { topHtml = _dataQualityCalloutHtml(rr.data_quality, { title: 'Role research \u2014 limited input notice' }) + topHtml; } catch (_) {}
     topHtml += textBlock('Role Summary', rr.role_summary);
     topHtml += listBlock('Top Priorities', rr.priorities, 8);
     topHtml += listBlock('Key Skills / Keywords', skillsAndKeywords, 20);
@@ -12190,6 +12226,10 @@
       if (!r.ok) throw new Error((r.body && (r.body.error || r.body.message)) || ('Research failed (' + r.status + ').'));
       var rawRr = (r.body && (r.body.role_research || r.body.research || r.body)) || null;
       var rr = rawRr ? normalizeRoleResearchShape(rawRr) : null;
+      // Surface input-quality warnings the backend computed alongside the
+      // research output (e.g. "no job title was provided—inferred from desc").
+      var dq = r.body && r.body.data_quality;
+      if (rr && dq && !rr.data_quality) rr.data_quality = dq;
       RB_STATE.roleResearch = rr;
       RB_STATE.targetRole = RB_STATE.targetRole || {};
       RB_STATE.targetRole.roleResearch = rr;
@@ -13552,6 +13592,22 @@
     var output = document.getElementById('optimize-output');
     if (!output) return;
     output.hidden = false;
+
+    // Input-quality callout (above the hero card) when the backend flagged
+    // thin inputs (no work experience, no role research, short JD, etc.).
+    try {
+      var dqHost = document.getElementById('opt-data-quality-callout');
+      if (!dqHost) {
+        dqHost = document.createElement('div');
+        dqHost.id = 'opt-data-quality-callout';
+        // Insert at the very top of #optimize-output.
+        if (output.firstChild) output.insertBefore(dqHost, output.firstChild);
+        else output.appendChild(dqHost);
+      }
+      var dqHtml = _dataQualityCalloutHtml(opt && opt.data_quality, { title: 'Optimization \u2014 limited input notice' });
+      dqHost.innerHTML = dqHtml || '';
+      dqHost.style.display = dqHtml ? '' : 'none';
+    } catch (_) {}
 
     var projected = Number(opt.projectedScore || 0);
     var baseline  = Number(opt.baselineScore  || 0);
