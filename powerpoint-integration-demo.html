@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PowerPoint &harr; Web / SharePoint Integration Demo</title>
+<meta name="description" content="A working demo of how to wire a PowerPoint template up to websites, SharePoint, Teams, and OneDrive — with sample data, a live chart, and copy-paste code snippets." />
+
+<!-- Chart.js for the live chart that mirrors the PowerPoint chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<!-- PptxGenJS — used in the "Generate a PPTX from this page" demo button -->
+<script src="https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@v3.12.0/dist/pptxgen.bundle.js"></script>
+
+<style>
+  /* -------- Palette pulled from the PowerPoint template -------- */
+  :root {
+    --pp-accent:    #005EB8;   /* "BUSINESS REVIEW" blue */
+    --pp-deep:      #003B71;   /* table header navy */
+    --pp-text:      #1B1F24;
+    --pp-muted:     #5C6670;
+    --pp-border:    #C8D3E0;
+    --pp-bg-soft:   #F5F8FC;
+    --pp-green:     #2E7D32;
+    --pp-page-bg:   #EEF2F7;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Aptos", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--pp-text);
+    background: var(--pp-page-bg);
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* -------- Page header -------- */
+  .page-header { margin-bottom: 28px; }
+  .page-header h1 {
+    font-size: 30px;
+    margin: 0 0 8px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .page-header p {
+    margin: 0;
+    color: var(--pp-muted);
+    max-width: 800px;
+  }
+
+  /* -------- Slide canvas (16:9 like a 13.33" x 7.5" PPT slide) -------- */
+  .slide {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid var(--pp-border);
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(20,40,80,.10);
+    padding: 36px 48px;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 36px;
+    row-gap: 16px;
+    overflow: hidden;
+  }
+
+  .kicker {
+    grid-column: 1 / -1;
+    color: var(--pp-accent);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+  .slide h2 {
+    grid-column: 1 / 2;
+    margin: 0;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .slide .subtitle {
+    grid-column: 1 / 2;
+    margin: -8px 0 4px;
+    color: var(--pp-muted);
+    font-size: 13px;
+  }
+  .slide .badge {
+    position: absolute;
+    top: 36px;
+    right: 48px;
+    color: var(--pp-accent);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+  }
+
+  /* -------- KPI tiles (left column, 2x2 grid) -------- */
+  .kpi-section { grid-column: 1 / 2; }
+  .kpi-section .section-title {
+    font-size: 18px; font-weight: 700; margin: 4px 0 10px;
+  }
+  .kpi-section .section-sub {
+    margin: 0 0 12px; font-size: 12px; color: var(--pp-muted);
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .kpi {
+    background: #fff;
+    border: 1px solid var(--pp-border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    min-height: 92px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .kpi.alt { background: var(--pp-bg-soft); }
+  .kpi-label {
+    color: var(--pp-muted);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+  }
+  .kpi-value {
+    color: var(--pp-text);
+    font-weight: 700;
+    font-size: 26px;
+    line-height: 1.1;
+    margin-top: 2px;
+  }
+  .kpi-delta {
+    color: var(--pp-green);
+    font-weight: 700;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+  .kpi-delta.neg { color: #B23A48; }
+
+  /* -------- Chart (right column) -------- */
+  .chart-section { grid-column: 2 / 3; grid-row: 2 / 4; }
+  .chart-section h3 {
+    margin: 0; font-size: 18px; font-weight: 700;
+  }
+  .chart-section .chart-sub {
+    margin: 2px 0 8px;
+    color: var(--pp-muted);
+    font-size: 12px;
+  }
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 260px;
+  }
+
+  /* -------- Data table along the bottom -------- */
+  .table-section { grid-column: 1 / -1; }
+  .table-section h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .table-section .table-sub {
+    margin: 0 0 8px; font-size: 12px; color: var(--pp-muted);
+  }
+  table.data {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.data thead th {
+    background: var(--pp-deep);
+    color: #fff;
+    text-align: left;
+    padding: 6px 10px;
+    font-weight: 700;
+  }
+  table.data tbody td {
+    border: 1px solid var(--pp-border);
+    padding: 6px 10px;
+    background: #fff;
+  }
+  table.data tbody tr.alt td { background: var(--pp-bg-soft); }
+
+  .page-num {
+    position: absolute;
+    bottom: 14px;
+    right: 48px;
+    color: var(--pp-muted);
+    font-size: 11px;
+  }
+
+  /* -------- Demo controls -------- */
+  .controls {
+    margin: 28px 0 8px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--pp-accent);
+    background: var(--pp-accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:hover { background: var(--pp-deep); border-color: var(--pp-deep); }
+  .btn.secondary {
+    background: #fff;
+    color: var(--pp-accent);
+  }
+  .btn.secondary:hover { background: var(--pp-bg-soft); color: var(--pp-deep); }
+
+  /* -------- Tutorial sections -------- */
+  .tutorial {
+    margin-top: 44px;
+    background: #fff;
+    border: 1px solid var(--pp-border);
+    border-radius: 6px;
+    padding: 28px 32px;
+  }
+  .tutorial h2 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .tutorial > p.lead {
+    margin: 0 0 22px;
+    color: var(--pp-muted);
+  }
+  .tutorial h3 {
+    margin: 28px 0 6px;
+    font-size: 17px;
+    color: var(--pp-deep);
+  }
+  .tutorial h3 .num {
+    display: inline-block;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--pp-accent);
+    color: #fff;
+    font-size: 12px;
+    text-align: center;
+    line-height: 24px;
+    margin-right: 8px;
+    vertical-align: 1px;
+  }
+  .tutorial p { margin: 6px 0; color: var(--pp-text); }
+  .tutorial ul { margin: 6px 0 12px 20px; }
+  .tutorial code {
+    background: #F2F4F8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 13px;
+  }
+  pre {
+    background: #0E1116;
+    color: #E6EDF3;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 8px 0 0;
+  }
+  pre .tok-key  { color: #79C0FF; }
+  pre .tok-str  { color: #A5D6FF; }
+  pre .tok-com  { color: #8B949E; font-style: italic; }
+  pre .tok-tag  { color: #7EE787; }
+
+  .note {
+    background: var(--pp-bg-soft);
+    border-left: 4px solid var(--pp-accent);
+    padding: 10px 14px;
+    border-radius: 0 4px 4px 0;
+    font-size: 13px;
+    margin: 12px 0;
+  }
+
+  /* -------- Responsive: collapse the slide layout on small screens -------- */
+  @media (max-width: 900px) {
+    .slide {
+      aspect-ratio: auto;
+      grid-template-columns: 1fr;
+    }
+    .kpi-section, .chart-section, .table-section,
+    .slide h2, .slide .subtitle { grid-column: 1 / -1; }
+    .chart-section { grid-row: auto; }
+    .slide .badge, .page-num { position: static; text-align: right; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ============================================================== -->
+  <!--  PAGE HEADER                                                  -->
+  <!-- ============================================================== -->
+  <header class="page-header">
+    <h1>PowerPoint &harr; Web Integration Demo</h1>
+    <p>
+      This page mirrors the layout of the
+      <strong>“Sales Performance Update”</strong> PowerPoint template
+      (<code>PowerPoint Template - HTML Fill In.xml</code>), fills it with
+      sample data, and shows you the most common ways to wire a deck up
+      to a website, SharePoint, Teams, or OneDrive.
+    </p>
+  </header>
+
+  <!-- ============================================================== -->
+  <!--  THE "LIVE SLIDE" (HTML version of the PPT slide)             -->
+  <!-- ============================================================== -->
+  <section class="slide" id="liveSlide" aria-label="Live HTML version of the PowerPoint slide">
+    <div class="kicker">BUSINESS REVIEW</div>
+    <h2 id="slideTitle">Sales Performance Update</h2>
+    <p class="subtitle" id="slideSubtitle">Q2 2026 &middot; North America Region &middot; Prepared by Revenue Ops</p>
+    <div class="badge">EXAMPLE DATA</div>
+
+    <!-- LEFT: Executive Snapshot / KPI tiles -->
+    <div class="kpi-section">
+      <div class="section-title">Executive Snapshot</div>
+      <p class="section-sub">Replace placeholders with the current review period actuals.</p>
+      <div class="kpi-grid" id="kpiGrid">
+        <!-- Tiles are rendered from JS sampleData below -->
+      </div>
+    </div>
+
+    <!-- RIGHT: Chart -->
+    <div class="chart-section">
+      <h3>Quarterly Sales vs. Plan</h3>
+      <p class="chart-sub">Example chart &mdash; bound to the same <code>sampleData</code> object that drives the slide.</p>
+      <div class="chart-wrap">
+        <canvas id="quarterlyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- BOTTOM: Data table -->
+    <div class="table-section">
+      <h3>Sales Data Inputs</h3>
+      <p class="table-sub">Use this area for the numbers that support the chart and discussion.</p>
+      <table class="data" id="dataTable">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Current Period</th>
+            <th>Prior Period</th>
+            <th>Variance</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody><!-- filled by JS --></tbody>
+      </table>
+    </div>
+
+    <div class="page-num">Page 1</div>
+  </section>
+
+  <!-- ============================================================== -->
+  <!--  DEMO BUTTONS                                                 -->
+  <!-- ============================================================== -->
+  <div class="controls">
+    <button class="btn" type="button" onclick="randomizeData()">
+      &#x21bb; Refresh with new sample data
+    </button>
+    <button class="btn" type="button" onclick="downloadJSON()">
+      &#x2913; Download data as JSON
+    </button>
+    <button class="btn" type="button" onclick="generatePPTX()">
+      &#x1F4C4; Generate a .pptx from this page
+    </button>
+    <a class="btn secondary" href="PowerPoint Template - HTML Fill In.xml" download>
+      Download the source template
+    </a>
+  </div>
+
+  <!-- ============================================================== -->
+  <!--  TUTORIAL                                                     -->
+  <!-- ============================================================== -->
+  <section class="tutorial">
+    <h2>How to wire a PowerPoint up to the web</h2>
+    <p class="lead">
+      Below are the five most common patterns &mdash; from the simplest
+      “drop it on a page” embed, all the way to fully data-driven decks
+      generated from your CMS or database. Pick whichever one fits.
+    </p>
+
+    <!-- ===================== Method 1 ===================== -->
+    <h3><span class="num">1</span> Embed in any website (Office Online viewer)</h3>
+    <p>
+      The fastest option. Host the <code>.pptx</code> on a public URL
+      (GitHub Pages, Azure Blob, S3, your own site) and embed Microsoft’s
+      free Office Online viewer in an <code>&lt;iframe&gt;</code>.
+    </p>
+<pre><span class="tok-tag">&lt;iframe</span>
+  <span class="tok-key">src</span>=<span class="tok-str">"https://view.officeapps.live.com/op/embed.aspx?src=https%3A%2F%2Fyourdomain.com%2Fdecks%2FSalesReview.pptx"</span>
+  <span class="tok-key">width</span>=<span class="tok-str">"100%"</span> <span class="tok-key">height</span>=<span class="tok-str">"600"</span> <span class="tok-key">frameborder</span>=<span class="tok-str">"0"</span>&gt;
+<span class="tok-tag">&lt;/iframe&gt;</span></pre>
+    <div class="note">
+      The file must be reachable over HTTPS with no auth required.
+      For private files, use the SharePoint/OneDrive embed (method&nbsp;2).
+    </div>
+
+    <!-- ===================== Method 2 ===================== -->
+    <h3><span class="num">2</span> Embed from SharePoint or OneDrive</h3>
+    <p>
+      Upload the deck to a SharePoint document library or OneDrive
+      folder, open it, then choose
+      <strong>File &rarr; Share &rarr; Embed</strong>. SharePoint will
+      generate a ready-to-paste iframe scoped to the file’s permissions
+      (only people with access can view it).
+    </p>
+<pre><span class="tok-com">&lt;!-- Auto-generated by SharePoint &rarr; File &rarr; Embed --&gt;</span>
+<span class="tok-tag">&lt;iframe</span>
+  <span class="tok-key">src</span>=<span class="tok-str">"https://contoso.sharepoint.com/sites/Sales/_layouts/15/embed.aspx?UniqueId=ABC-123"</span>
+  <span class="tok-key">width</span>=<span class="tok-str">"962"</span> <span class="tok-key">height</span>=<span class="tok-str">"565"</span>
+  <span class="tok-key">frameborder</span>=<span class="tok-str">"0"</span> <span class="tok-key">scrolling</span>=<span class="tok-str">"no"</span> <span class="tok-key">allowfullscreen</span>&gt;
+<span class="tok-tag">&lt;/iframe&gt;</span></pre>
+    <p>
+      Inside SharePoint itself, drop the
+      <strong>File Viewer</strong> web part on a page and point it at
+      the <code>.pptx</code> &mdash; you’ll get the same live deck with
+      slide navigation, full-screen, and PowerPoint Live in Teams.
+    </p>
+
+    <!-- ===================== Method 3 ===================== -->
+    <h3><span class="num">3</span> Bind web data into the template (placeholder swap)</h3>
+    <p>
+      The XML template uses double-brace tokens like
+      <code>{{$12.4M}}</code> and <code>{{104%}}</code>. The pattern is
+      the same whether you do this in the browser (PptxGenJS),
+      Node.js (docxtemplater + pptx module), or Python (python-pptx):
+      load the file, walk every text run, and replace the tokens with
+      values from your data source.
+    </p>
+<pre><span class="tok-com"># Python example using python-pptx</span>
+<span class="tok-key">from</span> pptx <span class="tok-key">import</span> Presentation
+
+data = {
+    <span class="tok-str">"REVENUE"</span>:         <span class="tok-str">"$12.4M"</span>,
+    <span class="tok-str">"REVENUE_DELTA"</span>:   <span class="tok-str">"+8.2% YoY"</span>,
+    <span class="tok-str">"PLAN_ATTAINMENT"</span>: <span class="tok-str">"104%"</span>,
+    <span class="tok-str">"PIPELINE"</span>:        <span class="tok-str">"$18.1M"</span>,
+    <span class="tok-str">"WIN_RATE"</span>:        <span class="tok-str">"36%"</span>,
+}
+
+prs = Presentation(<span class="tok-str">"SalesReview-Template.pptx"</span>)
+<span class="tok-key">for</span> slide <span class="tok-key">in</span> prs.slides:
+    <span class="tok-key">for</span> shape <span class="tok-key">in</span> slide.shapes:
+        <span class="tok-key">if not</span> shape.has_text_frame: <span class="tok-key">continue</span>
+        <span class="tok-key">for</span> para <span class="tok-key">in</span> shape.text_frame.paragraphs:
+            <span class="tok-key">for</span> run <span class="tok-key">in</span> para.runs:
+                <span class="tok-key">for</span> k, v <span class="tok-key">in</span> data.items():
+                    run.text = run.text.replace(<span class="tok-str">f"{{{{{k}}}}}"</span>, v)
+
+prs.save(<span class="tok-str">"SalesReview-Q2-2026.pptx"</span>)</pre>
+
+    <!-- ===================== Method 4 ===================== -->
+    <h3><span class="num">4</span> Generate a .pptx straight from the browser (PptxGenJS)</h3>
+    <p>
+      For dashboards where users click a button and download a
+      ready-made deck, you don’t even need a template file &mdash;
+      <a href="https://gitbrent.github.io/PptxGenJS/" target="_blank" rel="noopener">PptxGenJS</a>
+      builds a fully native PowerPoint file in JavaScript. The
+      “Generate a .pptx from this page” button above runs exactly this
+      code:
+    </p>
+<pre><span class="tok-key">const</span> pptx = <span class="tok-key">new</span> PptxGenJS();
+pptx.layout = <span class="tok-str">"LAYOUT_WIDE"</span>;
+
+<span class="tok-key">const</span> slide = pptx.addSlide();
+slide.addText(<span class="tok-str">"BUSINESS REVIEW"</span>, { x:0.5, y:0.4, fontSize:10, bold:<span class="tok-key">true</span>, color:<span class="tok-str">"005EB8"</span> });
+slide.addText(sampleData.title, { x:0.5, y:0.7, fontSize:28, bold:<span class="tok-key">true</span> });
+
+<span class="tok-com">// KPI tiles</span>
+sampleData.kpis.forEach((k, i) =&gt; {
+  <span class="tok-key">const</span> col = i % 2, row = Math.floor(i/2);
+  slide.addText(
+    [{ text:k.label+<span class="tok-str">"\n"</span>, options:{ fontSize:9,  bold:<span class="tok-key">true</span>, color:<span class="tok-str">"5C6670"</span> } },
+     { text:k.value+<span class="tok-str">"\n"</span>, options:{ fontSize:22, bold:<span class="tok-key">true</span>, color:<span class="tok-str">"1B1F24"</span> } },
+     { text:k.delta,        options:{ fontSize:10, bold:<span class="tok-key">true</span>, color:<span class="tok-str">"2E7D32"</span> } }],
+    { x:0.5+col*1.85, y:2.6+row*1.15, w:1.75, h:1, fill:{color:<span class="tok-str">"FFFFFF"</span>}, line:{color:<span class="tok-str">"C8D3E0"</span>} }
+  );
+});
+
+<span class="tok-com">// Native PowerPoint chart from the same sample data</span>
+slide.addChart(pptx.ChartType.bar, [
+  { name:<span class="tok-str">"Plan"</span>,   labels:sampleData.chart.labels, values:sampleData.chart.plan   },
+  { name:<span class="tok-str">"Actual"</span>, labels:sampleData.chart.labels, values:sampleData.chart.actual },
+], { x:5, y:2.2, w:7.5, h:3, chartColors:[<span class="tok-str">"C8D3E0"</span>,<span class="tok-str">"005EB8"</span>] });
+
+pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</pre>
+
+    <!-- ===================== Method 5 ===================== -->
+    <h3><span class="num">5</span> Push the generated deck into SharePoint / Teams (Microsoft Graph)</h3>
+    <p>
+      Once you have a <code>.pptx</code> (from method 3 or 4), drop it
+      straight into a SharePoint library or a Teams channel’s
+      <em>Files</em> tab with one PUT call to the Microsoft Graph API.
+      Teams &amp; Outlook will then render an inline preview
+      automatically.
+    </p>
+<pre><span class="tok-com">// Upload a file &lt; 4 MB to a SharePoint document library</span>
+<span class="tok-key">await</span> fetch(
+  <span class="tok-str">`https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}`</span> +
+  <span class="tok-str">`/root:/Sales%20Reviews/SalesReview-Q2-2026.pptx:/content`</span>,
+  {
+    method: <span class="tok-str">"PUT"</span>,
+    headers: {
+      <span class="tok-str">"Authorization"</span>: <span class="tok-str">`Bearer ${accessToken}`</span>,
+      <span class="tok-str">"Content-Type"</span>:  <span class="tok-str">"application/vnd.openxmlformats-officedocument.presentationml.presentation"</span>,
+    },
+    body: pptxBlob,   <span class="tok-com">// Blob returned by PptxGenJS write({ outputType:"blob" })</span>
+  }
+);</pre>
+    <div class="note">
+      For files larger than 4&nbsp;MB use an
+      <code>createUploadSession</code> resumable upload. The same Graph
+      endpoint works for OneDrive (<code>/me/drive</code>) and Teams
+      channels (the channel’s <em>Files</em> tab is just a folder in
+      the team’s SharePoint site).
+    </div>
+
+    <h3><span class="num">&#x2713;</span> What this demo proves</h3>
+    <ul>
+      <li>The same <code>sampleData</code> object drives the on-page KPIs, the live Chart.js chart, the data table, <em>and</em> the generated .pptx &mdash; one source of truth.</li>
+      <li>The HTML view can live on your website; the .pptx version can live in SharePoint &mdash; both stay in sync because both are rendered from your data.</li>
+      <li>You can swap the in-page <code>sampleData</code> for a <code>fetch()</code> against your real API and the rest of the page (and the generated deck) will just work.</li>
+    </ul>
+  </section>
+
+</div>
+
+<!-- ================================================================ -->
+<!--  SAMPLE DATA + RENDERING LOGIC                                  -->
+<!-- ================================================================ -->
+<script>
+  /* ---------- Single source of truth for everything on the page ---------- */
+  const sampleData = {
+    title:    "Sales Performance Update",
+    subtitle: "Q2 2026 · North America Region · Prepared by Revenue Ops",
+
+    kpis: [
+      { label: "REVENUE",         value: "$12.4M", delta: "+8.2% YoY" },
+      { label: "PLAN ATTAINMENT", value: "104%",   delta: "+4 pts vs plan" },
+      { label: "PIPELINE",        value: "$18.1M", delta: "+11% QoQ" },
+      { label: "WIN RATE",        value: "36%",    delta: "+3 pts YoY" }
+    ],
+
+    chart: {
+      labels: ["Q3 '25", "Q4 '25", "Q1 '26", "Q2 '26"],
+      plan:   [10.0, 11.0, 11.5, 12.0],   // $M
+      actual: [ 9.6, 11.4, 11.9, 12.4]    // $M
+    },
+
+    table: [
+      { metric: "Sales Revenue",  current: "$12.4M", prior: "$11.4M", variance: "+8.8%",  notes: "Enterprise renewals lifted Q2."  },
+      { metric: "New Accounts",   current: "47",     prior: "39",     variance: "+8",     notes: "SMB segment leading growth."     },
+      { metric: "Pipeline Value", current: "$18.1M", prior: "$16.3M", variance: "+11.0%", notes: "Healthy mid-funnel coverage."    },
+      { metric: "Win Rate",       current: "36%",    prior: "33%",    variance: "+3 pts", notes: "Discovery scoring improvements." }
+    ]
+  };
+
+  /* ---------- Render the KPI tiles ---------- */
+  function renderKpis() {
+    const grid = document.getElementById("kpiGrid");
+    grid.innerHTML = sampleData.kpis.map((k, i) => `
+      <div class="kpi ${i >= 2 ? 'alt' : ''}">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-value">${k.value}</div>
+        <div class="kpi-delta ${k.delta.startsWith('-') ? 'neg' : ''}">${k.delta}</div>
+      </div>
+    `).join("");
+  }
+
+  /* ---------- Render the data table ---------- */
+  function renderTable() {
+    const tbody = document.querySelector("#dataTable tbody");
+    tbody.innerHTML = sampleData.table.map((r, i) => `
+      <tr class="${i % 2 ? 'alt' : ''}">
+        <td><strong>${r.metric}</strong></td>
+        <td>${r.current}</td>
+        <td>${r.prior}</td>
+        <td>${r.variance}</td>
+        <td>${r.notes}</td>
+      </tr>
+    `).join("");
+  }
+
+  /* ---------- Render the chart ---------- */
+  let chartInstance = null;
+  function renderChart() {
+    const ctx = document.getElementById("quarterlyChart").getContext("2d");
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: sampleData.chart.labels,
+        datasets: [
+          { label: "Plan ($M)",   data: sampleData.chart.plan,   backgroundColor: "#C8D3E0" },
+          { label: "Actual ($M)", data: sampleData.chart.actual, backgroundColor: "#005EB8" }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => `${c.dataset.label}: $${c.parsed.y.toFixed(1)}M` } }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: v => "$" + v + "M" } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  /* ---------- Demo: randomize the numbers to show data-binding ---------- */
+  function randomizeData() {
+    const rand  = (min, max) => +(Math.random() * (max - min) + min).toFixed(1);
+    const randI = (min, max) => Math.round(Math.random() * (max - min) + min);
+
+    const rev   = rand(8, 16);
+    const plan  = randI(90, 115);
+    const pipe  = rand(12, 24);
+    const win   = randI(25, 45);
+
+    sampleData.kpis = [
+      { label: "REVENUE",         value: `$${rev.toFixed(1)}M`, delta: `${rev > 12 ? '+' : ''}${(rev - 11.4).toFixed(1)}M YoY` },
+      { label: "PLAN ATTAINMENT", value: `${plan}%`,             delta: `${plan - 100 >= 0 ? '+' : ''}${plan - 100} pts vs plan` },
+      { label: "PIPELINE",        value: `$${pipe.toFixed(1)}M`, delta: `${pipe > 16 ? '+' : ''}${((pipe - 16.3)/16.3*100).toFixed(1)}% QoQ` },
+      { label: "WIN RATE",        value: `${win}%`,              delta: `${win - 33 >= 0 ? '+' : ''}${win - 33} pts YoY` }
+    ];
+    sampleData.chart.plan   = [rand(9,12), rand(10,12), rand(10,13), rand(11,14)];
+    sampleData.chart.actual = sampleData.chart.plan.map(p => +(p + rand(-1.5, 1.8)).toFixed(1));
+
+    sampleData.table[0].current = `$${rev.toFixed(1)}M`;
+    sampleData.table[2].current = `$${pipe.toFixed(1)}M`;
+    sampleData.table[3].current = `${win}%`;
+
+    renderKpis(); renderTable(); renderChart();
+  }
+
+  /* ---------- Demo: download the underlying data as JSON ---------- */
+  function downloadJSON() {
+    const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = "sales-review-data.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  /* ---------- Demo: generate a real .pptx from the sample data ---------- */
+  function generatePPTX() {
+    if (typeof PptxGenJS === "undefined") {
+      alert("PptxGenJS failed to load (check your network). The HTML demo still works.");
+      return;
+    }
+    const pptx = new PptxGenJS();
+    pptx.layout = "LAYOUT_WIDE";   // 13.33 x 7.5 inch — matches the template
+
+    const slide = pptx.addSlide();
+    slide.background = { color: "FFFFFF" };
+
+    slide.addText("BUSINESS REVIEW", { x:0.5, y:0.35, w:5, h:0.3, fontSize:10, bold:true, color:"005EB8", fontFace:"Aptos" });
+    slide.addText(sampleData.title,    { x:0.5, y:0.65, w:9, h:0.6, fontSize:28, bold:true, color:"1B1F24", fontFace:"Aptos Display" });
+    slide.addText(sampleData.subtitle, { x:0.5, y:1.25, w:9, h:0.3, fontSize:11, color:"5C6670", fontFace:"Aptos" });
+    slide.addText("EXAMPLE DATA",      { x:10.5, y:1.55, w:2, h:0.25, fontSize:9, bold:true, color:"005EB8", align:"right", fontFace:"Aptos" });
+
+    slide.addText("Executive Snapshot", { x:0.5, y:1.7, w:4, h:0.3, fontSize:14, bold:true, color:"1B1F24", fontFace:"Aptos Display" });
+    slide.addText("Replace placeholders with the current review period actuals.",
+      { x:0.5, y:2.0, w:4, h:0.25, fontSize:9, color:"5C6670", fontFace:"Aptos" });
+
+    /* KPI tiles in a 2x2 grid */
+    sampleData.kpis.forEach((k, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const isAlt = row === 1;
+      slide.addText(
+        [
+          { text: k.label + "\n", options: { fontSize: 9,  bold: true, color: "5C6670" } },
+          { text: k.value + "\n", options: { fontSize: 22, bold: true, color: "1B1F24" } },
+          { text: k.delta,        options: { fontSize: 10, bold: true, color: "2E7D32" } }
+        ],
+        {
+          x: 0.5 + col * 1.85, y: 2.35 + row * 1.15, w: 1.75, h: 1,
+          fill: { color: isAlt ? "F5F8FC" : "FFFFFF" },
+          line: { color: "C8D3E0", width: 0.5 },
+          fontFace: "Aptos", valign: "middle"
+        }
+      );
+    });
+
+    /* Chart title + chart */
+    slide.addText("Quarterly Sales vs. Plan",
+      { x: 5, y: 1.7, w: 7.5, h: 0.3, fontSize: 14, bold: true, color: "1B1F24", fontFace: "Aptos Display" });
+    slide.addText("Example chart — bound to the same data that drives the on-page version.",
+      { x: 5, y: 2.0, w: 7.5, h: 0.25, fontSize: 9, color: "5C6670", fontFace: "Aptos" });
+
+    slide.addChart(pptx.ChartType.bar, [
+      { name: "Plan ($M)",   labels: sampleData.chart.labels, values: sampleData.chart.plan   },
+      { name: "Actual ($M)", labels: sampleData.chart.labels, values: sampleData.chart.actual }
+    ], {
+      x: 5, y: 2.3, w: 7.5, h: 3,
+      barDir: "col", barGrouping: "clustered",
+      chartColors: ["C8D3E0", "005EB8"],
+      showLegend: true, legendPos: "b", legendFontSize: 9,
+      catAxisLabelFontSize: 9, valAxisLabelFontSize: 9
+    });
+
+    /* Data table */
+    const tableRows = [
+      [
+        { text: "Metric",         options: { bold: true, color: "FFFFFF", fill: { color: "003B71" } } },
+        { text: "Current Period", options: { bold: true, color: "FFFFFF", fill: { color: "003B71" } } },
+        { text: "Prior Period",   options: { bold: true, color: "FFFFFF", fill: { color: "003B71" } } },
+        { text: "Variance",       options: { bold: true, color: "FFFFFF", fill: { color: "003B71" } } },
+        { text: "Notes",          options: { bold: true, color: "FFFFFF", fill: { color: "003B71" } } }
+      ],
+      ...sampleData.table.map((r, i) => {
+        const fill = { color: i % 2 ? "F5F8FC" : "FFFFFF" };
+        return [
+          { text: r.metric,   options: { bold: true, color: "1B1F24", fill } },
+          { text: r.current,  options: { color: "1B1F24", fill } },
+          { text: r.prior,    options: { color: "1B1F24", fill } },
+          { text: r.variance, options: { color: "1B1F24", fill } },
+          { text: r.notes,    options: { color: "1B1F24", fill } }
+        ];
+      })
+    ];
+    slide.addTable(tableRows, {
+      x: 0.5, y: 5.5, w: 12.3, h: 1.4,
+      colW: [2.0, 2.0, 2.0, 1.6, 4.7],
+      fontSize: 9, fontFace: "Aptos",
+      border: { type: "solid", color: "C8D3E0", pt: 0.5 }
+    });
+
+    slide.addText("Page 1", { x: 11.5, y: 7.05, w: 1.5, h: 0.25, fontSize: 9, color: "5C6670", align: "right", fontFace: "Aptos" });
+
+    pptx.writeFile({ fileName: "SalesReview-Generated.pptx" });
+  }
+
+  /* ---------- Initial render ---------- */
+  renderKpis();
+  renderTable();
+  renderChart();
+</script>
+
+</body>
+</html>
