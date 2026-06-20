@@ -4082,20 +4082,53 @@ window.testShortcutMobileLayout = function () {
 <!-- ============================================================
      In-app "Remove Ads $1.99" banner controller
      Visible only inside the Career Shortcuts Android app
-     (detected via window.ReactNativeWebView).
-     Wires to the native bridge window.__nativeRemoveAds when
-     monetization is enabled in the app; falls back to a friendly
-     "coming soon" alert today so the banner can ship now and start
-     priming users for the eventual purchase option.
+     (detected via window.ReactNativeWebView + a SystemShortcuts/
+     UA marker set by the app's WebView userAgent). Wires to the
+     native bridge window.__nativeRemoveAds when monetization is
+     enabled in the app; falls back to a friendly "coming soon"
+     alert today so the banner can ship now and start priming
+     users for the eventual purchase option.
+
+     >>> AD POLICY (read before adding any ad slot to this page) <<<
+     ALL ads — banner, AdSense, sponsor blocks, anything — MUST be
+     gated by isInShortcutsApp() below. NEVER let an ad render on
+     the public website (mobile or desktop). Reasons:
+       1. SEO: Google penalizes ad-heavy mobile pages.
+       2. Speed: Lighthouse scores drop sharply with web ad scripts.
+       3. Privacy/GDPR: Web ads require a consent banner + cookie
+          disclosure. App ads are governed by Play Store Data Safety
+          (already covered by our privacy policy's app section).
+       4. UA fallback safety: another WebView host (e.g. a Career
+          Solutions site embed) won't smuggle ads into the public
+          web. The UA suffix "SystemShortcuts/" is set only by THIS
+          app's WebView (see app/index.tsx userAgent prop).
+
+     Use the isInShortcutsApp() helper for every ad surface. A
+     commented-out in-page ad slot scaffold lives at the bottom of
+     this script as a copy-paste template.
      ============================================================ -->
 <script>
 (function(){
   var DISMISS_KEY = 'cs-shortcuts-remove-ads-dismissed-until';
   var DISMISS_DAYS = 7;
 
-  function inApp() {
-    try { return !!window.ReactNativeWebView; } catch (_) { return false; }
+  // STRICT gate: returns true ONLY when the page is loaded inside the
+  // official Career Shortcuts Android app. Two-factor check:
+  //   1. window.ReactNativeWebView exists (any RN WebView host).
+  //   2. UA contains "SystemShortcuts/" (set only by app/index.tsx).
+  // Both must be true. This is the single source of truth — every
+  // ad-related render path on this page must call this helper.
+  // Exported on window so future scripts can import the same check.
+  function isInShortcutsApp() {
+    try {
+      var hasBridge = !!window.ReactNativeWebView;
+      var ua = (navigator && navigator.userAgent) || '';
+      var hasUaTag = /SystemShortcuts\//.test(ua);
+      return hasBridge && hasUaTag;
+    } catch (_) { return false; }
   }
+  try { window.isInShortcutsApp = isInShortcutsApp; } catch (_) {}
+
   function nativeBridgeReady() {
     try { return !!(window.__nativeRemoveAds && window.__nativeRemoveAds.available); }
     catch (_) { return false; }
@@ -4129,7 +4162,7 @@ window.testShortcutMobileLayout = function () {
   }
 
   function refresh() {
-    if (!inApp()) { hide(); return; }
+    if (!isInShortcutsApp()) { hide(); return; }
     if (isPurchased()) { hide(); return; }
     if (dismissedRecently()) { hide(); return; }
     show();
@@ -4175,5 +4208,59 @@ window.testShortcutMobileLayout = function () {
   window.addEventListener('nativeRemoveAdsChanged', refresh);
 })();
 </script>
+
+<!-- ============================================================
+     IN-PAGE AD SLOT SCAFFOLD — DISABLED (template only)
+     ============================================================
+     If you ever need an in-page web-rendered ad (e.g. AdSense
+     unit, sponsor block, affiliate card), use this pattern. Every
+     ad render MUST be gated by window.isInShortcutsApp() defined
+     above so the public website stays ad-free. Removing the gate
+     would:
+       - serve ads to desktop / browser visitors (policy violation
+         here — we promised the public web stays clean),
+       - require GDPR/CCPA consent UI on the public site,
+       - drop Lighthouse/SEO scores,
+       - potentially conflict with Google AdSense placement rules
+         that differ from AdMob (web AdSense ≠ mobile AdMob).
+
+     The PREFERRED approach is to keep all ad SURFACES native:
+     render <BannerAd/> in app/index.tsx (commented out today).
+     Use this in-page scaffold ONLY when a native ad component
+     won't fit (e.g. interstitial inline content sponsorship that
+     must live in the WebView). The remove-ads entitlement
+     (window.__nativeRemoveAds.isPurchased) MUST also gate this
+     so paying users see no ads anywhere.
+     ============================================================
+<div id="inline-ad-slot-1" style="display:none;margin:16px auto;text-align:center;"></div>
+<script>
+(function(){
+  function shouldRenderInlineAds(){
+    try {
+      if (typeof window.isInShortcutsApp !== 'function' || !window.isInShortcutsApp()) return false;
+      // Respect Remove Ads entitlement.
+      if (window.__nativeRemoveAds && window.__nativeRemoveAds.isPurchased) return false;
+      return true;
+    } catch (_) { return false; }
+  }
+  function renderInlineAd(){
+    var slot = document.getElementById('inline-ad-slot-1');
+    if (!slot) return;
+    if (!shouldRenderInlineAds()) { slot.style.display = 'none'; return; }
+    // ----- TODO: insert ad provider snippet HERE -----
+    // Recommended approach: use a native AdMob component in app/index.tsx
+    // (RN BannerAd) instead of an in-page script. Only fall back to a
+    // web-style ad SDK (e.g. AdSense) if a native option isn't viable.
+    slot.style.display = 'block';
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderInlineAd);
+  } else {
+    renderInlineAd();
+  }
+  window.addEventListener('nativeRemoveAdsChanged', renderInlineAd);
+})();
+</script>
+============================================================ -->
 </body>
 </html>
