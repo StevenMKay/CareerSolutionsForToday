@@ -6222,7 +6222,7 @@
           <div class="owner-mobile-only" role="group" aria-label="Owner Testing">
             <hr>
             <div class="account-menu-section-title"><i data-lucide="wrench" style="width:14px;height:14px;"></i> Owner Testing</div>
-            <button type="button" role="menuitem" data-action="ownerRunUIPreview"><i data-lucide="layout-template" style="width:16px;height:16px;"></i> Preview UI States (founder / payment)</button>
+            <button type="button" role="menuitem" data-action="ownerRunUIPreview"><i data-lucide="layout-template" style="width:16px;height:16px;"></i> Preview UI States (payment)</button>
             <button type="button" role="menuitem" data-action="ownerRunAITestBatch"><i data-lucide="bot" style="width:16px;height:16px;"></i> Run AI Test (30 resumes)</button>
             <button type="button" role="menuitem" data-action="ownerRunFullPipeline"><i data-lucide="git-branch" style="width:16px;height:16px;"></i> Run Full Pipeline Test</button>
             <button type="button" role="menuitem" data-action="ownerRunOptAudit"><i data-lucide="clipboard-check" style="width:16px;height:16px;"></i> Run Optimization Audit</button>
@@ -7220,8 +7220,18 @@
           </div>
         </div>
 
+        <!-- Hint: shown until the user has both a resume and a target role; auto-hidden once both ready -->
+        <div id="gated-sections-hint" style="background:#F1F5F9;border:1px dashed #94A3B8;border-radius:10px;padding:14px 16px;color:#334155;font-size:14px;line-height:1.55;margin:8px 0;">
+          &#x1F512; <strong>Application Tracker, Role CV, and Role Plan</strong> will appear here once you
+          <a href="javascript:void(0)" data-gated-jump="acc-import-resume" style="color:#2563EB;text-decoration:underline;">import a resume</a>
+          (or fill in
+          <a href="javascript:void(0)" data-gated-jump="acc-personal-work" style="color:#2563EB;text-decoration:underline;">work experience</a>)
+          and add a
+          <a href="javascript:void(0)" data-gated-jump="acc-target-role" style="color:#2563EB;text-decoration:underline;">target role</a>.
+        </div>
+
         <!-- Accordion: Application Tracker -->
-        <div class="accordion" id="acc-application-tracker">
+        <div class="accordion" id="acc-application-tracker" hidden>
           <button class="acc-header" type="button" data-accordion-target="acc-application-tracker" aria-expanded="false">
             <span class="acc-icon"><i data-lucide="briefcase" style="width:18px;height:18px;"></i></span>
             <span class="acc-title">Application Tracker <span class="acc-sub">Track status, recruiter notes, interviews, and next steps</span></span>
@@ -7284,7 +7294,7 @@
         </div>
 
         <!-- Accordion: Role CV -->
-        <div class="accordion" id="acc-role-cv">
+        <div class="accordion" id="acc-role-cv" hidden>
           <button class="acc-header" type="button" data-accordion-target="acc-role-cv" aria-expanded="false">
             <span class="acc-icon"><i data-lucide="file-signature" style="width:18px;height:18px;"></i></span>
             <span class="acc-title">Role CV <span class="acc-sub">Cover letter aligned to the target role</span></span>
@@ -7319,7 +7329,7 @@
         </div>
 
         <!-- Accordion: Role Plan -->
-        <div class="accordion" id="acc-role-plan">
+        <div class="accordion" id="acc-role-plan" hidden>
           <button class="acc-header" type="button" data-accordion-target="acc-role-plan" aria-expanded="false">
             <span class="acc-icon"><i data-lucide="map" style="width:18px;height:18px;"></i></span>
             <span class="acc-title">Role Plan <span class="acc-sub">90-Day, 12-Month, and 2-Year roadmap</span></span>
@@ -8665,17 +8675,7 @@
       try { if (user) syncTermsAcceptanceForUser(user); } catch (_) {}
       // Best-effort: load subscription/usage state. Never blocks UI.
       try {
-        Promise.resolve(loadBuilderAccessForUser(user)).then(function () {
-          // After entitlement state is hydrated (so we know whether the
-          // user is already premium), check the app-only Founder Offer.
-          // maybeShowFounderOffer() hard-fails closed when conditions
-          // aren't met, so this is safe to call on every auth change.
-          try {
-            if (user && typeof maybeShowFounderOffer === 'function') {
-              maybeShowFounderOffer(user);
-            }
-          } catch (_) {}
-        }).catch(function (e) {
+        Promise.resolve(loadBuilderAccessForUser(user)).catch(function (e) {
           console.debug('[paywall] load failed:', e);
         });
       } catch (e) { console.debug('[paywall] load threw:', e); }
@@ -11949,6 +11949,118 @@
     var rb = document.getElementById('btn-role-research'); if (rb) rb.disabled = !canResearch;
     var cb = document.getElementById('btn-generate-cv'); if (cb) cb.disabled = !canCv;
     var pb = document.getElementById('btn-generate-plan'); if (pb) pb.disabled = !canPlan;
+    // Explain WHY each AI button is disabled (title tooltip + aria-label for SR),
+    // install one-time click-to-explain overlays, and hide gated sections until prereqs met.
+    try {
+      var reasonResearch = _whyDisabled(rOk, tOk, !!RB_STATE._roleResearchInFlight);
+      var reasonCv       = _whyDisabled(rOk, tOk, !!RB_STATE._cvInFlight);
+      var reasonPlan     = _whyDisabled(rOk, tOk, !!RB_STATE._planInFlight);
+      if (rb) { rb.title = rb.disabled ? reasonResearch : ''; if (rb.disabled) rb.setAttribute('aria-label', 'Run AI Role Research \u2014 ' + reasonResearch); else rb.removeAttribute('aria-label'); }
+      if (cb) { cb.title = cb.disabled ? reasonCv       : ''; if (cb.disabled) cb.setAttribute('aria-label', 'Generate Cover Letter \u2014 ' + reasonCv);    else cb.removeAttribute('aria-label'); }
+      if (pb) { pb.title = pb.disabled ? reasonPlan     : ''; if (pb.disabled) pb.setAttribute('aria-label', 'Generate Role Plan \u2014 ' + reasonPlan);      else pb.removeAttribute('aria-label'); }
+      installDisabledClickHandler();
+      updateGatedSectionsVisibility();
+    } catch (_) {}
+  }
+
+  // ---- Disabled-button explainers + gated-section visibility ---------------
+  // Returns the human-readable reason a gated AI button is currently disabled.
+  function _whyDisabled(rOk, tOk, inFlight) {
+    if (inFlight)        return 'Working\u2026 please wait.';
+    if (!rOk && !tOk)    return 'Add at least one work experience entry and a target role to enable this.';
+    if (!rOk)            return 'Add at least one work experience entry to enable this.';
+    if (!tOk)            return 'Add a target job title (and either a company name or a pasted job description) to enable this.';
+    return '';
+  }
+  // Smooth-scroll to an accordion, open it, and optionally focus a child input.
+  function _scrollAndExpandAccordion(id, focusSelector) {
+    var acc = document.getElementById(id);
+    if (!acc) return;
+    if (acc.hidden) acc.hidden = false; // make it reachable for direct navigation
+    acc.classList.add('open');
+    var btn = document.querySelector('[data-accordion-target="' + id + '"]');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    try { acc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { acc.scrollIntoView(); }
+    if (focusSelector) {
+      setTimeout(function () {
+        var input = acc.querySelector(focusSelector);
+        if (input && typeof input.focus === 'function') { try { input.focus({ preventScroll: true }); } catch (_) { input.focus(); } }
+      }, 350);
+    }
+  }
+  var _disabledHandlersInstalled = false;
+  // Wraps each gated AI button in a transparent overlay that captures clicks
+  // while the button is disabled and shows the user why + scrolls them to the
+  // missing input. Idempotent: safe to call repeatedly.
+  function installDisabledClickHandler() {
+    if (_disabledHandlersInstalled) return;
+    function wrapButton(buttonId) {
+      var btn = document.getElementById(buttonId);
+      if (!btn || !btn.parentNode || btn.dataset.disabledWrap === '1') return;
+      var wrap = document.createElement('span');
+      wrap.style.cssText = 'display:inline-block;position:relative;';
+      btn.parentNode.insertBefore(wrap, btn);
+      wrap.appendChild(btn);
+      var overlay = document.createElement('span');
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.style.cssText = 'position:absolute;inset:0;display:none;cursor:not-allowed;z-index:2;';
+      wrap.appendChild(overlay);
+      btn.dataset.disabledWrap = '1';
+      function syncOverlay() { overlay.style.display = btn.disabled ? 'block' : 'none'; }
+      try {
+        var mo = new MutationObserver(syncOverlay);
+        mo.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
+      } catch (_) {}
+      syncOverlay();
+      overlay.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var rOk = hasResumeReady();
+        var tOk = hasTargetRoleReady();
+        var inFlight = false;
+        if (buttonId === 'btn-role-research') inFlight = !!RB_STATE._roleResearchInFlight;
+        if (buttonId === 'btn-generate-cv')   inFlight = !!RB_STATE._cvInFlight;
+        if (buttonId === 'btn-generate-plan') inFlight = !!RB_STATE._planInFlight;
+        var reason = _whyDisabled(rOk, tOk, inFlight);
+        if (reason) { try { showToast(reason, 'warning', 4000); } catch (_) {} }
+        if (inFlight) return;
+        if (!tOk)      _scrollAndExpandAccordion('acc-target-role', '#job-title');
+        else if (!rOk) _scrollAndExpandAccordion('acc-personal-work');
+      });
+    }
+    wrapButton('btn-role-research');
+    wrapButton('btn-generate-cv');
+    wrapButton('btn-generate-plan');
+    // Delegate clicks for any [data-gated-jump] link (used by the hint card).
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var jump = t.closest('[data-gated-jump]');
+      if (!jump) return;
+      e.preventDefault();
+      var id = jump.getAttribute('data-gated-jump');
+      var focusSel = id === 'acc-target-role' ? '#job-title' : null;
+      _scrollAndExpandAccordion(id, focusSel);
+    });
+    _disabledHandlersInstalled = true;
+  }
+  // Hide Application Tracker, Role CV and Role Plan accordions until the user
+  // has both a populated resume and a populated target role. Show the hint
+  // card in their place. Re-runs every time updateAIReadinessUI() runs.
+  function updateGatedSectionsVisibility() {
+    var ready = hasResumeReady() && hasTargetRoleReady();
+    var ids = ['acc-application-tracker', 'acc-role-cv', 'acc-role-plan'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (!el) continue;
+      el.hidden = !ready;
+      if (!ready) {
+        el.classList.remove('open');
+        var hdr = document.querySelector('[data-accordion-target="' + ids[i] + '"]');
+        if (hdr) hdr.setAttribute('aria-expanded', 'false');
+      }
+    }
+    var hint = document.getElementById('gated-sections-hint');
+    if (hint) hint.hidden = ready;
   }
   function renderRoleResearchSummary() {
     var el = document.getElementById('role-research-summary');
@@ -13390,11 +13502,15 @@
         RB_STATE.optimization.projectedScore != null
       ));
       if (hasOpt) btn.disabled = false; else btn.disabled = true;
+      btn.title = btn.disabled ? 'Run the resume optimization first to enable interview prep refresh.' : '';
       if (!btn.dataset.wired) {
         btn.dataset.wired = '1';
         btn.addEventListener('click', function (e) {
           e.preventDefault();
-          if (btn.disabled) return;
+          if (btn.disabled) {
+            try { showToast('Run the resume optimization first to enable interview prep refresh.', 'warning', 4000); } catch (_) {}
+            return;
+          }
           refreshInterviewPrepQuestions();
         });
       }
@@ -28570,289 +28686,9 @@
   var IAP_SKU_MONTHLY  = 'resume_builder_monthly';
   var IAP_SKU_LIFETIME = 'resume_builder_lifetime';
 
-  // ===== FOUNDER OFFER (app-only) ====================================
-  // Promotional 20%-off-forever subscription for the first 20 customers.
-  // App-only because the website's Stripe paywall has its own pricing
-  // and we don't want to introduce a second Stripe price for what's
-  // intentionally a Google Play exclusive.
-  //
-  // Google Play Console:
-  //   Product ID:    founder_plan
-  //   Base plan ID:  founder-monthly-20
-  //
-  // Constants are duplicated in:
-  //   Android: Android App Files - Resume Portfolio/app/index.tsx
-  //   Backend: projectbackend/server.js (PLAY_PRODUCTS map)
-  // Keep all three in sync if you ever rename them.
-  var IAP_SKU_FOUNDER       = 'founder_plan';
-  var IAP_FOUNDER_BASE_PLAN = 'founder-monthly-20';
-  var FOUNDER_LIMIT         = 20;
-
-  // Cached founder-offer status from the backend (enabled flag, claim
-  // count, available spots). Refreshed at most once every 5 minutes so
-  // the banner copy stays roughly accurate without spamming the API.
-  var _founderOfferStatus    = null;
-  var _founderOfferLastFetch = 0;
-  var FOUNDER_STATUS_TTL_MS  = 5 * 60 * 1000;
-
-  // Per-user "seen" key. Stored in localStorage scoped to the Firebase
-  // uid so the banner never re-shows after the user dismisses or
-  // claims it. TODO: move into builderUsage/{uid} so the flag persists
-  // across uninstall/device-switch \u2014 localStorage is fine for
-  // single-device first-time UX.
-  function _founderSeenKey(uid) {
-    return 'rb_founder_offer_seen_v1_' + (uid || 'anon');
-  }
-  function hasSeenFounderOffer(uid) {
-    try { return localStorage.getItem(_founderSeenKey(uid)) === '1'; }
-    catch (_) { return false; }
-  }
-  function markFounderOfferSeen(uid) {
-    try { localStorage.setItem(_founderSeenKey(uid), '1'); } catch (_) {}
-  }
-
-  // Fetch /api/billing/founder-offer-status. Public endpoint (no auth)
-  // so we can read it before the Firebase ID token is ready. Returns
-  // null on network error \u2014 callers should treat that as "don't
-  // show" so we never display a stale or wrong counter.
-  function fetchFounderOfferStatus(force) {
-    var now = Date.now();
-    if (!force && _founderOfferStatus && (now - _founderOfferLastFetch) < FOUNDER_STATUS_TTL_MS) {
-      return Promise.resolve(_founderOfferStatus);
-    }
-    return fetch(API_BASE + '/billing/founder-offer-status', { method: 'GET' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (data) {
-        if (data && typeof data === 'object') {
-          _founderOfferStatus    = data;
-          _founderOfferLastFetch = now;
-        }
-        return data;
-      })
-      .catch(function () { return null; });
-  }
-
-  // Inject founder-offer modal styles once. Deferred so the CSS only
-  // ever lives in the DOM of users who actually see the banner (i.e.
-  // app users on Android), keeping the website's CSS surface minimal.
-  function _ensureFounderOfferStyles() {
-    if (document.getElementById('founder-offer-styles')) return;
-    var st = document.createElement('style');
-    st.id = 'founder-offer-styles';
-    st.textContent =
-      '#founder-offer-modal{position:fixed;inset:0;z-index:6200;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(2,6,23,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:foundFadeIn .35s ease-out both}' +
-      '#founder-offer-modal.hidden,#founder-offer-modal[hidden]{display:none !important}' +
-      '@keyframes foundFadeIn{from{opacity:0}to{opacity:1}}' +
-      '@keyframes foundCardIn{from{opacity:0;transform:translateY(20px) scale(.95)}to{opacity:1;transform:translateY(0) scale(1)}}' +
-      '@keyframes foundShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}' +
-      '@keyframes foundSparklePulse{0%,100%{transform:scale(1) rotate(0);opacity:.95}50%{transform:scale(1.18) rotate(8deg);opacity:1}}' +
-      '#founder-offer-modal .founder-offer-backdrop{position:absolute;inset:0;cursor:pointer}' +
-      '#founder-offer-modal .founder-offer-card{position:relative;z-index:1;width:100%;max-width:440px;background:linear-gradient(135deg,#0F172A 0%,#1E293B 60%,#0F172A 100%);color:#F8FAFC;border-radius:22px;padding:2rem 1.6rem 1.5rem;box-shadow:0 30px 90px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);text-align:center;animation:foundCardIn .45s cubic-bezier(.2,.9,.3,1.2) both;overflow:hidden;border:1px solid rgba(251,191,36,.35)}' +
-      '#founder-offer-modal .founder-offer-card::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 30%,rgba(251,191,36,.12) 50%,transparent 70%);background-size:200% 100%;animation:foundShimmer 6s linear infinite;pointer-events:none}' +
-      '#founder-offer-modal .founder-offer-close{position:absolute;top:.6rem;right:.85rem;background:transparent;border:0;color:rgba(248,250,252,.65);font-size:1.6rem;line-height:1;cursor:pointer;padding:.2rem .45rem;border-radius:8px;transition:background .15s ease,color .15s ease;z-index:2}' +
-      '#founder-offer-modal .founder-offer-close:hover{background:rgba(248,250,252,.08);color:#F8FAFC}' +
-      '#founder-offer-modal .founder-offer-badge{display:inline-flex;align-items:center;gap:.45rem;background:linear-gradient(135deg,#FBBF24,#F59E0B);color:#0F172A;font-weight:800;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;padding:.4rem .85rem;border-radius:999px;margin-bottom:1rem;box-shadow:0 6px 18px rgba(251,191,36,.4);position:relative;z-index:1}' +
-      '#founder-offer-modal .founder-offer-badge .founder-offer-sparkle{font-size:1.05rem;display:inline-block;animation:foundSparklePulse 2.4s ease-in-out infinite}' +
-      '#founder-offer-modal .founder-offer-card h3{margin:0 0 .35rem;font-size:1.7rem;font-weight:800;line-height:1.2;background:linear-gradient(135deg,#FCD34D,#F59E0B);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;position:relative;z-index:1}' +
-      '#founder-offer-modal .founder-offer-sub{margin:0 0 .25rem;color:#FCD34D;font-weight:700;font-size:.95rem;position:relative;z-index:1}' +
-      '#founder-offer-modal .founder-offer-spots-left{margin:0 0 1rem;color:#CBD5E1;font-size:.85rem;font-weight:600;position:relative;z-index:1}' +
-      '#founder-offer-modal .founder-offer-body{margin:0 0 1.4rem;color:#E2E8F0;line-height:1.55;font-size:.95rem;position:relative;z-index:1}' +
-      '#founder-offer-modal .founder-offer-actions{display:flex;flex-direction:column;gap:.55rem;margin-bottom:1rem;position:relative;z-index:1}' +
-      '#founder-offer-modal .founder-offer-claim{background:linear-gradient(135deg,#10B981,#059669);color:#fff;border:0;border-radius:12px;padding:.95rem 1.2rem;font-weight:800;font-size:1rem;cursor:pointer;box-shadow:0 8px 22px rgba(16,185,129,.42);transition:transform .15s ease,box-shadow .15s ease,opacity .15s ease}' +
-      '#founder-offer-modal .founder-offer-claim:hover{box-shadow:0 12px 28px rgba(16,185,129,.55)}' +
-      '#founder-offer-modal .founder-offer-claim:active{transform:scale(.98)}' +
-      '#founder-offer-modal .founder-offer-claim:disabled{opacity:.6;cursor:not-allowed;box-shadow:none}' +
-      '#founder-offer-modal .founder-offer-later{background:transparent;color:#CBD5E1;border:1px solid rgba(203,213,225,.25);border-radius:12px;padding:.75rem 1.2rem;font-weight:600;font-size:.95rem;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease}' +
-      '#founder-offer-modal .founder-offer-later:hover{background:rgba(248,250,252,.06);color:#F8FAFC;border-color:rgba(203,213,225,.4)}' +
-      '#founder-offer-modal .founder-offer-terms{margin:0;color:#94A3B8;font-size:.72rem;line-height:1.45;position:relative;z-index:1}';
-    document.head.appendChild(st);
-  }
-
-  // Decide whether to show the founder-offer banner. Called once per
-  // auth-state change (after entitlement load completes) so we have
-  // correct premium state. Hard-fails closed on every condition we
-  // can't satisfy \u2014 it's a promo, not a paywall, so a missed
-  // showing is harmless but a wrong showing would be embarrassing.
-  function maybeShowFounderOffer(user) {
-    try {
-      if (!user) return;
-      if (typeof isInAppWebView !== 'function' || !isInAppWebView()) return;
-      if (typeof hasNativeIAP !== 'function' || !hasNativeIAP()) return;
-      if (hasSeenFounderOffer(user.uid)) return;
-      // User already premium \u2014 the founder offer doesn't help them
-      // and we'd just be showing them another paywall.
-      var isPremium = !!(
-        (typeof builderSubscribed   !== 'undefined' && builderSubscribed) ||
-        (typeof lifetimePurchased   !== 'undefined' && lifetimePurchased) ||
-        (typeof isOwner === 'function' && isOwner())
-      );
-      if (isPremium) return;
-
-      fetchFounderOfferStatus(false).then(function (status) {
-        if (!status) return;                              // network error -> stay silent
-        if (status.enabled === false) return;             // ops kill switch
-        var claimed   = +status.claimedCount || 0;
-        var limit     = +status.limit        || FOUNDER_LIMIT;
-        var available = (typeof status.available === 'boolean')
-          ? status.available
-          : (claimed < limit);
-        if (!available) return;
-        var spotsLeft = Math.max(0, limit - claimed);
-        showFounderOfferModal({
-          spotsLeft: spotsLeft,
-          claimed:   claimed,
-          limit:     limit
-        });
-      });
-    } catch (_) { /* never block sign-in on a promo */ }
-  }
-
-  // Render the founder-offer modal. Idempotent \u2014 calling twice in
-  // a row replaces the existing element rather than stacking.
-  function showFounderOfferModal(opts) {
-    opts = opts || {};
-    var spotsLeft = (typeof opts.spotsLeft === 'number') ? opts.spotsLeft : FOUNDER_LIMIT;
-    var limit     = (typeof opts.limit     === 'number') ? opts.limit     : FOUNDER_LIMIT;
-    var claimed   = (typeof opts.claimed   === 'number') ? opts.claimed   : 0;
-
-    _ensureFounderOfferStyles();
-
-    // Compose counter copy. We prefer a concrete "X of Y claimed" when
-    // we have a real claimed count; otherwise fall back to the generic
-    // "first 20" line so we never display "Only 20 spots left" before
-    // anyone has actually bought (which would feel like a fake scarcity
-    // tactic and make the user trust us less).
-    var counterText;
-    if (claimed > 0 && claimed < limit) {
-      counterText = 'Only ' + spotsLeft + ' founder spot' + (spotsLeft === 1 ? '' : 's') + ' left';
-    } else if (claimed === 0) {
-      counterText = 'Limited to the first ' + limit + ' subscribers';
-    } else {
-      // claimed >= limit: shouldn't reach here (maybeShowFounderOffer
-      // would have filtered this out), but guard anyway.
-      counterText = 'Limited to the first ' + limit + ' subscribers';
-    }
-
-    var existing = document.getElementById('founder-offer-modal');
-    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-
-    var modal = document.createElement('div');
-    modal.id = 'founder-offer-modal';
-    modal.setAttribute('role', 'dialog');
-    modal.setAttribute('aria-modal', 'true');
-    modal.setAttribute('aria-labelledby', 'founder-offer-title');
-    modal.innerHTML =
-      '<div class="founder-offer-backdrop" data-close-founder="1"></div>' +
-      '<div class="founder-offer-card">' +
-        '<button type="button" class="founder-offer-close" data-close-founder="1" aria-label="Close">&times;</button>' +
-        '<div class="founder-offer-badge"><span class="founder-offer-sparkle" aria-hidden="true">\u2728</span> Founder Offer</div>' +
-        '<h3 id="founder-offer-title">Founder Offer: 20% Off</h3>' +
-        '<p class="founder-offer-sub">First ' + limit + ' subscribers only</p>' +
-        '<p class="founder-offer-spots-left">' + counterText + '</p>' +
-        '<p class="founder-offer-body">Get early supporter pricing for as long as your subscription stays active.</p>' +
-        '<div class="founder-offer-actions">' +
-          '<button id="founder-offer-claim-btn" type="button" class="founder-offer-claim">Claim Founder Discount</button>' +
-          '<button id="founder-offer-later-btn" type="button" class="founder-offer-later">Maybe Later</button>' +
-        '</div>' +
-        '<p class="founder-offer-terms">Renews automatically. Cancel anytime through Google Play.</p>' +
-      '</div>';
-    document.body.appendChild(modal);
-
-    // Wire up handlers. Backdrop + close-X + Maybe Later all dismiss;
-    // Claim kicks off the founder-plan Google Play Billing flow.
-    var dismiss = function () { closeFounderOfferModal(true); };
-    modal.addEventListener('click', function (ev) {
-      var t = ev.target;
-      if (t && t.getAttribute && t.getAttribute('data-close-founder')) dismiss();
-    });
-    var laterBtn = modal.querySelector('#founder-offer-later-btn');
-    if (laterBtn) laterBtn.addEventListener('click', dismiss);
-    var claimBtn = modal.querySelector('#founder-offer-claim-btn');
-    if (claimBtn) claimBtn.addEventListener('click', function () { claimFounderOffer(claimBtn); });
-  }
-
-  function closeFounderOfferModal(markSeen) {
-    try {
-      var modal = document.getElementById('founder-offer-modal');
-      if (!modal) return;
-      if (markSeen) {
-        var uid = (auth && auth.currentUser && auth.currentUser.uid) || null;
-        markFounderOfferSeen(uid);
-      }
-      if (modal.parentNode) modal.parentNode.removeChild(modal);
-    } catch (_) {}
-  }
-
-  // Start the founder-plan purchase flow. Uses the same
-  // startGooglePlayCheckout() machinery as the regular monthly
-  // subscription so all of the existing PENDING / RECOVERY / verify
-  // logic works automatically. The native side handles the offer
-  // token lookup for the "founder-monthly-20" base plan.
-  function claimFounderOffer(btnEl) {
-    try {
-      // Mark seen on click, even before the purchase completes \u2014 we
-      // don't want to nag the user with the modal again if they back
-      // out of the Play sheet, and the actual entitlement state is the
-      // source of truth for whether they got the discount.
-      var uid = (auth && auth.currentUser && auth.currentUser.uid) || null;
-      markFounderOfferSeen(uid);
-
-      if (!auth || !auth.currentUser) {
-        try { showToast('Please sign in first.', 'warning'); } catch (_) {}
-        closeFounderOfferModal(false);
-        return;
-      }
-      if (typeof isInAppWebView !== 'function' || !isInAppWebView() || !hasNativeIAP()) {
-        // Should never reach here \u2014 maybeShowFounderOffer gates on
-        // these \u2014 but if someone calls claimFounderOffer() manually
-        // outside the app, fall back to the standard paywall.
-        closeFounderOfferModal(false);
-        try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
-        return;
-      }
-      if (btnEl) {
-        btnEl.disabled = true;
-        btnEl.style.opacity = '.7';
-        btnEl.innerHTML = 'Opening Google Play\u2026';
-      }
-
-      // Hand off to the existing IAP plumbing. startGooglePlayCheckout
-      // returns a Promise that resolves on success and rejects on error
-      // \u2014 we use that to swap to a standard-plan fallback if Google
-      // Play didn't return the founder offer (offer token missing,
-      // wrong base plan, etc.).
-      startGooglePlayCheckout(IAP_SKU_FOUNDER, true, btnEl).then(function () {
-        // Success path: __handleIAPResult already showed the celebration
-        // card and refreshed entitlements. Just clean up the modal.
-        closeFounderOfferModal(false);
-      }).catch(function (err) {
-        // Error path: surface a friendly fallback that points to the
-        // standard plan so a missing-founder-offer doesn't dead-end the
-        // user. _iapFriendlyErrorMessage already toasted the technical
-        // detail; we add the plan-pivot copy here.
-        try { console.warn('[founder] claim failed:', err && err.message); } catch (_) {}
-        try {
-          showToast('The founder offer is no longer available, but you can still subscribe to the standard plan.', 'info');
-        } catch (_) {}
-        closeFounderOfferModal(false);
-        try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
-      });
-    } catch (e) {
-      try { console.warn('[founder] claim threw:', e && e.message); } catch (_) {}
-      closeFounderOfferModal(false);
-      try { if (typeof showPaywall === 'function') showPaywall(); } catch (_) {}
-    }
-  }
-
-  // Expose for debugging (DevTools) and for external callers (e.g. a
-  // future "View Founder Offer" menu item if anyone wants to revive it).
+  // Founder offer removed.
+  function maybeShowFounderOffer() { /* no-op */ }
   window.maybeShowFounderOffer = maybeShowFounderOffer;
-  window.showFounderOfferModal = showFounderOfferModal;
-  window.closeFounderOfferModal = closeFounderOfferModal;
-  // Exposed so the Owner Testing UI Preview harness (and any future
-  // owner-only tooling) can render the success card without a real
-  // Google Play / Stripe purchase. Production code paths still call the
-  // local closure reference, so this is a read-only debug handle.
 
   // App-only celebratory success modal: shows an animated green checkmark
   // and a thank-you message after a successful Google Play purchase, then
