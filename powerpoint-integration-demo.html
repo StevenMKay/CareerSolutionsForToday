@@ -151,7 +151,7 @@
   .kpi-delta.neg { color: #B23A48; }
 
   /* -------- Chart (right column) -------- */
-  .chart-section { grid-column: 2 / 3; grid-row: 2 / 4; }
+  .chart-section { grid-column: 2 / 3; grid-row: 2 / 5; }
   .chart-section h3 {
     margin: 0; font-size: 18px; font-weight: 700;
   }
@@ -163,7 +163,7 @@
   .chart-wrap {
     position: relative;
     width: 100%;
-    height: 260px;
+    height: 340px;
   }
 
   /* -------- Data table along the bottom -------- */
@@ -381,7 +381,7 @@
       aspect-ratio: auto;
       grid-template-columns: 1fr;
     }
-    .kpi-section, .chart-section, .table-section,
+    .kpi-section, .chart-section,
     .slide h2, .slide .subtitle { grid-column: 1 / -1; }
     .chart-section { grid-row: auto; }
     .slide .badge, .page-num { position: static; text-align: right; }
@@ -434,24 +434,6 @@
       </div>
     </div>
 
-    <!-- BOTTOM: Data table -->
-    <div class="table-section">
-      <h3>Sales Data Inputs</h3>
-      <p class="table-sub">Use this area for the numbers that support the chart and discussion.</p>
-      <table class="data" id="dataTable">
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Current Period</th>
-            <th>Prior Period</th>
-            <th>Variance</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody><!-- filled by JS --></tbody>
-      </table>
-    </div>
-
     <div class="page-num">Page 1</div>
   </section>
 
@@ -471,19 +453,17 @@
     <button class="btn secondary" type="button" onclick="document.getElementById('tplFile').click()">
       &#x2912; Upload your own .pptx template
     </button>
-    <a class="btn secondary" href="PowerPoint Template - HTML Fill In.xml" download>
-      Download the raw .xml source
-    </a>
     <input id="tplFile" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden onchange="handleTemplateUpload(this)" />
   </div>
 
   <!-- Template status + blank-template download -->
   <div class="tpl-panel">
     <div class="tpl-status">
-      <strong>Active template:</strong> <span id="tplStatusName">Built-in placeholder template</span>
+      <strong>Active template:</strong> <span id="tplStatusName">Resolving…</span>
       <div id="tplStatusHelp" style="margin-top:4px;">
-        Click <strong>Download from template</strong> to fill every <code>{{TOKEN}}</code> with the current sample data &mdash;
-        or upload your own <code>.pptx</code> (move shapes anywhere; placement is preserved).
+        On load the page checks <code>template/SalesReview-Template.pptx</code> next to this file &mdash;
+        if it&rsquo;s there it&rsquo;s used automatically. Otherwise the built-in placeholder template is used.
+        You can always override either by uploading your own <code>.pptx</code> above.
       </div>
     </div>
     <div class="tpl-actions">
@@ -539,8 +519,10 @@
       module), or Python (python-pptx): load the file, walk every text
       run, and replace the tokens with values from your data source.
       The <strong>Download from template</strong> button above is a
-      working browser-only implementation &mdash; here&rsquo;s the same idea in
-      Python:
+      working browser-only implementation &mdash; on load it looks for
+      <code>template/SalesReview-Template.pptx</code> in this folder
+      and uses it automatically; if it isn&rsquo;t there, an in-memory built-in
+      template is used instead. Here&rsquo;s the same idea in Python:
     </p>
 
     <svg class="flow" viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow: data plus template merge into filler then filled pptx">
@@ -766,6 +748,7 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
   /* ---------- Render the data table ---------- */
   function renderTable() {
     const tbody = document.querySelector("#dataTable tbody");
+    if (!tbody) return;   // table was removed from the page; .pptx fill still uses the sampleData.table tokens
     tbody.innerHTML = sampleData.table.map((r, i) => `
       <tr class="${i % 2 ? 'alt' : ''}">
         <td><strong>${r.metric}</strong></td>
@@ -878,16 +861,67 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
   }
 
   /* ====================================================================
-     TEMPLATE STATE: either a user-uploaded .pptx Blob, or our cached
-     built-in placeholder template Blob (lazily built by PptxGenJS).
+     TEMPLATE STATE: resolution order on every fill / download is
+       1. User-uploaded .pptx Blob (if they picked one via the Upload button)
+       2. template/SalesReview-Template.pptx fetched from this folder (if present)
+       3. Built-in placeholder Blob generated on the fly by PptxGenJS
+     Each tier is memoized so repeat clicks are instant.
      ==================================================================== */
-  let userTemplateBlob          = null;   // set when the user uploads
-  let defaultTemplateBlobPromise = null;  // memoized built-in template
+  const TEMPLATE_PATH = "template/SalesReview-Template.pptx";  // change to use a different folder/filename
 
-  function getActiveTemplateBlob() {
-    if (userTemplateBlob) return Promise.resolve(userTemplateBlob);
+  let userTemplateBlob           = null;   // set when the user uploads via the file picker
+  let folderTemplateBlobPromise  = null;   // resolves to Blob if folder copy exists, else null
+  let defaultTemplateBlobPromise = null;   // memoized in-memory built-in template
+
+  /* Try fetching template/SalesReview-Template.pptx. Returns Blob on success, null on miss.
+     Requires the page to be served over http(s) — file:// will return null. */
+  async function tryFetchFolderTemplate() {
+    if (location.protocol !== "http:" && location.protocol !== "https:") return null;
+    try {
+      const res = await fetch(TEMPLATE_PATH, { cache: "no-store" });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      if (!blob || blob.size < 100) return null;   // empty / 404 page guard
+      return blob;
+    } catch {
+      return null;
+    }
+  }
+
+  /* Resolve in order: upload → folder → built-in. */
+  async function getActiveTemplateBlob() {
+    if (userTemplateBlob) return userTemplateBlob;
+    if (!folderTemplateBlobPromise) folderTemplateBlobPromise = tryFetchFolderTemplate();
+    const folderBlob = await folderTemplateBlobPromise;
+    if (folderBlob) return folderBlob;
     if (!defaultTemplateBlobPromise) defaultTemplateBlobPromise = buildDefaultTemplateBlob();
     return defaultTemplateBlobPromise;
+  }
+
+  /* Refresh the status panel to show whichever tier is currently active. */
+  async function refreshTemplateStatus() {
+    const nameEl = document.getElementById("tplStatusName");
+    const helpEl = document.getElementById("tplStatusHelp");
+    const clearBtn = document.getElementById("tplClearBtn");
+    if (userTemplateBlob) {
+      nameEl.textContent = `${userTemplateBlob.name} (uploaded)`;
+      helpEl.innerHTML = "Using your uploaded template. Click <strong>Download from template</strong> to fill it — " +
+        "any <code>{{TOKEN}}</code> in its slides will be replaced with current sample data.";
+      clearBtn.style.display = "inline";
+      return;
+    }
+    clearBtn.style.display = "none";
+    if (!folderTemplateBlobPromise) folderTemplateBlobPromise = tryFetchFolderTemplate();
+    const folderBlob = await folderTemplateBlobPromise;
+    if (folderBlob) {
+      nameEl.textContent = `${TEMPLATE_PATH} (loaded from folder)`;
+      helpEl.innerHTML = `Found <code>${TEMPLATE_PATH}</code> next to this page and loaded it automatically. ` +
+        "Edit that file in PowerPoint to change the layout — the fill demo will pick up your changes on next refresh.";
+    } else {
+      nameEl.textContent = "Built-in placeholder template";
+      helpEl.innerHTML = `No <code>${TEMPLATE_PATH}</code> found (or page is served from <code>file://</code>). ` +
+        "Using the in-memory built-in template. Drop a <code>.pptx</code> at that path and reload, or upload one above.";
+    }
   }
 
   function handleTemplateUpload(input) {
@@ -898,21 +932,13 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
       input.value = ""; return;
     }
     userTemplateBlob = file;
-    document.getElementById("tplStatusName").textContent = `${file.name} (uploaded)`;
-    document.getElementById("tplStatusHelp").innerHTML =
-      "Using your uploaded template. Click <strong>Download from template</strong> to fill it &mdash; any " +
-      "<code>{{TOKEN}}</code> that matches the panel below will be replaced.";
-    document.getElementById("tplClearBtn").style.display = "inline";
+    refreshTemplateStatus();
   }
 
   function clearUploadedTemplate() {
     userTemplateBlob = null;
     document.getElementById("tplFile").value = "";
-    document.getElementById("tplStatusName").textContent = "Built-in placeholder template";
-    document.getElementById("tplStatusHelp").innerHTML =
-      "Click <strong>Download from template</strong> to fill every <code>{{TOKEN}}</code> with the current sample data &mdash; " +
-      "or upload your own <code>.pptx</code> (move shapes anywhere; placement is preserved).";
-    document.getElementById("tplClearBtn").style.display = "none";
+    refreshTemplateStatus();
   }
 
   /* ---------- Download whichever template is currently active ---------- */
@@ -1165,10 +1191,10 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
   renderTable();
   renderChart();
 
-  /* Pre-warm the built-in template Blob so the first click is instant. */
-  if (typeof PptxGenJS !== "undefined") {
-    getActiveTemplateBlob().catch(err => console.warn("Template pre-warm failed:", err));
-  }
+  /* Resolve which template tier is in play and reflect it in the status panel.
+     Also pre-warms the Blob so the first click on "Download from template" is instant. */
+  refreshTemplateStatus().catch(err => console.warn("Template status refresh failed:", err));
+  getActiveTemplateBlob().catch(err => console.warn("Template pre-warm failed:", err));
 </script>
 
 </body>
