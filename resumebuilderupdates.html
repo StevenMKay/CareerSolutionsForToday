@@ -11926,6 +11926,16 @@
     var ctxOk = (t.company && t.company.length >= 2) || (t.job_description && t.job_description.length >= 30);
     return titleOk && !!ctxOk;
   }
+  // Looser gate used ONLY for the Run AI Role Research button: a pasted job
+  // description of ~30+ characters is enough on its own (no title or company
+  // required). Cover Letter and Role Plan still use the stricter
+  // hasTargetRoleReady() check above.
+  function hasTargetRoleReadyForResearch() {
+    getTargetRoleFromDOM();
+    var t = RB_STATE.targetRole;
+    if (t && t.job_description && t.job_description.length >= 30) return true;
+    return hasTargetRoleReady();
+  }
   function roleResearchFingerprint() {
     var t = RB_STATE.targetRole;
     var s = ((t.job_title || '') + '|' + (t.company || '') + '|' + (t.job_description || '')).toLowerCase();
@@ -11943,7 +11953,7 @@
         '<span class="pill ' + (tOk ? 'pill-ok' : 'pill-warn') + '">Target role ' + (tOk ? 'ready \u2713' : 'incomplete \u2717') + '</span>' +
         '<span class="pill ' + (RB_STATE.roleResearch ? 'pill-ok' : 'pill-warn') + '">Research ' + (RB_STATE.roleResearch ? 'ready \u2713' : 'pending') + '</span>';
     }
-    var canResearch = rOk && tOk && !RB_STATE._roleResearchInFlight;
+    var canResearch = rOk && hasTargetRoleReadyForResearch() && !RB_STATE._roleResearchInFlight;
     var canCv = rOk && tOk && !RB_STATE._cvInFlight;
     var canPlan = rOk && tOk && !RB_STATE._planInFlight;
     var rb = document.getElementById('btn-role-research'); if (rb) rb.disabled = !canResearch;
@@ -11952,7 +11962,8 @@
     // Explain WHY each AI button is disabled (title tooltip + aria-label for SR),
     // install one-time click-to-explain overlays, and hide gated sections until prereqs met.
     try {
-      var reasonResearch = _whyDisabled(rOk, tOk, !!RB_STATE._roleResearchInFlight);
+      var researchReady = hasTargetRoleReadyForResearch();
+      var reasonResearch = _whyResearchDisabled(rOk, researchReady, !!RB_STATE._roleResearchInFlight);
       var reasonCv       = _whyDisabled(rOk, tOk, !!RB_STATE._cvInFlight);
       var reasonPlan     = _whyDisabled(rOk, tOk, !!RB_STATE._planInFlight);
       if (rb) { rb.title = rb.disabled ? reasonResearch : ''; if (rb.disabled) rb.setAttribute('aria-label', 'Run AI Role Research \u2014 ' + reasonResearch); else rb.removeAttribute('aria-label'); }
@@ -11970,6 +11981,15 @@
     if (!rOk && !tOk)    return 'Add at least one work experience entry and a target role to enable this.';
     if (!rOk)            return 'Add at least one work experience entry to enable this.';
     if (!tOk)            return 'Add a target job title (and either a company name or a pasted job description) to enable this.';
+    return '';
+  }
+  // Same idea, but for the Run AI Role Research button which only needs a
+  // job description (30+ characters) when title/company are not yet filled.
+  function _whyResearchDisabled(rOk, researchReady, inFlight) {
+    if (inFlight)            return 'Working\u2026 please wait.';
+    if (!rOk && !researchReady) return 'Add at least one work experience entry and paste a job description (30+ characters) to enable this.';
+    if (!rOk)                return 'Add at least one work experience entry to enable this.';
+    if (!researchReady)      return 'Paste a job description (30+ characters) into the Target Role section to enable this.';
     return '';
   }
   // Smooth-scroll to an accordion, open it, and optionally focus a child input.
@@ -12016,15 +12036,24 @@
         e.preventDefault(); e.stopPropagation();
         var rOk = hasResumeReady();
         var tOk = hasTargetRoleReady();
+        var researchReady = hasTargetRoleReadyForResearch();
         var inFlight = false;
         if (buttonId === 'btn-role-research') inFlight = !!RB_STATE._roleResearchInFlight;
         if (buttonId === 'btn-generate-cv')   inFlight = !!RB_STATE._cvInFlight;
         if (buttonId === 'btn-generate-plan') inFlight = !!RB_STATE._planInFlight;
-        var reason = _whyDisabled(rOk, tOk, inFlight);
+        var reason;
+        if (buttonId === 'btn-role-research') reason = _whyResearchDisabled(rOk, researchReady, inFlight);
+        else                                  reason = _whyDisabled(rOk, tOk, inFlight);
         if (reason) { try { showToast(reason, 'warning', 4000); } catch (_) {} }
         if (inFlight) return;
-        if (!tOk)      _scrollAndExpandAccordion('acc-target-role', '#job-title');
-        else if (!rOk) _scrollAndExpandAccordion('acc-personal-work');
+        if (!rOk) { _scrollAndExpandAccordion('acc-personal-work'); return; }
+        // Research: prefer to drop the cursor in the job description field
+        // since that alone is enough to unlock it.
+        if (buttonId === 'btn-role-research') {
+          if (!researchReady) _scrollAndExpandAccordion('acc-target-role', '#job-desc');
+          return;
+        }
+        if (!tOk) _scrollAndExpandAccordion('acc-target-role', '#job-title');
       });
     }
     wrapButton('btn-role-research');
@@ -12120,8 +12149,8 @@
   function runRoleResearch(opts) {
     opts = opts || {};
     if (!requireAuth()) return;
-    if (!hasResumeReady() || !hasTargetRoleReady()) {
-      if (!opts.auto) showToast('Need resume + target role first.', 'warning');
+    if (!hasResumeReady() || !hasTargetRoleReadyForResearch()) {
+      if (!opts.auto) showToast('Need resume + job description (or full target role) first.', 'warning');
       return;
     }
     if (RB_STATE._roleResearchInFlight) return;
@@ -12186,7 +12215,7 @@
     if (RB_STATE._roleResearchTimer) { clearTimeout(RB_STATE._roleResearchTimer); }
     RB_STATE._roleResearchTimer = setTimeout(function () {
       RB_STATE._roleResearchTimer = null;
-      if (!hasResumeReady() || !hasTargetRoleReady()) return;
+      if (!hasResumeReady() || !hasTargetRoleReadyForResearch()) return;
       var fp = roleResearchFingerprint();
       if (fp === RB_STATE._roleResearchHash) return;
       runRoleResearch({ auto: true, source: 'auto', _reason: reason || 'auto' });
