@@ -1164,6 +1164,10 @@ Optional extras:
     sampleData.table[2].current = `$${pipe.toFixed(1)}M`;
     sampleData.table[3].current = `${win}%`;
 
+    // Sample data changed — invalidate the cached built-in template so its
+    // baked-in delta colors (green vs red) get rebuilt against the new values.
+    defaultTemplateBlobPromise = null;
+
     renderKpis(); renderTable(); renderChart();
   }
 
@@ -1384,6 +1388,14 @@ Optional extras:
           { label:"PIPELINE",        value:"{{PIPELINE}}",        delta:"{{PIPELINE_DELTA}}" },
           { label:"WIN RATE",        value:"{{WIN_RATE}}",        delta:"{{WIN_RATE_DELTA}}" }
         ];
+        // Color each delta tile based on the CURRENT sample data sign so the
+        // built-in template's red/green matches what the page is showing.
+        // (Templates can't switch color on swapped text alone — the color is
+        // baked into the run when the .pptx is built. randomizeData() clears
+        // the memoized blob so this rebuilds whenever the numbers change.)
+        const deltaColors = sampleData.kpis.map(
+          kpi => String(kpi.delta).trim().startsWith("-") ? "B23A48" : "2E7D32"
+        );
         tiles.forEach((k, i) => {
           const col = i % 2, row = Math.floor(i / 2);
           const isAlt = row === 1;
@@ -1391,7 +1403,7 @@ Optional extras:
             [
               { text: k.label + "\n", options: { fontSize: 9,  bold: true, color: "5C6670" } },
               { text: k.value + "\n", options: { fontSize: 22, bold: true, color: "1B1F24" } },
-              { text: k.delta,        options: { fontSize: 10, bold: true, color: "2E7D32" } }
+              { text: k.delta,        options: { fontSize: 10, bold: true, color: deltaColors[i] } }
             ],
             {
               x: 0.5 + col * 1.85, y: 2.35 + row * 1.15, w: 1.75, h: 1,
@@ -1474,11 +1486,14 @@ Optional extras:
     sampleData.kpis.forEach((k, i) => {
       const col = i % 2, row = Math.floor(i / 2);
       const isAlt = row === 1;
+      // Match the on-page rule: negative deltas (starting with "-") render in
+      // red (#B23A48); everything else (including "+" and "0") stays green (#2E7D32).
+      const deltaColor = String(k.delta).trim().startsWith("-") ? "B23A48" : "2E7D32";
       slide.addText(
         [
           { text: k.label + "\n", options: { fontSize: 9,  bold: true, color: "5C6670" } },
           { text: k.value + "\n", options: { fontSize: 22, bold: true, color: "1B1F24" } },
-          { text: k.delta,        options: { fontSize: 10, bold: true, color: "2E7D32" } }
+          { text: k.delta,        options: { fontSize: 10, bold: true, color: deltaColor } }
         ],
         {
           x: 0.5 + col * 1.85, y: 2.35 + row * 1.15, w: 1.75, h: 1,
