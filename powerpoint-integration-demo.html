@@ -12,6 +12,9 @@
 <!-- PptxGenJS — used in the "Generate a PPTX from this page" demo button -->
 <script src="https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@v3.12.0/dist/pptxgen.bundle.js"></script>
 
+<!-- JSZip — used to read .pptx templates and swap {{TOKEN}} placeholders in the browser -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
 <style>
   /* -------- Palette pulled from the PowerPoint template -------- */
   :root {
@@ -296,6 +299,120 @@
     margin: 12px 0;
   }
 
+  /* -------- Template panel (upload + status under the buttons) -------- */
+  .tpl-panel {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px dashed var(--pp-border);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--pp-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tpl-panel strong { color: var(--pp-text); }
+  .tpl-panel .tpl-status { flex: 1 1 320px; }
+  .tpl-panel .tpl-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tpl-panel button.linklike {
+    background: none; border: none; padding: 0;
+    color: var(--pp-accent); cursor: pointer; font-weight: 600;
+    font-size: 13px; text-decoration: underline;
+  }
+  .tpl-panel button.linklike:hover { color: var(--pp-deep); }
+
+  /* -------- Placeholders reference card -------- */
+  .placeholders {
+    margin-top: 22px;
+    background: #fff;
+    border: 1px solid var(--pp-border);
+    border-radius: 6px;
+    padding: 18px 20px;
+  }
+  .placeholders h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    color: var(--pp-deep);
+  }
+  .placeholders p {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+    color: var(--pp-muted);
+  }
+  .placeholders .ph-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 6px 14px;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 12px;
+  }
+  .placeholders .ph-grid div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--pp-bg-soft);
+    border: 1px solid var(--pp-border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .placeholders .ph-grid span.tok { color: var(--pp-accent); font-weight: 700; }
+  .placeholders .ph-grid span.val { color: var(--pp-text); text-align: right; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+
+  /* -------- Tutorial visuals: decision table + SVG flow diagrams -------- */
+  table.decision {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0 18px;
+  }
+  table.decision thead th {
+    background: var(--pp-deep);
+    color: #fff;
+    text-align: left;
+    padding: 8px 12px;
+    font-weight: 700;
+  }
+  table.decision tbody td {
+    border: 1px solid var(--pp-border);
+    padding: 8px 12px;
+    background: #fff;
+    vertical-align: top;
+  }
+  table.decision tbody tr:nth-child(even) td { background: var(--pp-bg-soft); }
+  table.decision .effort {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--pp-bg-soft);
+    color: var(--pp-deep);
+    border: 1px solid var(--pp-border);
+  }
+
+  .flow {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 150px;
+    background: var(--pp-bg-soft);
+    border: 1px solid var(--pp-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: 10px 0 4px;
+  }
+  .flow-caption {
+    font-size: 11.5px;
+    color: var(--pp-muted);
+    text-align: center;
+    margin: 0 0 10px;
+    font-style: italic;
+  }
+
   /* -------- Responsive: collapse the slide layout on small screens -------- */
   @media (max-width: 900px) {
     .slide {
@@ -382,16 +499,50 @@
     <button class="btn" type="button" onclick="randomizeData()">
       &#x21bb; Refresh with new sample data
     </button>
-    <button class="btn" type="button" onclick="downloadJSON()">
-      &#x2913; Download data as JSON
-    </button>
     <button class="btn" type="button" onclick="generatePPTX()">
       &#x1F4C4; Generate a .pptx from this page
     </button>
+    <button class="btn" type="button" onclick="fillTemplateAndDownload()">
+      &#x270E; Download from template (fill placeholders)
+    </button>
+    <button class="btn secondary" type="button" onclick="document.getElementById('tplFile').click()">
+      &#x2912; Upload your own .pptx template
+    </button>
     <a class="btn secondary" href="PowerPoint Template - HTML Fill In.xml" download>
-      Download the source template
+      Download the raw .xml source
     </a>
+    <input id="tplFile" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden onchange="handleTemplateUpload(this)" />
   </div>
+
+  <!-- Template status + blank-template download -->
+  <div class="tpl-panel">
+    <div class="tpl-status">
+      <strong>Active template:</strong> <span id="tplStatusName">Built-in placeholder template</span>
+      <div id="tplStatusHelp" style="margin-top:4px;">
+        Click <strong>Download from template</strong> to fill every <code>{{TOKEN}}</code> with the current sample data &mdash;
+        or upload your own <code>.pptx</code> (move shapes anywhere; placement is preserved).
+      </div>
+    </div>
+    <div class="tpl-actions">
+      <button class="linklike" type="button" onclick="downloadBlankTemplate()">
+        &#x2913; Download blank template (.pptx)
+      </button>
+      <button class="linklike" type="button" onclick="clearUploadedTemplate()" id="tplClearBtn" style="display:none;">
+        &#x2715; Use built-in template instead
+      </button>
+    </div>
+  </div>
+
+  <!-- Placeholders reference card -->
+  <section class="placeholders" aria-label="Available placeholder tokens">
+    <h3>Available <code>{{TOKEN}}</code> placeholders</h3>
+    <p>
+      Put any of these names (wrapped in double braces) anywhere in your <code>.pptx</code> &mdash;
+      they'll be swapped with the value shown when you click <strong>Download from template</strong>.
+      Try moving the tiles around in PowerPoint, re-uploading, and downloading again.
+    </p>
+    <div class="ph-grid" id="placeholdersGrid"><!-- rendered by JS --></div>
+  </section>
 
   <!-- ============================================================== -->
   <!--  TUTORIAL                                                     -->
@@ -400,17 +551,77 @@
     <h2>How to wire a PowerPoint up to the web</h2>
     <p class="lead">
       Below are the five most common patterns &mdash; from the simplest
-      “drop it on a page” embed, all the way to fully data-driven decks
-      generated from your CMS or database. Pick whichever one fits.
+      &ldquo;drop it on a page&rdquo; embed, all the way to fully data-driven decks
+      generated from your CMS or database. Each step has a flow diagram so
+      you can see where the data and the file move &mdash; pick whichever fits.
+      The <strong>Download from template</strong> button above is a working
+      demo of method&nbsp;3.
     </p>
+
+    <!-- ===================== Decision table ===================== -->
+    <table class="decision" aria-label="Which method should I pick?">
+      <thead>
+        <tr><th>I want to&hellip;</th><th>Use</th><th>Effort</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Just show a public deck on a marketing page.</td>
+          <td><strong>Method 1</strong> &mdash; Office Online viewer iframe.</td>
+          <td><span class="effort">5 min</span></td>
+        </tr>
+        <tr>
+          <td>Show a private deck only my team / customers can see.</td>
+          <td><strong>Method 2</strong> &mdash; SharePoint / OneDrive embed.</td>
+          <td><span class="effort">10 min</span></td>
+        </tr>
+        <tr>
+          <td>Have my designer own the layout; pull numbers from a database.</td>
+          <td><strong>Method 3</strong> &mdash; <code>{{token}}</code> swap on a template.</td>
+          <td><span class="effort">1&ndash;2 hrs</span></td>
+        </tr>
+        <tr>
+          <td>Let users click a button on my web app and download a fresh deck.</td>
+          <td><strong>Method 4</strong> &mdash; PptxGenJS in the browser.</td>
+          <td><span class="effort">2&ndash;3 hrs</span></td>
+        </tr>
+        <tr>
+          <td>Auto-publish the deck into SharePoint, OneDrive, or a Teams channel.</td>
+          <td><strong>Method 5</strong> &mdash; Microsoft Graph upload.</td>
+          <td><span class="effort">3&ndash;4 hrs</span></td>
+        </tr>
+      </tbody>
+    </table>
 
     <!-- ===================== Method 1 ===================== -->
     <h3><span class="num">1</span> Embed in any website (Office Online viewer)</h3>
     <p>
       The fastest option. Host the <code>.pptx</code> on a public URL
-      (GitHub Pages, Azure Blob, S3, your own site) and embed Microsoft’s
+      (GitHub Pages, Azure Blob, S3, your own site) and embed Microsoft&rsquo;s
       free Office Online viewer in an <code>&lt;iframe&gt;</code>.
     </p>
+
+    <svg class="flow" viewBox="0 0 600 110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow: browser to iframe to Office Online viewer to public pptx">
+      <defs>
+        <marker id="arr1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#005EB8"/></marker>
+      </defs>
+      <g font-family="Aptos, Segoe UI, sans-serif" font-size="11" fill="#1B1F24">
+        <rect x="10"  y="35" width="120" height="40" rx="6" fill="#FFFFFF" stroke="#005EB8" stroke-width="1.5"/>
+        <text x="70"  y="60" text-anchor="middle">Your website</text>
+        <line x1="132" y1="55" x2="168" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr1)"/>
+        <rect x="170" y="35" width="120" height="40" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="230" y="60" text-anchor="middle">&lt;iframe&gt;</text>
+        <line x1="292" y1="55" x2="328" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr1)"/>
+        <rect x="330" y="35" width="130" height="40" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="395" y="60" text-anchor="middle">Office Online viewer</text>
+        <line x1="462" y1="55" x2="498" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr1)"/>
+        <rect x="500" y="35" width="90" height="40" rx="6" fill="#003B71" stroke="#003B71"/>
+        <text x="545" y="55" text-anchor="middle" fill="#fff">Public</text>
+        <text x="545" y="70" text-anchor="middle" fill="#fff" font-weight="700">.pptx</text>
+        <text x="300" y="22" text-anchor="middle" fill="#5C6670" font-size="10" font-style="italic">Browser fetches the deck through Microsoft&rsquo;s viewer &mdash; no auth needed.</text>
+      </g>
+    </svg>
+    <p class="flow-caption">Anyone with the page URL can view the deck; the file lives anywhere reachable over HTTPS.</p>
+
 <pre><span class="tok-tag">&lt;iframe</span>
   <span class="tok-key">src</span>=<span class="tok-str">"https://view.officeapps.live.com/op/embed.aspx?src=https%3A%2F%2Fyourdomain.com%2Fdecks%2FSalesReview.pptx"</span>
   <span class="tok-key">width</span>=<span class="tok-str">"100%"</span> <span class="tok-key">height</span>=<span class="tok-str">"600"</span> <span class="tok-key">frameborder</span>=<span class="tok-str">"0"</span>&gt;
@@ -426,9 +637,30 @@
       Upload the deck to a SharePoint document library or OneDrive
       folder, open it, then choose
       <strong>File &rarr; Share &rarr; Embed</strong>. SharePoint will
-      generate a ready-to-paste iframe scoped to the file’s permissions
+      generate a ready-to-paste iframe scoped to the file&rsquo;s permissions
       (only people with access can view it).
     </p>
+
+    <svg class="flow" viewBox="0 0 600 110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow: browser to SharePoint embed iframe to permissioned SharePoint library">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#005EB8"/></marker>
+      </defs>
+      <g font-family="Aptos, Segoe UI, sans-serif" font-size="11" fill="#1B1F24">
+        <rect x="10"  y="35" width="130" height="40" rx="6" fill="#FFFFFF" stroke="#005EB8" stroke-width="1.5"/>
+        <text x="75"  y="55" text-anchor="middle">Signed-in user</text>
+        <text x="75"  y="70" text-anchor="middle" fill="#5C6670" font-size="10">on your page</text>
+        <line x1="142" y1="55" x2="178" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <rect x="180" y="35" width="160" height="40" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="260" y="55" text-anchor="middle">SharePoint embed</text>
+        <text x="260" y="70" text-anchor="middle" fill="#5C6670" font-size="10">&lt;iframe src=&quot;...embed.aspx&quot;&gt;</text>
+        <line x1="342" y1="55" x2="378" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr2)"/>
+        <rect x="380" y="35" width="210" height="40" rx="6" fill="#003B71" stroke="#003B71"/>
+        <text x="475" y="55" text-anchor="middle" fill="#fff">SharePoint library &nbsp;&#128274;</text>
+        <text x="475" y="70" text-anchor="middle" fill="#C8D3E0" font-size="10">permission-scoped .pptx</text>
+      </g>
+    </svg>
+    <p class="flow-caption">Only people with access to the file see the deck &mdash; SharePoint enforces auth, the iframe just renders.</p>
+
 <pre><span class="tok-com">&lt;!-- Auto-generated by SharePoint &rarr; File &rarr; Embed --&gt;</span>
 <span class="tok-tag">&lt;iframe</span>
   <span class="tok-key">src</span>=<span class="tok-str">"https://contoso.sharepoint.com/sites/Sales/_layouts/15/embed.aspx?UniqueId=ABC-123"</span>
@@ -445,13 +677,40 @@
     <!-- ===================== Method 3 ===================== -->
     <h3><span class="num">3</span> Bind web data into the template (placeholder swap)</h3>
     <p>
-      The XML template uses double-brace tokens like
-      <code>{{$12.4M}}</code> and <code>{{104%}}</code>. The pattern is
-      the same whether you do this in the browser (PptxGenJS),
-      Node.js (docxtemplater + pptx module), or Python (python-pptx):
-      load the file, walk every text run, and replace the tokens with
-      values from your data source.
+      The template uses double-brace tokens like <code>{{REVENUE}}</code>
+      and <code>{{PIPELINE}}</code> (see the placeholders panel above
+      for the full list). The pattern is the same whether you do it in
+      the browser (JSZip), Node.js (docxtemplater + pptx module), or
+      Python (python-pptx): load the file, walk every text run, and
+      replace the tokens with values from your data source. The
+      <strong>Download from template</strong> button above is a working
+      browser-only implementation &mdash; here&rsquo;s the same idea in Python:
     </p>
+
+    <svg class="flow" viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow: data plus template merge into filler then filled pptx">
+      <defs>
+        <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#005EB8"/></marker>
+      </defs>
+      <g font-family="Aptos, Segoe UI, sans-serif" font-size="11" fill="#1B1F24">
+        <rect x="10"  y="20" width="160" height="38" rx="6" fill="#FFFFFF" stroke="#005EB8" stroke-width="1.5"/>
+        <text x="90"  y="36" text-anchor="middle" font-weight="700">Your data</text>
+        <text x="90"  y="50" text-anchor="middle" fill="#5C6670" font-size="10">JSON / DB / API</text>
+        <rect x="10"  y="82" width="160" height="38" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="90"  y="98" text-anchor="middle" font-weight="700">Template.pptx</text>
+        <text x="90"  y="112" text-anchor="middle" fill="#5C6670" font-size="10">with {{TOKEN}} placeholders</text>
+        <path d="M170 39 L 260 60" stroke="#005EB8" stroke-width="1.5" fill="none" marker-end="url(#arr3)"/>
+        <path d="M170 101 L 260 80" stroke="#005EB8" stroke-width="1.5" fill="none" marker-end="url(#arr3)"/>
+        <rect x="265" y="50" width="170" height="40" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="350" y="70" text-anchor="middle" font-weight="700">Token swap</text>
+        <text x="350" y="84" text-anchor="middle" fill="#5C6670" font-size="10">JSZip / python-pptx / docxtemplater</text>
+        <line x1="437" y1="70" x2="473" y2="70" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr3)"/>
+        <rect x="475" y="50" width="115" height="40" rx="6" fill="#003B71" stroke="#003B71"/>
+        <text x="532" y="70" text-anchor="middle" fill="#fff">Filled deck</text>
+        <text x="532" y="84" text-anchor="middle" fill="#C8D3E0" font-size="10">.pptx</text>
+      </g>
+    </svg>
+    <p class="flow-caption">Designer owns the layout; code owns the numbers. Moving shapes in the template doesn&rsquo;t require a code change.</p>
+
 <pre><span class="tok-com"># Python example using python-pptx</span>
 <span class="tok-key">from</span> pptx <span class="tok-key">import</span> Presentation
 
@@ -478,12 +737,33 @@ prs.save(<span class="tok-str">"SalesReview-Q2-2026.pptx"</span>)</pre>
     <h3><span class="num">4</span> Generate a .pptx straight from the browser (PptxGenJS)</h3>
     <p>
       For dashboards where users click a button and download a
-      ready-made deck, you don’t even need a template file &mdash;
+      ready-made deck, you don&rsquo;t need a template file at all &mdash;
       <a href="https://gitbrent.github.io/PptxGenJS/" target="_blank" rel="noopener">PptxGenJS</a>
       builds a fully native PowerPoint file in JavaScript. The
-      “Generate a .pptx from this page” button above runs exactly this
-      code:
+      <strong>Generate a .pptx from this page</strong> button above
+      runs exactly this code:
     </p>
+
+    <svg class="flow" viewBox="0 0 600 110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow: web page data to PptxGenJS to pptx download">
+      <defs>
+        <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#005EB8"/></marker>
+      </defs>
+      <g font-family="Aptos, Segoe UI, sans-serif" font-size="11" fill="#1B1F24">
+        <rect x="10"  y="35" width="160" height="40" rx="6" fill="#FFFFFF" stroke="#005EB8" stroke-width="1.5"/>
+        <text x="90"  y="55" text-anchor="middle" font-weight="700">Your web page</text>
+        <text x="90"  y="70" text-anchor="middle" fill="#5C6670" font-size="10">sampleData (JS object)</text>
+        <line x1="172" y1="55" x2="208" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr4)"/>
+        <rect x="210" y="35" width="180" height="40" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="300" y="55" text-anchor="middle" font-weight="700">PptxGenJS</text>
+        <text x="300" y="70" text-anchor="middle" fill="#5C6670" font-size="10">builds slides in-browser</text>
+        <line x1="392" y1="55" x2="428" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr4)"/>
+        <rect x="430" y="35" width="160" height="40" rx="6" fill="#003B71" stroke="#003B71"/>
+        <text x="510" y="55" text-anchor="middle" fill="#fff" font-weight="700">Download .pptx</text>
+        <text x="510" y="70" text-anchor="middle" fill="#C8D3E0" font-size="10">no server needed</text>
+      </g>
+    </svg>
+    <p class="flow-caption">Pure-client generation. Great when there&rsquo;s no backend &mdash; or you don&rsquo;t want one in the loop.</p>
+
 <pre><span class="tok-key">const</span> pptx = <span class="tok-key">new</span> PptxGenJS();
 pptx.layout = <span class="tok-str">"LAYOUT_WIDE"</span>;
 
@@ -514,11 +794,35 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
     <h3><span class="num">5</span> Push the generated deck into SharePoint / Teams (Microsoft Graph)</h3>
     <p>
       Once you have a <code>.pptx</code> (from method 3 or 4), drop it
-      straight into a SharePoint library or a Teams channel’s
+      straight into a SharePoint library or a Teams channel&rsquo;s
       <em>Files</em> tab with one PUT call to the Microsoft Graph API.
       Teams &amp; Outlook will then render an inline preview
       automatically.
     </p>
+
+    <svg class="flow" viewBox="0 0 600 110" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flow: generated pptx through Microsoft Graph into SharePoint, OneDrive, Teams">
+      <defs>
+        <marker id="arr5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#005EB8"/></marker>
+      </defs>
+      <g font-family="Aptos, Segoe UI, sans-serif" font-size="11" fill="#1B1F24">
+        <rect x="10"  y="35" width="150" height="40" rx="6" fill="#FFFFFF" stroke="#005EB8" stroke-width="1.5"/>
+        <text x="85"  y="55" text-anchor="middle" font-weight="700">Generated .pptx</text>
+        <text x="85"  y="70" text-anchor="middle" fill="#5C6670" font-size="10">Blob from method 3 / 4</text>
+        <line x1="162" y1="55" x2="198" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr5)"/>
+        <rect x="200" y="35" width="170" height="40" rx="6" fill="#FFFFFF" stroke="#C8D3E0"/>
+        <text x="285" y="55" text-anchor="middle" font-weight="700">Microsoft Graph</text>
+        <text x="285" y="70" text-anchor="middle" fill="#5C6670" font-size="10">PUT /drive/.../content</text>
+        <line x1="372" y1="55" x2="408" y2="55" stroke="#005EB8" stroke-width="1.5" marker-end="url(#arr5)"/>
+        <rect x="410" y="20" width="180" height="22" rx="4" fill="#003B71" stroke="#003B71"/>
+        <text x="500" y="36" text-anchor="middle" fill="#fff">SharePoint library</text>
+        <rect x="410" y="45" width="180" height="22" rx="4" fill="#003B71" stroke="#003B71"/>
+        <text x="500" y="61" text-anchor="middle" fill="#fff">OneDrive folder</text>
+        <rect x="410" y="70" width="180" height="22" rx="4" fill="#003B71" stroke="#003B71"/>
+        <text x="500" y="86" text-anchor="middle" fill="#fff">Teams channel Files</text>
+      </g>
+    </svg>
+    <p class="flow-caption">One PUT, three destinations. The Teams &ldquo;Files&rdquo; tab is just a folder in the team&rsquo;s SharePoint site.</p>
+
 <pre><span class="tok-com">// Upload a file &lt; 4 MB to a SharePoint document library</span>
 <span class="tok-key">await</span> fetch(
   <span class="tok-str">`https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}`</span> +
@@ -658,17 +962,260 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
     sampleData.table[2].current = `$${pipe.toFixed(1)}M`;
     sampleData.table[3].current = `${win}%`;
 
-    renderKpis(); renderTable(); renderChart();
+    renderKpis(); renderTable(); renderChart(); renderPlaceholders();
   }
 
-  /* ---------- Demo: download the underlying data as JSON ---------- */
-  function downloadJSON() {
-    const blob = new Blob([JSON.stringify(sampleData, null, 2)], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = "sales-review-data.json";
+  /* ====================================================================
+     TEMPLATE TOKENS
+     --------------------------------------------------------------------
+     Every {{TOKEN}} that the template-fill demo knows how to swap.
+     Values are getters so they always reflect the *current* sampleData,
+     including after Refresh-with-new-sample-data has been clicked.
+     Add a token here + use {{IT}} anywhere in your .pptx text runs.
+     ==================================================================== */
+  const TEMPLATE_TOKENS = {
+    TITLE:                 () => sampleData.title,
+    SUBTITLE:              () => sampleData.subtitle,
+    KICKER:                () => "BUSINESS REVIEW",
+    BADGE:                 () => "EXAMPLE DATA",
+    PAGE_LABEL:            () => "Page 1",
+
+    REVENUE:               () => sampleData.kpis[0].value,
+    REVENUE_DELTA:         () => sampleData.kpis[0].delta,
+    PLAN_ATTAINMENT:       () => sampleData.kpis[1].value,
+    PLAN_ATTAINMENT_DELTA: () => sampleData.kpis[1].delta,
+    PIPELINE:              () => sampleData.kpis[2].value,
+    PIPELINE_DELTA:        () => sampleData.kpis[2].delta,
+    WIN_RATE:              () => sampleData.kpis[3].value,
+    WIN_RATE_DELTA:        () => sampleData.kpis[3].delta
+  };
+  // Table tokens: ROW1_METRIC..ROW4_NOTES (20 in total)
+  ["metric", "current", "prior", "variance", "notes"].forEach(col => {
+    for (let r = 0; r < 4; r++) {
+      TEMPLATE_TOKENS[`ROW${r+1}_${col.toUpperCase()}`] = () => sampleData.table[r][col];
+    }
+  });
+
+  /* ---------- Render the placeholders reference card ---------- */
+  function renderPlaceholders() {
+    const grid = document.getElementById("placeholdersGrid");
+    if (!grid) return;
+    grid.innerHTML = Object.keys(TEMPLATE_TOKENS).map(name => {
+      const val = String(TEMPLATE_TOKENS[name]() ?? "");
+      const shown = val.length > 30 ? val.slice(0, 27) + "\u2026" : val;
+      return `<div title="${val.replace(/"/g,'&quot;')}">
+        <span class="tok">{{${name}}}</span>
+        <span class="val">${shown}</span>
+      </div>`;
+    }).join("");
+  }
+
+  /* ---------- Tiny helpers for download + XML escaping ---------- */
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+  }
+  function xmlEscape(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&apos;"
+    })[c]);
+  }
+
+  /* ====================================================================
+     TEMPLATE STATE: either a user-uploaded .pptx Blob, or our cached
+     built-in placeholder template Blob (lazily built by PptxGenJS).
+     ==================================================================== */
+  let userTemplateBlob          = null;   // set when the user uploads
+  let defaultTemplateBlobPromise = null;  // memoized built-in template
+
+  function getActiveTemplateBlob() {
+    if (userTemplateBlob) return Promise.resolve(userTemplateBlob);
+    if (!defaultTemplateBlobPromise) defaultTemplateBlobPromise = buildDefaultTemplateBlob();
+    return defaultTemplateBlobPromise;
+  }
+
+  function handleTemplateUpload(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!/\.pptx$/i.test(file.name)) {
+      alert("Please pick a .pptx file. (Flat OPC .xml isn't supported by the fill demo yet.)");
+      input.value = ""; return;
+    }
+    userTemplateBlob = file;
+    document.getElementById("tplStatusName").textContent = `${file.name} (uploaded)`;
+    document.getElementById("tplStatusHelp").innerHTML =
+      "Using your uploaded template. Click <strong>Download from template</strong> to fill it &mdash; any " +
+      "<code>{{TOKEN}}</code> that matches the panel below will be replaced.";
+    document.getElementById("tplClearBtn").style.display = "inline";
+  }
+
+  function clearUploadedTemplate() {
+    userTemplateBlob = null;
+    document.getElementById("tplFile").value = "";
+    document.getElementById("tplStatusName").textContent = "Built-in placeholder template";
+    document.getElementById("tplStatusHelp").innerHTML =
+      "Click <strong>Download from template</strong> to fill every <code>{{TOKEN}}</code> with the current sample data &mdash; " +
+      "or upload your own <code>.pptx</code> (move shapes anywhere; placement is preserved).";
+    document.getElementById("tplClearBtn").style.display = "none";
+  }
+
+  /* ---------- Download whichever template is currently active ---------- */
+  async function downloadBlankTemplate() {
+    try {
+      const blob = await getActiveTemplateBlob();
+      const name = userTemplateBlob ? userTemplateBlob.name : "SalesReview-Template-Blank.pptx";
+      triggerDownload(blob, name);
+    } catch (err) {
+      console.error(err);
+      alert("Could not produce the template: " + err.message);
+    }
+  }
+
+  /* ====================================================================
+     METHOD 3 (live demo) — open the active .pptx, swap every {{TOKEN}}
+     in every slide / notes XML, and download the filled deck.
+     ==================================================================== */
+  async function fillTemplateAndDownload() {
+    if (typeof JSZip === "undefined") {
+      alert("JSZip failed to load. Reload the page and check your network."); return;
+    }
+    try {
+      const tpl = await getActiveTemplateBlob();
+      const zip = await JSZip.loadAsync(tpl);
+
+      // Pre-compute every replacement once, XML-escaped
+      const replacements = {};
+      Object.keys(TEMPLATE_TOKENS).forEach(k => {
+        replacements[k] = xmlEscape(TEMPLATE_TOKENS[k]() ?? "");
+      });
+
+      // Walk every slide + notes XML file in the .pptx
+      const targets = Object.keys(zip.files).filter(p =>
+        /^ppt\/slides\/slide\d+\.xml$/i.test(p) ||
+        /^ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(p)
+      );
+      let totalSwaps = 0;
+      for (const path of targets) {
+        const xml = await zip.file(path).async("string");
+        const swapped = xml.replace(/\{\{([A-Z0-9_]+)\}\}/g, (m, name) => {
+          if (replacements[name] !== undefined) { totalSwaps++; return replacements[name]; }
+          return m;   // unknown token — leave as-is so author can see it
+        });
+        zip.file(path, swapped);
+      }
+
+      const out = await zip.generateAsync({
+        type: "blob",
+        mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      });
+      triggerDownload(out, "SalesReview-Filled.pptx");
+      console.log(`Template fill complete: ${totalSwaps} token replacement(s) across ${targets.length} slide/notes file(s).`);
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't fill the template: " + err.message +
+            "\n\nIf you uploaded the file, make sure it's a real .pptx (not the Flat OPC .xml).");
+    }
+  }
+
+  /* ====================================================================
+     Build the in-memory "built-in placeholder template" with PptxGenJS.
+     Same layout as generatePPTX() but with {{TOKEN}} strings instead of
+     literal values, so the fill demo has something to swap against.
+     ==================================================================== */
+  function buildDefaultTemplateBlob() {
+    return new Promise((resolve, reject) => {
+      if (typeof PptxGenJS === "undefined") {
+        reject(new Error("PptxGenJS isn't loaded.")); return;
+      }
+      try {
+        const pptx = new PptxGenJS();
+        pptx.layout = "LAYOUT_WIDE";
+
+        const slide = pptx.addSlide();
+        slide.background = { color: "FFFFFF" };
+
+        slide.addText("{{KICKER}}",   { x:0.5,  y:0.35, w:5, h:0.3, fontSize:10, bold:true, color:"005EB8", fontFace:"Aptos" });
+        slide.addText("{{TITLE}}",    { x:0.5,  y:0.65, w:9, h:0.6, fontSize:28, bold:true, color:"1B1F24", fontFace:"Aptos Display" });
+        slide.addText("{{SUBTITLE}}", { x:0.5,  y:1.25, w:9, h:0.3, fontSize:11,            color:"5C6670", fontFace:"Aptos" });
+        slide.addText("{{BADGE}}",    { x:10.5, y:1.55, w:2, h:0.25, fontSize:9, bold:true, color:"005EB8", align:"right", fontFace:"Aptos" });
+
+        slide.addText("Executive Snapshot",
+          { x:0.5, y:1.7, w:4, h:0.3, fontSize:14, bold:true, color:"1B1F24", fontFace:"Aptos Display" });
+        slide.addText("Move the tiles anywhere in PowerPoint \u2014 the fill demo finds {{TOKEN}} by name, not position.",
+          { x:0.5, y:2.0, w:4, h:0.25, fontSize:9, color:"5C6670", fontFace:"Aptos" });
+
+        const tiles = [
+          { label:"REVENUE",         value:"{{REVENUE}}",         delta:"{{REVENUE_DELTA}}" },
+          { label:"PLAN ATTAINMENT", value:"{{PLAN_ATTAINMENT}}", delta:"{{PLAN_ATTAINMENT_DELTA}}" },
+          { label:"PIPELINE",        value:"{{PIPELINE}}",        delta:"{{PIPELINE_DELTA}}" },
+          { label:"WIN RATE",        value:"{{WIN_RATE}}",        delta:"{{WIN_RATE_DELTA}}" }
+        ];
+        tiles.forEach((k, i) => {
+          const col = i % 2, row = Math.floor(i / 2);
+          const isAlt = row === 1;
+          slide.addText(
+            [
+              { text: k.label + "\n", options: { fontSize: 9,  bold: true, color: "5C6670" } },
+              { text: k.value + "\n", options: { fontSize: 22, bold: true, color: "1B1F24" } },
+              { text: k.delta,        options: { fontSize: 10, bold: true, color: "2E7D32" } }
+            ],
+            {
+              x: 0.5 + col * 1.85, y: 2.35 + row * 1.15, w: 1.75, h: 1,
+              fill: { color: isAlt ? "F5F8FC" : "FFFFFF" },
+              line: { color: "C8D3E0", width: 0.5 },
+              fontFace: "Aptos", valign: "middle"
+            }
+          );
+        });
+
+        slide.addText("Quarterly Sales vs. Plan",
+          { x:5, y:1.7, w:7.5, h:0.3, fontSize:14, bold:true, color:"1B1F24", fontFace:"Aptos Display" });
+        slide.addText("Charts aren't tokenized \u2014 their data lives in an embedded spreadsheet (see method 3 notes).",
+          { x:5, y:2.0, w:7.5, h:0.25, fontSize:9, color:"5C6670", fontFace:"Aptos" });
+
+        slide.addChart(pptx.ChartType.bar, [
+          { name:"Plan ($M)",   labels:sampleData.chart.labels, values:sampleData.chart.plan   },
+          { name:"Actual ($M)", labels:sampleData.chart.labels, values:sampleData.chart.actual }
+        ], {
+          x:5, y:2.3, w:7.5, h:3,
+          barDir:"col", barGrouping:"clustered",
+          chartColors:["C8D3E0", "005EB8"],
+          showLegend:true, legendPos:"b", legendFontSize:9,
+          catAxisLabelFontSize:9, valAxisLabelFontSize:9
+        });
+
+        const headerRow = ["Metric", "Current Period", "Prior Period", "Variance", "Notes"].map(t => ({
+          text: t, options: { bold:true, color:"FFFFFF", fill:{ color:"003B71" } }
+        }));
+        const tableRows = [headerRow];
+        for (let r = 0; r < 4; r++) {
+          const fill = { color: r % 2 ? "F5F8FC" : "FFFFFF" };
+          tableRows.push([
+            { text: `{{ROW${r+1}_METRIC}}`,   options: { bold:true, color:"1B1F24", fill } },
+            { text: `{{ROW${r+1}_CURRENT}}`,  options: { color:"1B1F24", fill } },
+            { text: `{{ROW${r+1}_PRIOR}}`,    options: { color:"1B1F24", fill } },
+            { text: `{{ROW${r+1}_VARIANCE}}`, options: { color:"1B1F24", fill } },
+            { text: `{{ROW${r+1}_NOTES}}`,    options: { color:"1B1F24", fill } }
+          ]);
+        }
+        slide.addTable(tableRows, {
+          x:0.5, y:5.5, w:12.3, h:1.4,
+          colW:[2.0, 2.0, 2.0, 1.6, 4.7],
+          fontSize:9, fontFace:"Aptos",
+          border:{ type:"solid", color:"C8D3E0", pt:0.5 }
+        });
+
+        slide.addText("{{PAGE_LABEL}}",
+          { x:11.5, y:7.05, w:1.5, h:0.25, fontSize:9, color:"5C6670", align:"right", fontFace:"Aptos" });
+
+        pptx.write({ outputType: "blob" }).then(resolve).catch(reject);
+      } catch (err) {
+        reject(err);
+      }
+    });
   }
 
   /* ---------- Demo: generate a real .pptx from the sample data ---------- */
@@ -764,6 +1311,12 @@ pptx.writeFile({ fileName:<span class="tok-str">"SalesReview.pptx"</span> });</p
   renderKpis();
   renderTable();
   renderChart();
+  renderPlaceholders();
+
+  /* Pre-warm the built-in template Blob so the first click is instant. */
+  if (typeof PptxGenJS !== "undefined") {
+    getActiveTemplateBlob().catch(err => console.warn("Template pre-warm failed:", err));
+  }
 </script>
 
 </body>
