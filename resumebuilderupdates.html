@@ -1104,6 +1104,7 @@
     border-radius: var(--radius);
     background: rgba(15,23,42,0.4);
     text-align: center;
+    transition: border-color .35s ease, background .35s ease, box-shadow .35s ease;
   }
   .upload-shell:hover { border-color: var(--c-primary); }
   .upload-shell.is-dragover {
@@ -1112,6 +1113,13 @@
     box-shadow: 0 0 0 4px rgba(37,99,235,.12);
   }
   .upload-shell.is-dragover * { pointer-events: none; }
+  /* Brief green "file accepted" highlight after a successful drop or pick.
+     Class is added by the drop / change handlers and removed after ~1.2s. */
+  .upload-shell.is-file-accepted {
+    border-color: #10B981;
+    background: rgba(16,185,129,.10);
+    box-shadow: 0 0 0 4px rgba(16,185,129,.16);
+  }
 
   /* ============================================================
      Accordions
@@ -7100,7 +7108,9 @@
               <textarea id="resume-text" class="textarea" placeholder="Paste your resume content here…"></textarea>
             </div>
             <div class="row">
-              <button id="parse-resume-btn" class="btn btn-primary" type="button" data-action="parseResumeText"><i data-lucide="sparkles" style="width:16px;height:16px;"></i> Continue / Import</button>
+              <!-- Hidden by default; revealed only when the user pastes text
+                   into #resume-text. File drops auto-parse without this button. -->
+              <button id="parse-resume-btn" class="btn btn-primary" type="button" data-action="parseResumeText" hidden><i data-lucide="sparkles" style="width:16px;height:16px;"></i> Continue / Import</button>
             </div>
             <div id="resume-extraction-status" class="extraction-status" data-status="idle" hidden></div>
           </div>
@@ -8374,7 +8384,21 @@
         var url = d.photoUrl ||
                   (d.resumeData && (d.resumeData.photo_url || d.resumeData.photo)) ||
                   '';
-        if (url) updateNavAvatarPhoto(url);
+        if (!url) return;
+        updateNavAvatarPhoto(url);
+        // Also seed the resume's Profile Photo card so a saved custom upload
+        // wins over any Google default applyAuthState() may have set.
+        try {
+          if (window.RB_STATE) {
+            RB_STATE.profilePhotoUrl     = url;
+            RB_STATE.profilePhotoPath    = d.photoPath || '';
+            RB_STATE.profilePhotoDataUrl = '';
+            if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+            RB_STATE.resumeData.photo_url = url;
+            RB_STATE.resumeData.photo     = url;
+            try { updateProfilePhotoPreview(); } catch (_) {}
+          }
+        } catch (_) {}
       })
       .catch(function () { /* silent */ });
   }
@@ -8403,10 +8427,12 @@
           if (avatarEl) avatarEl.textContent = initial;
           if (nameEl)   nameEl.textContent   = label;
         }
-        // If the signed-in account has a photoURL (Google) use it immediately.
-        // The resume-builder profile photo (if saved) will overwrite this below
-        // once builderProfiles loads. Both go through updateNavAvatarPhoto().
+        // If the signed-in account has a photoURL (Google) use it immediately
+        // for BOTH the nav avatar AND the resume's Profile Photo card so the
+        // builder feels personal from first paint. A saved custom photo loaded
+        // by hydrateNavAvatarFromProfile() below will override if present.
         try { updateNavAvatarPhoto(user.photoURL || ''); } catch (_) {}
+        try { hydrateProfilePhotoFromAuth(user.photoURL || '', ''); } catch (_) {}
         try { hydrateNavAvatarFromProfile(user.uid); } catch (_) {}
       } else {
         status.innerHTML = '<span class="auth-status-text">Signed out</span>';
@@ -11381,6 +11407,19 @@
     showToast('Resume imported', 'success');
     try { updateAIReadinessUI(); maybeAutoRunRoleResearch('resume-extracted'); } catch (_) {}
     try { markBuilderDirty('resume-imported'); } catch (_) {}
+    // Auto-collapse the Import Resume accordion ~600ms after success so the
+    // user sees the success toast first. The green "Done" pill is added
+    // automatically by refreshAccordionStatuses(). User can reopen any time.
+    setTimeout(function () {
+      try {
+        var acc = document.getElementById('acc-import-resume');
+        if (acc && acc.classList.contains('open')) {
+          acc.classList.remove('open');
+          var hdr = acc.querySelector('[data-accordion-target="acc-import-resume"]');
+          if (hdr) hdr.setAttribute('aria-expanded', 'false');
+        }
+      } catch (_) {}
+    }, 600);
   }
 
   // ============================================================
@@ -12393,6 +12432,9 @@
       if (!file) return;
       var check = (typeof validateResumeFile === 'function') ? validateResumeFile(file) : { ok: true };
       if (!check.ok) { showToast(check.message, 'warning'); return; }
+      // Brief green "file accepted" pulse on the drop zone; parsing starts below.
+      zone.classList.add('is-file-accepted');
+      setTimeout(function () { zone.classList.remove('is-file-accepted'); }, 1200);
       var syncedInput = false;
       try {
         var dt = new DataTransfer();
@@ -16229,6 +16271,21 @@
     try { if (typeof renderPreview === 'function') renderPreview(); } catch (_) {}
     try { if (typeof updateGeneratedDocumentReadinessUI === 'function') updateGeneratedDocumentReadinessUI(); } catch (_) {}
     try { markBuilderDirty('profile-photo'); } catch (_) {}
+  }
+  // Hydration variant: seeds the Profile Photo from auth (Google photoURL).
+  // Does NOT mark the builder as dirty and does NOT overwrite a custom photo
+  // already set this session.
+  function hydrateProfilePhotoFromAuth(url, path) {
+    if (!window.RB_STATE || !url) return;
+    if (RB_STATE.profilePhotoUrl) return; // user already has one; respect it
+    RB_STATE.profilePhotoUrl     = url;
+    RB_STATE.profilePhotoPath    = path || '';
+    RB_STATE.profilePhotoDataUrl = '';
+    if (!RB_STATE.resumeData) RB_STATE.resumeData = {};
+    if (!RB_STATE.resumeData.photo_url) RB_STATE.resumeData.photo_url = url;
+    if (!RB_STATE.resumeData.photo)     RB_STATE.resumeData.photo     = url;
+    try { updateProfilePhotoPreview(); } catch (_) {}
+    try { updateNavAvatarPhoto(url); } catch (_) {}
   }
   function updateProfilePhotoPreview() {
     var img = document.getElementById('profile-photo-img');
@@ -31278,11 +31335,31 @@
     if (fileInput) {
       fileInput.addEventListener('change', function () {
         if (fileInput.files && fileInput.files[0]) {
+          // Brief green "file accepted" pulse on the drop zone, mirroring
+          // the drag-and-drop path; parsing starts immediately.
+          var _zone = document.getElementById('resume-upload');
+          if (_zone) {
+            _zone.classList.add('is-file-accepted');
+            setTimeout(function () { _zone.classList.remove('is-file-accepted'); }, 1200);
+          }
           parseResumeFile();
         }
       });
     }
     try { wireResumeDropZone(); } catch (_) {}
+
+    // Continue / Import button is hidden by default and only appears when
+    // the user has typed/pasted text. File drops auto-parse without the button.
+    var _resumeText = document.getElementById('resume-text');
+    var _parseBtn   = document.getElementById('parse-resume-btn');
+    if (_resumeText && _parseBtn) {
+      var _syncParseBtnVisibility = function () {
+        var hasText = !!(_resumeText.value && _resumeText.value.trim().length);
+        _parseBtn.hidden = !hasText;
+      };
+      _resumeText.addEventListener('input', _syncParseBtnVisibility);
+      _syncParseBtnVisibility();
+    }
 
     // Footer year
     var y = document.getElementById('footer-year');
