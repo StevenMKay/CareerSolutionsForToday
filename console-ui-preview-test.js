@@ -11,8 +11,7 @@
         "Preview UI States".
      3. Paste this whole file (or let the menu loader do it) → Enter.
      4. A floating launcher appears with one button per preview:
-          - Founder Offer modal (varied "spots left" presets)
-          - Payment Success modal (Subscription / Lifetime / Founder copy)
+          - Payment Success modal (Subscription / Lifetime copy)
           - Paywall sheet (real showPaywall())
           - Toasts (success / info / error)
         Each button triggers the *real* UI function the app uses in
@@ -23,10 +22,7 @@
      window.__UI_PREVIEW_DARK     = true   // dark launcher card
 
    MANUAL CALLS (anytime)
-     RBPreview.foundFull()      // founder offer, 20/20 spots left
-     RBPreview.foundLow(3)      // founder offer, 3 spots left
-     RBPreview.foundSoldOut()   // founder offer, 0 spots left (still renders)
-     RBPreview.paySuccess('subscription' | 'lifetime' | 'founder')
+     RBPreview.paySuccess('subscription' | 'lifetime')
      RBPreview.paywall()
      RBPreview.toast('success' | 'info' | 'error')
      RBPreview.closeAll()
@@ -34,8 +30,6 @@
      RBPreview.show()           // re-show launcher
 
    STATE: nothing is mutated server-side. Entitlements are NOT changed.
-   The Founder "seen" localStorage flag is also NOT touched, so a real
-   eligible user can still receive the real offer after you preview it.
    ===================================================================== */
 (function () {
   'use strict';
@@ -53,24 +47,7 @@
   function hasFn(name) { return typeof window[name] === 'function'; }
 
   // ---- Preview triggers -------------------------------------------------
-  function foundFull()    { _founder({ spotsLeft: 20, claimed: 0,  limit: 20 }); }
-  function foundLow(n)    {
-    var left = (typeof n === 'number') ? n : 3;
-    var limit = 20;
-    _founder({ spotsLeft: left, claimed: limit - left, limit: limit });
-  }
-  function foundSoldOut() { _founder({ spotsLeft: 0,  claimed: 20, limit: 20 }); }
-
-  function _founder(opts) {
-    if (!hasFn('showFounderOfferModal')) {
-      _toast('showFounderOfferModal not available on this page', 'error');
-      return;
-    }
-    try { window.showFounderOfferModal(opts); }
-    catch (e) { console.error('[ui-preview] founder modal threw:', e); }
-  }
-
-  // Payment-success modal — three preset copies that mirror the real
+  // Payment-success modal — preset copies that mirror the real
   // post-purchase strings used by the IAP / Stripe finalize paths.
   var SUCCESS_COPY = {
     subscription: {
@@ -80,10 +57,6 @@
     lifetime: {
       title:    'Thank you!',
       subtitle: 'Lifetime access unlocked. Welcome aboard.'
-    },
-    founder: {
-      title:    'Welcome, Founder!',
-      subtitle: 'Your Founder plan is active — locked at the founder price.'
     }
   };
   function paySuccess(kind) {
@@ -116,7 +89,6 @@
 
   function closeAll() {
     [
-      'founder-offer-modal',
       'app-purchase-success-overlay'
     ].forEach(function (id) {
       var el = document.getElementById(id);
@@ -221,18 +193,10 @@
     hdr.appendChild(closeBtn);
     el.appendChild(hdr);
 
-    // Founder Offer
-    el.appendChild(_group('Founder Offer modal', [[
-      _btn('Full (20 left)',  foundFull,    !hasFn('showFounderOfferModal')),
-      _btn('Low (3 left)',    function () { foundLow(3); }, !hasFn('showFounderOfferModal')),
-      _btn('Sold out (0)',    foundSoldOut, !hasFn('showFounderOfferModal'))
-    ]]));
-
     // Payment Success
     el.appendChild(_group('Payment success', [[
       _btn('Subscription', function () { paySuccess('subscription'); }, !hasFn('showAppPurchaseSuccess')),
-      _btn('Lifetime',     function () { paySuccess('lifetime');     }, !hasFn('showAppPurchaseSuccess')),
-      _btn('Founder',      function () { paySuccess('founder');      }, !hasFn('showAppPurchaseSuccess'))
+      _btn('Lifetime',     function () { paySuccess('lifetime');     }, !hasFn('showAppPurchaseSuccess'))
     ]]));
 
     // Paywall + toasts
@@ -263,9 +227,6 @@
 
   // ---- Public API -------------------------------------------------------
   window.RBPreview = {
-    foundFull:    foundFull,
-    foundLow:     foundLow,
-    foundSoldOut: foundSoldOut,
     paySuccess:   paySuccess,
     paywall:      paywall,
     toast:        toastDemo,
