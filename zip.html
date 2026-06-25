@@ -668,13 +668,16 @@
       <div class="preview-thumb" id="previewThumb"><img id="previewImg" alt="puzzle preview"></div>
 
       <div class="btns" style="margin-top:12px;">
-        <button class="ai" id="aiReadBtn" disabled>
-          <span id="aiReadLabel">Read &amp; place dots</span>
+        <button class="ai" id="aiSolveBtn" disabled title="Read the screenshot AND auto-solve in one click">
+          <span id="aiSolveLabel">&#9889; Solve from image</span>
         </button>
-        <button class="ai" id="aiAdviceBtn" disabled>
-          <span id="aiAdviceLabel">Ask AI for strategy</span>
+        <button id="aiReadBtn" disabled title="Just place the dots; don't solve yet">
+          <span id="aiReadLabel">Read only</span>
         </button>
-        <button id="aiClearBtn" title="Clear screenshot and AI response">Reset AI</button>
+        <button id="aiAdviceBtn" disabled title="Ask GPT for strategy hints (no image needed)">
+          <span id="aiAdviceLabel">Strategy hint</span>
+        </button>
+        <button id="aiClearBtn" title="Clear screenshot and AI response">Reset</button>
       </div>
 
       <div class="ai-response" id="aiResponse"></div>
@@ -682,8 +685,9 @@
       <details style="margin-top:14px;">
         <summary>What can AI do here?</summary>
         <ol>
-          <li><b>Read &amp; place dots</b> &mdash; sends your screenshot to GPT-4o, which returns the grid size, dot positions, and any blocked cells. The board is filled in automatically.</li>
-          <li><b>Ask AI for strategy</b> &mdash; sends the current dot layout (no image) and asks for hints. Useful if Auto Solve fails or you want a human-readable explanation of how to approach the puzzle.</li>
+          <li><b>&#9889; Solve from image</b> &mdash; one click: GPT-4o reads your screenshot, places the dots, and the solver runs automatically. Best for &ldquo;just give me the answer.&rdquo;</li>
+          <li><b>Read only</b> &mdash; places the dots but doesn&rsquo;t solve, so you can verify the dot positions before solving.</li>
+          <li><b>Strategy hint</b> &mdash; sends the current dot layout (no image) and asks for human-readable hints. Useful if Auto Solve fails.</li>
           <li>Cost: roughly $0.01&ndash;$0.03 per screenshot read on GPT-4o. Strategy hints are usually under $0.01.</li>
         </ol>
       </details>
@@ -1338,6 +1342,8 @@
     const aiFileInput   = document.getElementById('aiFileInput');
     const previewThumb  = document.getElementById('previewThumb');
     const previewImg    = document.getElementById('previewImg');
+    const aiSolveBtn    = document.getElementById('aiSolveBtn');
+    const aiSolveLabel  = document.getElementById('aiSolveLabel');
     const aiReadBtn     = document.getElementById('aiReadBtn');
     const aiReadLabel   = document.getElementById('aiReadLabel');
     const aiAdviceBtn   = document.getElementById('aiAdviceBtn');
@@ -1363,6 +1369,7 @@
     }
 
     function refreshAiButtons(){
+      aiSolveBtn.disabled  = !aiKey || !aiImageDataUrl;
       aiReadBtn.disabled   = !aiKey || !aiImageDataUrl;
       aiAdviceBtn.disabled = !aiKey;
     }
@@ -1486,11 +1493,13 @@
       refreshAiButtons();
     }
 
-    /* ---- Vision: read the board from a screenshot ---- */
-    aiReadBtn.addEventListener('click', async ()=>{
-      if (!aiKey || !aiImageDataUrl) return;
-      buttonBusy(aiReadBtn, aiReadLabel, 'Reading\u2026');
-      setAiResponse('Reading your screenshot with GPT-4o\u2026');
+    /* ---- Vision: read the board from a screenshot ----
+       Shared by both "Read only" and "Solve from image" buttons.
+       Returns true if the board was read AND placed successfully. */
+    async function performAiRead({ busyBtn, busyLabel, busyText, statusPrefix }){
+      if (!aiKey || !aiImageDataUrl) return false;
+      buttonBusy(busyBtn, busyLabel, busyText);
+      setAiResponse(statusPrefix + ' Reading your screenshot with GPT-4o\u2026');
 
       const system = [
         'You read screenshots of LinkedIn\u2019s "Zip" puzzle and return the board layout as strict JSON.',
@@ -1529,12 +1538,63 @@
         const raw = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
         if (!raw) throw new Error('Empty response from GPT-4o.');
         const parsed = JSON.parse(raw);
-        applyAiBoard(parsed);
+        const ok = applyAiBoard(parsed);
+        return ok;
       } catch (err) {
         setAiResponse('Could not read the screenshot.\n\n' + (err && err.message ? err.message : err));
         setStatus('AI read failed. Check that your API key is correct.', 'bad');
+        return false;
       } finally {
-        buttonDone(aiReadBtn, aiReadLabel);
+        buttonDone(busyBtn, busyLabel);
+      }
+    }
+
+    aiReadBtn.addEventListener('click', ()=>{
+      performAiRead({
+        busyBtn:     aiReadBtn,
+        busyLabel:   aiReadLabel,
+        busyText:    'Reading\u2026',
+        statusPrefix:''
+      });
+    });
+
+    /* One-click "upload image -> AI solves" flow.
+       Reads the board via vision, then immediately runs the solver
+       so the user gets the path without a second click. */
+    aiSolveBtn.addEventListener('click', async ()=>{
+      const ok = await performAiRead({
+        busyBtn:     aiSolveBtn,
+        busyLabel:   aiSolveLabel,
+        busyText:    'Reading\u2026',
+        statusPrefix:'Step 1 of 2:'
+      });
+      if (!ok) return;
+
+      // Hand off to the existing deterministic solver. It already
+      // updates the status banner and the path on screen.
+      buttonBusy(aiSolveBtn, aiSolveLabel, 'Solving\u2026');
+      setAiResponse(
+        (aiResponseEl.textContent ? aiResponseEl.textContent + '\n\n' : '') +
+        'Step 2 of 2: Running the solver\u2026'
+      );
+
+      // Let the UI paint the "Solving" state before the heavy DFS starts.
+      await new Promise(r => setTimeout(r, 30));
+      try {
+        solvePuzzle();
+        if (path && path.length > 0) {
+          setAiResponse(
+            (aiResponseEl.textContent ? aiResponseEl.textContent + '\n\n' : '') +
+            'Done. Path drawn on the board, with directions and cell-by-cell route in the panels on the right.'
+          );
+        } else {
+          setAiResponse(
+            (aiResponseEl.textContent ? aiResponseEl.textContent + '\n\n' : '') +
+            'Could not find a complete path. Verify the AI-placed dots match your screenshot, then try Auto Solve manually or increase the search limit.'
+          );
+        }
+      } finally {
+        buttonDone(aiSolveBtn, aiSolveLabel);
       }
     });
 
@@ -1543,7 +1603,7 @@
       const c = clamp(parseInt(parsed && parsed.cols, 10) || 0, 2, 12);
       if (!r || !c) {
         setAiResponse('GPT did not return a valid grid size. Raw response:\n\n' + JSON.stringify(parsed, null, 2));
-        return;
+        return false;
       }
 
       // Build a fresh grid at the AI-detected size.
@@ -1599,10 +1659,11 @@
       setAiResponse(
         'Detected a ' + r + ' \u00D7 ' + c + ' board with ' + dotCount + ' dot(s)' +
         (blockCount ? ' and ' + blockCount + ' blocked cell(s)' : '') + '.' +
-        '\nAI confidence: ' + conf + '.' + notes +
-        '\n\nDouble-check the dots match your screenshot, then click Auto Solve.'
+        '\nAI confidence: ' + conf + '.' + notes
       );
-      setStatus('AI placed ' + dotCount + ' dot(s). Verify the layout, then Auto Solve.', conf === 'low' ? 'warn' : 'good');
+      setStatus('AI placed ' + dotCount + ' dot(s). ' + (dotCount >= 2 ? 'Ready to solve.' : 'Need at least 2 dots.'),
+                conf === 'low' ? 'warn' : 'good');
+      return dotCount >= 2;
     }
 
     /* ---- Strategy advice (text only) ---- */
