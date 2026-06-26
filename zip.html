@@ -1113,8 +1113,49 @@
       let attempts = 0;
       let prunes = 0;
       let found = null;
+      // Track the deepest partial path we ever reach so that if the solver
+      // fails we can show exactly where it got stuck.
+      let deepestDepth = 0;
+      let deepestPathSnapshot = null;
+      let deepestNextTarget = 2;
 
       setStatus('Solving... The page may pause briefly on harder boards.', 'warn');
+
+      // === DEBUG: log starting state and check connectivity ===
+      if (window.ZIP_DEBUG) {
+        console.group('%c[Zip] Solver start', 'color:#0a66c2;font-weight:bold');
+        console.log('Board:\n' + debugRenderBoard());
+        console.log('Free cells (open):', freeCount, '| Walls:', walls.size);
+        console.log('Max attempts:', maxAttempts.toLocaleString(), '| Strict end:', strictEnd);
+        console.log('Dot 1 at', cellLabel(start), '| Final dot', maxNum, 'at', cellLabel(finalPos));
+
+        // Connectivity sanity: every open cell should be reachable from dot 1
+        // ignoring numbered-cell ordering. If not, walls/blocks have partitioned
+        // the board and no Hamiltonian solution can exist \u2014 almost always
+        // means the AI invented/missed walls.
+        (function connectivitySanity(){
+          const q = [start];
+          const seen = new Uint8Array(rows * cols);
+          seen[start] = 1;
+          let reach = 1;
+          for(let h = 0; h < q.length; h++){
+            for(const nb of neighbors(q[h])){
+              if(seen[nb] || cells[nb].blocked) continue;
+              seen[nb] = 1; reach++; q.push(nb);
+            }
+          }
+          console.log('Reachable from dot 1:', reach, '/', freeCount, 'open cells');
+          if(reach < freeCount){
+            const isolated = [];
+            for(let i = 0; i < cells.length; i++){
+              if(!cells[i].blocked && !seen[i]) isolated.push(cellLabel(i));
+            }
+            console.warn('UNREACHABLE open cells (walls likely misread by AI):', isolated.join(', '));
+          }
+        })();
+        console.groupEnd();
+      }
+      // === /DEBUG ===
 
       function cellNumber(idx){
         return cells[idx].blocked ? null : cells[idx].num;
@@ -1235,6 +1276,22 @@
       function dfs(cur, nextTarget){
         attempts++;
 
+        // Record the deepest partial path we've ever reached. Cheap O(1)
+        // until we actually beat the record, then one slice for the snapshot.
+        if(currentPath.length > deepestDepth){
+          deepestDepth = currentPath.length;
+          deepestPathSnapshot = currentPath.slice();
+          deepestNextTarget = nextTarget;
+        }
+
+        if(window.ZIP_DEBUG && attempts % 200000 === 0){
+          console.log('[Zip] attempts=' + attempts.toLocaleString() +
+                      ' depth=' + currentPath.length + '/' + freeCount +
+                      ' deepest=' + deepestDepth +
+                      ' nextDot=' + nextTarget + '/' + maxNum +
+                      ' prunes=' + prunes.toLocaleString());
+        }
+
         if(attempts > maxAttempts) return false;
 
         if(currentPath.length === freeCount){
@@ -1278,10 +1335,36 @@
         updateOutputs();
         render();
         setStatus(`Solved in ${elapsed}s after ${attempts.toLocaleString()} attempts. Use the directions below to recreate the route.`, 'good');
+
+        if (window.ZIP_DEBUG) {
+          console.group('%c[Zip] Solver finished (SOLVED)', 'color:#16803c;font-weight:bold');
+          console.log('Path length:', found.length, '(of', freeCount, 'free cells)');
+          console.log('Attempts:', attempts.toLocaleString(), '| Prunes:', prunes.toLocaleString(), '| Time:', elapsed + 's');
+          console.log('Path:', found.map(cellLabel).join(' -> '));
+          console.groupEnd();
+        }
       } else {
         render();
         const reason = attempts > maxAttempts ? `Reached the ${maxAttempts.toLocaleString()} attempt limit.` : 'No route found with the current settings.';
         setStatus(`${reason} Check the dot locations, increase the search limit, or try turning off “highest number must be final” if your puzzle variant allows that. Attempts: ${attempts.toLocaleString()}, prunes: ${prunes.toLocaleString()}, time: ${elapsed}s.`, 'bad');
+
+        if (window.ZIP_DEBUG) {
+          console.group('%c[Zip] Solver finished (NO SOLUTION FOUND)', 'color:#b42318;font-weight:bold');
+          console.log('Reason:', attempts > maxAttempts ? 'attempt limit reached' : 'search space exhausted');
+          console.log('Attempts:', attempts.toLocaleString(), '| Prunes:', prunes.toLocaleString(), '| Time:', elapsed + 's');
+          console.log('Deepest path reached:', deepestDepth, '/', freeCount, 'cells');
+          console.log('Highest dot reached at deepest:', deepestNextTarget - 1, '(of', maxNum + ')');
+          if(deepestPathSnapshot){
+            console.log('Deepest path cells:', deepestPathSnapshot.map(cellLabel).join(' -> '));
+            console.log('Stuck after:', cellLabel(deepestPathSnapshot[deepestPathSnapshot.length - 1]));
+            const missed = cells
+              .map((c, i) => (!c.blocked && !deepestPathSnapshot.includes(i)) ? cellLabel(i) : null)
+              .filter(Boolean);
+            console.log('Open cells NOT in deepest path (' + missed.length + '):', missed.join(', '));
+          }
+          console.log('Tip: if "UNREACHABLE open cells" was logged above, the walls were misread. Compare the ASCII board to your screenshot to find the bad wall(s).');
+          console.groupEnd();
+        }
       }
     }
 
@@ -1340,6 +1423,55 @@
     function setStatus(message, type){
       statusEl.className = `status ${type || ''}`;
       statusEl.innerHTML = message;
+    }
+
+    /* ============================================================
+       DEBUG helpers (console diagnostics)
+       Used by AI read + solver to print the parsed board, the
+       walls, the path found, and where the solver got stuck.
+       Set window.ZIP_DEBUG = false to silence.
+       ============================================================ */
+    window.ZIP_DEBUG = (typeof window.ZIP_DEBUG === 'undefined') ? true : window.ZIP_DEBUG;
+
+    function debugRenderBoard(){
+      // ASCII board: ' . '=open, 'XXX'=blocked, ' N '=dot.
+      // Between cells: '|'=vertical wall, '==='=horizontal wall, ' '=open edge.
+      const lines = [];
+      for(let r = 0; r < rows; r++){
+        if(r > 0){
+          let line = '';
+          for(let c = 0; c < cols; c++){
+            const here = rcToIndex(r, c);
+            const above = rcToIndex(r-1, c);
+            line += hasWall(here, above) ? '===' : '   ';
+            if(c < cols - 1) line += ' ';
+          }
+          lines.push(line);
+        }
+        let line = '';
+        for(let c = 0; c < cols; c++){
+          const idx = rcToIndex(r, c);
+          let content;
+          if(cells[idx].blocked) content = 'XXX';
+          else if(cells[idx].num !== null) content = ' ' + cells[idx].num + ' ';
+          else content = ' . ';
+          line += content;
+          if(c < cols - 1){
+            const right = rcToIndex(r, c + 1);
+            line += hasWall(idx, right) ? '|' : ' ';
+          }
+        }
+        lines.push(line);
+      }
+      return lines.join('\n');
+    }
+
+    function debugListWalls(){
+      return [...walls].map(key => {
+        const [a, b] = key.split(':').map(Number);
+        const pa = indexToRC(a), pb = indexToRC(b);
+        return 'R' + (pa.r+1) + 'C' + (pa.c+1) + ' <-> R' + (pb.r+1) + 'C' + (pb.c+1);
+      });
     }
 
     function loadSample(){
@@ -1726,6 +1858,18 @@
       );
       setStatus('AI placed ' + dotCount + ' dot(s). ' + (dotCount >= 2 ? 'Ready to solve.' : 'Need at least 2 dots.'),
                 conf === 'low' ? 'warn' : 'good');
+
+      // === DEBUG: dump what GPT-4o returned and what we actually applied ===
+      if (window.ZIP_DEBUG) {
+        console.group('%c[Zip] AI vision result', 'color:#7c3aed;font-weight:bold');
+        console.log('Raw GPT-4o JSON:', parsed);
+        console.log('Applied counts -> dots:', dotCount, 'blocks:', blockCount, 'walls:', wallCount, 'confidence:', conf);
+        console.log('Board after AI read:\n' + debugRenderBoard());
+        console.log('Wall list (' + walls.size + '):', debugListWalls());
+        console.groupEnd();
+      }
+      // === /DEBUG ===
+
       return dotCount >= 2;
     }
 
