@@ -738,9 +738,20 @@
     let cells = [];
     let mode = 'number';
     let path = [];
+    // Walls are edges between two adjacent cells that block movement.
+    // Stored as a Set of string keys "min:max" where min<max are cell indices.
+    let walls = new Set();
 
     function newCell(){
       return { blocked:false, num:null };
+    }
+
+    function wallKey(a, b){
+      return a < b ? a + ':' + b : b + ':' + a;
+    }
+
+    function hasWall(a, b){
+      return walls.has(wallKey(a, b));
     }
 
     function makeGrid(r = rows, c = cols){
@@ -749,6 +760,7 @@
       rowsEl.value = rows;
       colsEl.value = cols;
       cells = Array.from({length: rows * cols}, newCell);
+      walls = new Set();
       path = [];
       setStatus('Grid ready. Place the numbered dots from the puzzle.', 'warn');
       render();
@@ -811,6 +823,22 @@
           dot.textContent = cell.num;
           dot.style.setProperty('--dot-ring', dotRing(cell.num));
           div.appendChild(dot);
+        }
+
+        // Walls: draw a thick black bar on any cell edge that has a wall.
+        // We stack inset box-shadows; this overrides the default cell shadow
+        // but that trade is fine because walls are critical to the puzzle.
+        if(walls.size){
+          const {r:cr, c:cc} = indexToRC(i);
+          const segs = [];
+          if(cr > 0           && hasWall(i, rcToIndex(cr-1,cc))) segs.push('inset 0 5px 0 0 #111827');
+          if(cr < rows - 1    && hasWall(i, rcToIndex(cr+1,cc))) segs.push('inset 0 -5px 0 0 #111827');
+          if(cc > 0           && hasWall(i, rcToIndex(cr,cc-1))) segs.push('inset 5px 0 0 0 #111827');
+          if(cc < cols - 1    && hasWall(i, rcToIndex(cr,cc+1))) segs.push('inset -5px 0 0 0 #111827');
+          if(segs.length){
+            segs.push('0 1px 2px rgba(15,23,42,.06)');
+            div.style.boxShadow = segs.join(', ');
+          }
         }
 
         div.addEventListener('click', () => handleCellClick(i));
@@ -980,10 +1008,22 @@
     function neighbors(idx){
       const {r,c} = indexToRC(idx);
       const out = [];
-      if(r > 0) out.push(rcToIndex(r-1,c));
-      if(r < rows - 1) out.push(rcToIndex(r+1,c));
-      if(c > 0) out.push(rcToIndex(r,c-1));
-      if(c < cols - 1) out.push(rcToIndex(r,c+1));
+      if(r > 0){
+        const n = rcToIndex(r-1,c);
+        if(!hasWall(idx, n)) out.push(n);
+      }
+      if(r < rows - 1){
+        const n = rcToIndex(r+1,c);
+        if(!hasWall(idx, n)) out.push(n);
+      }
+      if(c > 0){
+        const n = rcToIndex(r,c-1);
+        if(!hasWall(idx, n)) out.push(n);
+      }
+      if(c < cols - 1){
+        const n = rcToIndex(r,c+1);
+        if(!hasWall(idx, n)) out.push(n);
+      }
       return out;
     }
 
@@ -1308,6 +1348,7 @@
       rowsEl.value = rows;
       colsEl.value = cols;
       cells = Array.from({length: rows * cols}, newCell);
+      walls = new Set();
       const sampleDots = [
         [1,4,1],
         [2,2,1],
@@ -1508,18 +1549,22 @@
         '  - open (white/empty),',
         '  - blocked (filled with a dark color, no dot), or',
         '  - a numbered dot (a small filled circle with a number 1, 2, 3, \u2026).',
+        'WALLS are thick BLACK BARS drawn on the EDGE between two adjacent cells.',
+        'A wall is NOT a filled cell \u2014 both cells on either side of the wall remain open and one of them may even contain a numbered dot. Walls block any path from crossing that edge.',
+        'Look very carefully at every cell border (horizontal and vertical) and list every wall you can see.',
         'Coordinates: r is 0-based row index from TOP (0..6). c is 0-based column index from LEFT (0..6).',
         '',
         'Return ONLY a JSON object with this exact shape (no prose, no markdown):',
         '{',
         '  "rows": 7,',
         '  "cols": 7,',
-        '  "dots": [ { "num": <int>, "r": <int 0..6>, "c": <int 0..6> }, ... ],',
+        '  "dots":   [ { "num": <int>, "r": <int 0..6>, "c": <int 0..6> }, ... ],',
         '  "blocks": [ { "r": <int 0..6>, "c": <int 0..6> }, ... ],',
+        '  "walls":  [ { "r1": <int 0..6>, "c1": <int 0..6>, "r2": <int 0..6>, "c2": <int 0..6> }, ... ],',
         '  "confidence": "high" | "medium" | "low",',
         '  "notes": "<short string, optional>"',
         '}',
-        'rows and cols MUST both be 7. Numbers must be consecutive starting at 1. Most Zip boards have zero blocked cells \u2014 only include cells that are clearly filled-in solid.'
+        'Each wall entry MUST list the two adjacent cells it separates: (r1,c1) and (r2,c2) must differ by exactly one row OR one column (Manhattan distance 1). rows and cols MUST both be 7. Numbers must be consecutive starting at 1. Most Zip boards have zero blocked cells \u2014 only include cells that are clearly filled-in solid.'
       ].join('\n');
 
       try {
@@ -1610,6 +1655,7 @@
       rows = r; cols = c;
       rowsEl.value = r; colsEl.value = c;
       cells = Array.from({ length: r * c }, newCell);
+      walls = new Set();
       path = [];
 
       // Apply blocks first so dots can override.
@@ -1621,6 +1667,20 @@
           cells[rcToIndex(br, bc)].blocked = true;
           blockCount++;
         }
+      }
+
+      // Apply walls: each entry separates two orthogonally adjacent cells.
+      const wallList = Array.isArray(parsed.walls) ? parsed.walls : [];
+      let wallCount = 0;
+      for (const w of wallList) {
+        const r1 = parseInt(w.r1, 10), c1 = parseInt(w.c1, 10);
+        const r2 = parseInt(w.r2, 10), c2 = parseInt(w.c2, 10);
+        if (!Number.isInteger(r1) || !Number.isInteger(c1) || !Number.isInteger(r2) || !Number.isInteger(c2)) continue;
+        if (r1 < 0 || r1 >= r || c1 < 0 || c1 >= c) continue;
+        if (r2 < 0 || r2 >= r || c2 < 0 || c2 >= c) continue;
+        if (Math.abs(r1 - r2) + Math.abs(c1 - c2) !== 1) continue;
+        const key = wallKey(rcToIndex(r1, c1), rcToIndex(r2, c2));
+        if (!walls.has(key)) { walls.add(key); wallCount++; }
       }
 
       // Apply dots.
@@ -1656,9 +1716,12 @@
 
       const conf = (parsed.confidence || 'unknown');
       const notes = parsed.notes ? ('\nNotes: ' + parsed.notes) : '';
+      const extras = [];
+      if (blockCount) extras.push(blockCount + ' blocked cell(s)');
+      if (wallCount)  extras.push(wallCount + ' wall(s)');
       setAiResponse(
         'Detected a ' + r + ' \u00D7 ' + c + ' board with ' + dotCount + ' dot(s)' +
-        (blockCount ? ' and ' + blockCount + ' blocked cell(s)' : '') + '.' +
+        (extras.length ? ', ' + extras.join(' and ') : '') + '.' +
         '\nAI confidence: ' + conf + '.' + notes
       );
       setStatus('AI placed ' + dotCount + ' dot(s). ' + (dotCount >= 2 ? 'Ready to solve.' : 'Need at least 2 dots.'),
@@ -1690,12 +1753,19 @@
         .map(({r,c}) => 'R' + (r+1) + 'C' + (c+1))
         .join(', ') || '(none)';
 
+      const wallList = [...walls].map(key => {
+        const [a, b] = key.split(':').map(Number);
+        const pa = indexToRC(a), pb = indexToRC(b);
+        return 'between R' + (pa.r+1) + 'C' + (pa.c+1) + ' and R' + (pb.r+1) + 'C' + (pb.c+1);
+      }).join('; ') || '(none)';
+
       const userMsg = [
         'LinkedIn Zip puzzle board:',
         '  Grid: ' + rows + ' rows \u00D7 ' + cols + ' columns',
         '  Numbered dots:',
         dotList,
         '  Blocked cells: ' + blockList,
+        '  Walls (edges that cannot be crossed): ' + wallList,
         '',
         'Goal: a single Hamiltonian-style path that starts at dot 1, visits dots in numeric order, ends at the highest dot, and covers EVERY open cell exactly once. Moves are 4-directional (up/down/left/right) only.',
         '',
