@@ -1772,7 +1772,7 @@
         });
         const raw = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
         if (!raw) throw new Error('Empty response from GPT-4o.');
-        const parsed = JSON.parse(raw);
+        const parsed = normalizeMaybeOneBased(JSON.parse(raw));
         const ok = applyAiBoard(parsed);
         return ok;
       } catch (err) {
@@ -1832,6 +1832,47 @@
         buttonDone(aiSolveBtn, aiSolveLabel);
       }
     });
+
+    // GPT-4o sometimes returns 1-based row/column indexes even though the
+    // prompt asks for 0-based. If EVERY coordinate it returned falls in 1..7
+    // (and none are 0), we treat that as a 1-based response and shift it down
+    // by 1. Without this, dots/walls land off-board or at the wrong cells and
+    // applyAiBoard() silently drops them, producing an unsolvable board.
+    function normalizeMaybeOneBased(parsed){
+      const dots   = Array.isArray(parsed.dots)   ? parsed.dots   : [];
+      const walls  = Array.isArray(parsed.walls)  ? parsed.walls  : [];
+      const blocks = Array.isArray(parsed.blocks) ? parsed.blocks : [];
+
+      const vals = [];
+      dots.forEach(d  => vals.push(+d.r,  +d.c));
+      blocks.forEach(b => vals.push(+b.r,  +b.c));
+      walls.forEach(w => vals.push(+w.r1, +w.c1, +w.r2, +w.c2));
+      const cleanVals = vals.filter(Number.isFinite);
+
+      // If everything is in 1..7 with no zeros, GPT almost certainly returned
+      // 1-based coordinates. (A valid 0-based read on a 7x7 board will
+      // contain at least one 0 in nearly every real puzzle.)
+      const looksOneBased =
+        cleanVals.length > 0 &&
+        Math.min(...cleanVals) >= 1 &&
+        Math.max(...cleanVals) <= 7;
+
+      if (!looksOneBased) return parsed;
+
+      dots.forEach(d => { d.r = +d.r - 1; d.c = +d.c - 1; });
+      blocks.forEach(b => { b.r = +b.r - 1; b.c = +b.c - 1; });
+      walls.forEach(w => {
+        w.r1 = +w.r1 - 1;
+        w.c1 = +w.c1 - 1;
+        w.r2 = +w.r2 - 1;
+        w.c2 = +w.c2 - 1;
+      });
+      parsed.notes = (parsed.notes || '') + ' Auto-normalized likely 1-based coordinates to 0-based.';
+      if (window.ZIP_DEBUG) {
+        console.warn('[Zip] AI returned 1-based coordinates; auto-shifted to 0-based.');
+      }
+      return parsed;
+    }
 
     function applyAiBoard(parsed){
       // Zip boards on LinkedIn are always 7x7, so force that size here
