@@ -370,6 +370,15 @@
       box-shadow:0 0 0 4px rgba(10,102,194,.35);
     }
 
+    /* Highlight for the first cell picked in Wall mode (waiting for a
+       neighbor click to complete the wall toggle). Uses outline so it
+       doesn't fight with the box-shadow we already use to draw walls. */
+    .cell.wall-first{
+      outline:3px solid #ef4444;
+      outline-offset:-3px;
+      z-index:4;
+    }
+
     .output{
       margin-top:16px;
       display:grid;
@@ -596,11 +605,12 @@
         <button data-mode="number" class="active">Place Number</button>
         <button data-mode="draw">Draw/Test</button>
         <button data-mode="block">Block Cell</button>
+        <button data-mode="wall">Wall</button>
         <button data-mode="erase">Erase</button>
       </div>
 
       <div class="small" style="margin-top:10px;">
-        Tip: most LinkedIn Zip boards do not need blocked cells. Only use <b>Block Cell</b> if your puzzle has unusable squares.
+        Tip: most LinkedIn Zip boards do not need blocked cells. Only use <b>Block Cell</b> if your puzzle has unusable squares. Use <b>Wall</b> to toggle a barrier between two adjacent cells (click one cell, then an adjacent cell).
       </div>
 
       <h2 style="margin-top:20px;">2) Solve / test</h2>
@@ -741,6 +751,9 @@
     // Walls are edges between two adjacent cells that block movement.
     // Stored as a Set of string keys "min:max" where min<max are cell indices.
     let walls = new Set();
+    // When the user is in Wall mode, this holds the index of the first
+    // cell they clicked while they pick the second (neighbor) to toggle.
+    let wallFirstIdx = null;
 
     function newCell(){
       return { blocked:false, num:null };
@@ -761,6 +774,7 @@
       colsEl.value = cols;
       cells = Array.from({length: rows * cols}, newCell);
       walls = new Set();
+      wallFirstIdx = null;
       path = [];
       setStatus('Grid ready. Place the numbered dots from the puzzle.', 'warn');
       render();
@@ -808,6 +822,8 @@
         div.dataset.index = i;
 
         if(cell.blocked) div.classList.add('blocked');
+
+        if(wallFirstIdx === i) div.classList.add('wall-first');
 
         if(pathIndex.has(i)){
           const step = pathIndex.get(i);
@@ -863,6 +879,8 @@
         cells[i].blocked = !cells[i].blocked;
         if(cells[i].blocked) cells[i].num = null;
         path = [];
+      } else if(mode === 'wall'){
+        handleWallClick(i);
       } else if(mode === 'erase'){
         cells[i] = newCell();
         path = path.filter(idx => idx !== i);
@@ -871,6 +889,40 @@
       }
       updateOutputs();
       render();
+    }
+
+    function handleWallClick(i){
+      // First click in the pair: anchor on this cell.
+      if(wallFirstIdx === null){
+        wallFirstIdx = i;
+        setStatus('Wall mode: selected ' + cellLabel(i) + '. Click an adjacent cell to toggle the wall between them.', 'warn');
+        return;
+      }
+      // Clicked the same cell again: cancel the selection.
+      if(wallFirstIdx === i){
+        wallFirstIdx = null;
+        setStatus('Wall mode: selection cleared.', 'warn');
+        return;
+      }
+      // Second click must be orthogonally adjacent (4-neighbor).
+      const a = indexToRC(wallFirstIdx), b = indexToRC(i);
+      if(Math.abs(a.r - b.r) + Math.abs(a.c - b.c) !== 1){
+        // Re-anchor to the new cell so the user doesn't have to click twice.
+        wallFirstIdx = i;
+        setStatus('Wall mode: cells must be directly adjacent. Re-anchored to ' + cellLabel(i) + '.', 'warn');
+        return;
+      }
+      const key = wallKey(wallFirstIdx, i);
+      if(walls.has(key)){
+        walls.delete(key);
+        setStatus('Wall removed between ' + cellLabel(wallFirstIdx) + ' and ' + cellLabel(i) + '.', 'warn');
+      } else {
+        walls.add(key);
+        setStatus('Wall added between ' + cellLabel(wallFirstIdx) + ' and ' + cellLabel(i) + '.', 'warn');
+      }
+      wallFirstIdx = null;
+      // Editing walls invalidates any previously drawn/solved path.
+      path = [];
     }
 
     function drawCell(i){
@@ -945,6 +997,9 @@
 
     function setMode(newMode){
       mode = newMode;
+      // Leaving wall mode (or switching to it) should always clear the
+      // "first click" anchor so the next interaction starts fresh.
+      wallFirstIdx = null;
       document.querySelectorAll('#modeBtns button').forEach(btn=>{
         btn.classList.toggle('active', btn.dataset.mode === mode);
       });
@@ -952,9 +1007,11 @@
         mode === 'number' ? 'Number mode: click cells to place numbered dots.' :
         mode === 'draw' ? 'Draw/Test mode: click dot 1, then adjacent cells to test a path.' :
         mode === 'block' ? 'Block Cell mode: click cells to toggle unusable squares.' :
+        mode === 'wall' ? 'Wall mode: click a cell, then an adjacent cell to toggle the wall between them.' :
         'Erase mode: click cells to remove numbers, blocks, or path cells.',
         'warn'
       );
+      render();
     }
 
     document.querySelectorAll('#modeBtns button').forEach(btn=>{
@@ -1788,6 +1845,7 @@
       rowsEl.value = r; colsEl.value = c;
       cells = Array.from({ length: r * c }, newCell);
       walls = new Set();
+      wallFirstIdx = null;
       path = [];
 
       // Apply blocks first so dots can override.
