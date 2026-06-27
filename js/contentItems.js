@@ -1822,36 +1822,7 @@ https:"https://youtu.be/HWiS8Cxs-Fw",
 </html>`
  },
 
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"AI",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/Easy.png",
-https:"https://youtu.be/hSjmoc64DA4",
- title:"Automate Presentation Building with WorkPPT",
-        description:"In this video we look at how to easily create web applications using VS Code and the GitHub Copilot Chat.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2eab671298edcd5ab0f0bfcc6eb6affa5432a8df/Thumbnails/Easy.png",
-       link:"https://youtu.be/hSjmoc64DA4",
 
-
-  related:
-  [
-      {
-          text:"Watch YouTube Video",
-          url:"https://youtu.be/hSjmoc64DA4"
-      },
-      {
-            text:"Download VS Code",
-            url:"https://code.visualstudio.com/download"
-      }
-  ],
-        topic:"Coding"
-    },
 
 
 
@@ -2131,29 +2102,7 @@ https:"https://youtu.be/Fp2dy-lkjlE",
 
   
 
-  {
- section:[
-            "Learning",
-            "Templates"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
-https:"https://youtu.be/Fp2dy-lkjlE",
- title:"Build Presentations Using AI",
-        description:"Check out this great AI PowerPoint presentation tool.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/1b16d6e4768f27a968cf60ea93263f362d7e3160/Thumbnails/AISLIDESThumb.png",
-       link:"https://youtu.be/Fp2dy-lkjlE",
 
-
-  related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/Fp2dy-lkjlE"
-        },
-        topic:"AI Tips"
-    },
 
 
 
@@ -2839,36 +2788,7 @@ https:"https://youtu.be/YZWG1oqnE6k",
 
   
 
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"AI",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
-https:"https://youtu.be/YZWG1oqnE6k",
- title:"Automate Presentation Building with Beautiful.AI",
-        description:"In this video we cover a site called beautiful.ai, where you can create amazing presentations using AI prompts, templates, and more.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e8f45f651fb516b4cbad95d85e6e12d015ca15fd/Thumbnails/boo.png",
-       link:"https://youtu.be/YZWG1oqnE6k",
 
-
-  related:
-  [
-      {
-          text:"Check it out on YouTube",
-          url:"https://youtu.be/YZWG1oqnE6k"
-      },
-      {
-            text:"Visit Beautiful.AI",
-            url:"https://www.beautiful.ai/"
-      }
-  ],
-        topic:"Automate Presentations"
-    },
 
   
 
@@ -5086,64 +5006,14 @@ https:"https://youtu.be/YhaGxBoY9PY",
         topic:"Glass Morphism Effect"
     },
 
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/9e800bd0119e969736b32fe8da6f2950e7d872d1/icons/2025%20PowerPoint%20Icon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
-https:"https://youtu.be/ers-81-bFO4",
- title:"Interactive Morph Template",
-        description:"In this video we cover an amazing and advanced template build where we combine the morph transition along with other formatting options to create an amazing presentation.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/08fa67a3d2a47ba58a95097a62d3140c44c3d032/Thumbnails/interactivemorphtemp9.22.png",
-       link:"https://youtu.be/ers-81-bFO4",
-
-
-  related: [
-        {
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/ers-81-bFO4"
-        },
-        {
-            text:"Template File Link",
-            url:"https://docs.google.com/presentation/d/1eYWlgIPVrBVg6EhInnT5UvaBN7AfluXw/export/pptx"
-        }
-    ],
-        topic:"Interactive Morph Template"
-    },
 
 
 
 
 
 
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/b373342d2eaed89178d1a606daa46b2710a0c783/icons/2025%20Excel%20Icon.png"
-        },
-https:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
-https:"https://youtu.be/y1gPf0kbf-Y",
- title:"Change Selected Cell Color",
-        description:"In this video we cover how to change the background color of specific cells in Excel.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/468f0c9ce0d02c7e3b6791e8268ae41582140fce/Thumbnails/change.png",
-       link:"https://youtu.be/y1gPf0kbf-Y",
 
 
-  related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/y1gPf0kbf-Y"
-        },
-        topic:"Change Selected Cell Color"
-    },
 
 
 
@@ -6720,96 +6590,7 @@ document.addEventListener('DOMContentLoaded', function() {
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
 }`
     },
-    {
-        section: ["Learning", "Coding"], 
-        program: {
-            name: "Simulations",
-            image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/d38148461878cc997ada41cde4af1fb23490ea32/icons/Simicon2.png"
-        },
-        title: "Excel VLOOKUP Training Simulation",
-        description: "Download the complete HTML/CSS/JavaScript source code for an interactive Excel VLOOKUP training simulation. Learn step-by-step tutorial development with real-time feedback and validation.",
-        thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/31db8896e8600ad36dce8f9159c2709c5b00b949/Thumbnails/VLOOKUPThumbnail.png",
-        link: "Learn.html#excel-vlookup-training-simulation",
-        related: [
-            {
-                text:"Download PC code",
-                url:"https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_"
-            },
-            {
-                text:"Video on topic",
-                url:"https://youtu.be/VsivDUMm9lE"
-            }
-        ],
-        topic: "Simulation Examples",
-        demoHtml: `<div class="simulation-demo-container">
-  <iframe src="Simulations/VLOOKUPSimulation.html" 
-          class="simulation-iframe" 
-          title="Excel VLOOKUP Training Simulation"
-          frameborder="0">
-    Your browser does not support iframes. Please use a modern browser to view this simulation.
-  </iframe>
-  <div class="simulation-links">
-    <a href="https://drive.google.com/uc?export=download&id=1ShdROCBcUP1HBVftx9G_VhbNtUekQyH_" target="_blank" class="download-btn">📥 Download Source Code</a>
-    <a href="https://youtu.be/VsivDUMm9lE" target="_blank" class="video-btn">🎥 Watch Tutorial Video</a>
-  </div>
-</div>`,
-        demoCss: `.simulation-demo-container {
-  width: 100%;
-  max-width: 1200px;
-  margin: 20px auto;
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
 
-.simulation-iframe {
-  width: 100%;
-  height: 600px;
-  border: 2px solid #0b4f6c;
-  border-radius: 6px;
-  background: white;
-}
-
-.simulation-links {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-
-.download-btn, .video-btn {
-  padding: 12px 24px;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  display: inline-block;
-}
-
-.download-btn {
-  background: linear-gradient(135deg, #0b4f6c, #1976d2);
-  color: white;
-}
-
-.download-btn:hover {
-  background: linear-gradient(135deg, #1976d2, #0b4f6c);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(11, 79, 108, 0.4);
-}
-
-.video-btn {
-  background: linear-gradient(135deg, #ff6b35, #f7931e);
-  color: white;
-}
-
-.video-btn:hover {
-  background: linear-gradient(135deg, #f7931e, #ff6b35);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
-}`
-    },
 
 
 {
@@ -6838,25 +6619,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-{
-    section: [
-        "Learning",
-        "Videos"
-    ],
-    program: {
-        name: "AI",
-        image: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/e78e9a4de4c8677f0934af550a36473b699011a8/icons/AIicon.png"
-    },
-    title: "Vibe Coding for Websites and Training Simulations",
-    description: "In this video we cover how to use vibe coding to easily and quickly build effective websites, training simulations, and other tools.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/2cc02a9bad41b7cb85c47de78edb36622fa71d64/Thumbnails/thumb.png",
-    link: "https://youtu.be/VsivDUMm9lE",
-    related: {
-        text: "Check it out on YouTube",
-        url: "https://youtu.be/VsivDUMm9lE"
-    },
-    topic: "Vibe Coding"
-},
+
 
 {
     section: ["Learning", "HTML"],
@@ -7311,40 +7074,7 @@ and can contain detailed explanations
 <p><strong>Note:</strong> Modern browsers require user interaction before playing audio/video.</p>`
 },
 
-{
-    section: ["Learning", "HTML"],
-    program: {
-        name: "HTML",
-        image: "https://github.com/StevenMKay/CareerSolutionsForToday/raw/bec276b558dc0f3049b3696abe7ef062e4cc4e0d/icons/htmlicon.png"
-    },
-    title: "HTML Iframes",
-    description: "An iframe (inline frame) is used to embed another HTML document within the current document. It's commonly used for embedding maps, videos, or other web content.",
-    thumbnail: "https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/c3a19888074dfcffbf22a62556dd77384b5b0630/Thumbnails/htmlthumbnail.png",
-    link: "Learn.html#html-iframes-demo",
-    topic: "HTML Embedding",
-    demoHtml: `<h3>Basic Iframe</h3>
-<iframe src="https://www.example.com" width="300" height="200" title="Example Website">
-    <p>Your browser does not support iframes.</p>
-</iframe>
 
-<h3>YouTube Video Embed</h3>
-<iframe width="300" height="200" 
-        src="https://www.youtube.com/embed/LIlIzKFkhXw" 
-        title="YouTube video player" 
-        frameborder="0" 
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-        allowfullscreen>
-</iframe>
-
-<h3>Google Maps Embed - Phoenix, AZ</h3>
-<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d427168.71635690214!2d-112.32135019999999!3d33.4483771!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x872b12ed50a179cb%3A0x8c69c7f8354a1bac!2sPhoenix%2C%20AZ!5e0!3m2!1sen!2sus!4v1704123456789!5m2!1sen!2sus" 
-        width="300" 
-        height="200" 
-        style="border:0;" 
-        allowfullscreen="" 
-        loading="lazy">
-</iframe>`
-},
 
 {
     section: ["Learning", "HTML"],
@@ -7994,27 +7724,7 @@ https:"https://www.youtube.com/shorts/fzTXUBWDCA4",
 
 
   
-{
- section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/49aed2c6942f98e51c322cfcbe304f249faebc60/Excel%20Icon.png"
-        },
-https:"//raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
-https:"//youtube.com/shorts/TCMYpQUytOM",
- title:"Hiding All Columns and Rows",
-        description:"This quick video will show you how to hide or remove all unused columns or rows in Excel to create a clean view for your users. We will also cover how to unhide or restore the hidden columns and rows.",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/0e0ec2ada2651814c81dbd95b529c93ad76a3bff/Thumbnails/Screenshot%202025-07-21%20170749.png",
-       link:"https://youtube.com/shorts/TCMYpQUytOM",
-   related:{
-            text:"Check it out on YouTube",
-            url:"https://youtube.com/shorts/TCMYpQUytOM"
-        },
-        topic:"Hiding All Columns and Rows",
-    },
+
 
 
     {
@@ -8116,25 +7826,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Sheet List"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Dynamic Sheet List Function | No VBA or Code",
-        description:"Hey team,\n\nIn this video we cover how to create a function that gives you a full dynamic list of all sheet names in your Excel workbook, including hidden tabs. This function will update when you rename, add, or remove a tab.\n\nChapters:\n0:00 Introduction\n0:24 Creating the Function\n0:57 Explaining the Function\n1:11 Skip Explanation\n1:38 Final Reminders and #BLOCK! Error",
-        thumbnail:"https://i.ytimg.com/vi/X6if1vTKeSk/hqdefault.jpg",
-        link:"https://youtu.be/X6if1vTKeSk",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/X6if1vTKeSk"
-        },
-        topic:"Sheet List"
-    },
+
     {
         section:[
             "Learning",
@@ -8287,25 +7979,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Change Image Shape"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"PowerPoint",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"PowerPoint Tips - Essential Tips for Creating Professional Slides",
-        description:"Hey team,\n\nIn this video we cover how to create professional slides in PowerPoint.\n\nChapters\n0:00 Introduction\n0:49 Text Formatting\n1:29 Alignment and Spacing\n3:39 Emphasis and Simplicity\n5:49 Aligning Colors\n6:45 Pro Tip - Gradient Fill\n\nLink to video on changing images to any shape: https://youtu.be/n5mDgSyTfyY",
-        thumbnail:"https://i.ytimg.com/vi/Ymu6KYe9iwk/hqdefault.jpg",
-        link:"https://youtu.be/Ymu6KYe9iwk",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/Ymu6KYe9iwk"
-        },
-        topic:"Professional Slides"
-    },
+
     {
         section:[
             "Learning",
@@ -8705,25 +8379,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Screenshot Tips"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"General",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Career Tips - Professional Modern Resume Template and Tips",
-        description:"Hey team,\n\nIn this video we cover how to create a modern and professional resume. Remember to always tailor your resume to the job you are seeking by adjusting the skills and accomplishments you display based on your experience. \n\nLink to Iconfinder LinkedIn icon: https://www.iconfinder.com/search?q=linkedin",
-        thumbnail:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8f7a31e22e2ef623ad6b605b1f8d06a0c71b24a3/Thumbnail%20Modern%20Resume%20Video.png",
-        link:"https://youtu.be/b-UlEXG_msU",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/b-UlEXG_msU"
-        },
-        topic:"Resumes"
-    },
+
     {
         section:[
             "Learning",
@@ -8971,25 +8627,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Date Filling"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Autofit Column Width | Apply to Specified Range Example",
-        description:"Hey team,\n\nIn this video we cover how to set up your Excel files to autofit the column width to fit cell contents for both the whole spreadsheet and just a certain range.\n\nChapters:\n0:00 Introduction\n0:17 Apply Autofit to Full Spreadsheet\n0:43 Apply Autofit to Certain Range\n\nVBA Code examples\n\nFull spreadsheet:\nCells.EntireColumn.AutoFit\n\nSelected Range:\nSet Rng = Range(\"A2:A10\")\nRng.EntireColumn.AutoFit",
-        thumbnail:"https://i.ytimg.com/vi/A8TYqvf05GU/hqdefault.jpg",
-        link:"https://youtu.be/A8TYqvf05GU",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/A8TYqvf05GU"
-        },
-        topic:"Autofit Column Width"
-    },
+
     {
         section:[
             "Learning",
@@ -9180,25 +8818,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"IMPORTRANGE Function"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Text Search Box | Dynamic Filtering | One or Multiple Columns",
-        description:"This video will show you how to create a text search box in Excel that can dynamically filter one or multiple columns.",
-        thumbnail:"https://i.ytimg.com/vi/sdall4s4_RY/hqdefault.jpg",
-        link:"https://youtu.be/sdall4s4_RY",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/sdall4s4_RY"
-        },
-        topic:"Dynamic Text Filter"
-    },
+
     {
         section:[
             "Learning",
@@ -9484,25 +9104,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Dashboard"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Use Timeline Filters to Make Date Filtering Simple",
-        description:"Hey team,\n\nIn this short video we cover how to add and use Timeline filters in Excel.\n\nVideo on Pivot Tables: https://youtu.be/GkA65PB3rnM\n\nVideo on Slicer Button Formatting: https://youtu.be/2ImKoLtd9Dw",
-        thumbnail:"https://i.ytimg.com/vi/Ua4RMos3dYA/hqdefault.jpg",
-        link:"https://youtu.be/Ua4RMos3dYA",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/Ua4RMos3dYA"
-        },
-        topic:"Filter"
-    },
+
     {
         section:[
             "Learning",
@@ -9560,25 +9162,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Formatting"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Combine Multiple Tabs or Worksheets into One | Power Query",
-        description:"Hey team,\n\nIn this video we cover how to combine multiple Excel tabs into one workbook dynamically for future updates.\n\nChapters:\n0:00 Introduction\n0:32 Combine Separate Tabs\n2:21 Combine Separate Workbooks",
-        thumbnail:"https://i.ytimg.com/vi/V62lPmdVEsY/hqdefault.jpg",
-        link:"https://youtu.be/V62lPmdVEsY",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/V62lPmdVEsY"
-        },
-        topic:"Sheets"
-    },
+
     {
         section:[
             "Learning",
@@ -9788,44 +9372,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Clear Cache and History"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Apply Conditional Formatting When You Select a Checkbox",
-        description:"Hey team,\n\nIn this video we cover how to set up a checkbox so that when it is selected it applies your selected conditional formatting.\n\nVideo on new Excel features (new checkbox): https://youtu.be/z2O4ZDOo5Y8",
-        thumbnail:"https://i.ytimg.com/vi/JNecRNTDkJQ/hqdefault.jpg",
-        link:"https://youtu.be/JNecRNTDkJQ",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/JNecRNTDkJQ"
-        },
-        topic:"Formatting"
-    },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Pull In Data From Another Report",
-        description:"Hey team,\n\nIn this video we cover how to pull in data from a separate report using the VLOOKUP function.\n\nVideo on VLOOKUP: https://youtu.be/HBIphAYLvfU",
-        thumbnail:"https://i.ytimg.com/vi/AjY5Qt_j_DI/hqdefault.jpg",
-        link:"https://youtu.be/AjY5Qt_j_DI",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/AjY5Qt_j_DI"
-        },
-        topic:"Data"
-    },
+
+
     {
         section:[
             "Learning",
@@ -9883,25 +9431,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Filter"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Creating Pivot Tables",
-        description:"Hey team,\n\nIn this video we cover how to get started in creating a pivot table. Make sure to check out my extended video below for much more information on how to create and design your pivot tables.\n\nExtended Pivot Table Video: https://youtu.be/GkA65PB3rnM",
-        thumbnail:"https://i.ytimg.com/vi/3DfmCxEposM/hqdefault.jpg",
-        link:"https://youtu.be/3DfmCxEposM",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/3DfmCxEposM"
-        },
-        topic:"Pivot Table"
-    },
+
     {
         section:[
             "Learning",
@@ -10168,45 +9698,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Get Text from Images"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - New Checkbox Feature | Formatting Cells | Add Current Date and Time",
-        description:"Hey team,\n\nIn this video I cover the new checkbox feature added into Excel on the Insert tab. During the video we cover how to add the new checkboxes, use them for conditional formatting, and how to use them to add the current date and time.\n\nCheck out the video link below if you don't yet have the checkbox feature in your Excel.\n\nChapters:\n0:00 Introduction\n0:34 Adding New Checkboxes\n1:10 Checkbox Conditional Formatting\n2:16 Checkbox to Add Current Date | Time\n\n\nLink to video explaining how to get new checkbox feature: https://youtu.be/z2O4ZDOo5Y8",
-        thumbnail:"https://i.ytimg.com/vi/LS-oDxDal_Y/hqdefault.jpg",
-        link:"https://youtu.be/LS-oDxDal_Y",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/LS-oDxDal_Y"
-        },
-        topic:"New Checkbox"
 
-    },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Early Access to New Features | 365 Insider Program",
-        description:"Hey team,\n\nIn this video we cover how to get early access to new features in Excel and other Microsoft applications by signing up for the Microsoft Insider Program. Signing up is free and easy to do.\n\nChapters:\n0:00 Introduction\n0:12 Current New Features\n1:04 Enrolling in Insider Program\n\nHelpful links:\nBeta release notes: https://learn.microsoft.com/en-us/officeupdates/beta-channel\nMicrosoft 365 Blog: https://techcommunity.microsoft.com/t5/microsoft-365/ct-p/microsoft365",
-        thumbnail:"https://i.ytimg.com/vi/z2O4ZDOo5Y8/hqdefault.jpg",
-        link:"https://youtu.be/z2O4ZDOo5Y8",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/z2O4ZDOo5Y8"
-        },
-        topic:"Early Access to Features"
-    },
+
     {
         section:[
             "Learning",
@@ -10340,25 +9833,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Screenshot and Record Screen Tips"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - NETWORKDAYS Function | Calculate Working Days Between Two Dates",
-        description:"Hey team,\n\nThis video will show you how to calculate the number of working days or business days between two date values in Excel. This can be helpful for project plans to calculate the number of working days remaining before the project end date.\n\nChapters:\n0:00 Introduction\n0:17 NETWORKDAYS Explained\n1:18 Adding Optional Holidays Argument",
-        thumbnail:"https://i.ytimg.com/vi/oy6gEPsI5ko/hqdefault.jpg",
-        link:"https://youtu.be/oy6gEPsI5ko",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/oy6gEPsI5ko"
-        },
-        topic:"NETWORKDAYS Function"
-    },
+
     {
         section:[
             "Learning",
@@ -10834,25 +10309,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Autofit Row Height"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Split Columns into Tables | Lists",
-        description:"Hey team,\n\nThis quick video will show you how to use the FILTER function in Excel to split data in columns to lists or tables without needing to manually type out the data.\n\nLink to video of the FILTER function in full detail: https://youtu.be/mdZ2eMEk2ic",
-        thumbnail:"https://i.ytimg.com/vi/3k-hamJzRlI/hqdefault.jpg",
-        link:"https://youtu.be/3k-hamJzRlI",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/3k-hamJzRlI"
-        },
-        topic:"Split Columns Into Tables"
-    },
+
     {
         section:[
             "Learning",
@@ -10929,25 +10386,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Comments"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Track Any Changes Made to Your Workbook | No VBA",
-        description:"Hey team,\n\nThis video will show you how to track changes in an Excel workbook using conditional formatting.\n\nVideo on how to protect your workbook: https://youtu.be/FhpkLchk3L8",
-        thumbnail:"https://i.ytimg.com/vi/cnq3JHifAko/hqdefault.jpg",
-        link:"https://youtu.be/cnq3JHifAko",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/cnq3JHifAko"
-        },
-        topic:"Tracking Changes"
-    },
+
     {
         section:[
             "Learning",
@@ -11119,44 +10558,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Heat Map"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - XLOOKUP and Nested XLOOKUP Explained",
-        description:"Hey team,\n\nThis video explains how to use the XLOOKUP function in detail with three examples.\n\nChapters:\n0:00 Introduction\n0:30 XLOOKUP Explanation\n3:17 XLOOKUP Array \n4:12 Nested XLOOKUP Example",
-        thumbnail:"https://i.ytimg.com/vi/Bcm7LB5ZyMY/hqdefault.jpg",
-        link:"https://youtu.be/Bcm7LB5ZyMY",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/Bcm7LB5ZyMY"
-        },
-        topic:"XLOOKUP Function"
-    },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - XLOOKUP Basics | Returning an Array of Data",
-        description:"Hey team,\n\nThis quick video will show you how to use XLOOKUP starting with the basics. We also show you how to return an array using XLOOKUP.\n\nDetailed explanation of XLOOKUP and Nested XLOOKUP: https://youtu.be/Bcm7LB5ZyMY",
-        thumbnail:"https://i.ytimg.com/vi/8N-Y8idSw80/hqdefault.jpg",
-        link:"https://youtu.be/8N-Y8idSw80",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/8N-Y8idSw80"
-        },
-        topic:"XLOOKUP Function"
-    },
+
+
     {
         section:[
             "Learning",
@@ -11195,25 +10598,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Move and Copy Tabs"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - How to Protect Your Worksheet | How to Protect Certain Cells",
-        description:"Hey team,\n\nIn this video we explore how to protect your worksheet and unprotect it. We will also cover how you can leave certain selected cells editable for your users to input data.\n\nChapters:\n0:00 Introduction\n0:20 Protect Your Worksheet from Edits\n1:16 Protect Certain Cells from Edits | Leave Some Editable",
-        thumbnail:"https://i.ytimg.com/vi/FhpkLchk3L8/hqdefault.jpg",
-        link:"https://youtu.be/FhpkLchk3L8",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/FhpkLchk3L8"
-        },
-        topic:"Protect Sheets and Cells"
-    },
+
     {
         section:[
             "Learning",
@@ -11271,25 +10656,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Announcements"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Combine Emails | Create Group Email Hyperlink",
-        description:"Hey team,\n\nThis quick video will show you how to easily combine emails in Excel so you can paste them into your email program. I will also cover how to create a hyperlink in Excel that will launch an email to your full list.\n\nChapters:\n0:00 Introduction\n0:24 Combine Emails\n1:12 Create Group Email Hyperlink",
-        thumbnail:"https://i.ytimg.com/vi/HNvxK3mYXug/hqdefault.jpg",
-        link:"https://youtu.be/HNvxK3mYXug",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/HNvxK3mYXug"
-        },
-        topic:"Combine Emails"
-    },
+
     {
         section:[
             "Learning",
@@ -11328,44 +10695,8 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Data Import from Pictures"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Text to Columns | Split Up Data Strings from One Column into Multiple Columns",
-        description:"Hey team,\n\nThis video will show you how to split data from one column into multiple. Additionally, the video covers some of the overlooked capabilities of text to columns and hidden features.\n\nTEXTSPLIT function video: https://youtu.be/T-fgoVyCxgg\n\nChapters:\n0:00 Introduction\n0:30 Split Up Data with a Delimiter\n1:50 Correct Date Formatting\n2:34 Split Data without a Delimiter",
-        thumbnail:"https://i.ytimg.com/vi/6rVKY2Z19Fk/hqdefault.jpg",
-        link:"https://youtu.be/6rVKY2Z19Fk",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/6rVKY2Z19Fk"
-        },
-        topic:"Text to Columns"
-    },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Create Email Hyperlinks that Dynamically Include Recipient, CC Line, Subject and Body",
-        description:"Hey team,\n\nThis video explains how to use the hyperlink function in Excel to create dynamic hyperlinks that can include who the email is going to, the CC line, subject line and the body of the email.\n\nChapters:\n0:00 Introduction\n0:45 Email Hyperlink Basics\n1:56 Adding a CC Line to the Email\n3:03 Adding Subject Line\n4:02 Adding Body to the Email\n4:36 Creating Link to Email a Group",
-        thumbnail:"https://i.ytimg.com/vi/zL8uaqhM4EU/hqdefault.jpg",
-        link:"https://youtu.be/zL8uaqhM4EU",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/zL8uaqhM4EU"
-        },
-        topic:"Email Hyperlinks"
-    },
+
+
     {
         section:[
             "Learning",
@@ -11499,63 +10830,9 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"SUMIFS Function"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Creating and Designing Pivot Tables",
-        description:"Hey team,\n\nThis video will show you the Pivot Table basics. We cover a large amount of topics to help you feel confident in getting started with this powerful tool.\n\nChapters:\n0:00 Introduction\n0:43 Setting Up the Pivot Table\n1:39 Creating the Pivot Table\n2:18 Understanding Pivot Table Fields\n4:32 Designing Pivot Table Views\n6:27 Adding Calculated Fields\n8:02 Analyzing Data and Changing How Values Display\n9:33 Sorting Data\n10:14 Filtering Pivot Tables\n11:52 Adding Charts\n12:29 Refreshing Pivot Table Data",
-        thumbnail:"https://i.ytimg.com/vi/GkA65PB3rnM/hqdefault.jpg",
-        link:"https://youtu.be/GkA65PB3rnM",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/GkA65PB3rnM"
-        },
-        topic:"Pivot Tables"
-    },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - FILTER Function Basics and Multiple Criteria with Column Select",
-        description:"Hey team,\n\nThis video will show you how to use the FILTER function in Excel. We start off with the basics but there are examples of adding \"and\" and \"or\" criteria to the filter as well. At the end I also show how to return only the columns you want to see.\n\nChapters:\n0:00 Introduction\n0:38 FILTER Basics\n1:29 FILTER with AND Criteria\n2:43 FILTER with OR including AND Criteria\n4:17 FILTER with OR including multiple AND criteria\n5:05 Choose Columns to Include in Filter Results",
-        thumbnail:"https://i.ytimg.com/vi/mdZ2eMEk2ic/hqdefault.jpg",
-        link:"https://youtu.be/mdZ2eMEk2ic",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/mdZ2eMEk2ic"
-        },
-        topic:"FILTER Function"
-    },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - 25 of the Best Keyboard Shortcuts for Excel",
-        description:"Hey team,\n\nThis video covers a wide range of keyboard shortcuts that can help you in Excel. Many are common across programs and I also included some lesser known keyboard shortcuts as well.\n\n\nLink to Flash Fill (Ctrl + E) Video: https://youtu.be/rIGWgROMV5A\n\nChapters:\n0:00 Introduction\n0:44 Save Your File\n0:55 Copy Data\n1:07 Paste Data / Paste Special\n1:24 Cut Data\n1:41 Undo\n1:52 Select Entire Column / Row\n2:18 Delete Row / Column\n2:37 Insert Row / Column\n2:52 Hide Row / Column\n3:09 Move Row\n3:30 Create A Table\n3:48 Select All Data\n4:03 Cell Selection\n4:26 Navigate to Top\n4:40 Navigate to Bottom\n4:52 Return to Highlighted Cell\n5:14 Cell Formatting\n5:34 Insert Current Date / Time\n5:51 Find Data\n6:11 Add Filters\n6:24 Flash Fill\n7:09 Clear Filters\n7:27 Tab Navigation\n7:51 Resize Columns / Rows\n8:15 AutoSum",
-        thumbnail:"https://i.ytimg.com/vi/8N_njEhSrSQ/hqdefault.jpg",
-        link:"https://youtu.be/8N_njEhSrSQ",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/8N_njEhSrSQ"
-        },
-        topic:"Keyboard Shortcuts"
-    },
+
+
+
     {
         section:[
             "Learning",
@@ -11709,25 +10986,7 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
         },
         topic:"Import Website Data"
     },
-    {
-        section:[
-            "Learning",
-            "Videos"
-        ],
-        program:{
-            name:"Excel",
-            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
-        },
-        title:"Excel Tips - Don't Use Formulas! Use Ctrl + E Instead",
-        description:"This quick video shows you how powerful the Ctrl + E combination can be in Excel with some examples.\n\nCtrl + E is a keyboard shortcut for flash fill that recognizes patterns in adjacent columns and fills the current column. This will not replace the need for all formulas but it can help with common tasks we perform in Excel.",
-        thumbnail:"https://i.ytimg.com/vi/rIGWgROMV5A/hqdefault.jpg",
-        link:"https://youtu.be/rIGWgROMV5A",
-        related:{
-            text:"Check it out on YouTube",
-            url:"https://youtu.be/rIGWgROMV5A"
-        },
-        topic:"Flash Fill"
-    },
+
     {
         section:[
             "Learning",
