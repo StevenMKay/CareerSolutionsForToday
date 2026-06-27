@@ -12010,7 +12010,202 @@ https:"//youtube.com/shorts/TCMYpQUytOM",
 
 
 
-  ];  // <-- close the array here
+      {
+        section:["Learning","Videos"],
+        program:{
+            name:"Word",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Word Shorts - How to Vertically Center Text | Extra Tips and Free Site Included",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/SBgAqG1jDxg/hqdefault.jpg",
+        link:"https://youtu.be/SBgAqG1jDxg",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/SBgAqG1jDxg" },
+        topic:"Word"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Career Tips - Recover Unsaved Data in Microsoft Office | AutoSave & Version History",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/3DtPfDRWzYw/hqdefault.jpg",
+        link:"https://youtu.be/3DtPfDRWzYw",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/3DtPfDRWzYw" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Career Shorts - Recover Unsaved Data in Microsoft Office | AutoSave & Version History",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/ca4-vfzJp4I/hqdefault.jpg",
+        link:"https://youtu.be/ca4-vfzJp4I",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/ca4-vfzJp4I" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Word",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Resume Builder and Portfolio Site | One-Click Online Publish and Share | ATS Matching",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/GL5ZGa_rJQ4/hqdefault.jpg",
+        link:"https://youtu.be/GL5ZGa_rJQ4",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/GL5ZGa_rJQ4" },
+        topic:"Word"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips - Create Multiple Pivot Tables in One Click | Data Analysis | Shortcuts",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/yiNz4ubCQR8/hqdefault.jpg",
+        link:"https://youtu.be/yiNz4ubCQR8",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/yiNz4ubCQR8" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts - Create Multiple Pivot Tables in One Click | Data Analysis | Shortcuts",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/vuoU7xP9-GU/hqdefault.jpg",
+        link:"https://youtu.be/vuoU7xP9-GU",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/vuoU7xP9-GU" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel and Career Tips - Import and Download Data Like a Pro with Web Scrapers | Code Provided",
+        description:"Learn how to use simple JavaScript web scrapers directly in your browser console — no installs required.",
+        thumbnail:"https://i.ytimg.com/vi/8X-2xSqkUT0/hqdefault.jpg",
+        link:"https://youtu.be/8X-2xSqkUT0",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/8X-2xSqkUT0" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips - SUMIF With Dropdown List | Create Dynamic Totals Fast",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/rYmVl77_ce0/hqdefault.jpg",
+        link:"https://youtu.be/rYmVl77_ce0",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/rYmVl77_ce0" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts - SUMIF With Dropdown List | Create Dynamic Totals Fast",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/0m-MLvDWCRs/hqdefault.jpg",
+        link:"https://youtu.be/0m-MLvDWCRs",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/0m-MLvDWCRs" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Shorts - Fix Numbers Stored as Text in Excel | Best Method | Text to Columns",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/lhWxKdlk66g/hqdefault.jpg",
+        link:"https://youtu.be/lhWxKdlk66g",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/lhWxKdlk66g" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Outlook",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Free Online OST to PST Converter- Stellar Converter for OST Review",
+        description:"Need to access emails stored in an Outlook OST file? In this video, I review both the Free Online OST to PST Converter and Stellar Converter for OST Desktop to see how effectively they convert OST files and access…",
+        thumbnail:"https://i.ytimg.com/vi/sGzo4UOt5Lk/hqdefault.jpg",
+        link:"https://youtu.be/sGzo4UOt5Lk",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/sGzo4UOt5Lk" },
+        topic:"Outlook"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Excel Tips - Fix Numbers Stored as Text in Excel | Best Method | Text to Columns",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/B7OJHRdsDik/hqdefault.jpg",
+        link:"https://youtu.be/B7OJHRdsDik",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/B7OJHRdsDik" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"PowerPoint",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"PowerPoint - Never Make Another Slide Manually | Automate Presentation Building | Resources Linked",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/1i-8ZAA0K_A/hqdefault.jpg",
+        link:"https://youtu.be/1i-8ZAA0K_A",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/1i-8ZAA0K_A" },
+        topic:"PowerPoint"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Career Project Tips - Free Modern Project Management Tool | Easy | No Website Needed",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/o9ynwY2Eng8/hqdefault.jpg",
+        link:"https://youtu.be/o9ynwY2Eng8",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/o9ynwY2Eng8" },
+        topic:"Excel"
+    },
+    {
+        section:["Learning","Videos"],
+        program:{
+            name:"Excel",
+            image:"https://raw.githubusercontent.com/StevenMKay/CareerSolutionsForToday/8c6a1dc0ea817ed635f08e464fa3b9cbbf6b7f93/Thumbnails/YouTube%20Thumbnail.png"
+        },
+        title:"Career Project Shorts - Free Modern Project Management Tool | Easy | No Website Needed",
+        description:"Hey team,",
+        thumbnail:"https://i.ytimg.com/vi/BEAq6j7j1Tw/hqdefault.jpg",
+        link:"https://youtu.be/BEAq6j7j1Tw",
+        related:{ text:"Check it out on YouTube", url:"https://youtu.be/BEAq6j7j1Tw" },
+        topic:"Excel"
+    },
+];  // <-- close the array here
 
 // ...existing code...
 
