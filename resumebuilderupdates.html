@@ -3343,9 +3343,13 @@
     position: relative;
     width: min(100%, 980px);
     max-height: calc(100dvh - 24px);
-    min-height: min(830px, calc(100dvh - 24px));
+    min-height: min(950px, calc(100dvh - 24px));
     overflow: hidden;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
     border-radius: 24px;
     background:
       radial-gradient(circle at top left, rgba(56, 189, 248, .18), transparent 35%),
@@ -3499,8 +3503,8 @@
     overflow: hidden;
     justify-self: center;
     width: 100%;
-    max-width: 500px;
-    height: min(82dvh, 800px);
+    max-width: 540px;
+    height: min(88dvh, 940px);
     max-height: calc(100dvh - 4rem);
     aspect-ratio: 1407 / 1510;
     display: grid;
@@ -3644,7 +3648,7 @@
   @media (min-width: 821px) and (max-height: 760px) {
     #first-run-promo-modal .frp-card {
       width: min(100%, 900px);
-      min-height: min(730px, calc(100dvh - 24px));
+      min-height: min(850px, calc(100dvh - 24px));
     }
     #first-run-promo-modal .frp-shell {
       padding: 1rem 1.15rem;
@@ -3653,8 +3657,8 @@
       font-size: clamp(2rem, 3.6vw, 3rem);
     }
     #first-run-promo-modal .frp-image-panel {
-      height: min(74dvh, 600px);
-      max-width: 440px;
+      height: min(82dvh, 700px);
+      max-width: 480px;
     }
   }
 
@@ -8668,6 +8672,8 @@
             // Slight delay so the green "Subscription activated" banner
             // painted by _applyPaywallState is visible before close.
             setTimeout(function () {
+              // Flag purchase so hidePaywall's retention-promo trigger doesn't fire.
+              try { sessionStorage.setItem('rb_purchase_just_completed', '1'); } catch (_) {}
               try { hidePaywall(); } catch (_) {}
               try { showToast('Your subscription is active \u2014 welcome aboard!', 'success'); } catch (_) {}
             }, 1200);
@@ -15383,7 +15389,7 @@
     // here (Cover Letter / Role Plan / Role Research still use it).
     if (!canUsePremium()) {
       try { showPaywall(); } catch (_) {}
-      showToast('Optimization requires an active plan or your 7-day free trial.', 'warning');
+      // Paywall modal is enough — no extra toast (per product decision).
       return;
     }
     var payload = buildOptimizePayload();
@@ -29400,6 +29406,8 @@
         }
 
         // Close the paywall now that the user has acknowledged the success card.
+        // Flag the purchase so hidePaywall's retention-promo trigger doesn't fire.
+        try { sessionStorage.setItem('rb_purchase_just_completed', '1'); } catch (_) {}
         try { hidePaywall(); } catch (_) {}
 
         // Refresh entitlement state + UI; mirrors the Stripe success flow.
@@ -29534,26 +29542,35 @@
     // Retention nudge: if the user just closed the paywall without
     // completing a purchase, show the first-run promo (once per user,
     // cross-device gated) so they see the "Membership comes with more"
-    // message about extras. Delayed ~900ms so that:
-    //   1. The paywall close animation finishes cleanly (no overlay stack).
-    //   2. Purchase-success flows (IAP) which call hidePaywall() BEFORE
-    //      refreshEntitlementsAndCelebrate() get time to update
-    //      canUsePremium() — we then skip the promo. Stripe purchases
-    //      redirect away and never reach here.
+    // message about extras. Skipped when a purchase just succeeded — that
+    // path sets `rb_purchase_just_completed` in sessionStorage BEFORE
+    // calling hidePaywall so we can distinguish "user cancelled" from
+    // "user bought". Stripe purchases redirect away and never reach here.
+    // NOTE: We intentionally do NOT gate on canUsePremium() — owners /
+    // subscribers should still see the promo once (per the seen-once flag)
+    // so they can verify the feature during testing. The seen gate handles
+    // "don't nag repeatedly".
     if (wasVisible) {
-      setTimeout(function () {
-        try {
-          var user = auth && auth.currentUser;
-          if (!user) return;
-          if (typeof canUsePremium === 'function' && canUsePremium()) return;
-          // Skip if the promo modal is already open (e.g. Start Free Trial
-          // opened the paywall, user closes paywall — we don't want to
-          // stack the promo behind itself).
-          var promoEl = document.getElementById('first-run-promo-modal');
-          if (promoEl && !promoEl.classList.contains('hidden')) return;
-          if (typeof maybeShowFirstRunPromo === 'function') maybeShowFirstRunPromo(user);
-        } catch (_) {}
-      }, 900);
+      var justPurchased = false;
+      try {
+        if (sessionStorage.getItem('rb_purchase_just_completed') === '1') {
+          justPurchased = true;
+          sessionStorage.removeItem('rb_purchase_just_completed');
+        }
+      } catch (_) {}
+      if (!justPurchased) {
+        setTimeout(function () {
+          try {
+            var user = auth && auth.currentUser;
+            if (!user) return;
+            // Don't stack: skip if the promo modal is already open (e.g.
+            // Start Free Trial reopened the paywall and user closed it).
+            var promoEl = document.getElementById('first-run-promo-modal');
+            if (promoEl && !promoEl.classList.contains('hidden')) return;
+            if (typeof maybeShowFirstRunPromo === 'function') maybeShowFirstRunPromo(user);
+          } catch (_) {}
+        }, 900);
+      }
     }
   }
 
@@ -30105,6 +30122,8 @@
     if (unlocked) {
       hideActivationBanner();
       try { showToast('Your subscription is active. Welcome aboard!', 'success'); } catch (_) {}
+      // Flag purchase so hidePaywall's retention-promo trigger doesn't fire.
+      try { sessionStorage.setItem('rb_purchase_just_completed', '1'); } catch (_) {}
       try { hidePaywall(); } catch (_) {}
       stripUpgradedFromUrl();
       // Clear the pre-paint guard now that activation completed.
