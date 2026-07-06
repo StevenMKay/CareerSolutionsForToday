@@ -6382,6 +6382,7 @@
             <hr>
             <div class="account-menu-section-title"><i data-lucide="wrench" style="width:14px;height:14px;"></i> Owner Testing</div>
             <button type="button" role="menuitem" data-action="ownerRunUIPreview"><i data-lucide="layout-template" style="width:16px;height:16px;"></i> Preview UI States (payment / toast)</button>
+            <button type="button" role="menuitem" data-action="ownerPreviewFirstRun"><i data-lucide="sparkles" style="width:16px;height:16px;"></i> Preview First-Run Experience</button>
             <button type="button" role="menuitem" data-action="ownerRunAITestBatch"><i data-lucide="bot" style="width:16px;height:16px;"></i> Run AI Test (30 resumes)</button>
             <button type="button" role="menuitem" data-action="ownerRunFullPipeline"><i data-lucide="git-branch" style="width:16px;height:16px;"></i> Run Full Pipeline Test</button>
             <button type="button" role="menuitem" data-action="ownerRunOptAudit"><i data-lucide="clipboard-check" style="width:16px;height:16px;"></i> Run Optimization Audit</button>
@@ -29587,9 +29588,14 @@
   // fresh sign-in; walkthrough auto-starts after the promo closes so
   // overlays never stack.
   // ============================================================
-  function showFirstRunPromo() {
+  function showFirstRunPromo(opts) {
+    opts = opts || {};
     var modal = document.getElementById('first-run-promo-modal');
     if (!modal) return;
+    // Owner-preview mode: tag the modal so hideFirstRunPromo() skips
+    // Firestore/localStorage writes and force-starts the walkthrough
+    // even when the owner has already completed it.
+    modal.dataset.dryRun = opts.dryRun ? '1' : '';
     modal.classList.remove('hidden');
     try { if (window.lucide && window.lucide.createIcons) window.lucide.createIcons(); } catch (_) {}
     // Focus primary CTA for keyboard users.
@@ -29601,8 +29607,12 @@
 
   function hideFirstRunPromo(markSeen) {
     var modal = document.getElementById('first-run-promo-modal');
-    if (modal) modal.classList.add('hidden');
-    if (markSeen) {
+    var dryRun = !!(modal && modal.dataset && modal.dataset.dryRun === '1');
+    if (modal) {
+      modal.classList.add('hidden');
+      try { modal.dataset.dryRun = ''; } catch (_) {}
+    }
+    if (markSeen && !dryRun) {
       firstRunPromoSeenFromServer = true;
       try { localStorage.setItem('rb_first_run_promo_seen', '1'); } catch (_) {}
       try {
@@ -29616,14 +29626,47 @@
         }
       } catch (_) {}
     }
-    // Chain the walkthrough auto-start now that the promo overlay is out
-    // of the way. maybeAutoStart() self-gates on the tour flags, so this
-    // is safe even for returning users who already finished the tour.
+    // Chain the walkthrough. In owner-preview mode force-start it so the
+    // owner (who already finished the real tour) can still see the
+    // walkthrough half of the first-run experience. Real flow uses
+    // maybeAutoStart() which self-gates for returning users.
     try {
-      if (window.RB_TOUR && typeof RB_TOUR.maybeAutoStart === 'function') {
-        RB_TOUR.maybeAutoStart();
+      if (window.RB_TOUR) {
+        if (dryRun && typeof RB_TOUR.start === 'function') {
+          RB_TOUR.start({ force: true });
+        } else if (typeof RB_TOUR.maybeAutoStart === 'function') {
+          RB_TOUR.maybeAutoStart();
+        }
       }
     } catch (_) {}
+  }
+
+  // Owner-only: preview the full first-time login flow (promo popup +
+  // walkthrough chain) without touching Firestore or the local seen flag,
+  // so the owner can re-run it as many times as needed. Wired to the
+  // "Preview First-Run Experience" button in the mobile owner-testing menu.
+  function previewFirstRunExperience() {
+    if (typeof isOwner !== 'function' || !isOwner()) {
+      try { showToast('Owner access required', 'error'); } catch (_) {}
+      return;
+    }
+    try { showToast('Previewing first-run experience (dry run — nothing persisted)', 'info', 4000); } catch (_) {}
+    // Close the account-menu dropdown so the promo isn't visually behind it.
+    try {
+      var panel = document.getElementById('account-menu-panel');
+      var btn   = document.getElementById('account-menu-btn');
+      if (panel) panel.classList.add('hidden');
+      if (btn)   btn.setAttribute('aria-expanded', 'false');
+    } catch (_) {}
+    // If the tour is already open from a prior run, close it first so the
+    // promo takes over cleanly. Force-start happens on promo close.
+    try {
+      if (window.RB_TOUR && typeof RB_TOUR.end === 'function') {
+        var st = (typeof RB_TOUR._getState === 'function') ? RB_TOUR._getState() : null;
+        if (st && st.openedNow) RB_TOUR.end(true);
+      }
+    } catch (_) {}
+    showFirstRunPromo({ dryRun: true });
   }
 
   function maybeShowFirstRunPromo(user) {
@@ -29701,6 +29744,7 @@
   window.showFirstRunPromo        = showFirstRunPromo;
   window.hideFirstRunPromo        = hideFirstRunPromo;
   window.maybeShowFirstRunPromo   = maybeShowFirstRunPromo;
+  window.previewFirstRunExperience = previewFirstRunExperience;
   window.debugFirstRunPromo = function () {
     var u = auth && auth.currentUser;
     var seenLocal = false;
@@ -31338,10 +31382,15 @@
     // Each loads the matching same-origin console harness as a <script src>
     // tag — equivalent to pasting it into DevTools, but reachable from the
     // account menu on mobile. Gated by isOwner() in addition to CSS.
-    ownerRunAITestBatch:  function () { ownerRunConsoleScript('console-ai-test-10-resumes.js',     'AI Test Batch'); },
-    ownerRunFullPipeline: function () { ownerRunConsoleScript('console-full-pipeline-test.js',     'Full Pipeline Test'); },
-    ownerRunOptAudit:     function () { ownerRunConsoleScript('console-optimization-data-audit.js', 'Optimization Audit'); },
-    ownerRunUIPreview:    function () { ownerRunConsoleScript('console-ui-preview-test.js',         'UI Preview'); }
+    ownerRunAITestBatch:   function () { ownerRunConsoleScript('console-ai-test-10-resumes.js',     'AI Test Batch'); },
+    ownerRunFullPipeline:  function () { ownerRunConsoleScript('console-full-pipeline-test.js',     'Full Pipeline Test'); },
+    ownerRunOptAudit:      function () { ownerRunConsoleScript('console-optimization-data-audit.js', 'Optimization Audit'); },
+    ownerRunUIPreview:     function () { ownerRunConsoleScript('console-ui-preview-test.js',         'UI Preview'); },
+    // In-page owner test — no external script needed. Shows the first-run
+    // promo popup in dry-run mode (no Firestore writes, no localStorage
+    // mutation) and force-starts the walkthrough after the promo closes
+    // so the full first-time-login sequence can be previewed on demand.
+    ownerPreviewFirstRun:  function () { try { if (typeof previewFirstRunExperience === 'function') previewFirstRunExperience(); } catch (_) {} }
   };
 
   // Loader for owner-only console harnesses. Uses a <script src> tag so we
