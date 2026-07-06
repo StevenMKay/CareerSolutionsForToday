@@ -3343,7 +3343,7 @@
     position: relative;
     width: min(100%, 980px);
     max-height: calc(100dvh - 24px);
-    min-height: min(640px, calc(100dvh - 24px));
+    min-height: min(830px, calc(100dvh - 24px));
     overflow: hidden;
     box-sizing: border-box;
     border-radius: 24px;
@@ -3500,7 +3500,7 @@
     justify-self: center;
     width: 100%;
     max-width: 500px;
-    height: min(64dvh, 620px);
+    height: min(82dvh, 800px);
     max-height: calc(100dvh - 4rem);
     aspect-ratio: 1407 / 1510;
     display: grid;
@@ -3644,7 +3644,7 @@
   @media (min-width: 821px) and (max-height: 760px) {
     #first-run-promo-modal .frp-card {
       width: min(100%, 900px);
-      min-height: min(560px, calc(100dvh - 24px));
+      min-height: min(730px, calc(100dvh - 24px));
     }
     #first-run-promo-modal .frp-shell {
       padding: 1rem 1.15rem;
@@ -3653,7 +3653,7 @@
       font-size: clamp(2rem, 3.6vw, 3rem);
     }
     #first-run-promo-modal .frp-image-panel {
-      height: min(58dvh, 460px);
+      height: min(74dvh, 600px);
       max-width: 440px;
     }
   }
@@ -9072,14 +9072,14 @@
       // tab session (rb_pending_first_run flag is set by sign-in handlers).
       // This prevents the tour from re-firing on every cached-session reload,
       // and also prevents the previous bug where it fired before sign-in.
-      // The first-run promo popup shares the same session flag: promo shows
-      // first (if unseen), then the walkthrough auto-starts after promo close.
+      // The first-run promo popup no longer fires here — it is now triggered
+      // by hidePaywall() when the user closes the paywall without buying.
       try {
         var pendingFirstRun = false;
         try { pendingFirstRun = sessionStorage.getItem('rb_pending_first_run') === '1'; } catch (_) {}
         if (user && pendingFirstRun) {
           try { sessionStorage.removeItem('rb_pending_first_run'); } catch (_) {}
-          try { maybeShowFirstRunPromo(user); } catch (_) {}
+          try { if (window.RB_TOUR && RB_TOUR.maybeAutoStart) RB_TOUR.maybeAutoStart(); } catch (_) {}
         }
       } catch (_) {}
     });
@@ -29526,10 +29526,35 @@
 
   function hidePaywall() {
     var modal = document.getElementById('paywall-modal');
+    var wasVisible = !!(modal && !modal.classList.contains('hidden'));
     if (modal) modal.classList.add('hidden');
     // Always tear down any in-flight pending-purchase poller so it doesn't
     // keep hammering Firestore after the user has dismissed the modal.
     _clearPendingPollTimer();
+    // Retention nudge: if the user just closed the paywall without
+    // completing a purchase, show the first-run promo (once per user,
+    // cross-device gated) so they see the "Membership comes with more"
+    // message about extras. Delayed ~900ms so that:
+    //   1. The paywall close animation finishes cleanly (no overlay stack).
+    //   2. Purchase-success flows (IAP) which call hidePaywall() BEFORE
+    //      refreshEntitlementsAndCelebrate() get time to update
+    //      canUsePremium() — we then skip the promo. Stripe purchases
+    //      redirect away and never reach here.
+    if (wasVisible) {
+      setTimeout(function () {
+        try {
+          var user = auth && auth.currentUser;
+          if (!user) return;
+          if (typeof canUsePremium === 'function' && canUsePremium()) return;
+          // Skip if the promo modal is already open (e.g. Start Free Trial
+          // opened the paywall, user closes paywall — we don't want to
+          // stack the promo behind itself).
+          var promoEl = document.getElementById('first-run-promo-modal');
+          if (promoEl && !promoEl.classList.contains('hidden')) return;
+          if (typeof maybeShowFirstRunPromo === 'function') maybeShowFirstRunPromo(user);
+        } catch (_) {}
+      }, 900);
+    }
   }
 
   // Apply current entitlement state to the paywall modal. Safe to call any
@@ -29881,76 +29906,26 @@
       return false;
     };
     // Fast path — already seen (localStorage or already-loaded server flag).
-    if (seenNow()) {
-      try { if (window.RB_TOUR && RB_TOUR.maybeAutoStart) RB_TOUR.maybeAutoStart(); } catch (_) {}
-      return;
-    }
-    // Returning-user safety net (mirrors the tour's _gateOnExistingResumes
-    // at line ~31347). If the account already has saved resumes we treat
-    // them as a returning user, suppress the promo, and self-heal the
-    // Firestore flag so future sessions on any device short-circuit
-    // without another `plans` query. Prevents cross-device / fresh-browser
-    // returning users from ever flashing the promo before the primary
-    // firstRunPromoSeen flag round-trips.
-    _gateFirstRunPromoOnExistingResumes(user, function (isReturning) {
-      if (isReturning) {
-        firstRunPromoSeenFromServer = true;
-        try { localStorage.setItem('rb_first_run_promo_seen', '1'); } catch (_) {}
-        try {
-          if (typeof db !== 'undefined' && db) {
-            var patch = { firstRunPromoSeen: true };
-            try { patch.firstRunPromoSeenAt = firebase.firestore.FieldValue.serverTimestamp(); } catch (_) {}
-            db.collection('builderUsage').doc(user.uid)
-              .set(patch, { merge: true })
-              .catch(function (err) { console.debug('[first-run-promo] auto-mark returning-user failed', err); });
-          }
-        } catch (_) {}
-        try { if (window.RB_TOUR && RB_TOUR.maybeAutoStart) RB_TOUR.maybeAutoStart(); } catch (_) {}
-        return;
-      }
-      // Brand-new user: give loadBuilderAccessForUser one 500ms breather
-      // to resolve the Firestore firstRunPromoSeen read before we start
-      // polling — closes the race where a returning user on a fresh
-      // browser could see the promo flash before the flag round-trips.
-      var attempts = 0;
-      var MAX_ATTEMPTS = 30; // ~15s at 500ms
-      function poll() {
-        if (seenNow()) {
-          try { if (window.RB_TOUR && RB_TOUR.maybeAutoStart) RB_TOUR.maybeAutoStart(); } catch (_) {}
-          return;
-        }
-        var loginLanding = document.getElementById('login-landing');
-        var dashboard    = document.getElementById('resume-dashboard');
-        var wrapper      = document.getElementById('builder-wrapper');
-        var landingHidden = !loginLanding || loginLanding.classList.contains('hidden');
-        var surfaceReady  = (dashboard && !dashboard.classList.contains('hidden'))
-                          || (wrapper && !wrapper.classList.contains('hidden'));
-        if (landingHidden && surfaceReady) { showFirstRunPromo(); return; }
-        if (++attempts >= MAX_ATTEMPTS) { showFirstRunPromo(); return; }
-        setTimeout(poll, 500);
-      }
+    if (seenNow()) return;
+    // Wait briefly for the paywall close animation to finish and for any
+    // in-flight loadBuilderAccessForUser Firestore read to resolve before
+    // committing to showing the promo. Poll checks seenNow() each tick so
+    // a returning user's Firestore flag arriving mid-poll aborts cleanly.
+    var attempts = 0;
+    var MAX_ATTEMPTS = 30; // ~15s at 500ms
+    function poll() {
+      if (seenNow()) return;
+      var loginLanding = document.getElementById('login-landing');
+      var dashboard    = document.getElementById('resume-dashboard');
+      var wrapper      = document.getElementById('builder-wrapper');
+      var landingHidden = !loginLanding || loginLanding.classList.contains('hidden');
+      var surfaceReady  = (dashboard && !dashboard.classList.contains('hidden'))
+                        || (wrapper && !wrapper.classList.contains('hidden'));
+      if (landingHidden && surfaceReady) { showFirstRunPromo(); return; }
+      if (++attempts >= MAX_ATTEMPTS) { showFirstRunPromo(); return; }
       setTimeout(poll, 500);
-    });
-  }
-
-  // Companion to _gateOnExistingResumes (tour). Returns true when the
-  // user already has at least one saved resume in the `plans` collection,
-  // meaning we should treat them as a returning user for promo purposes.
-  // Best-effort: any error resolves as false so a brand-new user is never
-  // blocked from seeing the promo.
-  function _gateFirstRunPromoOnExistingResumes(user, cb) {
-    try {
-      if (!user || typeof db === 'undefined' || !db) { cb(false); return; }
-      db.collection('plans')
-        .where('userId', '==', user.uid)
-        .limit(1)
-        .get()
-        .then(function (snap) { cb(!!(snap && !snap.empty)); })
-        .catch(function (err) {
-          console.debug('[first-run-promo] resume-existence check failed', err);
-          cb(false);
-        });
-    } catch (_) { cb(false); }
+    }
+    setTimeout(poll, 500);
   }
 
   function initFirstRunPromoEvents() {
