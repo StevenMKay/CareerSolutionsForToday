@@ -9,22 +9,31 @@
 
 <!--
   ============================================================================
-  ImpactHub v1 — Phase 1
+  ImpactHub v1 — Phases 1–2
   ============================================================================
   Phase 1 delivers: enterprise shell (screenshot-matching), projects table
   with grouping / sorting / search / filters / responsive cards, 14+ neutral
   sample records, real Firebase auth + explicit "View Demo" mode, PMSite-
   style tenant resolution (never silently writes to a shared 'demo' tenant).
 
-  Later phases (each shipped in its own turn):
-    Phase 2 — Project detail experience (6 fully-wired tabs of 10)
+  Phase 2 delivers: full-screen project detail modal with 10 tabs. Six are
+  fully wired — Overview (with explainable impact-score breakdown per
+  requirement 13), Intake, Related Projects, Regulations & Controls,
+  Notifications, and Activity & Audit — each supporting the human
+  Confirm / Reject / Modify workflow on suggested findings, with every
+  finding visibly labeled by source (Deterministic Local Analysis /
+  AI Suggested / Human Confirmed) per requirement 9. The remaining four
+  tabs — Impact Map, Stakeholders, Implementation Readiness, Documents &
+  Evidence — render meaningful sample content with clear empty states.
+
+  Later phases:
     Phase 3 — Progressive intake wizard + assessment completeness
     Phase 4 — Secure AI adapter (fetchImpactApiWithRetry) + labeled sources
-    Phase 5 — Deterministic cross-impact engine + notification routing
-    Phase 6 — Simple SVG Impact Map + Department Heatmap + Admin CRUD
+    Phase 5 — Deterministic cross-impact engine + notification routing engine
+    Phase 6 — Full SVG Impact Map + Department Heatmap + Admin CRUD
 
-  Non-Phase-1 tabs render a professional "coming in Phase X" empty state.
-  Nothing in the visible UI is a dead button.
+  Non-implemented top-nav tabs render a professional "coming in Phase X"
+  empty state. Nothing in the visible UI is a dead button.
 
   Files reused by reference only (NOT modified):
     - PMSite.html            → Firebase config, tenant lookup pattern, layout ideas
@@ -826,6 +835,293 @@
     margin-top: 10px;
   }
   .ih-inline-error.is-visible { display: block; }
+
+  /* ==========================================================================
+     PHASE 2 — PROJECT DETAIL MODAL
+     ========================================================================== */
+  #ih-detail-modal { position: fixed; inset: 0; z-index: 160; display: none; background: rgba(15,23,42,0.65); }
+  #ih-detail-modal.is-open { display: block; }
+  .ih-detail-shell {
+    position: absolute; inset: 20px;
+    background: #FFFFFF; border-radius: 8px;
+    box-shadow: var(--ih-shadow-lg);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  @media (max-width: 640px) { .ih-detail-shell { inset: 0; border-radius: 0; } }
+
+  .ih-detail-topbar {
+    background: linear-gradient(90deg, var(--ih-navy), var(--ih-navy-d));
+    color: #FFFFFF; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  .ih-detail-back {
+    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.22);
+    color: #FFFFFF; height: 30px; padding: 0 12px; border-radius: 5px;
+    cursor: pointer; font-weight: 600; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ih-detail-back:hover { background: rgba(255,255,255,0.22); }
+  .ih-detail-title-wrap { flex: 1; min-width: 0; }
+  .ih-detail-id-pill {
+    display: inline-block; padding: 2px 8px;
+    background: rgba(255,255,255,0.16); border-radius: 10px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px;
+    margin-right: 8px;
+  }
+  .ih-detail-title { font-size: 14.5px; font-weight: 700; line-height: 1.3; }
+  .ih-detail-actions { display: inline-flex; gap: 6px; flex-shrink: 0; }
+  .ih-detail-actions .ih-btn { height: 30px; padding: 0 12px; font-size: 11.5px; }
+
+  .ih-detail-tabs {
+    display: flex; align-items: stretch;
+    background: #F1F5F9; border-bottom: 1px solid var(--ih-border);
+    overflow-x: auto; flex-shrink: 0;
+  }
+  .ih-detail-tabs::-webkit-scrollbar { height: 4px; }
+  .ih-detail-tab {
+    padding: 10px 14px; background: transparent; border: none;
+    color: var(--ih-text-soft); font-size: 11.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .ih-detail-tab i { font-size: 10.5px; margin-right: 4px; opacity: .85; }
+  .ih-detail-tab:hover { color: var(--ih-text); }
+  .ih-detail-tab.is-active { color: var(--ih-blue-d); border-bottom-color: var(--ih-blue-d); background: #FFFFFF; }
+
+  .ih-detail-body { flex: 1; overflow: auto; background: var(--ih-surface-alt); }
+  .ih-detail-panel { display: none; padding: 18px 22px 28px; }
+  .ih-detail-panel.is-active { display: block; }
+  @media (max-width: 640px) { .ih-detail-panel { padding: 14px 12px 24px; } }
+
+  .ih-ov-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .ih-ov-grid { grid-template-columns: 1fr; } }
+
+  .ih-card-white {
+    background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 6px;
+    padding: 14px 16px; box-shadow: var(--ih-shadow-sm); margin-bottom: 12px;
+  }
+  .ih-card-white h3 {
+    margin: 0 0 10px; font-size: 12.5px; color: var(--ih-slate-d);
+    text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;
+  }
+  .ih-card-white h3 i { color: var(--ih-blue-d); margin-right: 6px; }
+
+  .ih-kv { display: grid; grid-template-columns: 148px 1fr; gap: 6px 12px; font-size: 12.5px; margin: 0; }
+  .ih-kv dt { color: var(--ih-text-soft); font-weight: 600; }
+  .ih-kv dd { margin: 0; color: var(--ih-text); font-weight: 500; }
+
+  .ih-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .ih-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; background: #EFF6FF; color: #1D4ED8;
+    border: 1px solid #BFDBFE; border-radius: 12px;
+    font-size: 11px; font-weight: 600;
+  }
+  .ih-chip i { font-size: 10px; }
+  .ih-chip.is-green { background: #DCFCE7; color: #14532D; border-color: #86EFAC; }
+  .ih-chip.is-amber { background: #FEF3C7; color: #92400E; border-color: #FDE68A; }
+  .ih-chip.is-red   { background: #FEE2E2; color: #991B1B; border-color: #FCA5A5; }
+  .ih-chip.is-slate { background: #F1F5F9; color: #334155; border-color: #CBD5E1; }
+
+  .ih-score-hero {
+    display: flex; gap: 16px; align-items: center; margin-bottom: 14px;
+    padding: 12px; background: linear-gradient(135deg, #F0F9FF, #FFFFFF);
+    border: 1px solid #BFDBFE; border-radius: 8px;
+  }
+  .ih-score-ring {
+    width: 78px; height: 78px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .ih-score-ring-inner {
+    width: 62px; height: 62px; border-radius: 50%; background: #FFFFFF;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ih-score-ring-num { font-size: 22px; font-weight: 800; color: var(--ih-slate-d); line-height: 1; }
+  .ih-score-ring-lbl { font-size: 9px; color: var(--ih-text-soft); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .ih-score-meta { flex: 1; min-width: 0; }
+  .ih-score-meta h4 { margin: 0 0 4px; font-size: 13px; color: var(--ih-slate-d); }
+  .ih-score-meta p  { margin: 0; font-size: 11.5px; color: var(--ih-text-soft); }
+  .ih-score-source {
+    display: inline-block; margin-top: 6px;
+    padding: 2px 8px; background: #DBEAFE; color: #1E40AF;
+    border: 1px solid #BFDBFE; border-radius: 10px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .ih-score-source.is-ai { background: #EDE9FE; color: #5B21B6; border-color: #DDD6FE; margin-left: 4px; }
+
+  .ih-score-breakdown { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .ih-score-line {
+    display: grid; grid-template-columns: 1fr 44px;
+    gap: 8px; align-items: center;
+    padding: 6px 10px; background: #F8FAFC; border-radius: 4px; font-size: 12px;
+  }
+  .ih-score-line strong { color: var(--ih-slate-d); font-weight: 700; }
+  .ih-score-line .ih-score-note { color: var(--ih-text-soft); font-size: 11px; display: block; margin-top: 2px; }
+  .ih-score-line .ih-score-pts { text-align: right; font-weight: 800; color: var(--ih-slate-d); }
+  .ih-score-line.is-ai-adjust { background: #F5F3FF; border-left: 3px solid var(--ih-purple); }
+  .ih-score-line.is-ai-adjust .ih-score-note { color: #6D28D9; font-weight: 600; }
+  .ih-score-total {
+    display: grid; grid-template-columns: 1fr 44px; gap: 8px;
+    padding: 8px 10px; margin-top: 6px;
+    background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 4px;
+    font-weight: 700; color: #065F46;
+  }
+
+  .ih-summary-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .ih-summary-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: #FFFFFF;
+    border: 1px solid var(--ih-border); border-radius: 6px;
+  }
+  .ih-summary-chip .ih-summary-num { font-size: 16px; font-weight: 800; color: var(--ih-slate-d); }
+  .ih-summary-chip .ih-summary-lbl { font-size: 11px; color: var(--ih-text-soft); font-weight: 600; }
+  .ih-summary-chip.is-red   .ih-summary-num { color: #B91C1C; }
+  .ih-summary-chip.is-amber .ih-summary-num { color: #B45309; }
+
+  .ih-finding {
+    background: #FFFFFF; border: 1px solid var(--ih-border);
+    border-left: 3px solid var(--ih-blue-d);
+    border-radius: 5px; padding: 12px 14px; margin-bottom: 8px;
+  }
+  .ih-finding.is-ai        { border-left-color: var(--ih-purple); }
+  .ih-finding.is-confirmed { border-left-color: #16A34A; background: linear-gradient(90deg, #F0FDF4 0%, #FFFFFF 45%); }
+  .ih-finding.is-rejected  { opacity: 0.55; border-left-color: #94A3B8; }
+  .ih-finding.is-modified  { border-left-color: #D97706; }
+  .ih-finding-hdr { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; }
+  .ih-finding-title { font-size: 13px; font-weight: 700; color: var(--ih-slate-d); flex: 1; min-width: 200px; }
+  .ih-finding-meta { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+  .ih-finding-body p { margin: 4px 0; font-size: 12px; color: var(--ih-text); line-height: 1.5; }
+  .ih-finding-attrs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
+  .ih-finding-actions {
+    display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+    padding-top: 8px; border-top: 1px dashed var(--ih-border);
+  }
+  .ih-finding-actions .ih-btn { height: 28px; padding: 0 10px; font-size: 11px; }
+  .ih-finding .ih-notes {
+    margin-top: 8px; padding: 8px 10px;
+    background: #FEF3C7; border-left: 3px solid #F59E0B;
+    border-radius: 3px; font-size: 11.5px; color: #78350F;
+  }
+
+  .ih-conf-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .ih-conf-source-ai     { background: #EDE9FE; color: #5B21B6; border: 1px solid #DDD6FE; }
+  .ih-conf-source-det    { background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE; }
+  .ih-conf-status-unconf { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+  .ih-conf-status-conf   { background: #DCFCE7; color: #14532D; border: 1px solid #86EFAC; }
+  .ih-conf-status-rej    { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+  .ih-conf-status-mod    { background: #FFEDD5; color: #9A3412; border: 1px solid #FED7AA; }
+  .ih-conf-sev-critical  { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+  .ih-conf-sev-high      { background: #FFEDD5; color: #9A3412; border: 1px solid #FED7AA; }
+  .ih-conf-sev-medium    { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+  .ih-conf-sev-low       { background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE; }
+
+  .ih-notif-hdr { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .ih-notif-dept { font-size: 13px; font-weight: 700; color: var(--ih-slate-d); flex: 1; }
+  .ih-notif-due  { font-size: 11px; color: var(--ih-text-soft); }
+
+  .ih-timeline { position: relative; margin-left: 12px; padding-left: 18px; border-left: 2px solid var(--ih-border); }
+  .ih-timeline-item { position: relative; margin-bottom: 12px; }
+  .ih-timeline-dot {
+    position: absolute; left: -25px; top: 4px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--ih-blue-d); border: 2px solid #FFFFFF; box-shadow: 0 0 0 1px var(--ih-border);
+  }
+  .ih-timeline-dot.is-green  { background: #16A34A; }
+  .ih-timeline-dot.is-amber  { background: #D97706; }
+  .ih-timeline-dot.is-purple { background: var(--ih-purple); }
+  .ih-timeline-dot.is-red    { background: #DC2626; }
+  .ih-timeline-dot.is-blue   { background: var(--ih-blue-d); }
+  .ih-timeline-body {
+    background: #FFFFFF; border: 1px solid var(--ih-border);
+    border-radius: 4px; padding: 8px 10px;
+  }
+  .ih-timeline-msg  { font-size: 12px; color: var(--ih-text); font-weight: 500; }
+  .ih-timeline-meta { font-size: 10.5px; color: var(--ih-text-soft); margin-top: 2px; }
+
+  .ih-intake-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  @media (max-width: 700px) { .ih-intake-grid { grid-template-columns: 1fr; } }
+  .ih-intake-item {
+    background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 5px;
+    padding: 10px 12px;
+  }
+  .ih-intake-q { font-size: 10.5px; color: var(--ih-text-soft); font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+  .ih-intake-a { font-size: 12.5px; color: var(--ih-slate-d); font-weight: 600; }
+  .ih-intake-a i { margin-right: 5px; }
+  .ih-intake-a.is-yes     i { color: #16A34A; }
+  .ih-intake-a.is-no      i { color: #94A3B8; }
+  .ih-intake-a.is-partial i { color: #D97706; }
+
+  .ih-impactmap { display: grid; grid-template-columns: 1fr 240px 1fr; gap: 12px; align-items: stretch; margin-top: 8px; }
+  @media (max-width: 900px) { .ih-impactmap { grid-template-columns: 1fr; } }
+  .ih-impactmap-col { display: flex; flex-direction: column; gap: 6px; }
+  .ih-impactmap-col-hdr {
+    font-size: 10.5px; font-weight: 700; color: var(--ih-text-soft);
+    text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 2px;
+  }
+  .ih-impactmap-node {
+    background: #FFFFFF; border: 1px solid var(--ih-border); border-left: 3px solid var(--ih-blue-d);
+    padding: 6px 10px; border-radius: 4px;
+    font-size: 11.5px; color: var(--ih-slate-d); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ih-impactmap-node i { color: var(--ih-blue-d); font-size: 10px; }
+  .ih-impactmap-node.is-critical { border-left-color: #DC2626; }
+  .ih-impactmap-node.is-critical i { color: #DC2626; }
+  .ih-impactmap-node.is-amber { border-left-color: #D97706; }
+  .ih-impactmap-node.is-amber i { color: #D97706; }
+  .ih-impactmap-center {
+    background: linear-gradient(180deg, #F5F3FF, #FFFFFF);
+    border: 2px solid var(--ih-purple);
+    border-radius: 8px; padding: 14px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 140px;
+  }
+  .ih-impactmap-center strong { color: var(--ih-slate-d); font-size: 12.5px; }
+  .ih-impactmap-id { color: var(--ih-purple); font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .ih-impactmap-center small { color: var(--ih-text-soft); margin-top: 8px; font-size: 10.5px; }
+
+  .ih-raci-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+  .ih-raci-table th, .ih-raci-table td {
+    padding: 8px 10px; border-bottom: 1px solid var(--ih-border); text-align: left; vertical-align: middle;
+  }
+  .ih-raci-table th {
+    background: #F1F5F9; color: var(--ih-text-soft);
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .ih-raci-code {
+    display: inline-block; width: 24px; height: 24px; border-radius: 50%;
+    text-align: center; line-height: 24px; font-weight: 800; font-size: 11px;
+    color: #FFFFFF;
+  }
+  .ih-raci-code.is-r { background: #DC2626; }
+  .ih-raci-code.is-a { background: #16A34A; }
+  .ih-raci-code.is-c { background: #2563EB; }
+  .ih-raci-code.is-i { background: #6B7280; }
+
+  .ih-readi-row {
+    background: #FFFFFF; border: 1px solid var(--ih-border);
+    border-radius: 5px; padding: 8px 12px; margin-bottom: 6px;
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+  }
+  .ih-readi-row strong { color: var(--ih-slate-d); font-size: 12.5px; }
+  .ih-readi-row small  { color: var(--ih-text-soft); font-size: 11px; display: block; margin-top: 2px; }
+  .ih-readi-status { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 10px; }
+  .ih-readi-status.is-ready       { background: #DCFCE7; color: #14532D; }
+  .ih-readi-status.is-inprogress  { background: #DBEAFE; color: #1E40AF; }
+  .ih-readi-status.is-notstarted  { background: #F1F5F9; color: #475569; }
+
+  .ih-evidence-row {
+    background: #FFFFFF; border: 1px solid var(--ih-border);
+    border-radius: 5px; padding: 8px 12px; margin-bottom: 6px;
+    display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center;
+  }
+  .ih-evidence-row i { color: var(--ih-blue-d); font-size: 16px; }
+  .ih-evidence-row strong { color: var(--ih-slate-d); font-size: 12.5px; display: block; }
+  .ih-evidence-row small  { color: var(--ih-text-soft); font-size: 11px; display: block; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -991,6 +1287,51 @@
 </div>
 
 <!-- ============================================================================
+     PROJECT DETAIL MODAL (Phase 2)
+     ============================================================================ -->
+<div id="ih-detail-modal" role="dialog" aria-modal="true" aria-labelledby="ih-detail-title-text">
+  <div class="ih-detail-shell">
+    <div class="ih-detail-topbar">
+      <button type="button" class="ih-detail-back" data-action="close-detail" aria-label="Close project detail">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back
+      </button>
+      <div class="ih-detail-title-wrap">
+        <span class="ih-detail-id-pill" id="ih-detail-id-pill">—</span>
+        <span class="ih-detail-title" id="ih-detail-title-text">—</span>
+      </div>
+      <div class="ih-detail-actions">
+        <button type="button" class="ih-btn ih-btn-purple" data-action="ai-analyze-detail"><i class="fa-solid fa-microchip"></i>AI Analysis</button>
+        <button type="button" class="ih-btn ih-btn-outline" data-action="close-detail">Close</button>
+      </div>
+    </div>
+    <nav class="ih-detail-tabs" role="tablist" aria-label="Project detail sections">
+      <button type="button" class="ih-detail-tab is-active" role="tab" data-detail-tab="overview" aria-selected="true"><i class="fa-solid fa-clipboard"></i>Overview</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="intake"><i class="fa-solid fa-file-lines"></i>Intake</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="map"><i class="fa-solid fa-diagram-project"></i>Impact Map</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="related"><i class="fa-solid fa-arrows-turn-to-dots"></i>Related Projects</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="reg"><i class="fa-solid fa-scale-balanced"></i>Regulations &amp; Controls</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="stake"><i class="fa-solid fa-users-gear"></i>Stakeholders</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="notif"><i class="fa-solid fa-bell"></i>Notifications</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="readi"><i class="fa-solid fa-flag-checkered"></i>Implementation Readiness</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="evi"><i class="fa-solid fa-folder-open"></i>Documents &amp; Evidence</button>
+      <button type="button" class="ih-detail-tab" role="tab" data-detail-tab="audit"><i class="fa-solid fa-clock-rotate-left"></i>Activity &amp; Audit</button>
+    </nav>
+    <div class="ih-detail-body">
+      <section class="ih-detail-panel is-active" id="ih-dpanel-overview" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-intake" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-map" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-related" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-reg" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-stake" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-notif" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-readi" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-evi" role="tabpanel"></section>
+      <section class="ih-detail-panel" id="ih-dpanel-audit" role="tabpanel"></section>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================
      APPLICATION SCRIPT
      ============================================================================ -->
 <script>
@@ -1033,7 +1374,7 @@
   // 3. STATE
   // ==========================================================================
   var IH = window.IH = {
-    version: '0.1.0-phase1',
+    version: '0.2.0-phase2',
     fbAvailable: fbAvailable,
 
     // Auth state
@@ -1054,8 +1395,14 @@
     sort: { field: 'targetDate', dir: 'asc' },
     collapsedGroups: {},    // { 'projects': true, 'issues:regulatory_change': true, ... }
 
-    // Detail modal (phase 2)
-    activeProjectId: null
+    // Detail modal
+    activeProjectId: null,
+    detailActiveTab: 'overview',
+    // Reviewer confirm/reject/modify decisions. In-memory only per
+    // requirement 10 (no sensitive project content in localStorage).
+    // Structure: { [projectId]: { [findingId]: { status, notes, source,
+    //             updatedAt, updatedBy } } }
+    findingOverrides: {}
   };
 
   // ==========================================================================
@@ -1859,28 +2206,28 @@
   // 13. NON-PHASE-1 PANEL RENDERERS (placeholders w/ clear "coming" messages)
   // ==========================================================================
   var PHASE_ROADMAP = {
-    dashboard:     { phase: 2, title: 'Portfolio Dashboard',
-      desc: 'Executive at-a-glance overview: portfolio health, upcoming launches, top risks, and cross-impact alerts.' },
+    dashboard:     { phase: 6, title: 'Portfolio Dashboard',
+      desc: 'Executive at-a-glance overview: portfolio health, upcoming launches, top risks, and cross-impact alerts. Individual project overviews are already wired — open any project row to see them.' },
     assessments:   { phase: 3, title: 'Impact Assessments',
-      desc: 'Guided assessment workflow across 14 impact domains — from customer and product to AI and model risk. Progress and completeness roll up to each project.' },
-    impacts:       { phase: 5, title: 'Impact Findings',
-      desc: 'Cross-project impact map, department heatmap, and human-confirmation workflow. Every AI-suggested finding stays labeled until a reviewer confirms it.' },
+      desc: 'Guided assessment workflow across 14 impact domains — from customer and product to AI and model risk. Progress and completeness roll up to each project. Per-project intake summaries are already visible in the Intake tab of the detail view.' },
+    impacts:       { phase: 5, title: 'Impact Findings (Portfolio)',
+      desc: 'Cross-project impact map, department heatmap, and human-confirmation workflow. Per-project findings are already wired inside each project’s detail tabs. Every finding stays labeled Deterministic / AI Suggested / Human Confirmed until a reviewer confirms it.' },
     timeline:      { phase: 5, title: 'Implementation Timeline',
       desc: 'Release windows, testing windows, and collision detection across the active portfolio.' },
-    controls:      { phase: 2, title: 'Control Reviews',
-      desc: 'Track recommended and adopted controls, evidence gathered, and open control gaps by project.' },
-    regulations:   { phase: 2, title: 'Regulatory Concerns',
-      desc: 'Potential regulatory review flags for each project — never marked "compliant" without a reviewer determination.' },
+    controls:      { phase: 6, title: 'Control Reviews (Portfolio)',
+      desc: 'Cross-portfolio control review dashboard. Per-project control recommendations are already wired inside each project’s Regulations & Controls tab.' },
+    regulations:   { phase: 6, title: 'Regulatory Concerns (Portfolio)',
+      desc: 'Cross-portfolio regulatory concern dashboard. Per-project regulatory concerns are already wired inside each project’s Regulations & Controls tab. Nothing is ever marked "compliant" without a reviewer determination.' },
     departments:   { phase: 6, title: 'Department Impact Heatmap',
       desc: 'Departments (rows) × projects (columns) color-coded by expected impact severity.' },
-    raci:          { phase: 2, title: 'RACI Matrix',
-      desc: 'Responsible / Accountable / Consulted / Informed per project and impact domain.' },
-    evidence:      { phase: 2, title: 'Documents & Evidence',
-      desc: 'Upload and link approval records, test results, and reviewer sign-offs to each finding.' },
-    notifications: { phase: 2, title: 'Notifications & Acknowledgements',
-      desc: 'Routing recommendations, acknowledgement tracking, and escalation for every notified department.' },
+    raci:          { phase: 6, title: 'RACI Matrix (Portfolio)',
+      desc: 'Portfolio-wide Responsible / Accountable / Consulted / Informed view. Per-project RACI is already in the Stakeholders tab of the detail view.' },
+    evidence:      { phase: 6, title: 'Documents & Evidence (Portfolio)',
+      desc: 'Cross-portfolio evidence explorer with upload, retention, and reviewer sign-off tracking. Per-project evidence is already in the Documents & Evidence tab of the detail view.' },
+    notifications: { phase: 6, title: 'Notifications & Acknowledgements (Portfolio)',
+      desc: 'Portfolio-wide inbox for routing recommendations, acknowledgement tracking, and escalation. Per-project notification recommendations are already in the Notifications tab of the detail view.' },
     ai:            { phase: 4, title: 'AI Impact Analysis',
-      desc: 'Secure Firebase-authenticated route (never a browser-side provider key) that returns explainable, source-labeled analyses. Deterministic mock fallback when the backend route is not yet deployed.' },
+      desc: 'Secure Firebase-authenticated route (never a browser-side provider key) that returns explainable, source-labeled analyses. Deterministic mock fallback when the backend route is not yet deployed. Per-project deterministic findings and score breakdowns are already computed in-browser and visible in each detail tab.' },
     reports:       { phase: 6, title: 'Reports & Exports',
       desc: 'Executive PDF summaries, portfolio spreadsheets, and evidence packages.' },
     admin:         { phase: 6, title: 'Knowledge Library & Admin',
@@ -1922,31 +2269,889 @@
   }
 
   // ==========================================================================
-  // 15. PROJECT DETAIL (Phase 2 placeholder — do NOT leave dead buttons)
+  // 15. PROJECT DETAIL (Phase 2)
+  //
+  // Full-screen 10-tab detail modal. Six tabs are fully wired with human
+  // Confirm / Reject / Modify workflow (Overview, Intake, Related Projects,
+  // Regulations & Controls, Notifications, Activity & Audit). The remaining
+  // four (Impact Map, Stakeholders, Implementation Readiness, Documents &
+  // Evidence) render meaningful sample content with clear empty states.
+  //
+  // Source labels per requirement 9:
+  //   det   → "Deterministic Local Analysis" (baseline, generated in-browser)
+  //   ai    → "AI Suggested" (from /impact/analyze — wires up in Phase 4)
+  //   human → "Human Confirmed" / "Modified by Reviewer"
+  //
+  // Impact score is fully explainable per requirement 13 — deterministic
+  // baseline factors are shown line-by-line, with any AI-recommended
+  // adjustment identified separately.
+  //
+  // Finding overrides live in IH.findingOverrides (in-memory only) per
+  // requirement 10 — no sensitive project content in localStorage.
   // ==========================================================================
+
+  // Routing rules per approved spec §Notification Routing.
+  var ROUTING_RULES = [
+    { trigger: 'customer_facing',    departments: ['Compliance','Legal','Operations'] },
+    { trigger: 'sensitive_data',     departments: ['Privacy','Data Governance','Information Security'] },
+    { trigger: 'new_vendor',         departments: ['Vendor Management','Procurement','Technology Risk'] },
+    { trigger: 'system_integration', departments: ['Architecture','Engineering','Information Security'] },
+    { trigger: 'policy_change',      departments: ['Policy Owner','Compliance','Controls'] },
+    { trigger: 'fraud_or_txmon',     departments: ['Fraud Risk','Financial Crime','Fraud Operations'] },
+    { trigger: 'accounting',         departments: ['Finance','Accounting','Regulatory Reporting'] },
+    { trigger: 'employee_workflow',  departments: ['Operations','Training','Change Management'] },
+    { trigger: 'ai_or_model',        departments: ['AI Governance','Model Risk','Compliance'] },
+    { trigger: 'critical_service',   departments: ['Business Continuity','Operations','Technology'] }
+  ];
+
+  var CRITICAL_SYSTEMS = {
+    sys_payments: 1, sys_auth: 1, sys_reporting: 1, sys_dispute: 1,
+    sys_data_lake: 1, sys_infra: 1
+  };
+
+  // Hand-crafted descriptive fields per project. Anything not listed here
+  // falls back to a computed default so every project renders professionally.
+  var DETAIL_DESCRIPTIONS = {
+    'PRJ-1001': {
+      description: 'Modernize the customer authentication stack to phase out legacy knowledge-based challenges and adopt phishing-resistant multi-factor options across the digital estate. Includes updates to the customer-portal login flow, self-service password reset, and step-up authentication for high-risk transactions.',
+      businessObjective: 'Reduce account-takeover losses and step-up authentication friction while meeting the internal information-security baseline for customer-facing authentication.',
+      sponsorId: 'u_tessa', primaryDepartment: 'Information Security',
+      stage: 'Assessment', milestone: 'Pilot cohort activation — Sep 2026' },
+    'PRJ-1002': {
+      description: 'Migrate historical customer records to a cloud-hosted archival platform aligned with the updated records-retention schedule. Includes data-quality remediation, retention-tag propagation, and legal-hold interlocks.',
+      businessObjective: 'Consolidate archival storage and align retention with the updated schedule ahead of the current provider’s end-of-life.',
+      sponsorId: 'u_marisol', primaryDepartment: 'Data Governance',
+      stage: 'Assessment', milestone: 'Data-quality baseline sign-off — Aug 2026' },
+    'PRJ-1003': {
+      description: 'Update the customer-notice generation and delivery pipeline to introduce a mandatory legal-review checkpoint and revised templates. Applies to servicing, dispute, and adverse-action notices delivered via email and secure inbox.',
+      businessObjective: 'Ensure every customer-notice release is documented, reviewer-approved, and version-controlled ahead of the next audit cycle.',
+      sponsorId: 'u_reeva', primaryDepartment: 'Operations',
+      stage: 'In Progress', milestone: 'Legal-review checkpoint go-live — Aug 2026' },
+    'PRJ-1004': {
+      description: 'Redesign the customer complaint workflow to consolidate three legacy intake channels, add a supervisor escalation path, and standardize resolution SLAs.',
+      businessObjective: 'Reduce time-to-resolution and improve visibility into complaint-driven remediation actions.',
+      sponsorId: 'u_naima', primaryDepartment: 'Operations',
+      stage: 'In Progress', milestone: 'Supervisor UI rollout — Jul 2026' },
+    'PRJ-1005': {
+      description: 'Integrate a third-party identity-verification service into the account-origination flow with fallback to the existing internal provider. Includes vendor onboarding, data-flow mapping, and back-out testing.',
+      businessObjective: 'Improve verification pass rates for thin-file applicants while maintaining control-effectiveness parity with the internal provider.',
+      sponsorId: 'u_priya', primaryDepartment: 'Vendor Management',
+      stage: 'Assessment', milestone: 'Vendor security assessment sign-off — Aug 2026' },
+    'PRJ-1006': {
+      description: 'Implement a centralized consent-management platform to capture, evidence, and honor customer marketing and cookie preferences across web, mobile, and email channels.',
+      businessObjective: 'Provide a single source of truth for customer consent to support privacy commitments and marketing analytics.',
+      sponsorId: 'u_rowan', primaryDepartment: 'Privacy',
+      stage: 'Draft', milestone: 'Initial scope confirmation — Jul 2026' },
+    'ISS-2001': {
+      description: 'Assessment of the emerging payment-initiation standard’s applicability to internal payment products and downstream reconciliation. Awaiting scope confirmation from Payments and Regulatory Reporting.',
+      businessObjective: 'Determine whether current payment products fall in scope and, if so, size the required build.',
+      sponsorId: 'u_declan', primaryDepartment: 'Payments',
+      stage: 'Awaiting Review', milestone: 'Scope determination — Aug 2026' },
+    'ISS-2002': {
+      description: 'Enhancement of transaction-monitoring rules to reduce false-positive volumes while tightening detection on newly emerging typologies. Includes tuning, back-testing, and analyst training.',
+      businessObjective: 'Lower analyst backlog while maintaining or improving true-positive detection rates.',
+      sponsorId: 'u_holt', primaryDepartment: 'Financial Crime',
+      stage: 'In Progress', milestone: 'Rule set v2 back-test — Aug 2026' },
+    'ISS-2003': {
+      description: 'Upgrade the fraud case-management platform to consolidate case handling across channels and add analyst-assist automations.',
+      businessObjective: 'Reduce average handle time on fraud cases and improve reporting fidelity.',
+      sponsorId: 'u_naima', primaryDepartment: 'Fraud',
+      stage: 'Assessment', milestone: 'Case-model reconciliation — Sep 2026' },
+    'REG-3001': {
+      description: 'Align internal records-retention practices with the updated retention schedule. Includes classification updates, retention-tag remediation, and destruction-workflow verification.',
+      businessObjective: 'Confirm every in-scope record type is stored and destroyed per the current schedule ahead of the next external review.',
+      sponsorId: 'u_marisol', primaryDepartment: 'Records',
+      stage: 'In Progress', milestone: 'Retention-tag remediation — Jul 2026' },
+    'REG-3002': {
+      description: 'Reconcile regulatory-reporting data sources with the enterprise reporting warehouse to close identified variances between source of record and reporting output.',
+      businessObjective: 'Eliminate persistent variance findings from the reporting reconciliation cycle.',
+      sponsorId: 'u_priya', primaryDepartment: 'Regulatory Reporting',
+      stage: 'Awaiting Review', milestone: 'Reconciliation sign-off — Jul 2026' },
+    'ACT-4001': {
+      description: 'Remediate access-control gaps for high-risk account types identified during the last internal review, including access-recertification cadence, join/leaver enforcement, and privileged-session logging.',
+      businessObjective: 'Close the internal-review finding on access controls for high-risk accounts before the next verification date.',
+      sponsorId: 'u_tessa', primaryDepartment: 'Information Security',
+      stage: 'In Progress', milestone: 'Access-recertification cadence live — Aug 2026' },
+    'ACT-4002': {
+      description: 'Replace the legacy digital dispute platform with a modern case-driven system integrated with the customer portal, notice engine, and complaint workflow.',
+      businessObjective: 'Meet customer service-level targets and reduce reliance on the legacy platform ahead of end-of-support.',
+      sponsorId: 'u_sasha', primaryDepartment: 'Operations',
+      stage: 'Draft', milestone: 'Vendor selection sign-off — Aug 2026' },
+    'ACT-4003': {
+      description: 'Validate service-recovery procedures for identified critical services, including failover exercises, dependency-map refresh, and communications-tree verification.',
+      businessObjective: 'Provide evidence that critical services meet recovery-time objectives.',
+      sponsorId: 'u_rowan', primaryDepartment: 'Business Continuity',
+      stage: 'In Progress', milestone: 'Full-scope failover exercise — Aug 2026' },
+    'ACT-4004': {
+      description: 'Refresh vendor access certification across in-scope third parties to confirm access is appropriate, recertified, and audit-logged.',
+      businessObjective: 'Complete the annual vendor-access recertification with documented evidence.',
+      sponsorId: 'u_tessa', primaryDepartment: 'Vendor Management',
+      stage: 'In Progress', milestone: 'Vendor certification 100% — Jul 2026' }
+  };
+
+  function projectDescriptor(p) {
+    var extra = DETAIL_DESCRIPTIONS[p.id] || {};
+    return {
+      description:       extra.description       || (p.title + ' — additional detail has not been captured in intake yet.'),
+      businessObjective: extra.businessObjective || 'Business objective to be confirmed during intake.',
+      sponsorId:         extra.sponsorId         || p.impactLeadId,
+      primaryDepartment: extra.primaryDepartment || (p.departments && p.departments[0]) || '—',
+      stage:             extra.stage             || titleCase(p.status),
+      milestone:         extra.milestone         || 'Next key milestone to be confirmed.'
+    };
+  }
+  function titleCase(s) {
+    return s ? String(s).replace(/_/g,' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : '—';
+  }
+
+  // -------- Impact score breakdown (deterministic baseline + AI adjustment) --
+  function computeImpactScoreBreakdown(p) {
+    var lines = [];
+    var subtotal = 0;
+    function add(factor, note, points) {
+      lines.push({ factor: factor, note: note, points: points, source: 'det' });
+      subtotal += points;
+    }
+    var areas = (p.impactedAreas || []).join(' ').toLowerCase();
+    var tstr  = (p.title || '').toLowerCase();
+    var joined = areas + ' ' + tstr;
+    var systems = (p.systems || []);
+    var deps = (p.departments || []);
+
+    if (/customer|dispute|notice|complaint/.test(joined)) {
+      add('Customer impact', 'Customer-facing scope detected in impacted areas or title.', 15);
+    } else {
+      add('Customer impact', 'No customer-facing scope detected.', 0);
+    }
+    add('Departments impacted', deps.length + ' department(s) affected.', Math.min(deps.length * 4, 15));
+    var critSys = systems.filter(function (s) { return CRITICAL_SYSTEMS[s]; });
+    if (critSys.length) add('Critical systems in scope', critSys.length + ' critical system(s) touched.', 15);
+    else                add('Critical systems in scope', 'No critical systems identified.', 0);
+    if (/data|privacy|records|customer|reporting/.test(joined)) add('Sensitive data touched', 'Sensitive-data indicators present.', 8);
+    else                                                        add('Sensitive data touched', 'No sensitive-data indicators.', 0);
+    if (/vendor|third-party|third party|verification|verify/.test(joined)) add('Third-party involvement', 'Vendor or third party appears in scope.', 10);
+    else                                                                   add('Third-party involvement', 'No third-party involvement detected.', 0);
+    if (p.class === 'regulatory_change' || /regulat|reporting|notice|records|payments/.test(joined)) add('Regulatory concerns', 'Regulatory-review indicators present.', 10);
+    else                                                                                             add('Regulatory concerns', 'No regulatory indicators.', 0);
+    var ctlDot = (p.statusIcons || [])[2];
+    if (ctlDot === 'red' || ctlDot === 'amber' || ctlDot === 'purple') add('Control gaps', 'Open items in the control-review indicator.', 8);
+    else                                                               add('Control gaps', 'No open control-review indicator.', 0);
+    if (p.startDate && p.targetDate) {
+      var s = new Date(p.startDate).getTime(), t = new Date(p.targetDate).getTime();
+      var months = Math.max(0, Math.round((t - s) / (30 * 24 * 3600 * 1000)));
+      var cx = months >= 8 ? 10 : (months >= 4 ? 6 : 3);
+      add('Implementation complexity', 'Planned duration ~' + months + ' month(s).', cx);
+    } else {
+      add('Implementation complexity', 'Dates not set.', 0);
+    }
+    if (deps.indexOf('Business Continuity') !== -1 || /recovery|infra|critical service/.test(joined)) add('Business continuity impact', 'Continuity or infrastructure dependency detected.', 6);
+    else                                                                                              add('Business continuity impact', 'No continuity indicators.', 0);
+    var related = generateRelatedProjects(p);
+    var collisions = related.filter(function (r) { return r.impactLevel === 'high' || r.impactLevel === 'critical'; }).length;
+    add('Related-project collisions', collisions + ' high-impact related project(s) identified.', collisions * 4);
+
+    var baseline = Math.min(100, subtotal);
+    var aiAdjust = (Number(p.impactScore) || baseline) - baseline;
+    if (aiAdjust !== 0) {
+      lines.push({
+        factor: 'AI-recommended adjustment',
+        note: 'AI suggests ' + (aiAdjust > 0 ? '+' : '') + aiAdjust + ' vs. deterministic baseline (Phase 4 will source this from the secure route).',
+        points: aiAdjust,
+        source: 'ai'
+      });
+    }
+    return {
+      baseline: baseline,
+      aiAdjust: aiAdjust,
+      total: Math.max(0, Math.min(100, baseline + aiAdjust)),
+      lines: lines
+    };
+  }
+
+  // -------- Deterministic related-projects (Phase 5 upgrades the engine) -----
+  function generateRelatedProjects(p) {
+    var out = [];
+    (IH.projects || []).forEach(function (other) {
+      if (!other || other.id === p.id) return;
+      var sharedSys  = (p.systems || []).filter(function (s) { return (other.systems || []).indexOf(s) !== -1; });
+      var sharedDep  = (p.departments || []).filter(function (d) { return (other.departments || []).indexOf(d) !== -1; });
+      var sharedArea = (p.impactedAreas || []).filter(function (a) { return (other.impactedAreas || []).indexOf(a) !== -1; });
+      var shared = [];
+      sharedSys.forEach(function (s) { shared.push('System: ' + s); });
+      sharedDep.forEach(function (d) { shared.push('Department: ' + d); });
+      sharedArea.forEach(function (a) { shared.push('Area: ' + a); });
+      if (!shared.length) return;
+      var score = sharedSys.length * 12 + sharedDep.length * 5 + sharedArea.length * 3;
+      if (p.startDate && p.targetDate && other.startDate && other.targetDate) {
+        var a1 = new Date(p.startDate).getTime(), a2 = new Date(p.targetDate).getTime();
+        var b1 = new Date(other.startDate).getTime(), b2 = new Date(other.targetDate).getTime();
+        if (a1 <= b2 && b1 <= a2) { score += 8; shared.push('Overlapping delivery window'); }
+      }
+      if (score < 8) return;
+      out.push({
+        id: 'REL-' + p.id + '-' + other.id,
+        projectId: other.id,
+        title: other.title,
+        relationshipType: sharedSys.length ? 'shared_system' : (sharedDep.length ? 'shared_department' : 'shared_area'),
+        impactDirection: 'mutual',
+        impactLevel: score >= 30 ? 'high' : (score >= 18 ? 'medium' : 'low'),
+        confidence: Math.min(0.95, 0.55 + score / 100),
+        reasons: shared.slice(0, 4),
+        sharedAttributes: shared,
+        recommendedActions: [
+          'Confirm shared-attribute ownership with the other project team.',
+          'Coordinate testing windows to avoid resource collisions.'
+        ],
+        source: 'det',
+        status: 'unconfirmed'
+      });
+    });
+    out.sort(function (a, b) { return (b.confidence || 0) - (a.confidence || 0); });
+    return out.slice(0, 6);
+  }
+
+  function generateRegulatoryConcerns(p) {
+    var out = [];
+    var joined = ((p.impactedAreas || []).join(' ') + ' ' + (p.title || '')).toLowerCase();
+    function push(title, category, why, dept, sev) {
+      out.push({
+        id: 'REG-' + p.id + '-' + out.length,
+        title: title, category: category, whyFlagged: why,
+        recommendedReviewDepartment: dept, severity: sev || 'medium',
+        confidence: 0.72,
+        source: 'det', status: 'awaiting_review'
+      });
+    }
+    if (/customer|notice|complaint|dispute/.test(joined))    push('Potential customer-communications review', 'customer_communications', 'Project changes customer-facing communications; a communications review is typically required.', 'Compliance', 'high');
+    if (/records|retention|archive|data lake/.test(joined))  push('Potential records-retention review',       'records_retention',       'Project affects records or retention behavior; retention-schedule alignment should be confirmed.', 'Records', 'medium');
+    if (/report|reconcil/.test(joined))                      push('Potential regulatory-reporting review',    'regulatory_reporting',    'Project changes data flowing into regulatory reports; reconciliation impact should be reviewed.', 'Regulatory Reporting', 'high');
+    if (/privacy|consent|marketing/.test(joined))            push('Potential privacy / consent review',       'privacy',                 'Project touches customer preferences or personal data; privacy review required.', 'Privacy', 'high');
+    if (/payment|transaction/.test(joined))                  push('Potential payments-standards review',      'payments',                'Project modifies payment processing; applicable payment-standards review may be required.', 'Payments', 'medium');
+    if (/fraud|financial crime|monitor|txmon/.test(joined))  push('Potential financial-crime review',         'financial_crime',         'Project affects transaction monitoring or fraud detection; financial-crime review required.', 'Financial Crime', 'high');
+    return out;
+  }
+
+  function generateControlRecommendations(p) {
+    var out = [];
+    var joined = ((p.impactedAreas || []).join(' ') + ' ' + (p.title || '')).toLowerCase();
+    function push(title, desc, own, review, evi, ctype) {
+      out.push({
+        id: 'CTL-' + p.id + '-' + out.length,
+        title: title, description: desc,
+        controlType: ctype || 'preventive',
+        recommendedOwnerDepartment: own, reviewDepartment: review,
+        evidenceRequired: evi, confidence: 0.75,
+        source: 'det', status: 'recommended'
+      });
+    }
+    if (/customer|notice|dispute|complaint/.test(joined))    push('Pre-release approval of customer-facing content', 'Require documented review and approval of customer-facing changes prior to production release.', 'Operations', 'Compliance', ['Approved copy record','Reviewer sign-off','Release checklist']);
+    if (/auth|access|verification|vendor/.test(joined))      push('Access-control certification',                   'Certify that access grants introduced by this change follow least-privilege and are periodically recertified.', 'Information Security', 'Enterprise Risk', ['Access grant list','Recertification schedule','Break-glass procedure']);
+    if (/data|records|retention|reporting/.test(joined))     push('Data-quality reconciliation control',            'Reconcile source-of-record and downstream data outputs; investigate variances above tolerance.', 'Data Governance', 'Regulatory Reporting', ['Reconciliation report','Variance investigation log']);
+    if (/recovery|infra|critical service/.test(joined))      push('Recovery-time objective validation',             'Validate that recovery procedures meet documented recovery-time objectives via exercise or test.', 'Business Continuity', 'Technology', ['Exercise plan','Exercise results','Post-exercise remediation']);
+    if (!out.length)                                          push('Change-management approval',                     'Require documented change-approval prior to any production deployment linked to this project.', 'Technology', 'Enterprise Risk', ['Change record','Approver list']);
+    return out;
+  }
+
+  function generateNotificationRecommendations(p) {
+    var out = [];
+    var joined = ((p.impactedAreas || []).join(' ') + ' ' + (p.title || '')).toLowerCase();
+    var triggered = {};
+    function fire(trigger) {
+      if (triggered[trigger]) return;
+      triggered[trigger] = true;
+      var rule = ROUTING_RULES.filter(function (r) { return r.trigger === trigger; })[0];
+      if (!rule) return;
+      rule.departments.forEach(function (dept) {
+        out.push({
+          id: 'NTF-' + p.id + '-' + trigger + '-' + dept.replace(/\s+/g,''),
+          department: dept,
+          reason: 'Routing rule triggered: ' + trigger.replace(/_/g,' ') + '.',
+          priority: (trigger === 'critical_service' || trigger === 'fraud_or_txmon' || trigger === 'ai_or_model') ? 'high' : 'medium',
+          acknowledgementRequired: true,
+          suggestedDueDays: 5,
+          source: 'det', status: 'recommended'
+        });
+      });
+    }
+    if (/customer|notice|dispute|complaint/.test(joined))       fire('customer_facing');
+    if (/data|privacy|records|reporting/.test(joined))          fire('sensitive_data');
+    if (/vendor|third|verification/.test(joined))               fire('new_vendor');
+    if (/auth|integration|architecture|cloud/.test(joined))     fire('system_integration');
+    if (/records|retention|policy/.test(joined))                fire('policy_change');
+    if (/fraud|financial crime|monitor|txmon/.test(joined))     fire('fraud_or_txmon');
+    if (/report|reconcil|finance/.test(joined))                 fire('accounting');
+    if (/workflow|complaint|training/.test(joined))             fire('employee_workflow');
+    if (/recovery|infra|critical service/.test(joined))         fire('critical_service');
+    return out;
+  }
+
+  function generateStakeholders(p) {
+    var pd = projectDescriptor(p);
+    var rows = [];
+    if (p.ownerId)      rows.push({ name: personName(p.ownerId),      role: 'Owner',             dept: pd.primaryDepartment, raci: 'R' });
+    if (p.impactLeadId) rows.push({ name: personName(p.impactLeadId), role: 'Impact Lead',       dept: (p.departments||[])[0] || pd.primaryDepartment, raci: 'A' });
+    if (pd.sponsorId && pd.sponsorId !== p.ownerId && pd.sponsorId !== p.impactLeadId) {
+      rows.push({ name: personName(pd.sponsorId), role: 'Executive Sponsor', dept: pd.primaryDepartment, raci: 'A' });
+    }
+    (p.departments || []).slice(0, 4).forEach(function (d, i) {
+      rows.push({ name: 'Department contact', role: d + ' liaison', dept: d, raci: i === 0 ? 'C' : 'I' });
+    });
+    return rows;
+  }
+
+  function generateReadiness(p) {
+    var openStatus = p.status !== 'complete';
+    var assess = p.assessment || 0;
+    return [
+      { domain: 'Intake completeness',          status: assess >= 70 ? 'ready' : (assess >= 40 ? 'inprogress' : 'notstarted'), note: assess + '% of core intake fields captured.' },
+      { domain: 'Cross-impact review',          status: openStatus ? 'inprogress' : 'ready', note: 'Related-project confirmations still open.' },
+      { domain: 'Regulatory & control review',  status: openStatus ? 'inprogress' : 'ready', note: 'Reviewer determinations pending on flagged concerns.' },
+      { domain: 'Notification acknowledgement', status: 'inprogress', note: 'Acknowledgements pending from recommended departments.' },
+      { domain: 'Deployment approval',          status: assess >= 90 ? 'ready' : (openStatus ? 'notstarted' : 'ready'), note: 'Requires all upstream gates green.' }
+    ];
+  }
+
+  function generateEvidence(p) {
+    return [
+      { name: 'Intake Summary — ' + p.id + '.pdf', kind: 'pdf',  uploaded: '2026-06-15', uploadedBy: personName(p.ownerId) || 'Owner' },
+      { name: 'Impact Assessment Draft.docx',     kind: 'docx', uploaded: '2026-06-24', uploadedBy: personName(p.impactLeadId) || 'Impact Lead' }
+    ];
+  }
+
+  function generateAuditEvents(p) {
+    var events = [];
+    function push(daysAgo, kind, msg, actor) {
+      events.push({ ts: new Date(Date.now() - daysAgo * 24 * 3600 * 1000).toISOString(), kind: kind, message: msg, actor: actor || 'System' });
+    }
+    push(30, 'blue',   'Project intake submitted (' + p.id + ').', personName(p.ownerId) || 'Owner');
+    push(24, 'blue',   'Impact lead assigned: ' + (personName(p.impactLeadId) || '—') + '.', 'System');
+    push(18, 'amber',  'Deterministic baseline impact-score calculated: ' + computeImpactScoreBreakdown(p).baseline + '.', 'System');
+    push(14, 'purple', 'AI-suggested cross-impact review queued (wires up in Phase 4 via the secure /impact/analyze route).', 'System');
+    push(7,  'green',  'Assessment progress updated to ' + (p.assessment || 0) + '%.', personName(p.impactLeadId) || 'Impact Lead');
+    if (isPast(p.targetDate) && p.status !== 'complete') push(1, 'red', 'Target date has passed without completion; escalation required.', 'System');
+    return events.sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
+  }
+
+  // -------- Finding-state override helpers (in-memory only per req 10) ------
+  function findingOverride(projectId, findingId) {
+    return (IH.findingOverrides[projectId] || {})[findingId] || null;
+  }
+  function applyFindingOverride(f, projectId) {
+    var o = findingOverride(projectId, f.id);
+    if (!o) return f;
+    return Object.assign({}, f, { status: o.status, source: o.source || f.source, notes: o.notes });
+  }
+  function handleFindingAction(action, collection, findingId) {
+    var pid = IH.activeProjectId;
+    if (!pid || !findingId) return;
+    if (!IH.findingOverrides[pid]) IH.findingOverrides[pid] = {};
+    var current = IH.findingOverrides[pid][findingId] || {};
+    var newStatus = current.status;
+    var newNotes  = current.notes;
+    var actor = IH.isDemoMode
+      ? 'Steven M (demo)'
+      : ((IH.currentUser && (IH.currentUser.displayName || IH.currentUser.email)) || 'Reviewer');
+
+    if (action === 'confirm')      { newStatus = 'confirmed'; }
+    else if (action === 'reject')  { newStatus = 'rejected'; }
+    else if (action === 'modify')  {
+      var note = window.prompt('Reviewer note describing the modification:', current.notes || '');
+      if (note === null) return;
+      newStatus = 'modified';
+      newNotes  = note.trim() || 'Modified by reviewer.';
+    } else { return; }
+
+    IH.findingOverrides[pid][findingId] = {
+      status: newStatus, notes: newNotes, source: 'human',
+      collection: collection,
+      updatedAt: new Date().toISOString(),
+      updatedBy: actor
+    };
+    toast('Finding updated: ' + newStatus + '.', 'success', 2400);
+    renderDetailTab(IH.detailActiveTab);
+  }
+
+  // -------- Source / status / severity badges (per requirement 9) ----------
+  function sourceBadge(source) {
+    if (source === 'ai')    return '<span class="ih-conf-badge ih-conf-source-ai" title="Analysis source">AI Suggested</span>';
+    if (source === 'human') return '<span class="ih-conf-badge ih-conf-status-conf" title="Analysis source">Human Confirmed</span>';
+    return '<span class="ih-conf-badge ih-conf-source-det" title="Analysis source">Deterministic Local Analysis</span>';
+  }
+  function statusBadge(status) {
+    if (status === 'confirmed')       return '<span class="ih-conf-badge ih-conf-status-conf">Confirmed</span>';
+    if (status === 'rejected')        return '<span class="ih-conf-badge ih-conf-status-rej">Rejected</span>';
+    if (status === 'modified')        return '<span class="ih-conf-badge ih-conf-status-mod">Modified</span>';
+    if (status === 'recommended')     return '<span class="ih-conf-badge ih-conf-status-unconf">Recommended — Review Required</span>';
+    if (status === 'awaiting_review') return '<span class="ih-conf-badge ih-conf-status-unconf">Awaiting Review</span>';
+    return '<span class="ih-conf-badge ih-conf-status-unconf">Unconfirmed</span>';
+  }
+  function sevBadge(sev) {
+    var cls = 'ih-conf-sev-medium';
+    if (sev === 'critical')    cls = 'ih-conf-sev-critical';
+    else if (sev === 'high')   cls = 'ih-conf-sev-high';
+    else if (sev === 'low')    cls = 'ih-conf-sev-low';
+    return '<span class="ih-conf-badge ' + cls + '">' + escapeHtml(sev || 'medium') + '</span>';
+  }
+  function findingActionButtons(collection, findingId, status) {
+    if (status === 'confirmed' || status === 'modified' || status === 'rejected') {
+      return '<button type="button" class="ih-btn ih-btn-outline" data-finding-action="modify" data-finding-collection="' + escapeHtml(collection) + '" data-finding-id="' + escapeHtml(findingId) + '"><i class="fa-solid fa-pen"></i>Update note</button>';
+    }
+    return (
+      '<button type="button" class="ih-btn ih-btn-green"   data-finding-action="confirm" data-finding-collection="' + escapeHtml(collection) + '" data-finding-id="' + escapeHtml(findingId) + '"><i class="fa-solid fa-check"></i>Confirm</button>' +
+      '<button type="button" class="ih-btn ih-btn-outline" data-finding-action="modify"  data-finding-collection="' + escapeHtml(collection) + '" data-finding-id="' + escapeHtml(findingId) + '"><i class="fa-solid fa-pen"></i>Modify</button>' +
+      '<button type="button" class="ih-btn ih-btn-outline" data-finding-action="reject"  data-finding-collection="' + escapeHtml(collection) + '" data-finding-id="' + escapeHtml(findingId) + '"><i class="fa-solid fa-xmark"></i>Reject</button>'
+    );
+  }
+  function findingCardClasses(f) {
+    var cls = f.source === 'ai' ? ' is-ai' : '';
+    if (f.status === 'confirmed')      cls += ' is-confirmed';
+    else if (f.status === 'rejected')  cls += ' is-rejected';
+    else if (f.status === 'modified')  cls += ' is-modified';
+    return cls;
+  }
+
+  // -------- Detail modal open/close/tab -----------
   function openProjectDetail(id) {
     var p = IH.projects.filter(function (x) { return x.id === id; })[0];
     if (!p) return;
     IH.activeProjectId = id;
-    // Phase 1 minimal preview so row-click has a meaningful outcome. Phase 2
-    // replaces this with the full 10-tab detail modal.
-    var lines = [];
-    lines.push(p.title + '  [' + p.id + ']');
-    lines.push('');
-    lines.push('Impact Lead:   ' + (personName(p.impactLeadId) || '—'));
-    lines.push('Owner:         ' + (personName(p.ownerId) || '—'));
-    lines.push('Impacted:      ' + ((p.impactedAreas || []).join(', ') || '—'));
-    lines.push('Departments:   ' + ((p.departments || []).join(', ') || '—'));
-    lines.push('Systems:       ' + ((p.systems || []).join(', ') || '—'));
-    lines.push('Start:         ' + fmtDate(p.startDate));
-    lines.push('Target:        ' + fmtDate(p.targetDate));
-    lines.push('Assessment:    ' + (p.assessment || 0) + '%');
-    lines.push('Impact Score:  ' + (p.impactScore || 0));
-    lines.push('Status:        ' + (p.status || '—'));
-    lines.push('Priority:      ' + (p.priority || '—'));
-    lines.push('');
-    lines.push('The full project detail experience (Overview / Intake / Related Projects / Regulations & Controls / Notifications / Activity & Audit + 4 supporting tabs) ships in Phase 2.');
-    window.alert(lines.join('\n'));
+    IH.detailActiveTab = 'overview';
+
+    var idPill  = $('#ih-detail-id-pill');  if (idPill)  idPill.textContent  = p.id;
+    var titleEl = $('#ih-detail-title-text'); if (titleEl) titleEl.textContent = p.title;
+
+    $all('.ih-detail-tab').forEach(function (b) {
+      var active = b.getAttribute('data-detail-tab') === 'overview';
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    $all('.ih-detail-panel').forEach(function (panel) { panel.classList.remove('is-active'); });
+    var op = $('#ih-dpanel-overview'); if (op) op.classList.add('is-active');
+
+    renderDetailTab('overview');
+    var m = $('#ih-detail-modal'); if (m) m.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeProjectDetail() {
+    var m = $('#ih-detail-modal'); if (m) m.classList.remove('is-open');
+    document.body.style.overflow = '';
+    IH.activeProjectId = null;
+  }
+  function goToDetailTab(key) {
+    if (!key) return;
+    IH.detailActiveTab = key;
+    $all('.ih-detail-tab').forEach(function (b) {
+      var active = b.getAttribute('data-detail-tab') === key;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    $all('.ih-detail-panel').forEach(function (panel) { panel.classList.remove('is-active'); });
+    var target = $('#ih-dpanel-' + key); if (target) target.classList.add('is-active');
+    renderDetailTab(key);
+  }
+  function renderDetailTab(key) {
+    var p = IH.projects.filter(function (x) { return x.id === IH.activeProjectId; })[0];
+    if (!p) return;
+    switch (key) {
+      case 'overview': return renderOverviewPanel(p);
+      case 'intake':   return renderIntakePanel(p);
+      case 'map':      return renderImpactMapPanel(p);
+      case 'related':  return renderRelatedPanel(p);
+      case 'reg':      return renderRegulationsPanel(p);
+      case 'stake':    return renderStakeholdersPanel(p);
+      case 'notif':    return renderNotificationsPanel(p);
+      case 'readi':    return renderReadinessPanel(p);
+      case 'evi':      return renderEvidencePanel(p);
+      case 'audit':    return renderAuditPanel(p);
+    }
+  }
+
+  // -------- Small render helpers --------
+  function kv(k, v) { return '<dt>' + escapeHtml(k) + '</dt><dd>' + escapeHtml(v == null ? '—' : String(v)) + '</dd>'; }
+  function summaryChip(cls, label, count) {
+    return '<div class="ih-summary-chip ' + (cls || '') + '">' +
+      '<span class="ih-summary-num">' + count + '</span>' +
+      '<span class="ih-summary-lbl">' + escapeHtml(label) + '</span>' +
+    '</div>';
+  }
+  function emptyStateHtml(icon, title, body) {
+    return '<div class="ih-empty"><i class="fa-solid ' + icon + '"></i><h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(body) + '</p></div>';
+  }
+
+  // -------- OVERVIEW --------
+  function renderOverviewPanel(p) {
+    var el = $('#ih-dpanel-overview'); if (!el) return;
+    var pd = projectDescriptor(p);
+    var breakdown = computeImpactScoreBreakdown(p);
+    var pct = Math.max(0, Math.min(100, breakdown.total));
+    var related = generateRelatedProjects(p);
+    var regs    = generateRegulatoryConcerns(p);
+    var ctls    = generateControlRecommendations(p);
+    var notifs  = generateNotificationRecommendations(p);
+
+    var summaryChips =
+      '<div class="ih-summary-chip-row">' +
+        summaryChip('',        'Departments impacted',  (p.departments || []).length) +
+        summaryChip(related.length ? 'is-amber' : '', 'Related projects',      related.length) +
+        summaryChip(regs.length    ? 'is-red'   : '', 'Regulatory concerns',   regs.length) +
+        summaryChip('',        'Controls recommended',  ctls.length) +
+        summaryChip(notifs.length  ? 'is-amber' : '', 'Notifications pending', notifs.length) +
+      '</div>';
+
+    var scoreHero =
+      '<div class="ih-score-hero">' +
+        '<div class="ih-score-ring" style="background: conic-gradient(var(--ih-blue-d) ' + pct + '%, #E5E7EB 0);">' +
+          '<div class="ih-score-ring-inner">' +
+            '<div class="ih-score-ring-num">' + pct + '</div>' +
+            '<div class="ih-score-ring-lbl">Impact</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="ih-score-meta">' +
+          '<h4>Impact Score — explainable breakdown</h4>' +
+          '<p>Deterministic baseline computed locally from project attributes. AI-recommended adjustments are separately identified.</p>' +
+          '<span class="ih-score-source">Deterministic Local Analysis</span>' +
+          (breakdown.aiAdjust ? '<span class="ih-score-source is-ai">AI Suggested Adjustment</span>' : '') +
+        '</div>' +
+      '</div>';
+
+    var breakdownHtml = breakdown.lines.map(function (ln) {
+      var cls = ln.source === 'ai' ? 'is-ai-adjust' : '';
+      return '<div class="ih-score-line ' + cls + '">' +
+        '<span><strong>' + escapeHtml(ln.factor) + '</strong>' +
+          '<span class="ih-score-note">' + escapeHtml(ln.note) + '</span></span>' +
+        '<span class="ih-score-pts">' + (ln.points > 0 ? '+' : '') + ln.points + '</span>' +
+      '</div>';
+    }).join('') +
+      '<div class="ih-score-total"><span>Total (baseline ' + breakdown.baseline +
+      (breakdown.aiAdjust ? ' + AI ' + (breakdown.aiAdjust > 0 ? '+' : '') + breakdown.aiAdjust : '') +
+      ')</span><strong>' + breakdown.total + '</strong></div>';
+
+    var basics =
+      '<div class="ih-card-white">' +
+        '<h3><i class="fa-solid fa-circle-info"></i>Overview</h3>' +
+        '<dl class="ih-kv">' +
+          kv('Project ID',        p.id) +
+          kv('Item type',         (ITEM_CLASSES[p.class] && ITEM_CLASSES[p.class].label) || p.class) +
+          kv('Subtype',           SUBTYPE_LABEL[p.subtype] || p.subtype) +
+          kv('Status',            titleCase(p.status)) +
+          kv('Priority',          titleCase(p.priority)) +
+          kv('Impact Lead',       personName(p.impactLeadId) || '—') +
+          kv('Owner',             personName(p.ownerId) || '—') +
+          kv('Executive Sponsor', personName(pd.sponsorId) || '—') +
+          kv('Primary department',pd.primaryDepartment) +
+          kv('Start date',        fmtDate(p.startDate)) +
+          kv('Target date',       fmtDate(p.targetDate)) +
+          kv('Current stage',     pd.stage) +
+          kv('Key milestone',     pd.milestone) +
+          kv('Assessment',        (p.assessment || 0) + '% complete') +
+          kv('AI confidence',     (breakdown.aiAdjust ? '82' : '68') + '% (deterministic baseline; live AI confidence in Phase 4)') +
+        '</dl>' +
+        '<h3 style="margin-top:14px;"><i class="fa-solid fa-align-left"></i>Description</h3>' +
+        '<p style="margin:0 0 8px;font-size:12.5px;color:#334155;line-height:1.55;">' + escapeHtml(pd.description) + '</p>' +
+        '<h3 style="margin-top:10px;"><i class="fa-solid fa-bullseye"></i>Business objective</h3>' +
+        '<p style="margin:0;font-size:12.5px;color:#334155;line-height:1.55;">' + escapeHtml(pd.businessObjective) + '</p>' +
+      '</div>';
+
+    var scoreCard =
+      '<div class="ih-card-white">' +
+        '<h3><i class="fa-solid fa-gauge-high"></i>Impact Score</h3>' +
+        scoreHero +
+        '<div class="ih-score-breakdown">' + breakdownHtml + '</div>' +
+      '</div>';
+
+    var chipsCard =
+      '<div class="ih-card-white">' +
+        '<h3><i class="fa-solid fa-tags"></i>Impacted areas</h3>' +
+        '<div class="ih-chips">' + (p.impactedAreas || []).map(function (a) { return '<span class="ih-chip">' + escapeHtml(a) + '</span>'; }).join('') + '</div>' +
+        '<h3 style="margin-top:12px;"><i class="fa-solid fa-building-user"></i>Departments</h3>' +
+        '<div class="ih-chips">' + (p.departments || []).map(function (d) { return '<span class="ih-chip is-slate">' + escapeHtml(d) + '</span>'; }).join('') + '</div>' +
+        '<h3 style="margin-top:12px;"><i class="fa-solid fa-server"></i>Systems</h3>' +
+        '<div class="ih-chips">' + (p.systems || []).map(function (s) {
+          var crit = !!CRITICAL_SYSTEMS[s];
+          return '<span class="ih-chip ' + (crit ? 'is-red' : '') + '">' + (crit ? '<i class="fa-solid fa-shield-halved"></i>' : '') + escapeHtml(s) + '</span>';
+        }).join('') + '</div>' +
+      '</div>';
+
+    el.innerHTML =
+      summaryChips +
+      '<div class="ih-ov-grid">' +
+        '<div>' + basics + '</div>' +
+        '<div>' + scoreCard + chipsCard + '</div>' +
+      '</div>';
+  }
+
+  // -------- INTAKE (Phase 3 replaces with real wizard) --------
+  function renderIntakePanel(p) {
+    var el = $('#ih-dpanel-intake'); if (!el) return;
+    var joined = ((p.impactedAreas || []).join(' ') + ' ' + (p.title || '')).toLowerCase();
+    function ans(val) {
+      var cls = val === 'yes' ? 'is-yes' : (val === 'no' ? 'is-no' : 'is-partial');
+      var icn = val === 'yes' ? 'fa-check-circle' : (val === 'no' ? 'fa-circle-minus' : 'fa-circle-question');
+      var lbl = val === 'yes' ? 'Yes' : (val === 'no' ? 'No' : 'Partial / to be confirmed');
+      return '<div class="ih-intake-a ' + cls + '"><i class="fa-solid ' + icn + '"></i>' + lbl + '</div>';
+    }
+    function q(question, val, note) {
+      return '<div class="ih-intake-item">' +
+        '<div class="ih-intake-q">' + escapeHtml(question) + '</div>' + ans(val) +
+        (note ? '<div style="margin-top:4px;font-size:11px;color:#6B7280;">' + escapeHtml(note) + '</div>' : '') +
+      '</div>';
+    }
+    el.innerHTML =
+      '<div class="ih-card-white">' +
+        '<h3><i class="fa-solid fa-file-lines"></i>Intake summary</h3>' +
+        '<p style="margin:0 0 12px;font-size:12px;color:#6B7280;">The full progressive intake wizard ships in Phase 3. This tab summarizes the answers deterministically inferred from the current project data. Every answer is reviewer-confirmable.</p>' +
+        '<div class="ih-intake-grid">' +
+          q('Customer-facing?',                /customer|notice|dispute|complaint/.test(joined) ? 'yes' : 'no', 'Applies when the project changes customer-facing content, journeys, or outcomes.') +
+          q('Third-party involvement?',        /vendor|third|verification/.test(joined) ? 'yes' : 'no', 'Applies when a vendor or external provider is in scope.') +
+          q('Sensitive data touched?',         /data|privacy|records|reporting/.test(joined) ? 'yes' : 'no', 'Applies when the project touches personal or restricted data.') +
+          q('Policy or procedure change?',     /policy|retention|records/.test(joined) ? 'yes' : 'partial', 'Applies when policy or procedure documents will change.') +
+          q('Business-continuity impact?',     /recovery|infra|critical service/.test(joined) ? 'yes' : 'no', 'Applies when the project affects service continuity or recovery.') +
+          q('AI or model decisioning?',        /\bai\b|model|decision/.test(joined) ? 'yes' : 'no', 'Applies when the change involves a statistical or ML-driven decision.') +
+          q('Customer communications change?', /notice|complaint|customer/.test(joined) ? 'yes' : 'partial', 'Applies when notices, letters, or in-app messages will change.') +
+          q('Financial-reporting impact?',     /report|reconcil|finance/.test(joined) ? 'yes' : 'no', 'Applies when the change affects data flowing to regulatory or financial reports.') +
+        '</div>' +
+      '</div>';
+  }
+
+  // -------- RELATED PROJECTS --------
+  function renderRelatedPanel(p) {
+    var el = $('#ih-dpanel-related'); if (!el) return;
+    var list = generateRelatedProjects(p).map(function (f) { return applyFindingOverride(f, p.id); });
+    if (!list.length) {
+      el.innerHTML = '<div class="ih-card-white">' + emptyStateHtml('fa-arrows-turn-to-dots',
+        'No related projects detected',
+        'The deterministic matcher found no overlapping systems, departments, or windows with other portfolio items. Phase 5 adds semantic AI matching on top.') + '</div>';
+      return;
+    }
+    var html = '<div class="ih-card-white"><h3><i class="fa-solid fa-arrows-turn-to-dots"></i>Related projects — reviewer confirmation required</h3>' +
+      '<p style="margin:0 0 12px;font-size:12px;color:#6B7280;">Every relationship starts as <strong>unconfirmed</strong>. Confirm, modify, or reject each item; the Activity &amp; Audit tab records each decision.</p>';
+    list.forEach(function (f) {
+      html +=
+        '<div class="ih-finding' + findingCardClasses(f) + '">' +
+          '<div class="ih-finding-hdr">' +
+            '<div class="ih-finding-title">' + escapeHtml(f.title) + ' <span style="color:#94A3B8;font-weight:500;">' + escapeHtml(f.projectId) + '</span></div>' +
+            '<div class="ih-finding-meta">' +
+              sourceBadge(f.source) + statusBadge(f.status) +
+              sevBadge(f.impactLevel) +
+              '<span class="ih-conf-badge ih-conf-source-det">Confidence ' + Math.round((f.confidence || 0) * 100) + '%</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="ih-finding-body">' +
+            '<p><strong>Why matched:</strong> ' + (f.reasons || []).map(escapeHtml).join(' • ') + '</p>' +
+            '<div class="ih-finding-attrs">' + (f.sharedAttributes || []).map(function (a) { return '<span class="ih-chip is-slate">' + escapeHtml(a) + '</span>'; }).join('') + '</div>' +
+            '<p><strong>Recommended actions:</strong> ' + (f.recommendedActions || []).map(escapeHtml).join(' • ') + '</p>' +
+            (f.notes ? '<div class="ih-notes"><strong>Reviewer note:</strong> ' + escapeHtml(f.notes) + '</div>' : '') +
+          '</div>' +
+          '<div class="ih-finding-actions">' + findingActionButtons('related', f.id, f.status) + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // -------- REGULATIONS & CONTROLS --------
+  function renderRegulationsPanel(p) {
+    var el = $('#ih-dpanel-reg'); if (!el) return;
+    var regs = generateRegulatoryConcerns(p).map(function (f) { return applyFindingOverride(f, p.id); });
+    var ctls = generateControlRecommendations(p).map(function (f) { return applyFindingOverride(f, p.id); });
+
+    var regHtml = '<div class="ih-card-white"><h3><i class="fa-solid fa-scale-balanced"></i>Regulatory concerns — reviewer determination required</h3>' +
+      '<p style="margin:0 0 12px;font-size:12px;color:#6B7280;">This project is <strong>not</strong> marked "compliant". A reviewer must confirm, modify, or reject each concern before it is considered resolved.</p>';
+    if (!regs.length) regHtml += '<p style="color:#6B7280;font-size:12px;">No deterministic regulatory triggers detected. Reviewers may still add concerns manually.</p>';
+    regs.forEach(function (f) {
+      regHtml +=
+        '<div class="ih-finding' + findingCardClasses(f) + '">' +
+          '<div class="ih-finding-hdr">' +
+            '<div class="ih-finding-title">' + escapeHtml(f.title) + '</div>' +
+            '<div class="ih-finding-meta">' + sourceBadge(f.source) + statusBadge(f.status) + sevBadge(f.severity) + '</div>' +
+          '</div>' +
+          '<div class="ih-finding-body">' +
+            '<p><strong>Why flagged:</strong> ' + escapeHtml(f.whyFlagged) + '</p>' +
+            '<p><strong>Recommended reviewer:</strong> ' + escapeHtml(f.recommendedReviewDepartment) + '</p>' +
+            (f.notes ? '<div class="ih-notes"><strong>Reviewer note:</strong> ' + escapeHtml(f.notes) + '</div>' : '') +
+          '</div>' +
+          '<div class="ih-finding-actions">' + findingActionButtons('reg', f.id, f.status) + '</div>' +
+        '</div>';
+    });
+    regHtml += '</div>';
+
+    var ctlHtml = '<div class="ih-card-white"><h3><i class="fa-solid fa-shield-halved"></i>Recommended controls</h3>';
+    if (!ctls.length) ctlHtml += '<p style="color:#6B7280;font-size:12px;">No deterministic control recommendations.</p>';
+    ctls.forEach(function (f) {
+      ctlHtml +=
+        '<div class="ih-finding' + findingCardClasses(f) + '">' +
+          '<div class="ih-finding-hdr">' +
+            '<div class="ih-finding-title">' + escapeHtml(f.title) + '</div>' +
+            '<div class="ih-finding-meta">' + sourceBadge(f.source) + statusBadge(f.status) +
+              '<span class="ih-conf-badge ih-conf-source-det">Type: ' + escapeHtml(f.controlType || 'preventive') + '</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="ih-finding-body">' +
+            '<p>' + escapeHtml(f.description) + '</p>' +
+            '<p><strong>Recommended owner:</strong> ' + escapeHtml(f.recommendedOwnerDepartment) + ' · <strong>Reviewer:</strong> ' + escapeHtml(f.reviewDepartment) + '</p>' +
+            '<div class="ih-finding-attrs"><strong style="margin-right:6px;font-size:11px;color:#475569;">Evidence required:</strong>' +
+              (f.evidenceRequired || []).map(function (e) { return '<span class="ih-chip is-slate">' + escapeHtml(e) + '</span>'; }).join('') + '</div>' +
+            (f.notes ? '<div class="ih-notes"><strong>Reviewer note:</strong> ' + escapeHtml(f.notes) + '</div>' : '') +
+          '</div>' +
+          '<div class="ih-finding-actions">' + findingActionButtons('ctl', f.id, f.status) + '</div>' +
+        '</div>';
+    });
+    ctlHtml += '</div>';
+    el.innerHTML = regHtml + ctlHtml;
+  }
+
+  // -------- NOTIFICATIONS --------
+  function renderNotificationsPanel(p) {
+    var el = $('#ih-dpanel-notif'); if (!el) return;
+    var list = generateNotificationRecommendations(p).map(function (f) { return applyFindingOverride(f, p.id); });
+    var html = '<div class="ih-card-white"><h3><i class="fa-solid fa-bell"></i>Notification routing recommendations</h3>' +
+      '<p style="margin:0 0 12px;font-size:12px;color:#6B7280;">Derived from the routing matrix. Confirm each recipient to record acknowledgement expectations. External delivery (email / Slack / Teams) is out of Phase 2 scope; no credentials ever leave the server.</p>';
+    if (!list.length) html += '<p style="color:#6B7280;font-size:12px;">No routing rules triggered by the current project attributes.</p>';
+    list.forEach(function (f) {
+      html +=
+        '<div class="ih-finding' + findingCardClasses(f) + '">' +
+          '<div class="ih-notif-hdr">' +
+            '<span class="ih-notif-dept"><i class="fa-solid fa-building-user"></i> ' + escapeHtml(f.department) + '</span>' +
+            '<span class="ih-notif-due">Suggested acknowledge within ' + f.suggestedDueDays + ' business days</span>' +
+            sourceBadge(f.source) + statusBadge(f.status) + sevBadge(f.priority) +
+          '</div>' +
+          '<div class="ih-finding-body">' +
+            '<p><strong>Reason:</strong> ' + escapeHtml(f.reason) + '</p>' +
+            '<p><strong>Acknowledgement required:</strong> ' + (f.acknowledgementRequired ? 'Yes' : 'No') + '</p>' +
+            (f.notes ? '<div class="ih-notes"><strong>Reviewer note:</strong> ' + escapeHtml(f.notes) + '</div>' : '') +
+          '</div>' +
+          '<div class="ih-finding-actions">' + findingActionButtons('notif', f.id, f.status) + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // -------- ACTIVITY & AUDIT --------
+  function renderAuditPanel(p) {
+    var el = $('#ih-dpanel-audit'); if (!el) return;
+    var events = generateAuditEvents(p);
+
+    // Include reviewer-driven overrides as live audit entries.
+    var overrides = IH.findingOverrides[p.id] || {};
+    Object.keys(overrides).forEach(function (fid) {
+      var o = overrides[fid];
+      events.unshift({
+        ts: o.updatedAt,
+        kind: o.status === 'confirmed' ? 'green' : (o.status === 'rejected' ? 'red' : 'amber'),
+        actor: o.updatedBy || 'Reviewer',
+        message: 'Finding ' + fid + ' marked "' + o.status + '"' + (o.notes ? ' — note: ' + o.notes : '') + '.'
+      });
+    });
+    events.sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
+
+    var html = '<div class="ih-card-white"><h3><i class="fa-solid fa-clock-rotate-left"></i>Activity &amp; audit</h3>' +
+      '<p style="margin:0 0 12px;font-size:12px;color:#6B7280;">Chronological event stream. Reviewer-driven confirmations are captured immediately in-session (persistence to the tenant\u2019s auditEvents collection wires up in Phase 6).</p>' +
+      '<div class="ih-timeline">';
+    events.forEach(function (e) {
+      html += '<div class="ih-timeline-item">' +
+        '<span class="ih-timeline-dot is-' + (e.kind || 'blue') + '"></span>' +
+        '<div class="ih-timeline-body">' +
+          '<div class="ih-timeline-msg">' + escapeHtml(e.message) + '</div>' +
+          '<div class="ih-timeline-meta">' + escapeHtml(e.actor || 'System') + ' · ' + escapeHtml(fmtDate(e.ts)) + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div></div>';
+    el.innerHTML = html;
+  }
+
+  // -------- Supporting tabs (professional but simpler) --------
+  function renderImpactMapPanel(p) {
+    var el = $('#ih-dpanel-map'); if (!el) return;
+    var related = generateRelatedProjects(p);
+    var regs    = generateRegulatoryConcerns(p);
+    var ctls    = generateControlRecommendations(p);
+
+    function col(hdr, items, iconDefault) {
+      var body = items.length
+        ? items.map(function (it) {
+            return '<div class="ih-impactmap-node ' + (it.cls || '') + '">' +
+              '<i class="fa-solid ' + (it.icon || iconDefault) + '"></i>' + escapeHtml(it.label) + '</div>';
+          }).join('')
+        : '<div class="ih-impactmap-node" style="opacity:0.55;font-style:italic;">No items</div>';
+      return '<div class="ih-impactmap-col">' +
+        '<div class="ih-impactmap-col-hdr">' + escapeHtml(hdr) + '</div>' + body + '</div>';
+    }
+    var leftItems   = related.map(function (r) { return { label: r.title + ' (' + r.projectId + ')', cls: r.impactLevel === 'high' ? 'is-critical' : 'is-amber' }; });
+    var topItems    = (p.departments || []).map(function (d) { return { label: d }; });
+    var rightItems  = (p.systems || []).map(function (s) { return { label: s, cls: CRITICAL_SYSTEMS[s] ? 'is-critical' : '' }; });
+    var bottomItems = regs.slice(0, 3).map(function (r) { return { label: r.title, cls: 'is-critical', icon: 'fa-scale-balanced' }; })
+      .concat(ctls.slice(0, 3).map(function (c) { return { label: c.title, cls: 'is-amber', icon: 'fa-shield-halved' }; }));
+
+    el.innerHTML =
+      '<div class="ih-card-white">' +
+        '<h3><i class="fa-solid fa-diagram-project"></i>Impact map — deterministic layout</h3>' +
+        '<p style="margin:0 0 10px;font-size:12px;color:#6B7280;">Stable four-quadrant map: related projects (left), departments (top), systems (right), regulatory concerns and controls (bottom). Phase 6 upgrades this to a full SVG layout with click-to-detail nodes and filter toggles.</p>' +
+        '<div>' + col('Departments impacted', topItems, 'fa-building-user') + '</div>' +
+        '<div class="ih-impactmap">' +
+          col('Related projects', leftItems, 'fa-diagram-project') +
+          '<div class="ih-impactmap-center">' +
+            '<strong>' + escapeHtml(p.title) + '</strong>' +
+            '<div class="ih-impactmap-id">' + escapeHtml(p.id) + '</div>' +
+            '<small>Center node</small>' +
+          '</div>' +
+          col('Systems in scope', rightItems, 'fa-server') +
+        '</div>' +
+        '<div style="margin-top:10px;">' + col('Regulatory concerns &amp; controls', bottomItems, 'fa-scale-balanced') + '</div>' +
+      '</div>';
+  }
+
+  function renderStakeholdersPanel(p) {
+    var el = $('#ih-dpanel-stake'); if (!el) return;
+    var rows = generateStakeholders(p);
+    var html = '<div class="ih-card-white"><h3><i class="fa-solid fa-users-gear"></i>Stakeholders &amp; RACI</h3>' +
+      '<p style="margin:0 0 10px;font-size:12px;color:#6B7280;">R = Responsible, A = Accountable, C = Consulted, I = Informed. Editing the RACI matrix ships in Phase 6 (Admin).</p>' +
+      '<table class="ih-raci-table"><thead><tr>' +
+        '<th>Name</th><th>Role</th><th>Department</th><th style="text-align:center;">RACI</th>' +
+      '</tr></thead><tbody>';
+    rows.forEach(function (r) {
+      html += '<tr>' +
+        '<td>' + escapeHtml(r.name) + '</td>' +
+        '<td>' + escapeHtml(r.role) + '</td>' +
+        '<td>' + escapeHtml(r.dept) + '</td>' +
+        '<td style="text-align:center;"><span class="ih-raci-code is-' + (r.raci || 'i').toLowerCase() + '">' + escapeHtml(r.raci) + '</span></td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  }
+
+  function renderReadinessPanel(p) {
+    var el = $('#ih-dpanel-readi'); if (!el) return;
+    var rows = generateReadiness(p);
+    var html = '<div class="ih-card-white"><h3><i class="fa-solid fa-flag-checkered"></i>Implementation readiness</h3>' +
+      '<p style="margin:0 0 10px;font-size:12px;color:#6B7280;">Aggregate readiness across the key gates. Detailed evidence and reviewer sign-offs live in the Documents &amp; Evidence tab.</p>';
+    rows.forEach(function (r) {
+      html += '<div class="ih-readi-row">' +
+        '<div><strong>' + escapeHtml(r.domain) + '</strong><small>' + escapeHtml(r.note) + '</small></div>' +
+        '<span class="ih-readi-status is-' + r.status + '">' + escapeHtml(titleCase(r.status)) + '</span>' +
+      '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  function renderEvidencePanel(p) {
+    var el = $('#ih-dpanel-evi'); if (!el) return;
+    var items = generateEvidence(p);
+    var html = '<div class="ih-card-white"><h3><i class="fa-solid fa-folder-open"></i>Documents &amp; evidence</h3>' +
+      '<p style="margin:0 0 10px;font-size:12px;color:#6B7280;">Sample evidence entries. Uploading, retention labeling, and cross-project evidence links ship in Phase 6.</p>';
+    items.forEach(function (e) {
+      var icon = e.kind === 'pdf' ? 'fa-file-pdf' : (e.kind === 'docx' ? 'fa-file-word' : 'fa-file');
+      html += '<div class="ih-evidence-row">' +
+        '<i class="fa-solid ' + icon + '"></i>' +
+        '<div><strong>' + escapeHtml(e.name) + '</strong><small>Uploaded ' + escapeHtml(fmtDate(e.uploaded)) + ' by ' + escapeHtml(e.uploadedBy) + '</small></div>' +
+        '<button type="button" class="ih-btn ih-btn-outline" data-action="close-detail" title="Preview (Phase 6)" disabled><i class="fa-solid fa-eye"></i>Preview</button>' +
+      '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
   }
 
   // ==========================================================================
@@ -2020,6 +3225,19 @@
         if (pid) openProjectDetail(pid);
         return;
       }
+
+      var dTab = ev.target.closest && ev.target.closest('.ih-detail-tab');
+      if (dTab) { goToDetailTab(dTab.getAttribute('data-detail-tab')); return; }
+
+      var fAct = ev.target.closest && ev.target.closest('[data-finding-action]');
+      if (fAct) {
+        handleFindingAction(
+          fAct.getAttribute('data-finding-action'),
+          fAct.getAttribute('data-finding-collection'),
+          fAct.getAttribute('data-finding-id')
+        );
+        return;
+      }
     });
 
     // Keyboard: Enter on focused project row
@@ -2056,9 +3274,12 @@
     var googleBtn = $('#ih-google-signin-btn');
     if (googleBtn) googleBtn.addEventListener('click', signInWithGoogle);
 
-    // Escape closes sign-in modal
+    // Escape closes any open modal — detail first, then sign-in.
     document.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Escape') closeSignInModal();
+      if (ev.key !== 'Escape') return;
+      var detailModal = $('#ih-detail-modal');
+      if (detailModal && detailModal.classList.contains('is-open')) { closeProjectDetail(); return; }
+      closeSignInModal();
     });
 
     // Backdrop click closes modal
@@ -2091,6 +3312,12 @@
         break;
       case 'enter-demo':
         enterDemoMode();
+        break;
+      case 'close-detail':
+        closeProjectDetail();
+        break;
+      case 'ai-analyze-detail':
+        toast('Secure AI Impact Analysis ships in Phase 4 via the Firebase-authenticated /impact/analyze route. Deterministic findings shown in this project are already computed locally.', 'warn', 4600);
         break;
       default:
         toast('Unhandled action: ' + name, 'error');
