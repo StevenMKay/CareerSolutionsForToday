@@ -9,31 +9,44 @@
 
 <!--
   ============================================================================
-  ImpactHub v1 — Phases 1–2
+  ImpactHub v1 — Phases 1–6 (v1 complete)
   ============================================================================
-  Phase 1 delivers: enterprise shell (screenshot-matching), projects table
-  with grouping / sorting / search / filters / responsive cards, 14+ neutral
-  sample records, real Firebase auth + explicit "View Demo" mode, PMSite-
-  style tenant resolution (never silently writes to a shared 'demo' tenant).
+  Phase 1 — Enterprise shell + projects table + Firebase auth / View Demo.
+  Phase 2 — Full-screen 10-tab project detail modal (6 fully wired) with
+              explainable impact-score breakdown and Confirm/Reject/Modify
+              workflow on every finding.
+  Phase 3 — Progressive 7-step intake wizard with conditional-field logic,
+              draft persistence, and live assessment-completeness recompute.
+  Phase 4 — Secure AI adapter (fetchImpactApiWithRetry) with Firebase
+              Bearer-token auth, AbortController timeout, retries only on
+              502/503/504, mock fallback only on 404/501/unreachable, real
+              4xx surfaced, source labels on every result, AI modal with
+              8 result tabs. No provider secrets in this file.
+  Phase 5 — Spec-weighted deterministic cross-impact engine (+25 shared
+              critical system, +30 declared dependency, etc., normalized
+              0–100, tiered Low/Moderate/High/Critical). Wizard-aware
+              notification routing engine.
+  Phase 6 — Real SVG Impact Map (deterministic radial layout with filter
+              toggles, click-through to related project detail). Department
+              Impact Heatmap top-nav tab (departments × projects grid,
+              color-coded impact). Admin section with practical reference-
+              data management for departments, systems, business processes,
+              vendors, regulations, controls, and routing rules. Admin-only
+              "Initialize Demo Workspace" idempotent action (never runs
+              automatically; requires explicit confirmation; writes only to
+              the currently resolved tenant).
 
-  Phase 2 delivers: full-screen project detail modal with 10 tabs. Six are
-  fully wired — Overview (with explainable impact-score breakdown per
-  requirement 13), Intake, Related Projects, Regulations & Controls,
-  Notifications, and Activity & Audit — each supporting the human
-  Confirm / Reject / Modify workflow on suggested findings, with every
-  finding visibly labeled by source (Deterministic Local Analysis /
-  AI Suggested / Human Confirmed) per requirement 9. The remaining four
-  tabs — Impact Map, Stakeholders, Implementation Readiness, Documents &
-  Evidence — render meaningful sample content with clear empty states.
+  Files preserved and NEVER modified by this application:
+    - PMSite.html          (referenced for Firebase config + tenant pattern)
+    - resumebuilder.html   (referenced for secure AI adapter pattern)
+    - shortcuts.html       (unrelated)
 
-  Later phases:
-    Phase 3 — Progressive intake wizard + assessment completeness
-    Phase 4 — Secure AI adapter (fetchImpactApiWithRetry) + labeled sources
-    Phase 5 — Deterministic cross-impact engine + notification routing engine
-    Phase 6 — Full SVG Impact Map + Department Heatmap + Admin CRUD
-
-  Non-implemented top-nav tabs render a professional "coming in Phase X"
-  empty state. Nothing in the visible UI is a dead button.
+  Never included in this file:
+    - OpenAI API keys or any provider secret
+    - Direct calls to api.openai.com
+    - Any real bank / issuer / regulator name
+    - Auto-mock Firebase sign-in (explicit "View Demo" mode only)
+    - Auto-seed of Firestore (Admin > Initialize Demo Workspace required)
 
   Files reused by reference only (NOT modified):
     - PMSite.html            → Firebase config, tenant lookup pattern, layout ideas
@@ -1122,6 +1135,370 @@
   .ih-evidence-row i { color: var(--ih-blue-d); font-size: 16px; }
   .ih-evidence-row strong { color: var(--ih-slate-d); font-size: 12.5px; display: block; }
   .ih-evidence-row small  { color: var(--ih-text-soft); font-size: 11px; display: block; margin-top: 2px; }
+
+  /* ==========================================================================
+     PHASE 3 — INTAKE WIZARD
+     ========================================================================== */
+  .ih-wizard-card {
+    background: #FFFFFF; border-radius: 8px;
+    box-shadow: var(--ih-shadow-lg);
+    max-width: 820px; width: 100%;
+    max-height: calc(100vh - 40px);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  @media (max-width: 640px) { .ih-wizard-card { max-height: 100vh; border-radius: 0; } }
+  .ih-wiz-hdr {
+    padding: 12px 18px;
+    background: linear-gradient(90deg, var(--ih-navy), var(--ih-navy-d));
+    color: #FFFFFF; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  .ih-wiz-hdr h2 { margin: 0; font-size: 14.5px; font-weight: 700; flex: 1; min-width: 0; }
+  .ih-wiz-hdr h2 span { opacity: .85; font-weight: 500; }
+  .ih-wiz-hdr .ih-modal-close { color: rgba(255,255,255,0.7); }
+  .ih-wiz-hdr .ih-modal-close:hover { color: #FFFFFF; }
+
+  .ih-wiz-stepper {
+    display: flex; gap: 4px; padding: 10px 18px;
+    background: #F1F5F9; border-bottom: 1px solid var(--ih-border);
+    overflow-x: auto; flex-shrink: 0;
+  }
+  .ih-wiz-step {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; color: var(--ih-text-soft);
+    background: #FFFFFF; border: 1px solid var(--ih-border);
+    cursor: pointer; white-space: nowrap;
+  }
+  .ih-wiz-step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #E5E7EB; color: var(--ih-text-soft);
+    font-size: 10px; font-weight: 800;
+  }
+  .ih-wiz-step.is-current { border-color: var(--ih-blue-d); color: var(--ih-blue-d); background: #EFF6FF; }
+  .ih-wiz-step.is-current .ih-wiz-step-num { background: var(--ih-blue-d); color: #FFFFFF; }
+  .ih-wiz-step.is-done { border-color: #86EFAC; color: #14532D; background: #DCFCE7; }
+  .ih-wiz-step.is-done .ih-wiz-step-num { background: #16A34A; color: #FFFFFF; }
+
+  .ih-wiz-body { flex: 1; overflow: auto; padding: 18px 22px; background: var(--ih-surface-alt); }
+  @media (max-width: 640px) { .ih-wiz-body { padding: 14px 12px; } }
+  .ih-wiz-panel-title { margin: 0 0 4px; font-size: 15px; color: var(--ih-slate-d); font-weight: 700; }
+  .ih-wiz-panel-sub   { margin: 0 0 16px; font-size: 12px; color: var(--ih-text-soft); }
+
+  .ih-wiz-field { margin-bottom: 14px; }
+  .ih-wiz-label {
+    display: block; margin-bottom: 4px;
+    font-size: 11.5px; color: var(--ih-slate-d); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .ih-wiz-required { color: #DC2626; margin-left: 3px; }
+  .ih-wiz-hint { display: block; margin-top: 3px; font-size: 11px; color: var(--ih-text-soft); }
+  .ih-wiz-input {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--ih-border-d); border-radius: 5px;
+    font-size: 12.5px; font-family: inherit; color: var(--ih-text);
+    background: #FFFFFF; outline: none;
+  }
+  .ih-wiz-input:focus { border-color: var(--ih-blue-d); box-shadow: 0 0 0 3px rgba(29,119,180,0.15); }
+  .ih-wiz-textarea { min-height: 80px; resize: vertical; }
+  .ih-wiz-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .ih-wiz-row { grid-template-columns: 1fr; } }
+
+  .ih-wiz-yesno { display: inline-flex; gap: 4px; }
+  .ih-wiz-yesno label {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border: 1px solid var(--ih-border-d); border-radius: 4px;
+    font-size: 12px; cursor: pointer; background: #FFFFFF;
+  }
+  .ih-wiz-yesno label:hover { border-color: var(--ih-blue-d); }
+  .ih-wiz-yesno input { margin: 0; }
+  .ih-wiz-yesno label:has(input:checked) { background: #EFF6FF; border-color: var(--ih-blue-d); color: var(--ih-blue-d); font-weight: 700; }
+
+  .ih-wiz-multicheck { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: #FFFFFF; border: 1px solid var(--ih-border-d); border-radius: 5px; }
+  .ih-wiz-multicheck label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; padding: 3px 0; }
+  .ih-wiz-multicheck input { margin: 0; }
+
+  .ih-wiz-cond {
+    margin-top: 10px; padding: 10px 12px;
+    background: #F0F9FF; border-left: 3px solid var(--ih-blue-d);
+    border-radius: 4px;
+  }
+  .ih-wiz-cond-title { font-size: 11px; font-weight: 700; color: var(--ih-blue-d); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
+
+  .ih-wiz-footer {
+    padding: 12px 18px; border-top: 1px solid var(--ih-border); background: #FFFFFF;
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .ih-wiz-progress {
+    flex: 1; font-size: 11px; color: var(--ih-text-soft); font-weight: 600;
+  }
+  .ih-wiz-progress strong { color: var(--ih-slate-d); }
+  .ih-wiz-footer .ih-btn { height: 32px; padding: 0 14px; font-size: 12px; }
+  @media (max-width: 640px) {
+    .ih-wiz-footer { flex-wrap: wrap; }
+    .ih-wiz-progress { flex-basis: 100%; text-align: center; margin-bottom: 4px; }
+  }
+
+  .ih-wiz-review-section {
+    background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 5px;
+    padding: 10px 12px; margin-bottom: 10px;
+  }
+  .ih-wiz-review-section h4 { margin: 0 0 6px; font-size: 11.5px; color: var(--ih-slate-d); text-transform: uppercase; letter-spacing: 0.4px; }
+  .ih-wiz-review-section dl { margin: 0; display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; font-size: 12px; }
+  .ih-wiz-review-section dt { color: var(--ih-text-soft); font-weight: 600; }
+  .ih-wiz-review-section dd { margin: 0; color: var(--ih-text); }
+  .ih-wiz-analyze-note {
+    padding: 10px 12px; margin-top: 8px;
+    background: #F5F3FF; border-left: 3px solid var(--ih-purple);
+    border-radius: 4px; font-size: 12px; color: #4C1D95;
+  }
+
+  /* ==========================================================================
+     PHASE 4 — AI IMPACT ANALYSIS MODAL
+     ========================================================================== */
+  .ih-ai-card {
+    background: #FFFFFF; border-radius: 8px;
+    box-shadow: var(--ih-shadow-lg);
+    max-width: 940px; width: 100%;
+    max-height: calc(100vh - 40px);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  @media (max-width: 640px) { .ih-ai-card { max-height: 100vh; border-radius: 0; } }
+  .ih-ai-hdr {
+    padding: 12px 18px;
+    background: linear-gradient(90deg, var(--ih-purple), #5B21B6);
+    color: #FFFFFF; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  }
+  .ih-ai-hdr h2 { margin: 0; font-size: 14.5px; font-weight: 700; flex: 1; }
+  .ih-ai-hdr h2 i { margin-right: 6px; }
+  .ih-ai-hdr .ih-modal-close { color: rgba(255,255,255,0.75); }
+  .ih-ai-hdr .ih-modal-close:hover { color: #FFFFFF; }
+
+  .ih-ai-body { flex: 1; overflow: auto; background: var(--ih-surface-alt); }
+  .ih-ai-section { padding: 16px 20px; }
+  @media (max-width: 640px) { .ih-ai-section { padding: 14px 12px; } }
+
+  .ih-ai-config { background: #FFFFFF; border-bottom: 1px solid var(--ih-border); }
+  .ih-ai-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .ih-ai-config-grid { grid-template-columns: 1fr; } }
+  .ih-ai-run-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .ih-ai-run-row .ih-btn { min-height: 34px; padding: 0 18px; font-size: 12.5px; }
+  .ih-ai-status { flex: 1; font-size: 11.5px; color: var(--ih-text-soft); font-weight: 600; }
+
+  .ih-ai-source-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; margin: 0 0 12px;
+    border-radius: 6px; font-size: 12px; font-weight: 600;
+  }
+  .ih-ai-source-banner i { font-size: 16px; flex-shrink: 0; }
+  .ih-ai-source-banner strong { text-transform: uppercase; letter-spacing: 0.5px; font-size: 10.5px; }
+  .ih-ai-source-banner.is-live { background: #EDE9FE; color: #4C1D95; border: 1px solid #DDD6FE; }
+  .ih-ai-source-banner.is-live i { color: var(--ih-purple); }
+  .ih-ai-source-banner.is-demo { background: #FEF3C7; color: #78350F; border: 1px solid #FDE68A; }
+  .ih-ai-source-banner.is-demo i { color: #B45309; }
+  .ih-ai-source-banner.is-det  { background: #DBEAFE; color: #1E40AF; border: 1px solid #BFDBFE; }
+  .ih-ai-source-banner.is-det  i { color: #1D4ED8; }
+
+  .ih-ai-error {
+    padding: 14px 16px; margin: 0 0 12px;
+    background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 6px;
+    color: #991B1B; font-size: 12.5px;
+  }
+  .ih-ai-error strong { display: block; font-size: 13px; margin-bottom: 4px; }
+  .ih-ai-error .ih-ai-error-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .ih-ai-loading {
+    padding: 32px 20px; text-align: center; color: var(--ih-text-soft);
+  }
+  .ih-ai-loading i { font-size: 28px; color: var(--ih-purple); margin-bottom: 10px; display: block; animation: ihSpin 1s linear infinite; }
+  @keyframes ihSpin { to { transform: rotate(360deg); } }
+  .ih-ai-loading-steps { display: inline-flex; flex-direction: column; gap: 4px; margin-top: 12px; text-align: left; font-size: 11.5px; }
+  .ih-ai-loading-steps li { list-style: none; color: var(--ih-text-soft); }
+  .ih-ai-loading-steps li.is-done   { color: #16A34A; }
+  .ih-ai-loading-steps li.is-active { color: var(--ih-purple); font-weight: 700; }
+
+  .ih-ai-results-tabs {
+    display: flex; overflow-x: auto;
+    background: #F1F5F9; border-bottom: 1px solid var(--ih-border);
+    padding: 0 6px;
+  }
+  .ih-ai-results-tab {
+    padding: 8px 12px; border: none; background: transparent;
+    color: var(--ih-text-soft); font-size: 11.5px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .ih-ai-results-tab i { font-size: 10.5px; margin-right: 4px; opacity: .85; }
+  .ih-ai-results-tab:hover { color: var(--ih-text); }
+  .ih-ai-results-tab.is-active { color: var(--ih-purple); border-bottom-color: var(--ih-purple); background: #FFFFFF; }
+  .ih-ai-results-tab .ih-ai-tab-count {
+    display: inline-block; margin-left: 4px;
+    background: #E5E7EB; color: var(--ih-text-soft);
+    border-radius: 8px; padding: 0 6px; font-size: 10px; font-weight: 800;
+  }
+  .ih-ai-results-tab.is-active .ih-ai-tab-count { background: var(--ih-purple); color: #FFFFFF; }
+  .ih-ai-results-body { background: var(--ih-surface-alt); }
+  .ih-ai-results-panel { display: none; padding: 16px 20px; }
+  .ih-ai-results-panel.is-active { display: block; }
+  @media (max-width: 640px) { .ih-ai-results-panel { padding: 14px 12px; } }
+
+  .ih-ai-summary {
+    background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 6px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .ih-ai-summary p { margin: 0 0 8px; font-size: 12.5px; color: #334155; line-height: 1.55; }
+  .ih-ai-summary-stats { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+  .ih-ai-summary-stat {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px; background: #F1F5F9; border-radius: 4px;
+    font-size: 11.5px; font-weight: 600; color: var(--ih-text);
+  }
+  .ih-ai-summary-stat strong { color: var(--ih-slate-d); }
+
+  .ih-ai-question-card {
+    background: #FFFFFF; border: 1px solid var(--ih-border);
+    border-left: 3px solid var(--ih-purple);
+    border-radius: 5px; padding: 10px 12px; margin-bottom: 8px;
+  }
+  .ih-ai-question-card .ih-ai-q-text { font-size: 12.5px; font-weight: 600; color: var(--ih-slate-d); }
+  .ih-ai-question-card .ih-ai-q-reason { font-size: 11.5px; color: var(--ih-text-soft); margin-top: 4px; }
+
+  .ih-ai-source-row {
+    background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 5px;
+    padding: 8px 12px; margin-bottom: 6px;
+    font-size: 12px; color: var(--ih-text);
+  }
+  .ih-ai-source-row strong { color: var(--ih-slate-d); }
+
+  .ih-ai-actions-bar {
+    padding: 12px 20px; background: #FFFFFF; border-top: 1px solid var(--ih-border);
+    display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+  }
+  .ih-ai-actions-bar .ih-btn { height: 32px; padding: 0 14px; font-size: 12px; }
+
+  /* ==========================================================================
+     PHASE 6 — IMPACT MAP (SVG) / DEPARTMENT HEATMAP / ADMIN
+     ========================================================================== */
+  .ih-map-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .ih-map-filter {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 10px; border: 1px solid var(--ih-border-d); border-radius: 12px;
+    background: #FFFFFF; font-size: 11.5px; font-weight: 600; color: var(--ih-text-soft);
+    cursor: pointer; user-select: none;
+  }
+  .ih-map-filter input { margin: 0; }
+  .ih-map-filter.is-on { background: #EFF6FF; border-color: var(--ih-blue-d); color: var(--ih-blue-d); }
+
+  .ih-map-svg-wrap { background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 6px; overflow: hidden; }
+  .ih-map-svg { display: block; width: 100%; height: auto; background: linear-gradient(180deg, #F8FAFC, #FFFFFF); }
+  .ih-map-node { cursor: pointer; }
+  .ih-map-node text { font-family: inherit; font-size: 10.5px; fill: var(--ih-slate-d); font-weight: 600; }
+  .ih-map-node circle { transition: transform .12s ease; }
+  .ih-map-node:hover circle { filter: brightness(1.05); }
+  .ih-map-node.is-center circle { fill: url(#ih-map-grad-center); stroke: var(--ih-purple); stroke-width: 3; }
+  .ih-map-node.is-center text { font-size: 12px; font-weight: 800; fill: var(--ih-purple); }
+  .ih-map-node.kind-project circle { fill: #DBEAFE; stroke: var(--ih-blue-d); stroke-width: 2; }
+  .ih-map-node.kind-department circle { fill: #E0E7FF; stroke: #4338CA; stroke-width: 2; }
+  .ih-map-node.kind-system circle { fill: #FEF3C7; stroke: #B45309; stroke-width: 2; }
+  .ih-map-node.kind-system.is-critical circle { fill: #FEE2E2; stroke: #B91C1C; stroke-width: 2.5; }
+  .ih-map-node.kind-reg circle { fill: #F5F3FF; stroke: var(--ih-purple); stroke-width: 2; }
+  .ih-map-edge { stroke: #94A3B8; stroke-width: 1.2; opacity: .55; }
+  .ih-map-edge.is-critical { stroke: #DC2626; stroke-width: 2.4; opacity: .8; }
+  .ih-map-edge.is-high     { stroke: #EA580C; stroke-width: 2.0; opacity: .75; }
+  .ih-map-edge.is-medium   { stroke: #D97706; stroke-width: 1.6; opacity: .65; }
+
+  /* Department heatmap */
+  .ih-heat-wrap { overflow: auto; background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 6px; }
+  .ih-heat-table { border-collapse: separate; border-spacing: 0; font-size: 11px; width: max-content; min-width: 100%; }
+  .ih-heat-table thead th {
+    position: sticky; top: 0; background: #F1F5F9; z-index: 2;
+    padding: 6px 8px; font-size: 10px; font-weight: 700;
+    color: var(--ih-text-soft); text-transform: uppercase; letter-spacing: 0.4px;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    min-height: 100px; height: 120px;
+    border-bottom: 1px solid var(--ih-border);
+  }
+  .ih-heat-table thead th:first-child {
+    writing-mode: horizontal-tb; transform: none;
+    text-align: left; padding: 6px 12px; min-width: 180px; height: auto;
+    z-index: 3;
+  }
+  .ih-heat-table tbody th {
+    position: sticky; left: 0; background: #FFFFFF;
+    padding: 6px 12px; font-size: 11.5px; font-weight: 600; color: var(--ih-slate-d);
+    text-align: left; white-space: nowrap;
+    border-bottom: 1px solid #F1F5F9; border-right: 1px solid var(--ih-border);
+    z-index: 1;
+  }
+  .ih-heat-table tbody td {
+    padding: 0; border-bottom: 1px solid #F1F5F9;
+    width: 26px; height: 26px; text-align: center;
+  }
+  .ih-heat-cell {
+    display: block; width: 100%; height: 100%;
+    background: #F1F5F9; cursor: pointer;
+  }
+  .ih-heat-cell.is-none { background: #F1F5F9; }
+  .ih-heat-cell.is-info { background: #DBEAFE; }
+  .ih-heat-cell.is-review { background: #FEF3C7; }
+  .ih-heat-cell.is-material { background: #FFEDD5; }
+  .ih-heat-cell.is-critical { background: #FEE2E2; }
+  .ih-heat-legend { display: flex; gap: 10px; margin-top: 8px; font-size: 11px; color: var(--ih-text-soft); flex-wrap: wrap; }
+  .ih-heat-legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .ih-heat-legend span::before { content: ''; display: inline-block; width: 14px; height: 14px; border-radius: 3px; }
+  .ih-heat-legend .heat-none::before     { background: #F1F5F9; }
+  .ih-heat-legend .heat-info::before     { background: #DBEAFE; }
+  .ih-heat-legend .heat-review::before   { background: #FEF3C7; }
+  .ih-heat-legend .heat-material::before { background: #FFEDD5; }
+  .ih-heat-legend .heat-critical::before { background: #FEE2E2; }
+
+  /* Admin */
+  .ih-admin-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
+  @media (max-width: 820px) { .ih-admin-layout { grid-template-columns: 1fr; } }
+  .ih-admin-sidebar { background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 6px; padding: 6px; }
+  .ih-admin-tab {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    padding: 8px 12px; margin: 2px 0;
+    border: none; background: transparent; text-align: left; width: 100%;
+    font-size: 12px; color: var(--ih-text); cursor: pointer; border-radius: 4px;
+  }
+  .ih-admin-tab:hover { background: #F1F5F9; }
+  .ih-admin-tab.is-active { background: #EFF6FF; color: var(--ih-blue-d); font-weight: 700; }
+  .ih-admin-tab .ih-admin-count {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    background: #F1F5F9; color: var(--ih-text-soft); font-size: 10px; font-weight: 700;
+  }
+  .ih-admin-tab.is-active .ih-admin-count { background: var(--ih-blue-d); color: #FFFFFF; }
+  .ih-admin-content { background: #FFFFFF; border: 1px solid var(--ih-border); border-radius: 6px; padding: 14px 16px; }
+  .ih-admin-content h3 { margin: 0 0 4px; font-size: 14px; color: var(--ih-slate-d); }
+  .ih-admin-content > p.ih-hint { margin: 0 0 12px; font-size: 12px; color: var(--ih-text-soft); }
+  .ih-admin-add-row { display: flex; gap: 6px; margin-bottom: 12px; }
+  .ih-admin-add-row input { flex: 1; padding: 8px 10px; border: 1px solid var(--ih-border-d); border-radius: 4px; font-size: 12px; font-family: inherit; }
+  .ih-admin-add-row input:focus { border-color: var(--ih-blue-d); outline: none; box-shadow: 0 0 0 3px rgba(29,119,180,0.12); }
+  .ih-admin-list { display: flex; flex-direction: column; gap: 4px; }
+  .ih-admin-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: #F8FAFC; border: 1px solid var(--ih-border); border-radius: 4px;
+    font-size: 12px; color: var(--ih-text);
+  }
+  .ih-admin-item .ih-admin-item-label { flex: 1; }
+  .ih-admin-item .ih-admin-item-src   { font-size: 10px; color: var(--ih-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .ih-admin-item .ih-admin-item-remove {
+    background: transparent; border: none; color: #DC2626; cursor: pointer;
+    padding: 3px 6px; border-radius: 3px; font-size: 11px;
+  }
+  .ih-admin-item .ih-admin-item-remove:hover { background: #FEE2E2; }
+  .ih-admin-item .ih-admin-item-remove:disabled { opacity: .35; cursor: not-allowed; }
+
+  .ih-admin-init {
+    background: linear-gradient(135deg, #F5F3FF, #FFFFFF);
+    border: 1px solid #DDD6FE; border-radius: 6px;
+    padding: 14px 16px; margin-top: 14px;
+  }
+  .ih-admin-init h4 { margin: 0 0 4px; font-size: 13px; color: var(--ih-purple); }
+  .ih-admin-init p  { margin: 0 0 10px; font-size: 12px; color: #475569; }
+  .ih-admin-init .ih-btn { min-height: 34px; }
 </style>
 </head>
 <body>
@@ -1332,6 +1709,41 @@
 </div>
 
 <!-- ============================================================================
+     INTAKE WIZARD MODAL (Phase 3)
+     ============================================================================ -->
+<div class="ih-modal-backdrop" id="ih-wizard-modal" role="dialog" aria-modal="true" aria-labelledby="ih-wiz-title">
+  <div class="ih-wizard-card">
+    <div class="ih-wiz-hdr">
+      <h2 id="ih-wiz-title">New Intake — <span id="ih-wiz-step-title">Basic Information</span></h2>
+      <button type="button" class="ih-modal-close" data-action="close-wizard" aria-label="Close intake wizard">&times;</button>
+    </div>
+    <div class="ih-wiz-stepper" id="ih-wiz-stepper" role="tablist" aria-label="Intake steps"></div>
+    <div class="ih-wiz-body" id="ih-wiz-body"></div>
+    <div class="ih-wiz-footer">
+      <button type="button" class="ih-btn ih-btn-outline" data-action="wizard-prev"><i class="fa-solid fa-arrow-left"></i>Back</button>
+      <span class="ih-wiz-progress">Step <strong id="ih-wiz-step-num">1</strong> of 7 &middot; Completeness: <strong id="ih-wiz-completeness">0%</strong></span>
+      <button type="button" class="ih-btn ih-btn-outline" data-action="wizard-save-draft"><i class="fa-solid fa-floppy-disk"></i>Save Draft</button>
+      <button type="button" class="ih-btn ih-btn-blue" data-action="wizard-next" id="ih-wiz-next-btn">Next<i class="fa-solid fa-arrow-right"></i></button>
+      <button type="button" class="ih-btn ih-btn-green" data-action="wizard-submit" id="ih-wiz-submit-btn" style="display:none;"><i class="fa-solid fa-check"></i>Submit for Assessment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================================
+     AI IMPACT ANALYSIS MODAL (Phase 4)
+     ============================================================================ -->
+<div class="ih-modal-backdrop" id="ih-ai-modal" role="dialog" aria-modal="true" aria-labelledby="ih-ai-title">
+  <div class="ih-ai-card">
+    <div class="ih-ai-hdr">
+      <h2 id="ih-ai-title"><i class="fa-solid fa-microchip"></i>AI Impact Analysis</h2>
+      <button type="button" class="ih-modal-close" data-action="close-ai" aria-label="Close AI analysis">&times;</button>
+    </div>
+    <div class="ih-ai-body" id="ih-ai-body"></div>
+    <div class="ih-ai-actions-bar" id="ih-ai-actions" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ============================================================================
      APPLICATION SCRIPT
      ============================================================================ -->
 <script>
@@ -1374,7 +1786,7 @@
   // 3. STATE
   // ==========================================================================
   var IH = window.IH = {
-    version: '0.2.0-phase2',
+    version: '0.6.0-phase6-v1-complete',
     fbAvailable: fbAvailable,
 
     // Auth state
@@ -1402,7 +1814,22 @@
     // requirement 10 (no sensitive project content in localStorage).
     // Structure: { [projectId]: { [findingId]: { status, notes, source,
     //             updatedAt, updatedBy } } }
-    findingOverrides: {}
+    findingOverrides: {},
+
+    // Wizard (Phase 3)
+    wizardOpen: false,
+    wizardStep: 1,
+    wizardData: {},
+    wizardEditingId: null,  // null when creating; project id when editing draft
+
+    // Reference data + Admin (Phase 6). In-memory only; user-added entries
+    // survive the session. "Initialize Demo Workspace" writes to Firestore.
+    referenceData: {
+      departments: [], systems: [], businessProcesses: [], vendors: [],
+      regulations: [], controls: [], routingRules: []
+    },
+    adminActiveCategory: 'departments',
+    impactMapFilters: { projects: true, departments: true, systems: true, regs: true }
   };
 
   // ==========================================================================
@@ -1743,6 +2170,7 @@
     IH.tenantResolutionStatus = 'idle';
     IH.projects = DEMO_PROJECTS.slice();
     IH.projectSource = 'demo';
+    loadDemoDrafts();
     closeSignInModal();
     applyAuthChrome();
     renderProjectsTab();
@@ -2263,6 +2691,10 @@
     if (panel) panel.classList.add('is-active');
     if (key === 'projects') {
       renderProjectsTab();
+    } else if (key === 'departments') {
+      renderDepartmentHeatmapPanel();
+    } else if (key === 'admin') {
+      renderAdminPanel();
     } else {
       renderPlaceholderPanel(key);
     }
@@ -2468,46 +2900,124 @@
     };
   }
 
-  // -------- Deterministic related-projects (Phase 5 upgrades the engine) -----
+  // -------- Deterministic related-projects (Phase 5) -----------------------
+  // Spec-weighted scoring per approved requirement 12. Every match contributes
+  // an itemized point value; the raw sum is capped at 100 and tiered:
+  //   0–24 = low  ·  25–49 = medium (Moderate)  ·  50–74 = high  ·  75–100 = critical
+  // AI may supplement these results (Phase 4 adapter) but is NEVER required.
   function generateRelatedProjects(p) {
     var out = [];
+    var pd  = projectDescriptor(p);
+    var myWiz  = p._wizard || {};
+    var mySys  = p.systems || [];
+    var myDep  = p.departments || [];
+    var myArea = p.impactedAreas || [];
+    var myPeople = [p.ownerId, p.impactLeadId, pd.sponsorId].filter(Boolean);
+    var myDataDomains = myWiz.dataDomains || [];
     (IH.projects || []).forEach(function (other) {
-      if (!other || other.id === p.id) return;
-      var sharedSys  = (p.systems || []).filter(function (s) { return (other.systems || []).indexOf(s) !== -1; });
-      var sharedDep  = (p.departments || []).filter(function (d) { return (other.departments || []).indexOf(d) !== -1; });
-      var sharedArea = (p.impactedAreas || []).filter(function (a) { return (other.impactedAreas || []).indexOf(a) !== -1; });
-      var shared = [];
-      sharedSys.forEach(function (s) { shared.push('System: ' + s); });
-      sharedDep.forEach(function (d) { shared.push('Department: ' + d); });
-      sharedArea.forEach(function (a) { shared.push('Area: ' + a); });
-      if (!shared.length) return;
-      var score = sharedSys.length * 12 + sharedDep.length * 5 + sharedArea.length * 3;
-      if (p.startDate && p.targetDate && other.startDate && other.targetDate) {
-        var a1 = new Date(p.startDate).getTime(), a2 = new Date(p.targetDate).getTime();
-        var b1 = new Date(other.startDate).getTime(), b2 = new Date(other.targetDate).getTime();
-        if (a1 <= b2 && b1 <= a2) { score += 8; shared.push('Overlapping delivery window'); }
+      if (!other || other.id === p.id || other.id === 'WIZ-PREVIEW') return;
+      var matches = [];
+      var raw = 0;
+      function add(label, pts) { matches.push({ label: label, points: pts }); raw += pts; }
+      var otWiz  = other._wizard || {};
+      var otPd   = projectDescriptor(other);
+      var otPeople = [other.ownerId, other.impactLeadId, otPd.sponsorId].filter(Boolean);
+
+      // Shared systems (critical +25, non-critical +15)
+      mySys.forEach(function (s) {
+        if ((other.systems || []).indexOf(s) === -1) return;
+        if (CRITICAL_SYSTEMS[s]) add('Shared critical system: ' + s, 25);
+        else                     add('Shared system: ' + s, 15);
+      });
+      // Shared business process / area (+15)
+      myArea.forEach(function (a) {
+        if ((other.impactedAreas || []).indexOf(a) === -1) return;
+        add('Shared business area: ' + a, 15);
+      });
+      // Shared department (+8)
+      myDep.forEach(function (d) {
+        if ((other.departments || []).indexOf(d) === -1) return;
+        add('Shared department: ' + d, 8);
+      });
+      // Shared vendor (+12) — from wizard data
+      if (myWiz.vendorName && otWiz.vendorName && myWiz.vendorName === otWiz.vendorName) {
+        add('Shared vendor: ' + myWiz.vendorName, 12);
       }
-      if (score < 8) return;
+      // Shared data domain (+12) — from wizard data
+      myDataDomains.forEach(function (d) {
+        if (!otWiz.dataDomains || otWiz.dataDomains.indexOf(d) === -1) return;
+        add('Shared data domain: ' + d, 12);
+      });
+      // Shared regulation (+10) — both are regulatory_change class
+      if (p.class === 'regulatory_change' && other.class === 'regulatory_change') {
+        add('Both records are regulatory changes', 10);
+      }
+      // Shared control (+10) — both have control_remediation subtype OR both from wizard’s controlsNeeded overlap
+      if (p.subtype === 'control_remediation' && other.subtype === 'control_remediation') {
+        add('Both records are control remediations', 10);
+      }
+      var myCtl = myWiz.controlsNeeded || [];
+      var otCtl = otWiz.controlsNeeded || [];
+      myCtl.forEach(function (c) {
+        if (otCtl.indexOf(c) === -1) return;
+        add('Shared control category: ' + c, 10);
+      });
+      // Overlapping implementation window (+10)
+      if (p.startDate && p.targetDate && other.startDate && other.targetDate) {
+        var a1 = new Date(p.startDate).getTime(),  a2 = new Date(p.targetDate).getTime();
+        var b1 = new Date(other.startDate).getTime(), b2 = new Date(other.targetDate).getTime();
+        if (a1 <= b2 && b1 <= a2) add('Overlapping implementation window', 10);
+        // Overlapping testing window (approx: last 30 days of each project)
+        var ta1 = a2 - 30 * 86400000, tb1 = b2 - 30 * 86400000;
+        if (ta1 <= b2 && tb1 <= a2) add('Overlapping testing window (approx. last month)', 8);
+      }
+      // Existing dependency (+30) — explicit p.dependsOn array support
+      if ((p.dependsOn && p.dependsOn.indexOf(other.id) !== -1) ||
+          (other.dependsOn && other.dependsOn.indexOf(p.id) !== -1)) {
+        add('Existing declared dependency', 30);
+      }
+      // Shared named resource (+8)
+      myPeople.forEach(function (pid) {
+        if (otPeople.indexOf(pid) === -1) return;
+        add('Shared resource: ' + (personName(pid) || pid), 8);
+      });
+
+      if (!matches.length) return;
+
+      // Normalize 0–100 (cap; scale unnecessary because raw already tuned)
+      var normalized = Math.min(100, Math.max(0, Math.round(raw)));
+      var level = normalized >= 75 ? 'critical' :
+                  normalized >= 50 ? 'high'     :
+                  normalized >= 25 ? 'medium'   : 'low';
+      // Confidence from breadth of evidence, not raw score, so a single strong
+      // match is not falsely presented as certainty.
+      var confidence = Math.min(0.95, 0.55 + matches.length * 0.05);
+
+      var actions = [
+        'Confirm shared-attribute ownership with the other project team.',
+        'Coordinate testing and release windows to avoid resource collisions.'
+      ];
+      if (level === 'critical') actions.push('Escalate the collision to the executive sponsors of both projects.');
+      if (matches.some(function (m) { return /window/i.test(m.label); })) actions.push('Publish a joint release / testing calendar entry.');
+
       out.push({
         id: 'REL-' + p.id + '-' + other.id,
-        projectId: other.id,
-        title: other.title,
-        relationshipType: sharedSys.length ? 'shared_system' : (sharedDep.length ? 'shared_department' : 'shared_area'),
+        projectId: other.id, title: other.title,
+        relationshipType: matches[0].label.toLowerCase().replace(/[^\w]+/g, '_').slice(0, 40),
         impactDirection: 'mutual',
-        impactLevel: score >= 30 ? 'high' : (score >= 18 ? 'medium' : 'low'),
-        confidence: Math.min(0.95, 0.55 + score / 100),
-        reasons: shared.slice(0, 4),
-        sharedAttributes: shared,
-        recommendedActions: [
-          'Confirm shared-attribute ownership with the other project team.',
-          'Coordinate testing windows to avoid resource collisions.'
-        ],
-        source: 'det',
-        status: 'unconfirmed'
+        impactLevel: level,
+        confidence: confidence,
+        rawScore: raw,
+        normalizedScore: normalized,
+        reasons: matches.slice(0, 6).map(function (m) { return m.label + ' (+' + m.points + ')'; }),
+        sharedAttributes: matches.map(function (m) { return m.label; }),
+        scoreBreakdown: matches,
+        recommendedActions: actions,
+        source: 'det', status: 'unconfirmed'
       });
     });
-    out.sort(function (a, b) { return (b.confidence || 0) - (a.confidence || 0); });
-    return out.slice(0, 6);
+    out.sort(function (a, b) { return (b.normalizedScore || 0) - (a.normalizedScore || 0); });
+    return out.slice(0, 8);
   }
 
   function generateRegulatoryConcerns(p) {
@@ -2552,20 +3062,26 @@
     return out;
   }
 
+  // -------- Notification routing engine (Phase 5) --------------------------
+  // Considers both project attributes AND explicit wizard answers. Wizard
+  // answers take precedence when present because they represent the intake
+  // author’s stated intent, not just a keyword inference.
   function generateNotificationRecommendations(p) {
     var out = [];
     var joined = ((p.impactedAreas || []).join(' ') + ' ' + (p.title || '')).toLowerCase();
+    var wiz = p._wizard || {};
     var triggered = {};
-    function fire(trigger) {
+    function fire(trigger, whyOverride) {
       if (triggered[trigger]) return;
       triggered[trigger] = true;
       var rule = ROUTING_RULES.filter(function (r) { return r.trigger === trigger; })[0];
       if (!rule) return;
+      var why = whyOverride || ('Routing rule triggered: ' + trigger.replace(/_/g, ' ') + '.');
       rule.departments.forEach(function (dept) {
         out.push({
-          id: 'NTF-' + p.id + '-' + trigger + '-' + dept.replace(/\s+/g,''),
+          id: 'NTF-' + p.id + '-' + trigger + '-' + dept.replace(/\s+/g, ''),
           department: dept,
-          reason: 'Routing rule triggered: ' + trigger.replace(/_/g,' ') + '.',
+          reason: why,
           priority: (trigger === 'critical_service' || trigger === 'fraud_or_txmon' || trigger === 'ai_or_model') ? 'high' : 'medium',
           acknowledgementRequired: true,
           suggestedDueDays: 5,
@@ -2573,6 +3089,17 @@
         });
       });
     }
+    // Wizard answers first (explicit)
+    if (wiz.customerFacing === 'yes')     fire('customer_facing', 'Intake author confirmed the change is customer-facing.');
+    if (wiz.thirdPartyInvolved === 'yes') fire('new_vendor',       'Intake author confirmed third-party involvement.');
+    if (wiz.dataMigration === 'yes' || (wiz.dataDomains && wiz.dataDomains.length)) fire('sensitive_data', 'Sensitive data domains flagged in intake.');
+    if (wiz.policyChange === 'yes')       fire('policy_change',    'Intake author confirmed a policy or procedure change.');
+    if (wiz.aiOrModel === 'yes')          fire('ai_or_model',      'Intake author confirmed AI / model decisioning is involved.');
+    if (wiz.apiChanges === 'yes')         fire('system_integration','API or integration changes required.');
+    if (wiz.trainingRequired === 'yes')   fire('employee_workflow','Intake author confirmed staff training is required.');
+    if (wiz.regulatoryReviewNeeded === 'yes' && !triggered['policy_change']) fire('policy_change', 'Intake author flagged regulatory review is needed.');
+
+    // Keyword-based inferences (still fire for records without wizard data)
     if (/customer|notice|dispute|complaint/.test(joined))       fire('customer_facing');
     if (/data|privacy|records|reporting/.test(joined))          fire('sensitive_data');
     if (/vendor|third|verification/.test(joined))               fire('new_vendor');
@@ -2582,6 +3109,22 @@
     if (/report|reconcil|finance/.test(joined))                 fire('accounting');
     if (/workflow|complaint|training/.test(joined))             fire('employee_workflow');
     if (/recovery|infra|critical service/.test(joined))         fire('critical_service');
+
+    // Explicit intake-time recipient overrides (already selected by author
+    // in wizard Step 6). Never duplicated; always high priority to signal
+    // intent.
+    (wiz.notifyDepartments || []).forEach(function (dept) {
+      if (out.some(function (n) { return n.department === dept; })) return;
+      out.push({
+        id: 'NTF-' + p.id + '-explicit-' + dept.replace(/\s+/g, ''),
+        department: dept,
+        reason: 'Explicitly selected by the intake author for notification.',
+        priority: 'high',
+        acknowledgementRequired: (wiz.acknowledgementRequired || 'yes') === 'yes',
+        suggestedDueDays: 5,
+        source: 'det', status: 'recommended'
+      });
+    });
     return out;
   }
 
@@ -3066,40 +3609,96 @@
     var el = $('#ih-dpanel-map'); if (!el) return;
     var related = generateRelatedProjects(p);
     var regs    = generateRegulatoryConcerns(p);
-    var ctls    = generateControlRecommendations(p);
+    var systems = (p.systems || []);
+    var depts   = (p.departments || []);
+    var filters = IH.impactMapFilters;
 
-    function col(hdr, items, iconDefault) {
-      var body = items.length
-        ? items.map(function (it) {
-            return '<div class="ih-impactmap-node ' + (it.cls || '') + '">' +
-              '<i class="fa-solid ' + (it.icon || iconDefault) + '"></i>' + escapeHtml(it.label) + '</div>';
-          }).join('')
-        : '<div class="ih-impactmap-node" style="opacity:0.55;font-style:italic;">No items</div>';
-      return '<div class="ih-impactmap-col">' +
-        '<div class="ih-impactmap-col-hdr">' + escapeHtml(hdr) + '</div>' + body + '</div>';
-    }
-    var leftItems   = related.map(function (r) { return { label: r.title + ' (' + r.projectId + ')', cls: r.impactLevel === 'high' ? 'is-critical' : 'is-amber' }; });
-    var topItems    = (p.departments || []).map(function (d) { return { label: d }; });
-    var rightItems  = (p.systems || []).map(function (s) { return { label: s, cls: CRITICAL_SYSTEMS[s] ? 'is-critical' : '' }; });
-    var bottomItems = regs.slice(0, 3).map(function (r) { return { label: r.title, cls: 'is-critical', icon: 'fa-scale-balanced' }; })
-      .concat(ctls.slice(0, 3).map(function (c) { return { label: c.title, cls: 'is-amber', icon: 'fa-shield-halved' }; }));
+    // Deterministic radial layout: place category buckets around a center node.
+    var W = 880, H = 460, CX = W / 2, CY = H / 2;
+    var buckets = [
+      { key: 'projects',    label: 'Related projects', enabled: filters.projects,    startAngle: 180, spread: 90,  items: related.map(function (r) { return { id: r.projectId, label: r.title, kind: 'project', level: r.impactLevel, target: r.projectId, meta: 'Impact ' + r.impactLevel + ' • confidence ' + Math.round((r.confidence || 0) * 100) + '%' }; }) },
+      { key: 'departments', label: 'Departments',      enabled: filters.departments, startAngle: 270, spread: 90,  items: depts.map(function (d) { return { id: d, label: d, kind: 'department', level: 'medium' }; }) },
+      { key: 'systems',     label: 'Systems',          enabled: filters.systems,     startAngle: 0,   spread: 90,  items: systems.map(function (s) { return { id: s, label: s, kind: 'system', level: CRITICAL_SYSTEMS[s] ? 'critical' : 'medium', critical: !!CRITICAL_SYSTEMS[s] }; }) },
+      { key: 'regs',        label: 'Regulations',      enabled: filters.regs,        startAngle: 90,  spread: 90,  items: regs.slice(0, 4).map(function (r) { return { id: r.id, label: r.title, kind: 'reg', level: r.severity }; }) }
+    ];
+    // Layout: each enabled bucket occupies a 90° arc centered on startAngle.
+    var nodes = [];
+    var edges = [];
+    buckets.forEach(function (b) {
+      if (!b.enabled || !b.items.length) return;
+      var r = 190;
+      var count = b.items.length;
+      var step = count > 1 ? (b.spread / (count - 1)) : 0;
+      var startDeg = b.startAngle - b.spread / 2;
+      b.items.forEach(function (it, i) {
+        var deg = count > 1 ? (startDeg + i * step) : b.startAngle;
+        var rad = (deg * Math.PI) / 180;
+        var x = CX + r * Math.cos(rad);
+        var y = CY + r * Math.sin(rad);
+        nodes.push(Object.assign({ x: x, y: y, radius: 28, bucketKey: b.key }, it));
+        edges.push({ x1: CX, y1: CY, x2: x, y2: y, level: it.level });
+      });
+    });
+
+    var controls = '<div class="ih-map-controls">' +
+      ['projects','departments','systems','regs'].map(function (k) {
+        var lbl = { projects: 'Related projects', departments: 'Departments', systems: 'Systems', regs: 'Regulations' }[k];
+        return '<label class="ih-map-filter ' + (filters[k] ? 'is-on' : '') + '">' +
+          '<input type="checkbox" data-map-filter="' + k + '"' + (filters[k] ? ' checked' : '') + '> ' + escapeHtml(lbl) +
+        '</label>';
+      }).join('') +
+    '</div>';
+
+    var edgesHtml = edges.map(function (e) {
+      var cls = e.level === 'critical' ? ' is-critical' : (e.level === 'high' ? ' is-high' : (e.level === 'medium' ? ' is-medium' : ''));
+      return '<line class="ih-map-edge' + cls + '" x1="' + e.x1 + '" y1="' + e.y1 + '" x2="' + e.x2 + '" y2="' + e.y2 + '" />';
+    }).join('');
+    var nodesHtml = nodes.map(function (n) {
+      var wrapped = wrapSvgLabel(n.label, 14);
+      var cls = 'ih-map-node kind-' + n.kind + (n.critical ? ' is-critical' : '');
+      var target = (n.kind === 'project' && n.target) ? ' data-map-open="' + escapeHtml(n.target) + '"' : '';
+      var t = wrapped.lines.map(function (line, i) {
+        return '<text x="' + n.x + '" y="' + (n.y + 3 + (i - (wrapped.lines.length - 1) / 2) * 11) + '" text-anchor="middle">' + escapeHtml(line) + '</text>';
+      }).join('');
+      return '<g class="' + cls + '"' + target + '><title>' + escapeHtml(n.label + (n.meta ? ' — ' + n.meta : '')) + '</title>' +
+        '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + n.radius + '" />' + t +
+      '</g>';
+    }).join('');
+    var centerLabel = wrapSvgLabel(p.title, 14);
+    var centerText = centerLabel.lines.map(function (line, i) {
+      return '<text x="' + CX + '" y="' + (CY + 4 + (i - (centerLabel.lines.length - 1) / 2) * 12) + '" text-anchor="middle">' + escapeHtml(line) + '</text>';
+    }).join('');
+
+    var svg = '<svg class="ih-map-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Impact map for ' + escapeHtml(p.id) + '">' +
+      '<defs>' +
+        '<radialGradient id="ih-map-grad-center">' +
+          '<stop offset="0%" stop-color="#F5F3FF" />' +
+          '<stop offset="100%" stop-color="#EDE9FE" />' +
+        '</radialGradient>' +
+      '</defs>' +
+      edgesHtml +
+      '<g class="ih-map-node is-center"><circle cx="' + CX + '" cy="' + CY + '" r="46" />' + centerText + '</g>' +
+      nodesHtml +
+    '</svg>';
 
     el.innerHTML =
       '<div class="ih-card-white">' +
-        '<h3><i class="fa-solid fa-diagram-project"></i>Impact map — deterministic layout</h3>' +
-        '<p style="margin:0 0 10px;font-size:12px;color:#6B7280;">Stable four-quadrant map: related projects (left), departments (top), systems (right), regulatory concerns and controls (bottom). Phase 6 upgrades this to a full SVG layout with click-to-detail nodes and filter toggles.</p>' +
-        '<div>' + col('Departments impacted', topItems, 'fa-building-user') + '</div>' +
-        '<div class="ih-impactmap">' +
-          col('Related projects', leftItems, 'fa-diagram-project') +
-          '<div class="ih-impactmap-center">' +
-            '<strong>' + escapeHtml(p.title) + '</strong>' +
-            '<div class="ih-impactmap-id">' + escapeHtml(p.id) + '</div>' +
-            '<small>Center node</small>' +
-          '</div>' +
-          col('Systems in scope', rightItems, 'fa-server') +
-        '</div>' +
-        '<div style="margin-top:10px;">' + col('Regulatory concerns &amp; controls', bottomItems, 'fa-scale-balanced') + '</div>' +
+        '<h3><i class="fa-solid fa-diagram-project"></i>Impact map</h3>' +
+        '<p style="margin:0 0 10px;font-size:12px;color:#6B7280;">Deterministic radial layout: the selected project sits at the center; related projects, departments, systems, and regulatory concerns radiate around it. Toggle categories with the filter chips, click a related-project node to open its detail, hover any node for its full label.</p>' +
+        controls +
+        '<div class="ih-map-svg-wrap">' + svg + '</div>' +
       '</div>';
+  }
+  function wrapSvgLabel(label, maxChars) {
+    var words = String(label || '').split(/\s+/);
+    var lines = [], cur = '';
+    words.forEach(function (w) {
+      if ((cur + ' ' + w).trim().length > maxChars) { if (cur) lines.push(cur); cur = w; }
+      else { cur = (cur + ' ' + w).trim(); }
+    });
+    if (cur) lines.push(cur);
+    if (lines.length > 2) { lines = [lines[0], lines[1] + '…']; }
+    return { lines: lines };
   }
 
   function renderStakeholdersPanel(p) {
@@ -3152,6 +3751,1446 @@
     });
     html += '</div>';
     el.innerHTML = html;
+  }
+
+  // ==========================================================================
+  // 15b. PROGRESSIVE INTAKE WIZARD (Phase 3)
+  //
+  // Seven-step flow with conditional field logic. Reveals detailed questions
+  // only when relevant answers indicate they apply (per approved spec).
+  // Save Draft / Submit both write to IH.projects; in Demo Mode they also
+  // persist to localStorage under a clearly-demo key (per requirement 10 the
+  // "non-sensitive demo draft data" allowance). Authenticated tenant writes
+  // to Firestore ship in Phase 6.
+  //
+  // Wizard state lives on IH.wizardData. Every field is edited via event
+  // delegation on `[data-wiz-field]` so there are no per-input handlers to
+  // wire and no stale references when the step re-renders.
+  // ==========================================================================
+
+  var WIZARD_STEPS = [
+    { key: 'basic',    title: 'Basic Information',       icon: 'fa-circle-info' },
+    { key: 'scope',    title: 'Change Scope',            icon: 'fa-arrows-rotate' },
+    { key: 'systems',  title: 'Systems, Data & Vendors', icon: 'fa-server' },
+    { key: 'impact',   title: 'Customer & Operational',  icon: 'fa-people-arrows' },
+    { key: 'reg',      title: 'Regulations & Controls',  icon: 'fa-scale-balanced' },
+    { key: 'stakeh',   title: 'Stakeholders & Routing',  icon: 'fa-users-gear' },
+    { key: 'review',   title: 'Review & Analyze',        icon: 'fa-check-double' }
+  ];
+  var DEMO_DRAFT_STORAGE_KEY = 'ih_demo_wizard_drafts_v1';
+
+  var CHANGE_CLASSIFICATIONS = [
+    'Technology initiative','Technology replacement','Regulatory change','Emerging issue',
+    'Control remediation','Customer experience','Operational change','Third-party change','Policy change'
+  ];
+  var DATA_DOMAINS = ['Customer PII','Transaction history','Credit / underwriting','Payments','Fraud signals','Marketing consent','Records / retention','Financial reporting','Employee data'];
+  var COMMON_SYSTEMS = ['sys_auth','sys_customer_portal','sys_notice','sys_dispute','sys_case_mgmt','sys_payments','sys_txmon','sys_reporting','sys_data_lake','sys_archive','sys_consent','sys_infra'];
+  var COMMON_JOURNEYS = ['Account origination','Servicing','Dispute filing','Complaint handling','Payments','Statements & notices','Adverse action'];
+  var COMMON_PROCESSES = ['Customer onboarding','Case management','Notice generation','Reconciliation','Regulatory reporting','Control testing','Vendor management','Access recertification'];
+  var CONTROL_CATEGORIES = ['Pre-release approval','Access certification','Data reconciliation','Recovery-time objective validation','Change-management approval','Vendor security review','Model validation'];
+  var ROUTING_DEPARTMENTS = ['Compliance','Legal','Operations','Privacy','Data Governance','Information Security','Vendor Management','Procurement','Technology Risk','Architecture','Engineering','Fraud Risk','Financial Crime','Fraud Operations','Finance','Accounting','Regulatory Reporting','Training','Change Management','AI Governance','Model Risk','Business Continuity','Technology','Policy Owner','Controls'];
+
+  function defaultWizardData() {
+    return {
+      // Step 1
+      title: '', description: '', businessObjective: '',
+      itemType: 'project', ownerId: '', impactLeadId: '', sponsorId: '',
+      primaryDepartment: '', targetDate: '',
+      // Step 2
+      changeClassification: '', customerFacing: 'unknown', thirdPartyInvolved: 'unknown',
+      dataMigration: 'unknown', policyChange: 'unknown', aiOrModel: 'unknown',
+      // Step 3
+      systems: [], dataDomains: [], apiChanges: 'unknown',
+      vendorName: '', vendorType: '', vendorExistingOrNew: 'existing', vendorSecurityReviewed: 'unknown',
+      // Step 4
+      customerJourneys: [], customerCommunicationsChange: 'unknown', businessProcesses: [],
+      operationalChangeType: '', trainingRequired: 'unknown',
+      // Step 5
+      regulatoryReviewNeeded: 'unknown', riskLevel: 'medium',
+      controlsNeeded: [], existingControlsAffected: '', modelGovernanceReview: 'unknown',
+      // Step 6
+      additionalStakeholders: [], notifyDepartments: [], acknowledgementRequired: 'yes'
+    };
+  }
+
+  // Fields whose value changes should re-render the current wizard step
+  // (they toggle conditional questions).
+  var WIZARD_RERENDER_FIELDS = {
+    customerFacing: 1, thirdPartyInvolved: 1, aiOrModel: 1,
+    policyChange: 1, dataMigration: 1,
+    itemType: 1, regulatoryReviewNeeded: 1
+  };
+
+  function openWizard(projectId) {
+    if (projectId) {
+      var existing = IH.projects.filter(function (p) { return p.id === projectId; })[0];
+      if (existing) {
+        IH.wizardEditingId = projectId;
+        IH.wizardData = wizardDataFromProject(existing);
+      } else {
+        IH.wizardEditingId = null;
+        IH.wizardData = defaultWizardData();
+      }
+    } else {
+      IH.wizardEditingId = null;
+      IH.wizardData = defaultWizardData();
+    }
+    IH.wizardStep = 1;
+    IH.wizardOpen = true;
+    var m = $('#ih-wizard-modal'); if (m) m.classList.add('is-open');
+    renderWizardStepper();
+    renderWizardBody();
+    renderWizardFooter();
+    document.body.style.overflow = 'hidden';
+  }
+  function closeWizard() {
+    IH.wizardOpen = false;
+    var m = $('#ih-wizard-modal'); if (m) m.classList.remove('is-open');
+    document.body.style.overflow = '';
+  }
+  function wizardPrev() {
+    if (IH.wizardStep <= 1) return;
+    IH.wizardStep--;
+    renderWizardStepper(); renderWizardBody(); renderWizardFooter();
+  }
+  function wizardNext() {
+    if (IH.wizardStep >= WIZARD_STEPS.length) return;
+    // Step-1 minimal validation
+    if (IH.wizardStep === 1) {
+      var d = IH.wizardData;
+      if (!(d.title && d.description && d.businessObjective && d.ownerId && d.impactLeadId && d.targetDate)) {
+        toast('Fill in title, description, objective, owner, impact lead, and target date before continuing.', 'warn', 4200);
+        return;
+      }
+    }
+    IH.wizardStep++;
+    renderWizardStepper(); renderWizardBody(); renderWizardFooter();
+  }
+
+  function renderWizardStepper() {
+    var root = $('#ih-wiz-stepper'); if (!root) return;
+    var current = IH.wizardStep;
+    root.innerHTML = WIZARD_STEPS.map(function (s, i) {
+      var n = i + 1;
+      var cls = n === current ? 'is-current' : (n < current ? 'is-done' : '');
+      return '<button type="button" class="ih-wiz-step ' + cls + '" data-wiz-goto="' + n + '" role="tab" aria-selected="' + (n === current ? 'true' : 'false') + '">' +
+        '<span class="ih-wiz-step-num">' + (n < current ? '<i class="fa-solid fa-check" style="font-size:8px;"></i>' : n) + '</span>' +
+        '<span>' + escapeHtml(s.title) + '</span>' +
+      '</button>';
+    }).join('');
+    var titleEl = $('#ih-wiz-step-title');
+    if (titleEl) titleEl.textContent = (WIZARD_STEPS[current - 1] || {}).title || '';
+  }
+
+  function renderWizardFooter() {
+    var stepNumEl = $('#ih-wiz-step-num'); if (stepNumEl) stepNumEl.textContent = IH.wizardStep;
+    var pct = computeWizardCompleteness();
+    var complEl = $('#ih-wiz-completeness'); if (complEl) complEl.textContent = pct + '%';
+    var isLast = IH.wizardStep >= WIZARD_STEPS.length;
+    var nextBtn = $('#ih-wiz-next-btn');   if (nextBtn)   nextBtn.style.display   = isLast ? 'none' : '';
+    var subBtn  = $('#ih-wiz-submit-btn'); if (subBtn)    subBtn.style.display    = isLast ? '' : 'none';
+    var prevBtn = document.querySelector('[data-action="wizard-prev"]');
+    if (prevBtn) prevBtn.disabled = IH.wizardStep <= 1;
+  }
+
+  function renderWizardBody() {
+    var root = $('#ih-wiz-body'); if (!root) return;
+    switch (IH.wizardStep) {
+      case 1: root.innerHTML = renderStepBasic();    break;
+      case 2: root.innerHTML = renderStepScope();    break;
+      case 3: root.innerHTML = renderStepSystems();  break;
+      case 4: root.innerHTML = renderStepImpact();   break;
+      case 5: root.innerHTML = renderStepReg();      break;
+      case 6: root.innerHTML = renderStepStakeh();   break;
+      case 7: root.innerHTML = renderStepReview();   break;
+      default: root.innerHTML = '';
+    }
+    renderWizardFooter();
+  }
+
+  // ---- Form field HTML builders (all values pulled from IH.wizardData) ----
+  function wfLabel(txt, required) {
+    return '<div class="ih-wiz-label">' + escapeHtml(txt) + (required ? '<span class="ih-wiz-required">*</span>' : '') + '</div>';
+  }
+  function wfText(name, placeholder) {
+    var v = IH.wizardData[name] || '';
+    return '<input type="text" class="ih-wiz-input" data-wiz-field="' + name + '" value="' + escapeHtml(v) + '" placeholder="' + escapeHtml(placeholder || '') + '">';
+  }
+  function wfDate(name) {
+    var v = IH.wizardData[name] || '';
+    return '<input type="date" class="ih-wiz-input" data-wiz-field="' + name + '" value="' + escapeHtml(v) + '">';
+  }
+  function wfArea(name, placeholder) {
+    var v = IH.wizardData[name] || '';
+    return '<textarea class="ih-wiz-input ih-wiz-textarea" data-wiz-field="' + name + '" placeholder="' + escapeHtml(placeholder || '') + '">' + escapeHtml(v) + '</textarea>';
+  }
+  function wfSelect(name, options, includeBlank) {
+    var v = IH.wizardData[name] || '';
+    var html = '<select class="ih-wiz-input" data-wiz-field="' + name + '">';
+    if (includeBlank !== false) html += '<option value="">— Select —</option>';
+    options.forEach(function (o) {
+      var val = typeof o === 'string' ? o : o.v;
+      var lbl = typeof o === 'string' ? o : o.l;
+      html += '<option value="' + escapeHtml(val) + '"' + (v === val ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    });
+    html += '</select>';
+    return html;
+  }
+  function wfPeopleSelect(name) {
+    var opts = Object.keys(DEMO_PEOPLE).map(function (id) { return { v: id, l: DEMO_PEOPLE[id].name }; });
+    return wfSelect(name, opts, true);
+  }
+  function wfYesNo(name) {
+    var v = IH.wizardData[name] || 'unknown';
+    return '<div class="ih-wiz-yesno">' +
+      '<label><input type="radio" data-wiz-field="' + name + '" value="yes"' + (v === 'yes' ? ' checked' : '') + '> Yes</label>' +
+      '<label><input type="radio" data-wiz-field="' + name + '" value="no"' + (v === 'no' ? ' checked' : '') + '> No</label>' +
+      '<label><input type="radio" data-wiz-field="' + name + '" value="unknown"' + (v === 'unknown' ? ' checked' : '') + '> Unknown</label>' +
+    '</div>';
+  }
+  function wfMulti(name, options) {
+    var vals = IH.wizardData[name] || [];
+    return '<div class="ih-wiz-multicheck">' +
+      options.map(function (o) {
+        var val = typeof o === 'string' ? o : o.v;
+        var lbl = typeof o === 'string' ? o : o.l;
+        var checked = vals.indexOf(val) !== -1;
+        return '<label><input type="checkbox" data-wiz-field="' + name + '" data-wiz-multi="1" value="' + escapeHtml(val) + '"' + (checked ? ' checked' : '') + '> ' + escapeHtml(lbl) + '</label>';
+      }).join('') +
+    '</div>';
+  }
+  function wfField(labelTxt, ctrlHtml, required, hint) {
+    return '<div class="ih-wiz-field">' + wfLabel(labelTxt, required) + ctrlHtml + (hint ? '<span class="ih-wiz-hint">' + escapeHtml(hint) + '</span>' : '') + '</div>';
+  }
+
+  // ---- Per-step renderers ---------
+  function renderStepBasic() {
+    return '<h3 class="ih-wiz-panel-title">Basic Information</h3>' +
+      '<p class="ih-wiz-panel-sub">Only the essentials are asked up front. Detailed impact questions appear in later steps and adapt to your answers.</p>' +
+      wfField('Title',              wfText('title', 'e.g. Customer Notice Delivery Update'), true) +
+      wfField('Plain-language description', wfArea('description', 'What is changing and why?'), true) +
+      wfField('Business objective', wfArea('businessObjective', 'What outcome does this project deliver?'), true) +
+      '<div class="ih-wiz-row">' +
+        wfField('Item type', wfSelect('itemType', [
+          { v: 'project',           l: 'Project' },
+          { v: 'issue',             l: 'Issue' },
+          { v: 'regulatory_change', l: 'Regulatory change' },
+          { v: 'action_plan',       l: 'Action plan' }
+        ], false)) +
+        wfField('Target date', wfDate('targetDate'), true) +
+      '</div>' +
+      '<div class="ih-wiz-row">' +
+        wfField('Owner', wfPeopleSelect('ownerId'), true) +
+        wfField('Impact lead', wfPeopleSelect('impactLeadId'), true) +
+      '</div>' +
+      '<div class="ih-wiz-row">' +
+        wfField('Executive sponsor (optional)', wfPeopleSelect('sponsorId')) +
+        wfField('Primary department', wfText('primaryDepartment', 'e.g. Operations')) +
+      '</div>' +
+      '<button type="button" class="ih-btn ih-btn-purple" data-action="wizard-ai-analyze" style="margin-top:8px;">' +
+        '<i class="fa-solid fa-microchip"></i>Analyze Description &amp; Suggest Details' +
+      '</button>' +
+      '<div class="ih-wiz-analyze-note">' +
+        'The AI suggest helper wires up in Phase 4 via the Firebase-authenticated <code>/impact/analyze</code> route. Every AI suggestion will land marked <strong>AI Suggested \u2014 Confirmation Required</strong>; nothing is auto-applied.' +
+      '</div>';
+  }
+
+  function renderStepScope() {
+    var d = IH.wizardData;
+    var cond = '';
+    if (d.aiOrModel === 'yes') {
+      cond += '<div class="ih-wiz-cond"><div class="ih-wiz-cond-title">Because AI / model is involved</div>' +
+        wfField('Model-governance review already engaged?', wfYesNo('modelGovernanceReview'), false,
+          'AI or model-driven decisions typically require an AI Governance / Model Risk review.') +
+        '</div>';
+    }
+    if (d.policyChange === 'yes') {
+      cond += '<div class="ih-wiz-cond"><div class="ih-wiz-cond-title">Because a policy or procedure will change</div>' +
+        wfField('Which policy/procedure documents are affected?', wfText('policyChangeDocs', 'e.g. Records Retention Schedule, Notice Standard')) +
+        '</div>';
+    }
+    return '<h3 class="ih-wiz-panel-title">Change Scope</h3>' +
+      '<p class="ih-wiz-panel-sub">Classify the change so downstream steps show only the questions that apply.</p>' +
+      wfField('Change classification', wfSelect('changeClassification', CHANGE_CLASSIFICATIONS)) +
+      '<div class="ih-wiz-row">' +
+        wfField('Customer-facing?',     wfYesNo('customerFacing')) +
+        wfField('Third-party involved?', wfYesNo('thirdPartyInvolved')) +
+      '</div>' +
+      '<div class="ih-wiz-row">' +
+        wfField('Data migration?',      wfYesNo('dataMigration')) +
+        wfField('Policy or procedure change?', wfYesNo('policyChange')) +
+      '</div>' +
+      wfField('AI or statistical/model decisioning involved?', wfYesNo('aiOrModel'),
+        false, 'Includes automated decisioning, scoring, and any ML-driven output that affects customers or operations.') +
+      cond;
+  }
+
+  function renderStepSystems() {
+    var d = IH.wizardData;
+    var cond = '';
+    if (d.thirdPartyInvolved === 'yes') {
+      cond = '<div class="ih-wiz-cond"><div class="ih-wiz-cond-title">Because a third party is involved</div>' +
+        '<div class="ih-wiz-row">' +
+          wfField('Vendor name',    wfText('vendorName', 'e.g. Verify Co.')) +
+          wfField('Vendor type',    wfText('vendorType', 'e.g. Identity verification')) +
+        '</div>' +
+        '<div class="ih-wiz-row">' +
+          wfField('Existing or new vendor?', wfSelect('vendorExistingOrNew', [
+            { v: 'existing', l: 'Existing vendor' }, { v: 'new', l: 'New vendor' }
+          ], false)) +
+          wfField('Vendor security review completed?', wfYesNo('vendorSecurityReviewed')) +
+        '</div>' +
+      '</div>';
+    }
+    return '<h3 class="ih-wiz-panel-title">Systems, Data &amp; Vendors</h3>' +
+      '<p class="ih-wiz-panel-sub">Identify the systems and data domains this change touches. Vendor-specific questions appear only when third-party involvement is confirmed above.</p>' +
+      wfField('Systems in scope', wfMulti('systems', COMMON_SYSTEMS)) +
+      wfField('Data domains touched', wfMulti('dataDomains', DATA_DOMAINS)) +
+      wfField('API or integration changes required?', wfYesNo('apiChanges')) +
+      cond;
+  }
+
+  function renderStepImpact() {
+    var d = IH.wizardData;
+    var cond = '';
+    if (d.customerFacing === 'yes') {
+      cond = '<div class="ih-wiz-cond"><div class="ih-wiz-cond-title">Because the change is customer-facing</div>' +
+        wfField('Customer journeys affected', wfMulti('customerJourneys', COMMON_JOURNEYS)) +
+        wfField('Customer communications (notices, letters, in-app messages) change?', wfYesNo('customerCommunicationsChange'),
+          false, 'Communications changes typically require Compliance and Legal review before release.') +
+      '</div>';
+    }
+    return '<h3 class="ih-wiz-panel-title">Customer &amp; Operational Impact</h3>' +
+      '<p class="ih-wiz-panel-sub">Describe how the change will land in day-to-day operations. Customer-specific questions appear only when customer-facing is confirmed above.</p>' +
+      wfField('Business processes affected', wfMulti('businessProcesses', COMMON_PROCESSES)) +
+      wfField('Operational change type', wfText('operationalChangeType', 'e.g. workflow redesign, new procedure step, escalation path')) +
+      wfField('Training required for impacted staff?', wfYesNo('trainingRequired')) +
+      cond;
+  }
+
+  function renderStepReg() {
+    var d = IH.wizardData;
+    var cond = '';
+    if (d.regulatoryReviewNeeded === 'yes') {
+      cond = '<div class="ih-wiz-cond"><div class="ih-wiz-cond-title">Because regulatory review is expected</div>' +
+        wfField('Which existing controls are affected?', wfText('existingControlsAffected', 'e.g. Notice Approval Control, Access Recertification')) +
+      '</div>';
+    }
+    return '<h3 class="ih-wiz-panel-title">Regulations, Risk &amp; Controls</h3>' +
+      '<p class="ih-wiz-panel-sub">Reviewer determinations still happen in each project\u2019s Regulations &amp; Controls tab; this step captures the initial ask.</p>' +
+      wfField('Regulatory review recommended?', wfYesNo('regulatoryReviewNeeded'),
+        false, 'This project is not automatically marked "compliant" \u2014 reviewer determinations are always required.') +
+      wfField('Risk categorization', wfSelect('riskLevel', [
+        { v: 'low', l: 'Low' }, { v: 'medium', l: 'Medium' },
+        { v: 'high', l: 'High' }, { v: 'critical', l: 'Critical' }
+      ], false)) +
+      wfField('Controls expected to be introduced or updated', wfMulti('controlsNeeded', CONTROL_CATEGORIES)) +
+      cond;
+  }
+
+  function renderStepStakeh() {
+    return '<h3 class="ih-wiz-panel-title">Stakeholders &amp; Routing</h3>' +
+      '<p class="ih-wiz-panel-sub">Confirm who should be informed. The deterministic routing engine (Phase 5) will suggest additional departments based on the answers above; you can override those suggestions here.</p>' +
+      wfField('Additional stakeholders', wfMulti('additionalStakeholders', Object.keys(DEMO_PEOPLE).map(function (id) { return { v: id, l: DEMO_PEOPLE[id].name }; }))) +
+      wfField('Departments to notify at intake', wfMulti('notifyDepartments', ROUTING_DEPARTMENTS)) +
+      wfField('Acknowledgement required from notified departments?', wfYesNo('acknowledgementRequired'));
+  }
+
+  function renderStepReview() {
+    var d = IH.wizardData;
+    function line(k, v) { return '<dt>' + escapeHtml(k) + '</dt><dd>' + escapeHtml(v == null || v === '' ? '—' : String(v)) + '</dd>'; }
+    function lineList(k, arr) { return '<dt>' + escapeHtml(k) + '</dt><dd>' + escapeHtml((arr && arr.length) ? arr.join(', ') : '—') + '</dd>'; }
+    function yn(v) { return v === 'yes' ? 'Yes' : (v === 'no' ? 'No' : 'Unknown'); }
+    var pct = computeWizardCompleteness();
+
+    // Preview impact score using deterministic engine
+    var previewProject = wizardDataToProject('preview', 'draft');
+    var breakdown = computeImpactScoreBreakdown(previewProject);
+
+    return '<h3 class="ih-wiz-panel-title">Review &amp; Analyze</h3>' +
+      '<p class="ih-wiz-panel-sub">Confirm the intake details below, then Save Draft or Submit for Assessment. The deterministic impact-score preview is computed live from your answers; the reviewer-driven and AI-augmented score arrive later.</p>' +
+
+      '<div class="ih-wiz-review-section"><h4>Basics</h4><dl>' +
+        line('Title', d.title) + line('Item type', titleCase(d.itemType)) +
+        line('Owner', personName(d.ownerId)) + line('Impact lead', personName(d.impactLeadId)) +
+        line('Executive sponsor', personName(d.sponsorId)) +
+        line('Primary department', d.primaryDepartment) + line('Target date', fmtDate(d.targetDate)) +
+      '</dl></div>' +
+
+      '<div class="ih-wiz-review-section"><h4>Scope</h4><dl>' +
+        line('Change classification', d.changeClassification) +
+        line('Customer-facing?', yn(d.customerFacing)) +
+        line('Third-party involved?', yn(d.thirdPartyInvolved)) +
+        line('Data migration?', yn(d.dataMigration)) +
+        line('Policy change?', yn(d.policyChange)) +
+        line('AI or model?', yn(d.aiOrModel)) +
+      '</dl></div>' +
+
+      '<div class="ih-wiz-review-section"><h4>Systems &amp; data</h4><dl>' +
+        lineList('Systems', d.systems) + lineList('Data domains', d.dataDomains) +
+        line('API changes required?', yn(d.apiChanges)) +
+        (d.thirdPartyInvolved === 'yes' ? line('Vendor', (d.vendorName || '—') + ' (' + (d.vendorExistingOrNew || '—') + ')') : '') +
+      '</dl></div>' +
+
+      '<div class="ih-wiz-review-section"><h4>Customer &amp; operational</h4><dl>' +
+        (d.customerFacing === 'yes' ? lineList('Customer journeys', d.customerJourneys) : '') +
+        lineList('Business processes', d.businessProcesses) +
+        line('Operational change type', d.operationalChangeType) +
+        line('Training required?', yn(d.trainingRequired)) +
+      '</dl></div>' +
+
+      '<div class="ih-wiz-review-section"><h4>Regulations &amp; controls</h4><dl>' +
+        line('Regulatory review recommended?', yn(d.regulatoryReviewNeeded)) +
+        line('Risk categorization', titleCase(d.riskLevel)) +
+        lineList('Controls expected', d.controlsNeeded) +
+      '</dl></div>' +
+
+      '<div class="ih-wiz-review-section"><h4>Stakeholders &amp; routing</h4><dl>' +
+        lineList('Additional stakeholders', (d.additionalStakeholders || []).map(function (id) { return personName(id) || id; })) +
+        lineList('Notify at intake', d.notifyDepartments) +
+        line('Acknowledgement required?', yn(d.acknowledgementRequired)) +
+      '</dl></div>' +
+
+      '<div class="ih-wiz-review-section"><h4>Deterministic impact-score preview</h4>' +
+        '<p style="margin:0 0 6px;font-size:12px;color:#475569;">Baseline <strong>' + breakdown.baseline + '</strong>' +
+        (breakdown.aiAdjust ? ' + AI ' + (breakdown.aiAdjust > 0 ? '+' : '') + breakdown.aiAdjust : '') +
+        ' &rarr; total <strong>' + breakdown.total + '</strong> &middot; intake completeness <strong>' + pct + '%</strong>.</p>' +
+        '<p style="margin:0;font-size:11.5px;color:#6B7280;">The full breakdown is visible in the project\u2019s Overview tab after Save Draft or Submit.</p>' +
+      '</div>';
+  }
+
+  // ---- State-write handlers ---------
+  function wizardFieldHandler(ev) {
+    var el = ev.target.closest && ev.target.closest('[data-wiz-field]');
+    if (!el) return;
+    var field = el.getAttribute('data-wiz-field');
+    if (!field) return;
+    if (el.type === 'checkbox' && el.hasAttribute('data-wiz-multi')) {
+      var arr = IH.wizardData[field] || [];
+      arr = arr.filter(function (x) { return x !== el.value; });
+      if (el.checked) arr.push(el.value);
+      IH.wizardData[field] = arr;
+    } else if (el.type === 'radio') {
+      IH.wizardData[field] = el.value;
+    } else {
+      IH.wizardData[field] = el.value;
+    }
+    if (WIZARD_RERENDER_FIELDS[field] && (el.type === 'radio' || el.tagName === 'SELECT')) {
+      // Re-render current step to reveal / hide conditional blocks. Preserve focus target.
+      renderWizardBody();
+    } else {
+      renderWizardFooter(); // completeness may have changed
+    }
+  }
+
+  function computeWizardCompleteness() {
+    var d = IH.wizardData;
+    var required = [
+      d.title, d.description, d.businessObjective, d.itemType, d.ownerId, d.impactLeadId, d.targetDate,
+      d.changeClassification, d.customerFacing !== 'unknown' ? '1' : '', d.thirdPartyInvolved !== 'unknown' ? '1' : '',
+      (d.systems || []).length ? '1' : '', (d.dataDomains || []).length ? '1' : '',
+      (d.businessProcesses || []).length ? '1' : '',
+      d.regulatoryReviewNeeded !== 'unknown' ? '1' : '', d.riskLevel,
+      (d.notifyDepartments || []).length ? '1' : ''
+    ];
+    var filled = required.filter(function (v) { return v != null && v !== ''; }).length;
+    return Math.round((filled / required.length) * 100);
+  }
+
+  function wizardDataToProject(id, status) {
+    var d = IH.wizardData;
+    var pct = computeWizardCompleteness();
+    var systems = (d.systems || []).slice();
+    var deps = [];
+    if (d.primaryDepartment) deps.push(d.primaryDepartment);
+    (d.notifyDepartments || []).forEach(function (x) { if (deps.indexOf(x) === -1) deps.push(x); });
+    var impactedAreas = [];
+    if (d.customerFacing === 'yes') impactedAreas.push('Customer');
+    (d.customerJourneys || []).forEach(function (j) { if (impactedAreas.indexOf(j) === -1) impactedAreas.push(j); });
+    (d.businessProcesses || []).forEach(function (p) { if (impactedAreas.indexOf(p) === -1) impactedAreas.push(p); });
+    if (!impactedAreas.length) impactedAreas.push(d.operationalChangeType || 'Operations');
+
+    var subtypeMap = {
+      project: 'technology_initiative', issue: 'emerging_issue',
+      regulatory_change: 'regulatory_change', action_plan: 'control_remediation'
+    };
+    var record = {
+      id: id, class: d.itemType || 'project',
+      subtype: subtypeMap[d.itemType] || 'operational_change',
+      title: d.title || 'Untitled intake',
+      ownerId: d.ownerId, impactLeadId: d.impactLeadId,
+      impactedAreas: impactedAreas.slice(0, 5),
+      systems: systems, departments: deps,
+      startDate: todayIso(), targetDate: d.targetDate || '',
+      assessment: pct,
+      priority: d.riskLevel || 'medium',
+      status: status,
+      statusIcons: ['purple','gray','gray','gray','gray','gray'],
+      _wizard: JSON.parse(JSON.stringify(d))
+    };
+    // Provisional impact score = deterministic baseline (AI adjust adds in Phase 4)
+    var breakdown = computeImpactScoreBreakdown(record);
+    record.impactScore = breakdown.baseline;
+    return record;
+  }
+
+  function wizardDataFromProject(p) {
+    if (p && p._wizard) return Object.assign(defaultWizardData(), p._wizard);
+    // Best-effort reverse-map for records that were not created via the wizard.
+    var d = defaultWizardData();
+    d.title = p.title || '';
+    d.itemType = p.class || 'project';
+    d.ownerId = p.ownerId || ''; d.impactLeadId = p.impactLeadId || '';
+    d.primaryDepartment = (p.departments || [])[0] || '';
+    d.targetDate = p.targetDate || '';
+    d.systems = (p.systems || []).slice();
+    d.notifyDepartments = (p.departments || []).slice();
+    d.riskLevel = p.priority || 'medium';
+    d.description = (DETAIL_DESCRIPTIONS[p.id] && DETAIL_DESCRIPTIONS[p.id].description) || '';
+    d.businessObjective = (DETAIL_DESCRIPTIONS[p.id] && DETAIL_DESCRIPTIONS[p.id].businessObjective) || '';
+    return d;
+  }
+
+  function generateWizardProjectId() {
+    var d = IH.wizardData;
+    var prefix = { project: 'PRJ', issue: 'ISS', regulatory_change: 'REG', action_plan: 'ACT' }[d.itemType] || 'PRJ';
+    var n = 9000 + Math.floor(Math.random() * 999);
+    // Ensure uniqueness among current in-memory projects
+    while (IH.projects.some(function (p) { return p.id === prefix + '-' + n; })) n++;
+    return prefix + '-' + n;
+  }
+
+  function wizardSaveDraft() { commitWizard('draft'); }
+  function wizardSubmit()    { commitWizard('assessment'); }
+
+  function commitWizard(status) {
+    var d = IH.wizardData;
+    if (!d.title || !d.description || !d.ownerId || !d.impactLeadId) {
+      toast('Fill in at least title, description, owner, and impact lead before saving.', 'warn', 4200);
+      IH.wizardStep = 1;
+      renderWizardStepper(); renderWizardBody(); renderWizardFooter();
+      return;
+    }
+    var id = IH.wizardEditingId || generateWizardProjectId();
+    var record = wizardDataToProject(id, status);
+
+    // Upsert into in-memory list
+    var existingIdx = -1;
+    for (var i = 0; i < IH.projects.length; i++) { if (IH.projects[i].id === id) { existingIdx = i; break; } }
+    if (existingIdx >= 0) IH.projects[existingIdx] = record;
+    else                  IH.projects.unshift(record);
+
+    // Persist per requirement 10
+    if (IH.isDemoMode) {
+      persistDemoDrafts();
+    } else if (IH.currentUser && IH.resolvedTenantId && db) {
+      // Best-effort authenticated write to the resolved tenant.
+      try {
+        db.collection('tenants').doc(IH.resolvedTenantId).collection('projects').doc(id).set(record).catch(function (err) {
+          console.warn('[ImpactHub] wizard Firestore write failed:', err && err.message);
+          toast('Saved locally, but Firestore write failed: ' + (err && err.message ? err.message : 'unknown error'), 'error', 5200);
+        });
+      } catch (_) {}
+    }
+
+    closeWizard();
+    renderProjectsTab();
+    toast((status === 'draft' ? 'Draft saved' : 'Submitted for assessment') + ': ' + record.title + ' (' + id + ').', 'success', 3600);
+  }
+
+  // ---- Demo-mode localStorage persistence (non-sensitive per req 10) ------
+  function persistDemoDrafts() {
+    if (!IH.isDemoMode) return;
+    try {
+      var drafts = IH.projects.filter(function (p) { return p._wizard; });
+      localStorage.setItem(DEMO_DRAFT_STORAGE_KEY, JSON.stringify(drafts));
+    } catch (_) {}
+  }
+  function loadDemoDrafts() {
+    if (!IH.isDemoMode) return;
+    try {
+      var raw = localStorage.getItem(DEMO_DRAFT_STORAGE_KEY);
+      if (!raw) return;
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function (p) {
+        if (!IH.projects.some(function (x) { return x.id === p.id; })) IH.projects.push(p);
+      });
+    } catch (_) {}
+  }
+
+  // ==========================================================================
+  // 15c. SECURE AI ADAPTER + AI IMPACT ANALYSIS MODAL (Phase 4)
+  //
+  // Mirrors the Resume Builder secure architecture: browser sends a Firebase
+  // ID token in an Authorization header; the backend at `IMPACT_API_BASE`
+  // holds the OpenAI key and prompt template. No provider secrets in this
+  // file. See impact-backend-contract.md for the /api/impact/analyze route
+  // spec that must be added to Railway.
+  //
+  // Retry policy (per approved req 8):
+  //   - Retries ONLY on 502 / 503 / 504 with backoffs [1500, 4000] ms
+  //   - Never retries 4xx (auth / validation / conflict / rate-limit)
+  //   - AbortController timeout: AI_REQUEST_TIMEOUT_MS
+  //
+  // Mock fallback (per req 8):
+  //   - Fires SILENTLY only on 404 / 501 / network-unreachable, and only
+  //     when USE_MOCK_AI_WHEN_UNAVAILABLE is true.
+  //   - After exhausted 5xx retries, an "Use Demonstration Analysis" button
+  //     is offered visibly; the user must opt in \u2014 nothing masked.
+  //   - Every result banner labels the source: Live AI / Demonstration /
+  //     Deterministic Local per requirement 9.
+  //
+  // In-flight dedupe: identical (analysisType, projectId) requests share the
+  // same underlying fetch promise.
+  // ==========================================================================
+
+  var IMPACT_API_BASE = 'https://projectbackend-production-aa38.up.railway.app/api';
+  var USE_MOCK_AI_WHEN_UNAVAILABLE = true;
+  var AI_REQUEST_TIMEOUT_MS = 45000;
+  var AI_RETRY_BACKOFFS = [1500, 4000];
+  var AI_ANALYSIS_TYPES = [
+    { v: 'full',              l: 'Full analysis (all sections)' },
+    { v: 'intake',            l: 'Intake suggestions' },
+    { v: 'crossImpact',       l: 'Cross-project impact' },
+    { v: 'regulatoryControls',l: 'Regulatory + controls only' },
+    { v: 'routing',           l: 'Notification routing only' },
+    { v: 'readiness',         l: 'Implementation readiness' }
+  ];
+  var AI_RESULT_TABS = [
+    { key: 'summary',  label: 'Executive Summary',  icon: 'fa-align-left',         countField: null },
+    { key: 'related',  label: 'Related Projects',   icon: 'fa-arrows-turn-to-dots', countField: 'relatedProjects' },
+    { key: 'impacts',  label: 'Impacts',            icon: 'fa-arrows-turn-to-dots', countField: null },
+    { key: 'regs',     label: 'Regulations',        icon: 'fa-scale-balanced',      countField: 'regulatoryConcerns' },
+    { key: 'ctls',     label: 'Controls',           icon: 'fa-shield-halved',       countField: 'controlRecommendations' },
+    { key: 'routing',  label: 'Routing',            icon: 'fa-bell',                countField: 'routingRecommendations' },
+    { key: 'quest',    label: 'Questions',          icon: 'fa-circle-question',     countField: 'followUpQuestions' },
+    { key: 'sources',  label: 'Sources',            icon: 'fa-book',                countField: 'resourcesUsed' }
+  ];
+
+  var _aiInflight = {}; // key: analysisType|projectId -> in-flight Promise
+
+  // ---- Auth token helpers (Resume Builder pattern) -----------------------
+  function getCurrentUserToken() {
+    if (!fbAvailable || !auth || !auth.currentUser) return Promise.resolve(null);
+    // false = use cached token when possible; the SDK auto-refreshes when near expiry.
+    return auth.currentUser.getIdToken(false).catch(function () { return null; });
+  }
+  function getAuthHeaders() {
+    return getCurrentUserToken().then(function (token) {
+      var h = { 'Content-Type': 'application/json' };
+      if (token) h['Authorization'] = 'Bearer ' + token;
+      return h;
+    });
+  }
+
+  // ---- fetchImpactApiWithRetry -------------------------------------------
+  // opts:
+  //   onRetry(attempt, delayMs, prevStatus)  -> UI callback for "Waking..." UX
+  //   signal                                 -> external AbortSignal (chained)
+  //   timeoutMs                              -> override AI_REQUEST_TIMEOUT_MS
+  function fetchImpactApiWithRetry(path, init, opts) {
+    opts = opts || {};
+    init = init || {};
+    var attempt = 0;
+    function tryOnce() {
+      // Wrap with AbortController for hard timeout on each attempt.
+      var ctrl = new AbortController();
+      var to = setTimeout(function () { try { ctrl.abort(); } catch (_) {} }, opts.timeoutMs || AI_REQUEST_TIMEOUT_MS);
+      // Chain external abort signal if provided.
+      if (opts.signal) {
+        if (opts.signal.aborted) { try { ctrl.abort(); } catch (_) {} }
+        else { opts.signal.addEventListener('abort', function () { try { ctrl.abort(); } catch (_) {} }); }
+      }
+      var attemptInit = Object.assign({}, init, { signal: ctrl.signal });
+      return fetch(IMPACT_API_BASE + path, attemptInit).then(function (resp) {
+        clearTimeout(to);
+        return resp;
+      }).catch(function (err) {
+        clearTimeout(to);
+        // Network / abort / DNS failure. Treat as "gateway unreachable".
+        var e = new Error('network_unreachable');
+        e.cause = err;
+        e.status = 0;
+        e.retryable = true;
+        e.stage = 'network';
+        throw e;
+      });
+    }
+    function handle(resp) {
+      var status = resp.status;
+      // 2xx: success
+      if (status >= 200 && status < 300) {
+        return resp.text().then(function (txt) {
+          if (!txt) return { ok: true, status: status, body: null };
+          try { return { ok: true, status: status, body: JSON.parse(txt) }; }
+          catch (_) { return { ok: true, status: status, body: txt }; }
+        });
+      }
+      // 502/503/504: transient gateway/provider errors -> retry with backoff
+      if (status === 502 || status === 503 || status === 504) {
+        if (attempt < AI_RETRY_BACKOFFS.length) {
+          var delay = AI_RETRY_BACKOFFS[attempt];
+          if (typeof opts.onRetry === 'function') opts.onRetry(attempt + 1, delay, status);
+          attempt++;
+          return new Promise(function (r) { setTimeout(r, delay); }).then(tryOnce).then(handle);
+        }
+        // Exhausted retries -> surface as retryable server error (caller may offer manual mock).
+        return resp.text().then(function (txt) {
+          var body = null; try { body = JSON.parse(txt); } catch (_) { body = { message: txt || ('HTTP ' + status) }; }
+          var e = new Error((body && body.message) || ('HTTP ' + status));
+          e.status = status;
+          e.retryable = true;
+          e.stage = (body && body.stage) || 'gateway';
+          e.requestId = body && body.requestId;
+          e.details = body && body.details;
+          throw e;
+        });
+      }
+      // All other error statuses (400/401/403/404/409/413/429/500/501/...):
+      // return the parsed error body. Do NOT retry. Do NOT mask.
+      return resp.text().then(function (txt) {
+        var body = null; try { body = JSON.parse(txt); } catch (_) { body = { message: txt || ('HTTP ' + status) }; }
+        var e = new Error((body && body.message) || ('HTTP ' + status));
+        e.status = status;
+        e.retryable = false;
+        e.error = body && body.error;
+        e.stage = (body && body.stage) || 'server';
+        e.requestId = body && body.requestId;
+        e.details = body && body.details;
+        throw e;
+      });
+    }
+    return tryOnce().then(handle);
+  }
+  try { window.fetchImpactApiWithRetry = fetchImpactApiWithRetry; } catch (_) {}
+  try { window.getCurrentUserToken     = getCurrentUserToken; }     catch (_) {}
+  try { window.getAuthHeaders          = getAuthHeaders; }          catch (_) {}
+
+  // ---- Payload builder ---------------------------------------------------
+  function buildImpactAnalysisPayload(project, analysisType, options) {
+    // Trim portfolio context to relevant records (share at least one attr
+    // with the selected project) so we never ship the whole tenant db.
+    var mySys = (project.systems || []);
+    var myDep = (project.departments || []);
+    var myArea = (project.impactedAreas || []);
+    var portfolio = (IH.projects || []).filter(function (p) {
+      if (!p || p.id === project.id) return false;
+      var shareSys  = (p.systems || []).some(function (s) { return mySys.indexOf(s) !== -1; });
+      var shareDep  = (p.departments || []).some(function (d) { return myDep.indexOf(d) !== -1; });
+      var shareArea = (p.impactedAreas || []).some(function (a) { return myArea.indexOf(a) !== -1; });
+      return shareSys || shareDep || shareArea;
+    }).slice(0, 40).map(function (p) {
+      return {
+        id: p.id, title: p.title, description: (DETAIL_DESCRIPTIONS[p.id] || {}).description || '',
+        status: p.status, startDate: p.startDate, targetDate: p.targetDate,
+        systems: p.systems || [], departments: p.departments || [],
+        impactedAreas: p.impactedAreas || []
+      };
+    });
+    var pd = projectDescriptor(project);
+    return {
+      analysisType: analysisType || 'full',
+      tenantId: IH.resolvedTenantId || (IH.isDemoMode ? 'demo-local' : null),
+      project: {
+        id: project.id, title: project.title,
+        description: pd.description, businessObjective: pd.businessObjective,
+        itemType: project.class, status: project.status, priority: project.priority,
+        ownerId: project.ownerId, impactLeadId: project.impactLeadId, sponsorId: pd.sponsorId,
+        primaryDepartmentId: pd.primaryDepartment,
+        startDate: project.startDate, targetDate: project.targetDate,
+        systems: project.systems || [], departments: project.departments || [],
+        impactedAreas: project.impactedAreas || [],
+        assessmentAnswers: project._wizard || {}
+      },
+      portfolioContext: portfolio,
+      knowledgeContext: {
+        routingRules: ROUTING_RULES
+      },
+      options: Object.assign({
+        includeIntakeSuggestions: true,
+        includeCrossProjectAnalysis: true,
+        includeRegulatoryScreening: true,
+        includeControlRecommendations: true,
+        includeNotificationRouting: true,
+        includeFollowUpQuestions: true
+      }, options || {})
+    };
+  }
+
+  // ---- Response normalizer -----------------------------------------------
+  function normalizeAnalysis(raw) {
+    var a = raw && raw.analysis ? raw.analysis : (raw || {});
+    function arr(v) { return Array.isArray(v) ? v : []; }
+    return {
+      executiveSummary:        typeof a.executiveSummary === 'string' ? a.executiveSummary : '',
+      impactScore:             Math.max(0, Math.min(100, parseInt(a.impactScore, 10) || 0)),
+      confidence:              Math.max(0, Math.min(1, parseFloat(a.confidence) || 0)),
+      assessmentCompleteness:  Math.max(0, Math.min(100, parseInt(a.assessmentCompleteness, 10) || 0)),
+      classification:          a.classification || {},
+      intakeSuggestions:       arr(a.intakeSuggestions),
+      relatedProjects:         arr(a.relatedProjects),
+      impacts:                 a.impacts || {},
+      regulatoryConcerns:      arr(a.regulatoryConcerns),
+      controlRecommendations:  arr(a.controlRecommendations),
+      routingRecommendations:  arr(a.routingRecommendations),
+      followUpQuestions:       arr(a.followUpQuestions),
+      resourcesUsed:           arr(a.resourcesUsed)
+    };
+  }
+
+  // ---- runImpactAnalysis -------------------------------------------------
+  // Returns Promise<{ source: 'live_ai'|'demo_mock', analysis, requestId? }>
+  // Throws on non-mockable errors (4xx and exhausted 5xx).
+  function runImpactAnalysis(project, analysisType, options) {
+    var key = analysisType + '|' + project.id;
+    if (_aiInflight[key]) return _aiInflight[key];
+
+    var payload = buildImpactAnalysisPayload(project, analysisType, options);
+    var promise = getAuthHeaders().then(function (headers) {
+      return fetchImpactApiWithRetry('/impact/analyze', {
+        method: 'POST', headers: headers, body: JSON.stringify(payload)
+      }, {
+        onRetry: function (n, delayMs, prev) {
+          setAiStatus('Server responded ' + prev + '. Retrying (attempt ' + (n + 1) + ') in ' + Math.round(delayMs / 100) / 10 + 's\u2026');
+        }
+      });
+    }).then(function (res) {
+      var analysis = normalizeAnalysis(res.body || {});
+      return { source: 'live_ai', analysis: analysis, requestId: res.body && res.body.requestId };
+    }).catch(function (err) {
+      // Mock fallback ONLY on 404 / 501 / network_unreachable. Everything else re-throws.
+      var mockable = err && (err.status === 404 || err.status === 501 || err.status === 0);
+      if (mockable && USE_MOCK_AI_WHEN_UNAVAILABLE) {
+        return { source: 'demo_mock', analysis: buildMockAnalysis(project), mockReason: mockReasonFor(err) };
+      }
+      throw err;
+    });
+
+    _aiInflight[key] = promise;
+    promise.then(function () { delete _aiInflight[key]; }, function () { delete _aiInflight[key]; });
+    return promise;
+  }
+
+  function mockReasonFor(err) {
+    if (!err) return 'The secure /impact/analyze route was unreachable.';
+    if (err.status === 404) return 'The secure /impact/analyze route is not yet deployed on the backend (HTTP 404).';
+    if (err.status === 501) return 'The secure /impact/analyze route returned "not implemented" (HTTP 501).';
+    if (err.status === 0)   return 'The backend was unreachable (network / gateway / abort).';
+    return 'Falling back to demonstration analysis.';
+  }
+  try { window.runImpactAnalysis = runImpactAnalysis; } catch (_) {}
+
+  // ---- Mock analysis builder (reuses deterministic engines) --------------
+  function buildMockAnalysis(project) {
+    var pd = projectDescriptor(project);
+    var related = generateRelatedProjects(project).map(function (r) {
+      return {
+        projectId: r.projectId, title: r.title,
+        relationshipType: r.relationshipType,
+        impactDirection: r.impactDirection,
+        impactLevel: r.impactLevel,
+        confidence: r.confidence,
+        reasons: r.reasons,
+        sharedAttributes: r.sharedAttributes,
+        recommendedActions: r.recommendedActions,
+        status: 'unconfirmed'
+      };
+    });
+    var regs = generateRegulatoryConcerns(project).map(function (r) {
+      return {
+        title: r.title, category: r.category, whyFlagged: r.whyFlagged,
+        supportingProjectFacts: [], sourceIds: [], confidence: r.confidence,
+        recommendedReviewDepartment: r.recommendedReviewDepartment,
+        status: 'awaiting_human_review'
+      };
+    });
+    var ctls = generateControlRecommendations(project).map(function (c) {
+      return {
+        title: c.title, description: c.description, controlType: c.controlType,
+        recommendedOwnerDepartment: c.recommendedOwnerDepartment,
+        reviewDepartment: c.reviewDepartment,
+        evidenceRequired: c.evidenceRequired,
+        confidence: c.confidence, status: 'recommended'
+      };
+    });
+    var notifs = generateNotificationRecommendations(project).map(function (n) {
+      return {
+        department: n.department, reason: n.reason, priority: n.priority,
+        acknowledgementRequired: n.acknowledgementRequired,
+        suggestedDueDays: n.suggestedDueDays
+      };
+    });
+    var bd = computeImpactScoreBreakdown(project);
+    return normalizeAnalysis({
+      analysis: {
+        executiveSummary: (pd.description || project.title) + ' \u2014 demonstration analysis. This summary would be generated by the AI model in a live call; the current output is deterministically derived from project attributes.',
+        impactScore: bd.total, confidence: 0.72, assessmentCompleteness: project.assessment || 0,
+        classification: {
+          changeType: SUBTYPE_LABEL[project.subtype] || 'Change',
+          customerFacing: /customer|notice|dispute|complaint/i.test((project.impactedAreas || []).join(' ') + ' ' + (project.title || '')),
+          thirdPartyInvolved: /vendor|third|verification/i.test((project.impactedAreas || []).join(' ') + ' ' + (project.title || '')),
+          dataMigration: /migrat|records|archive/i.test((project.impactedAreas || []).join(' ') + ' ' + (project.title || '')),
+          policyChange: /policy|retention/i.test((project.impactedAreas || []).join(' ') + ' ' + (project.title || '')),
+          regulatoryReviewRecommended: !!regs.length
+        },
+        intakeSuggestions: [],
+        relatedProjects: related, impacts: {},
+        regulatoryConcerns: regs, controlRecommendations: ctls,
+        routingRecommendations: notifs,
+        followUpQuestions: [
+          { question: 'Will historical customer records be migrated as part of this change?',
+            reason: 'Data migration affects retention, privacy, reconciliation, and testing requirements.',
+            priority: 'high', domain: 'data' },
+          { question: 'Are testing windows already committed for the shared systems identified?',
+            reason: 'Testing collisions with related projects can delay both.',
+            priority: 'medium', domain: 'delivery' }
+        ],
+        resourcesUsed: []
+      }
+    });
+  }
+
+  // ==========================================================================
+  //  AI MODAL RENDERERS + INTERACTIONS
+  // ==========================================================================
+
+  // Modal state
+  var _aiState = {
+    selectedProjectId: null,
+    selectedType: 'full',
+    customInstruction: '',
+    view: 'config',          // 'config' | 'loading' | 'error' | 'results'
+    activeTab: 'summary',
+    lastAnalysis: null,      // last normalized analysis
+    lastSource: null,        // 'live_ai' | 'demo_mock' | 'det_local'
+    lastError: null,         // Error object
+    lastMockReason: null
+  };
+
+  function openAiModal(projectId) {
+    _aiState.selectedProjectId = projectId || (IH.projects[0] && IH.projects[0].id) || null;
+    _aiState.selectedType = 'full';
+    _aiState.customInstruction = '';
+    _aiState.view = 'config';
+    _aiState.activeTab = 'summary';
+    _aiState.lastAnalysis = null;
+    _aiState.lastSource = null;
+    _aiState.lastError = null;
+    _aiState.lastMockReason = null;
+    renderAiModal();
+    var m = $('#ih-ai-modal'); if (m) m.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeAiModal() {
+    var m = $('#ih-ai-modal'); if (m) m.classList.remove('is-open');
+    document.body.style.overflow = '';
+  }
+  function setAiStatus(msg) {
+    var el = document.getElementById('ih-ai-status'); if (el) el.textContent = msg || '';
+  }
+  function goToAiTab(key) {
+    _aiState.activeTab = key;
+    $all('.ih-ai-results-tab').forEach(function (b) {
+      b.classList.toggle('is-active', b.getAttribute('data-ai-tab') === key);
+    });
+    $all('.ih-ai-results-panel').forEach(function (p) {
+      p.classList.toggle('is-active', p.getAttribute('data-ai-panel') === key);
+    });
+  }
+  function renderAiModal() {
+    var body = $('#ih-ai-body'); if (!body) return;
+    var actions = $('#ih-ai-actions');
+    if (_aiState.view === 'config')   { body.innerHTML = renderAiConfig();   if (actions) { actions.style.display = 'none'; actions.innerHTML = ''; } }
+    if (_aiState.view === 'loading')  { body.innerHTML = renderAiLoading();  if (actions) { actions.style.display = 'none'; actions.innerHTML = ''; } }
+    if (_aiState.view === 'error')    { body.innerHTML = renderAiError();    if (actions) { actions.style.display = 'none'; actions.innerHTML = ''; } }
+    if (_aiState.view === 'results')  { body.innerHTML = renderAiResults();  renderAiActions(); }
+  }
+  function renderAiActions() {
+    var el = $('#ih-ai-actions'); if (!el) return;
+    el.style.display = '';
+    el.innerHTML =
+      '<button type="button" class="ih-btn ih-btn-outline" data-action="close-ai"><i class="fa-solid fa-arrow-left"></i>Close</button>' +
+      '<button type="button" class="ih-btn ih-btn-outline" onclick="event.preventDefault();_aiState.view=\'config\';renderAiModal();"><i class="fa-solid fa-arrows-rotate"></i>New analysis</button>';
+  }
+
+  function renderAiConfig() {
+    var projects = (IH.projects || []).slice().sort(function (a, b) {
+      return (a.title || '').localeCompare(b.title || '');
+    });
+    var authState = IH.currentUser ? ('Signed in as ' + (IH.currentUser.displayName || IH.currentUser.email || 'user') + ' \u2014 tenant: ' + (IH.resolvedTenantId || 'unresolved'))
+      : (IH.isDemoMode ? 'Demo Mode \u2014 no live AI call will succeed until a tenant is signed in.' : 'Signed out \u2014 sign in to send a live AI request.');
+    return '<div class="ih-ai-section ih-ai-config">' +
+      '<h3 style="margin:0 0 6px;font-size:14px;color:#1F2937;">Configure analysis</h3>' +
+      '<p style="margin:0 0 14px;font-size:12px;color:#6B7280;">Requests are sent to the secure Railway route <code>' + escapeHtml(IMPACT_API_BASE) + '/impact/analyze</code> with your Firebase ID token in the Authorization header. No provider key is present in this browser. <em>' + escapeHtml(authState) + '</em></p>' +
+      '<div class="ih-ai-config-grid">' +
+        '<div>' +
+          '<div class="ih-wiz-label">Project</div>' +
+          '<select class="ih-wiz-input" id="ih-ai-project-sel">' +
+            projects.map(function (p) {
+              return '<option value="' + escapeHtml(p.id) + '"' + (p.id === _aiState.selectedProjectId ? ' selected' : '') + '>' + escapeHtml(p.id) + ' \u2014 ' + escapeHtml(p.title) + '</option>';
+            }).join('') +
+          '</select>' +
+        '</div>' +
+        '<div>' +
+          '<div class="ih-wiz-label">Analysis type</div>' +
+          '<select class="ih-wiz-input" id="ih-ai-type-sel">' +
+            AI_ANALYSIS_TYPES.map(function (t) {
+              return '<option value="' + t.v + '"' + (t.v === _aiState.selectedType ? ' selected' : '') + '>' + escapeHtml(t.l) + '</option>';
+            }).join('') +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:14px;">' +
+        '<div class="ih-wiz-label">Custom instruction (optional)</div>' +
+        '<textarea class="ih-wiz-input ih-wiz-textarea" id="ih-ai-custom" placeholder="Optional guidance for the model. Kept short; do not include secrets.">' + escapeHtml(_aiState.customInstruction) + '</textarea>' +
+      '</div>' +
+      '<div class="ih-ai-run-row">' +
+        '<button type="button" class="ih-btn ih-btn-purple" data-action="ai-run"><i class="fa-solid fa-play"></i>Run Analysis</button>' +
+        '<span class="ih-ai-status" id="ih-ai-status">Ready.</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderAiLoading() {
+    return '<div class="ih-ai-loading">' +
+      '<i class="fa-solid fa-spinner" aria-hidden="true"></i>' +
+      '<div>Running secure AI analysis\u2026</div>' +
+      '<ol class="ih-ai-loading-steps">' +
+        '<li class="is-done">Build request payload</li>' +
+        '<li class="is-done">Attach Firebase ID token</li>' +
+        '<li class="is-active">Call /impact/analyze</li>' +
+        '<li>Normalize + render results</li>' +
+      '</ol>' +
+      '<div class="ih-ai-status" id="ih-ai-status" style="margin-top:14px;color:#6B7280;">Contacting backend\u2026</div>' +
+    '</div>';
+  }
+
+  function renderAiError() {
+    var e = _aiState.lastError || {};
+    var offerMock = USE_MOCK_AI_WHEN_UNAVAILABLE && e.retryable && (e.status >= 500 || e.status === 0);
+    return '<div class="ih-ai-section">' +
+      '<div class="ih-ai-error">' +
+        '<strong>AI Analysis failed</strong>' +
+        'Status ' + (e.status == null ? 'network' : e.status) + (e.stage ? ' \u00b7 stage: ' + escapeHtml(e.stage) : '') + '.<br>' +
+        escapeHtml(e.message || 'Unknown error.') +
+        (e.requestId ? '<br><small style="opacity:0.75;">requestId: ' + escapeHtml(e.requestId) + '</small>' : '') +
+        '<div class="ih-ai-error-actions">' +
+          '<button type="button" class="ih-btn ih-btn-blue" data-action="ai-run"><i class="fa-solid fa-arrows-rotate"></i>Retry</button>' +
+          (offerMock ? '<button type="button" class="ih-btn ih-btn-outline" data-action="ai-use-mock"><i class="fa-solid fa-eye"></i>Use Demonstration Analysis</button>' : '') +
+          '<button type="button" class="ih-btn ih-btn-outline" onclick="event.preventDefault();_aiState.view=\'config\';renderAiModal();"><i class="fa-solid fa-arrow-left"></i>Back</button>' +
+        '</div>' +
+      '</div>' +
+      '<p style="margin:0;font-size:11.5px;color:#6B7280;">4xx errors (authentication / validation / conflict) are never masked by demo analysis. Demonstration fallback is only offered when the backend is genuinely unreachable or has not yet been deployed.</p>' +
+    '</div>';
+  }
+
+  function renderAiResults() {
+    var a = _aiState.lastAnalysis || {};
+    var src = _aiState.lastSource || 'demo_mock';
+    var banner = renderAiSourceBanner(src, _aiState.lastMockReason);
+    var tabs = '<div class="ih-ai-results-tabs" role="tablist">' + AI_RESULT_TABS.map(function (t) {
+      var count = (t.countField && Array.isArray(a[t.countField])) ? a[t.countField].length : null;
+      var active = t.key === _aiState.activeTab ? ' is-active' : '';
+      return '<button type="button" class="ih-ai-results-tab' + active + '" data-ai-tab="' + t.key + '" role="tab">' +
+        '<i class="fa-solid ' + t.icon + '"></i>' + escapeHtml(t.label) +
+        (count != null ? '<span class="ih-ai-tab-count">' + count + '</span>' : '') +
+      '</button>';
+    }).join('') + '</div>';
+
+    var panels = '<div class="ih-ai-results-body">' +
+      aiPanel('summary',  renderAiSummaryPanel(a)) +
+      aiPanel('related',  renderAiFindingsList(a.relatedProjects, 'related', 'No related projects returned.')) +
+      aiPanel('impacts',  renderAiImpactsPanel(a)) +
+      aiPanel('regs',     renderAiFindingsList(a.regulatoryConcerns, 'reg', 'No regulatory concerns returned.')) +
+      aiPanel('ctls',     renderAiFindingsList(a.controlRecommendations, 'ctl', 'No control recommendations returned.')) +
+      aiPanel('routing',  renderAiRoutingPanel(a)) +
+      aiPanel('quest',    renderAiQuestionsPanel(a)) +
+      aiPanel('sources',  renderAiSourcesPanel(a)) +
+    '</div>';
+
+    return '<div class="ih-ai-section">' + banner + '</div>' + tabs + panels;
+  }
+  function aiPanel(key, html) {
+    var active = key === _aiState.activeTab ? ' is-active' : '';
+    return '<div class="ih-ai-results-panel' + active + '" data-ai-panel="' + key + '">' + html + '</div>';
+  }
+  function renderAiSourceBanner(src, mockReason) {
+    if (src === 'live_ai') {
+      return '<div class="ih-ai-source-banner is-live"><i class="fa-solid fa-microchip"></i><div><strong>Live AI Analysis</strong><br>Signed request, generated by the secure Railway route.</div></div>';
+    }
+    if (src === 'demo_mock') {
+      return '<div class="ih-ai-source-banner is-demo"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Demonstration Analysis</strong><br>' + escapeHtml(mockReason || 'The secure /impact/analyze route is not available.') + ' Nothing here is model-generated.</div></div>';
+    }
+    return '<div class="ih-ai-source-banner is-det"><i class="fa-solid fa-calculator"></i><div><strong>Deterministic Local Analysis</strong><br>Computed in-browser from project attributes; no AI call was made.</div></div>';
+  }
+  function renderAiSummaryPanel(a) {
+    var cls = a.classification || {};
+    return '<div class="ih-ai-summary">' +
+      '<p>' + escapeHtml(a.executiveSummary || 'No executive summary returned.') + '</p>' +
+      '<div class="ih-ai-summary-stats">' +
+        '<span class="ih-ai-summary-stat">Impact score <strong>' + (a.impactScore || 0) + '</strong></span>' +
+        '<span class="ih-ai-summary-stat">Confidence <strong>' + Math.round((a.confidence || 0) * 100) + '%</strong></span>' +
+        '<span class="ih-ai-summary-stat">Completeness <strong>' + (a.assessmentCompleteness || 0) + '%</strong></span>' +
+      '</div>' +
+      '<h4 style="margin:14px 0 6px;font-size:11.5px;color:#475569;text-transform:uppercase;letter-spacing:0.4px;">Classification</h4>' +
+      '<div class="ih-chips">' +
+        (cls.changeType ? '<span class="ih-chip is-slate">' + escapeHtml(cls.changeType) + '</span>' : '') +
+        (cls.customerFacing            ? '<span class="ih-chip">Customer-facing</span>' : '') +
+        (cls.thirdPartyInvolved        ? '<span class="ih-chip is-amber">Third-party</span>' : '') +
+        (cls.dataMigration             ? '<span class="ih-chip is-amber">Data migration</span>' : '') +
+        (cls.policyChange              ? '<span class="ih-chip">Policy change</span>' : '') +
+        (cls.regulatoryReviewRecommended ? '<span class="ih-chip is-red">Regulatory review</span>' : '') +
+      '</div>' +
+    '</div>';
+  }
+  function renderAiFindingsList(items, kind, emptyMsg) {
+    if (!items || !items.length) return '<p style="color:#6B7280;font-size:12px;">' + escapeHtml(emptyMsg || 'No items.') + '</p>';
+    return items.map(function (f) {
+      var title = f.title || f.name || (f.projectId ? f.projectId + ' \u2014 ' + (f.projectTitle || '') : '(untitled)');
+      var meta = [];
+      if (f.category)                      meta.push(escapeHtml(f.category));
+      if (f.impactLevel)                   meta.push('Impact: ' + escapeHtml(f.impactLevel));
+      if (f.controlType)                   meta.push('Type: ' + escapeHtml(f.controlType));
+      if (f.recommendedReviewDepartment)   meta.push('Reviewer: ' + escapeHtml(f.recommendedReviewDepartment));
+      if (f.recommendedOwnerDepartment)    meta.push('Owner: ' + escapeHtml(f.recommendedOwnerDepartment));
+      if (f.confidence != null)            meta.push('Confidence ' + Math.round(f.confidence * 100) + '%');
+      var reasons = (f.reasons || f.whyFlagged) ? '<p><strong>Reasoning:</strong> ' + (Array.isArray(f.reasons) ? f.reasons.map(escapeHtml).join(' \u2022 ') : escapeHtml(f.whyFlagged || '')) + '</p>' : '';
+      var shared = (f.sharedAttributes && f.sharedAttributes.length) ? '<div class="ih-finding-attrs">' + f.sharedAttributes.map(function (a) { return '<span class="ih-chip is-slate">' + escapeHtml(a) + '</span>'; }).join('') + '</div>' : '';
+      var desc = f.description ? '<p>' + escapeHtml(f.description) + '</p>' : '';
+      var actions = (f.recommendedActions && f.recommendedActions.length) ? '<p><strong>Recommended actions:</strong> ' + f.recommendedActions.map(escapeHtml).join(' \u2022 ') + '</p>' : '';
+      var evi = (f.evidenceRequired && f.evidenceRequired.length) ? '<div class="ih-finding-attrs"><strong style="margin-right:6px;font-size:11px;color:#475569;">Evidence:</strong>' + f.evidenceRequired.map(function (e) { return '<span class="ih-chip is-slate">' + escapeHtml(e) + '</span>'; }).join('') + '</div>' : '';
+      return '<div class="ih-finding is-ai">' +
+        '<div class="ih-finding-hdr">' +
+          '<div class="ih-finding-title">' + escapeHtml(title) + '</div>' +
+          '<div class="ih-finding-meta">' +
+            (_aiState.lastSource === 'live_ai' ? '<span class="ih-conf-badge ih-conf-source-ai">AI Suggested</span>' :
+             _aiState.lastSource === 'demo_mock' ? '<span class="ih-conf-badge ih-conf-status-unconf">Demonstration</span>' :
+             '<span class="ih-conf-badge ih-conf-source-det">Deterministic</span>') +
+            (meta.length ? '<span class="ih-conf-badge ih-conf-source-det">' + meta.join(' \u00b7 ') + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="ih-finding-body">' + reasons + shared + desc + actions + evi + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  function renderAiImpactsPanel(a) {
+    var i = a.impacts || {};
+    var keys = ['departments','systems','businessProcesses','customerJourneys','dataDomains','vendors','resources','implementationWindows'];
+    var out = '';
+    keys.forEach(function (k) {
+      var arr = i[k] || [];
+      if (!arr.length) return;
+      out += '<h4 style="margin:10px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:0.4px;color:#475569;">' + escapeHtml(k) + '</h4>' +
+        '<div class="ih-chips">' + arr.map(function (x) { return '<span class="ih-chip is-slate">' + escapeHtml(x && x.name ? x.name : String(x)) + '</span>'; }).join('') + '</div>';
+    });
+    if (!out) out = '<p style="color:#6B7280;font-size:12px;">No cross-domain impact breakdown returned. See the Related Projects, Regulations, and Controls tabs for the specific findings.</p>';
+    return out;
+  }
+  function renderAiRoutingPanel(a) {
+    var arr = a.routingRecommendations || [];
+    if (!arr.length) return '<p style="color:#6B7280;font-size:12px;">No routing recommendations returned.</p>';
+    return arr.map(function (r) {
+      return '<div class="ih-finding is-ai">' +
+        '<div class="ih-notif-hdr">' +
+          '<span class="ih-notif-dept"><i class="fa-solid fa-building-user"></i> ' + escapeHtml(r.department) + '</span>' +
+          '<span class="ih-notif-due">Suggested acknowledge within ' + (r.suggestedDueDays || 5) + ' business days</span>' +
+          sevBadge(r.priority) +
+        '</div>' +
+        '<div class="ih-finding-body">' +
+          '<p><strong>Reason:</strong> ' + escapeHtml(r.reason || '') + '</p>' +
+          '<p><strong>Acknowledgement required:</strong> ' + (r.acknowledgementRequired ? 'Yes' : 'No') + '</p>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  function renderAiQuestionsPanel(a) {
+    var arr = a.followUpQuestions || [];
+    if (!arr.length) return '<p style="color:#6B7280;font-size:12px;">No follow-up questions returned.</p>';
+    return arr.map(function (q) {
+      return '<div class="ih-ai-question-card">' +
+        '<div class="ih-ai-q-text">' + escapeHtml(q.question || '') + '</div>' +
+        (q.reason ? '<div class="ih-ai-q-reason"><strong>Why:</strong> ' + escapeHtml(q.reason) + '</div>' : '') +
+        '<div class="ih-finding-meta" style="margin-top:6px;">' +
+          (q.priority ? sevBadge(q.priority) : '') +
+          (q.domain ? '<span class="ih-conf-badge ih-conf-source-det">' + escapeHtml(q.domain) + '</span>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+  function renderAiSourcesPanel(a) {
+    var arr = a.resourcesUsed || [];
+    if (!arr.length) return '<p style="color:#6B7280;font-size:12px;">No source citations returned. Live analyses that consult the tenant knowledge library will list contributing records here.</p>';
+    return arr.map(function (s) {
+      var lbl = (s && (s.title || s.name || s.id)) || String(s);
+      var url = s && s.url;
+      return '<div class="ih-ai-source-row">' + (url ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener"><strong>' + escapeHtml(lbl) + '</strong></a>' : '<strong>' + escapeHtml(lbl) + '</strong>') + '</div>';
+    }).join('');
+  }
+
+  // ---- Actions --------
+  function aiCaptureConfig() {
+    var pSel = $('#ih-ai-project-sel'); if (pSel) _aiState.selectedProjectId = pSel.value;
+    var tSel = $('#ih-ai-type-sel');    if (tSel) _aiState.selectedType      = tSel.value;
+    var ci   = $('#ih-ai-custom');      if (ci)   _aiState.customInstruction = ci.value;
+  }
+  function aiRunSelected() {
+    aiCaptureConfig();
+    var proj = (IH.projects || []).filter(function (p) { return p.id === _aiState.selectedProjectId; })[0];
+    if (!proj) { toast('Select a project first.', 'warn'); return; }
+    _aiState.view = 'loading';
+    renderAiModal();
+    runImpactAnalysis(proj, _aiState.selectedType, _aiState.customInstruction ? { customInstruction: _aiState.customInstruction } : null)
+      .then(function (res) {
+        _aiState.lastAnalysis = res.analysis;
+        _aiState.lastSource   = res.source;
+        _aiState.lastMockReason = res.mockReason || null;
+        _aiState.view = 'results';
+        _aiState.activeTab = 'summary';
+        renderAiModal();
+      })
+      .catch(function (err) {
+        _aiState.lastError = err || new Error('Unknown error');
+        _aiState.view = 'error';
+        renderAiModal();
+      });
+  }
+  function aiUseMockFallback() {
+    var proj = (IH.projects || []).filter(function (p) { return p.id === _aiState.selectedProjectId; })[0];
+    if (!proj) return;
+    _aiState.lastAnalysis = buildMockAnalysis(proj);
+    _aiState.lastSource   = 'demo_mock';
+    _aiState.lastMockReason = 'You opted into demonstration analysis after the backend failed.';
+    _aiState.view = 'results';
+    _aiState.activeTab = 'summary';
+    renderAiModal();
+  }
+  function aiAnalyzeWizardDescription() {
+    // Persist the current wizard state as a preview project and send it through
+    // the same secure adapter. Results appear in the AI modal.
+    var preview = wizardDataToProject('WIZ-PREVIEW', 'draft');
+    // Ensure it's temporarily visible in payload builder's portfolio filter
+    if (!IH.projects.some(function (p) { return p.id === 'WIZ-PREVIEW'; })) IH.projects.push(preview);
+    _aiState.selectedProjectId = 'WIZ-PREVIEW';
+    _aiState.selectedType = 'intake';
+    openAiModal('WIZ-PREVIEW');
+    // Auto-run after tick
+    setTimeout(aiRunSelected, 30);
+  }
+
+  // ==========================================================================
+  // 15d. DEPARTMENT IMPACT HEATMAP (Phase 6, top-nav Departments tab)
+  // ==========================================================================
+  function computeDepartmentImpact() {
+    // Returns { departments:[names], projects:[refs], cell(dept,pid)->severity }
+    var deptSet = {};
+    (IH.projects || []).forEach(function (p) { (p.departments || []).forEach(function (d) { deptSet[d] = true; }); });
+    (IH.referenceData.departments || []).forEach(function (d) { deptSet[d.name || d] = true; });
+    var deps = Object.keys(deptSet).sort();
+    return {
+      departments: deps,
+      projects: IH.projects.slice(),
+      cellFor: function (dept, project) {
+        if (!(project.departments || []).some(function (d) { return d === dept; })) return 'none';
+        var sc = project.impactScore || 0;
+        if (sc >= 75) return 'critical';
+        if (sc >= 50) return 'material';
+        if (sc >= 25) return 'review';
+        return 'info';
+      }
+    };
+  }
+  function renderDepartmentHeatmapPanel() {
+    var panel = $('#ih-panel-departments'); if (!panel) return;
+    var data = computeDepartmentImpact();
+    if (!data.projects.length || !data.departments.length) {
+      panel.innerHTML = '<div class="ih-projects-hdr"><h1>Department Impact Heatmap</h1></div>' +
+        '<div class="ih-empty"><i class="fa-solid fa-building-user"></i><h3>No portfolio data</h3><p>Sign in to a tenant with projects, or continue in Demo Mode.</p></div>';
+      return;
+    }
+    var thead = '<tr><th>Department</th>' + data.projects.map(function (p) {
+      return '<th title="' + escapeHtml(p.title + ' (' + p.id + ')') + '">' + escapeHtml(p.id) + '</th>';
+    }).join('') + '</tr>';
+    var tbody = data.departments.map(function (d) {
+      return '<tr><th scope="row">' + escapeHtml(d) + '</th>' + data.projects.map(function (p) {
+        var kind = data.cellFor(d, p);
+        return '<td><span class="ih-heat-cell is-' + kind + '" data-heat-project="' + escapeHtml(p.id) + '" title="' + escapeHtml(p.title + ' \u2014 ' + d + ' \u2014 ' + kind) + '"></span></td>';
+      }).join('') + '</tr>';
+    }).join('');
+    panel.innerHTML =
+      '<div class="ih-projects-hdr">' +
+        '<h1>Department Impact Heatmap</h1>' +
+        '<span class="ih-badge-connected"><i class="fa-solid fa-circle"></i>Deterministic \u2014 Reviewer confirmation required</span>' +
+      '</div>' +
+      '<p style="margin:0 0 12px;font-size:12px;color:#6B7280;">Departments (rows) \u00d7 projects (columns). Color intensity reflects the deterministic impact score of each project on each department where it appears in scope. Click a cell to open the project.</p>' +
+      '<div class="ih-heat-wrap">' +
+        '<table class="ih-heat-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>' +
+      '</div>' +
+      '<div class="ih-heat-legend">' +
+        '<span class="heat-none">No known impact</span>' +
+        '<span class="heat-info">Informational</span>' +
+        '<span class="heat-review">Review required</span>' +
+        '<span class="heat-material">Material impact</span>' +
+        '<span class="heat-critical">Critical or unresolved</span>' +
+      '</div>';
+  }
+
+  // ==========================================================================
+  // 15e. ADMIN \u2014 REFERENCE-DATA MANAGEMENT + INITIALIZE DEMO WORKSPACE (Phase 6)
+  // ==========================================================================
+  var ADMIN_CATEGORIES = [
+    { key: 'departments',      label: 'Departments',       icon: 'fa-building-user', portfolioField: 'departments' },
+    { key: 'systems',          label: 'Systems',           icon: 'fa-server',        portfolioField: 'systems' },
+    { key: 'businessProcesses',label: 'Business processes',icon: 'fa-diagram-next',  portfolioField: null },
+    { key: 'vendors',          label: 'Vendors',           icon: 'fa-handshake',     portfolioField: null },
+    { key: 'regulations',      label: 'Regulations',       icon: 'fa-scale-balanced',portfolioField: null },
+    { key: 'controls',         label: 'Controls',          icon: 'fa-shield-halved', portfolioField: null },
+    { key: 'routingRules',     label: 'Routing rules',     icon: 'fa-bell',          portfolioField: null }
+  ];
+
+  function computeAdminItems(category) {
+    // Returns [{ name, source: 'portfolio'|'user'|'seed' }]
+    var seen = {}; var out = [];
+    function push(name, source) {
+      if (!name || seen[name]) return;
+      seen[name] = true;
+      out.push({ name: name, source: source });
+    }
+    var cat = ADMIN_CATEGORIES.filter(function (c) { return c.key === category; })[0];
+    if (cat && cat.portfolioField) {
+      (IH.projects || []).forEach(function (p) {
+        (p[cat.portfolioField] || []).forEach(function (n) { push(n, 'portfolio'); });
+      });
+    }
+    // Seed data (built-in) for categories with useful defaults
+    if (category === 'businessProcesses') COMMON_PROCESSES.forEach(function (n) { push(n, 'seed'); });
+    if (category === 'controls')          CONTROL_CATEGORIES.forEach(function (n) { push(n, 'seed'); });
+    if (category === 'routingRules')      ROUTING_RULES.forEach(function (r) { push(r.trigger + ' \u2192 ' + r.departments.join(', '), 'seed'); });
+    if (category === 'vendors') {
+      (IH.projects || []).forEach(function (p) {
+        var v = p._wizard && p._wizard.vendorName;
+        if (v) push(v, 'portfolio');
+      });
+    }
+    // User-added
+    (IH.referenceData[category] || []).forEach(function (n) { push(n.name || n, n.source || 'user'); });
+    return out.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+  }
+
+  function renderAdminPanel() {
+    var panel = $('#ih-panel-admin'); if (!panel) return;
+    var active = IH.adminActiveCategory;
+    var sidebar = '<div class="ih-admin-sidebar">' + ADMIN_CATEGORIES.map(function (c) {
+      var count = computeAdminItems(c.key).length;
+      return '<button type="button" class="ih-admin-tab ' + (c.key === active ? 'is-active' : '') + '" data-admin-cat="' + c.key + '">' +
+        '<span><i class="fa-solid ' + c.icon + '" style="margin-right:6px;opacity:.75;"></i>' + escapeHtml(c.label) + '</span>' +
+        '<span class="ih-admin-count">' + count + '</span>' +
+      '</button>';
+    }).join('') + '</div>';
+
+    var catMeta = ADMIN_CATEGORIES.filter(function (c) { return c.key === active; })[0] || ADMIN_CATEGORIES[0];
+    var items = computeAdminItems(catMeta.key);
+    var canRemoveUserItems = true;
+    var listHtml = items.length
+      ? items.map(function (it, i) {
+          var srcLabel = it.source === 'portfolio' ? 'From portfolio' : (it.source === 'seed' ? 'Seed data' : 'User-added');
+          var disableRemove = it.source !== 'user';
+          return '<div class="ih-admin-item">' +
+            '<span class="ih-admin-item-label">' + escapeHtml(it.name) + '</span>' +
+            '<span class="ih-admin-item-src">' + escapeHtml(srcLabel) + '</span>' +
+            '<button type="button" class="ih-admin-item-remove" data-admin-remove="' + catMeta.key + '" data-admin-remove-idx="' + i + '" ' + (disableRemove ? 'disabled title="Portfolio and seed items cannot be removed from Admin. Edit the underlying project or the ROUTING_RULES constant."' : 'title="Remove user-added entry"') + '>' +
+              '<i class="fa-solid fa-trash"></i>' +
+            '</button>' +
+          '</div>';
+        }).join('')
+      : '<p style="color:#6B7280;font-size:12px;">No entries yet.</p>';
+
+    var canWrite = !!(IH.currentUser && IH.resolvedTenantId);
+    var initBlock =
+      '<div class="ih-admin-init">' +
+        '<h4><i class="fa-solid fa-database"></i> Initialize Demo Workspace</h4>' +
+        '<p>' + (canWrite
+          ? 'Write the ' + DEMO_PROJECTS.length + ' sample projects to your resolved tenant (<strong>' + escapeHtml(IH.resolvedTenantId) + '</strong>). Idempotent \u2014 existing project IDs are skipped, never overwritten. Confirmation required.'
+          : 'Sign in with a Google account linked to an ImpactHub tenant to enable this action. Demo Mode never writes to Firestore.') + '</p>' +
+        '<button type="button" class="ih-btn ih-btn-purple" data-action="init-demo-workspace"' + (canWrite ? '' : ' disabled') + '>' +
+          '<i class="fa-solid fa-database"></i>Initialize Demo Workspace' +
+        '</button>' +
+      '</div>';
+
+    var content = '<div class="ih-admin-content">' +
+      '<h3>' + escapeHtml(catMeta.label) + '</h3>' +
+      '<p class="ih-hint">Portfolio and seed items are derived from the current projects and built-in rules. Use the input below to add tenant-specific entries. Removing user-added entries is scoped to this session; Firestore sync ships in a future iteration.</p>' +
+      '<div class="ih-admin-add-row">' +
+        '<input type="text" id="ih-admin-add-input" placeholder="Add a new ' + escapeHtml(catMeta.label.toLowerCase().replace(/s$/, '')) + '\u2026" />' +
+        '<button type="button" class="ih-btn ih-btn-blue" data-action="admin-add"><i class="fa-solid fa-plus"></i>Add</button>' +
+      '</div>' +
+      '<div class="ih-admin-list">' + listHtml + '</div>' +
+      (catMeta.key === 'departments' ? initBlock : '') +
+    '</div>';
+
+    panel.innerHTML =
+      '<div class="ih-projects-hdr"><h1>Admin \u2014 Knowledge Library</h1>' +
+        '<span class="ih-badge-connected"><i class="fa-solid fa-circle"></i>Reference data</span>' +
+      '</div>' +
+      '<div class="ih-admin-layout">' + sidebar + content + '</div>';
+  }
+
+  function adminAddItem() {
+    var input = $('#ih-admin-add-input'); if (!input) return;
+    var val = (input.value || '').trim();
+    if (!val) { toast('Enter a value first.', 'warn'); return; }
+    var cat = IH.adminActiveCategory;
+    if (!IH.referenceData[cat]) IH.referenceData[cat] = [];
+    var exists = computeAdminItems(cat).some(function (it) { return it.name.toLowerCase() === val.toLowerCase(); });
+    if (exists) { toast('That entry already exists in this category.', 'warn'); return; }
+    IH.referenceData[cat].push({ name: val, source: 'user', addedAt: new Date().toISOString() });
+    toast('Added "' + val + '" to ' + cat + '.', 'success', 2400);
+    renderAdminPanel();
+  }
+  function adminRemoveItem(cat, idx) {
+    // Only user-added items can be removed. computeAdminItems ordering is
+    // alphabetical, so we resolve by name -> match in referenceData.
+    var items = computeAdminItems(cat);
+    var item = items[idx];
+    if (!item || item.source !== 'user') return;
+    IH.referenceData[cat] = (IH.referenceData[cat] || []).filter(function (r) {
+      return (r.name || r) !== item.name;
+    });
+    toast('Removed "' + item.name + '" from ' + cat + '.', 'success', 2000);
+    renderAdminPanel();
+  }
+
+  // ---- Initialize Demo Workspace (idempotent Firestore seed) --------------
+  function initializeDemoWorkspace() {
+    if (!IH.currentUser || !IH.resolvedTenantId || !db) {
+      toast('You must be signed in with a resolved tenant to initialize the demo workspace.', 'warn', 4600);
+      return;
+    }
+    var confirmed = window.confirm(
+      'Initialize Demo Workspace for tenant "' + IH.resolvedTenantId + '"?\n\n' +
+      'This will write up to ' + DEMO_PROJECTS.length + ' sample projects to Firestore. ' +
+      'Existing projects with matching IDs will be SKIPPED (never overwritten).\n\n' +
+      'This action is idempotent \u2014 it is safe to run multiple times.'
+    );
+    if (!confirmed) return;
+    toast('Initializing demo workspace\u2026', 'info', 3200);
+    var col = db.collection('tenants').doc(IH.resolvedTenantId).collection('projects');
+    var promises = DEMO_PROJECTS.map(function (p) {
+      return col.doc(p.id).get().then(function (snap) {
+        if (snap.exists) return { id: p.id, skipped: true };
+        return col.doc(p.id).set(p).then(function () { return { id: p.id, written: true }; });
+      }).catch(function (err) {
+        return { id: p.id, error: err && err.message };
+      });
+    });
+    Promise.all(promises).then(function (results) {
+      var w = results.filter(function (r) { return r.written; }).length;
+      var s = results.filter(function (r) { return r.skipped; }).length;
+      var e = results.filter(function (r) { return r.error; }).length;
+      toast('Demo workspace init: ' + w + ' written, ' + s + ' skipped, ' + e + ' failed.', e ? 'error' : 'success', 5200);
+      loadProjectsForCurrentAuth();
+      renderAdminPanel();
+    });
   }
 
   // ==========================================================================
@@ -3238,7 +5277,48 @@
         );
         return;
       }
+
+      var wizStep = ev.target.closest && ev.target.closest('[data-wiz-goto]');
+      if (wizStep) {
+        var n = parseInt(wizStep.getAttribute('data-wiz-goto'), 10);
+        if (n >= 1 && n <= WIZARD_STEPS.length) {
+          IH.wizardStep = n;
+          renderWizardStepper(); renderWizardBody(); renderWizardFooter();
+        }
+        return;
+      }
+
+      var aiTab = ev.target.closest && ev.target.closest('.ih-ai-results-tab[data-ai-tab]');
+      if (aiTab) { goToAiTab(aiTab.getAttribute('data-ai-tab')); return; }
+
+      var adminTab = ev.target.closest && ev.target.closest('[data-admin-cat]');
+      if (adminTab) { IH.adminActiveCategory = adminTab.getAttribute('data-admin-cat'); renderAdminPanel(); return; }
+
+      var adminRm = ev.target.closest && ev.target.closest('[data-admin-remove]');
+      if (adminRm && !adminRm.disabled) {
+        adminRemoveItem(adminRm.getAttribute('data-admin-remove'), parseInt(adminRm.getAttribute('data-admin-remove-idx'), 10));
+        return;
+      }
+
+      var mapOpen = ev.target.closest && ev.target.closest('[data-map-open]');
+      if (mapOpen) { closeProjectDetail(); setTimeout(function () { openProjectDetail(mapOpen.getAttribute('data-map-open')); }, 60); return; }
+
+      var heatCell = ev.target.closest && ev.target.closest('[data-heat-project]');
+      if (heatCell) { openProjectDetail(heatCell.getAttribute('data-heat-project')); return; }
     });
+
+    // Impact-map filter checkboxes (change event)
+    document.addEventListener('change', function (ev) {
+      var flt = ev.target.closest && ev.target.closest('[data-map-filter]');
+      if (!flt) return;
+      var key = flt.getAttribute('data-map-filter');
+      IH.impactMapFilters[key] = !!flt.checked;
+      if (IH.detailActiveTab === 'map') renderDetailTab('map');
+    });
+
+    // Wizard field inputs (both live typing + radio/checkbox/select changes).
+    document.addEventListener('input',  wizardFieldHandler);
+    document.addEventListener('change', wizardFieldHandler);
 
     // Keyboard: Enter on focused project row
     document.addEventListener('keydown', function (ev) {
@@ -3274,11 +5354,15 @@
     var googleBtn = $('#ih-google-signin-btn');
     if (googleBtn) googleBtn.addEventListener('click', signInWithGoogle);
 
-    // Escape closes any open modal — detail first, then sign-in.
+    // Escape closes any open modal — detail first, then wizard, then AI, then sign-in.
     document.addEventListener('keydown', function (ev) {
       if (ev.key !== 'Escape') return;
       var detailModal = $('#ih-detail-modal');
       if (detailModal && detailModal.classList.contains('is-open')) { closeProjectDetail(); return; }
+      var wizardModal = $('#ih-wizard-modal');
+      if (wizardModal && wizardModal.classList.contains('is-open')) { closeWizard(); return; }
+      var aiModal = $('#ih-ai-modal');
+      if (aiModal && aiModal.classList.contains('is-open')) { closeAiModal(); return; }
       closeSignInModal();
     });
 
@@ -3299,13 +5383,13 @@
   function handleAction(name) {
     switch (name) {
       case 'add-item':
-        toast('The Add Item intake wizard ships in Phase 3. Phase 1 delivers the shell + table.', 'warn', 3800);
+        openWizard();
         break;
       case 'ai-analysis':
-        toast('The AI Impact Analysis modal (with secure /impact/analyze adapter) ships in Phase 4.', 'warn', 3800);
+        openAiModal();
         break;
       case 'report':
-        toast('Report generation ships in Phase 6.', 'warn', 3200);
+        toast('Report generation ships in a future release.', 'warn', 3200);
         break;
       case 'close-signin':
         closeSignInModal();
@@ -3317,16 +5401,28 @@
         closeProjectDetail();
         break;
       case 'ai-analyze-detail':
-        toast('Secure AI Impact Analysis ships in Phase 4 via the Firebase-authenticated /impact/analyze route. Deterministic findings shown in this project are already computed locally.', 'warn', 4600);
+        openAiModal(IH.activeProjectId);
         break;
+      case 'close-ai':          closeAiModal(); break;
+      case 'ai-run':            aiRunSelected(); break;
+      case 'ai-use-mock':       aiUseMockFallback(); break;
+      case 'ai-tab':            /* handled via delegator below */ break;
+      case 'close-wizard':      closeWizard(); break;
+      case 'wizard-prev':       wizardPrev(); break;
+      case 'wizard-next':       wizardNext(); break;
+      case 'wizard-save-draft': wizardSaveDraft(); break;
+      case 'wizard-submit':     wizardSubmit(); break;
+      case 'wizard-ai-analyze': aiAnalyzeWizardDescription(); break;
+      case 'admin-add':         adminAddItem(); break;
+      case 'init-demo-workspace': initializeDemoWorkspace(); break;
       default:
         toast('Unhandled action: ' + name, 'error');
     }
   }
   function handleShortcut(name) {
-    if (name === 'teams')      { toast('Impact Teams shortcut wired in Phase 2.', 'warn'); return; }
-    if (name === 'objectives') { toast('Objectives shortcut wired in Phase 2.', 'warn'); return; }
-    if (name === 'intake')     { handleAction('add-item'); return; }
+    if (name === 'teams')      { toast('Impact Teams shortcut wired in Phase 6 (Admin).', 'warn'); return; }
+    if (name === 'objectives') { toast('Objectives shortcut wired in Phase 6 (Admin).', 'warn'); return; }
+    if (name === 'intake')     { openWizard(); return; }
   }
 
   // ==========================================================================
