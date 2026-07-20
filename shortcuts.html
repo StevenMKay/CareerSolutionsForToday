@@ -72,6 +72,20 @@
   --text-secondary: #64748b;
   --shadow: rgba(15, 23, 42, 0.08);
   --shadow-hover: rgba(15, 23, 42, 0.16);
+
+  /* ── Centralized stacking layers (in-app overlays) ──────────────
+     Documented so future overlays don't compete with the hero /
+     search / filter bar / shortcut modal / account chip. Anything
+     below --cs-z-account is regular page chrome; anything at or
+     above --cs-z-app-modal is a full-screen overlay that MUST be
+     paired with body.cs-modal-open (see rules further below). */
+  --cs-z-page: 1;
+  --cs-z-page-header: 100;
+  --cs-z-account: 40000;
+  --cs-z-account-menu: 40010;
+  --cs-z-app-modal: 50000;
+  --cs-z-legal-modal: 50100;
+  --cs-z-toast: 50200;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1467,17 +1481,31 @@ body {
    Companion JS:   [SHORTCUTS PAYWALL JS]
    ═══════════════════════════════════════════════════════════════════ */
 .cs-paywall-modal, .cs-signin-modal {
-  position: fixed; inset: 0; z-index: 10080;
-  display: grid; place-items: center;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100svh;
+  z-index: var(--cs-z-app-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding:
-    max(.75rem, env(safe-area-inset-top))
-    .75rem
-    max(.75rem, env(safe-area-inset-bottom));
+    max(12px, env(safe-area-inset-top))
+    12px
+    max(12px, env(safe-area-inset-bottom));
   overflow: hidden;
+  /* Establish a fresh stacking context so nothing on the page can
+     leak through (hero, search results, filter bar, account chip). */
+  isolation: isolate;
+  contain: layout paint;
 }
 .cs-paywall-modal.hidden, .cs-signin-modal.hidden { display: none !important; }
 .cs-paywall-modal .cs-backdrop, .cs-signin-modal .cs-backdrop {
-  position: absolute; inset: 0;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: auto;
   background:
     radial-gradient(circle at top left, rgba(59,130,246,.28), transparent 40%),
     radial-gradient(circle at bottom right, rgba(14,116,144,.24), transparent 40%),
@@ -1487,9 +1515,17 @@ body {
 }
 .cs-paywall-modal .cs-card, .cs-signin-modal .cs-card {
   position: relative;
+  z-index: 1;
   width: min(100%, 460px);
-  max-height: calc(100dvh - 24px);
+  max-height: calc(
+    100dvh -
+    max(24px, env(safe-area-inset-top)) -
+    max(24px, env(safe-area-inset-bottom))
+  );
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
   box-sizing: border-box;
   border-radius: 22px;
   padding: 26px 22px 22px;
@@ -1499,6 +1535,42 @@ body {
   box-shadow: 0 28px 80px rgba(2,6,23,.6);
   color: #f8fafc;
   text-align: center;
+}
+
+/* ── Mobile phones: anchor card near top, prevent iOS zoom on focus,
+     enlarge tap targets, and make sure the tall sign-up form (email +
+     password + confirm + requirements + Terms links) never gets stuck
+     in the middle of a short viewport with the keyboard open. */
+@media (max-width: 640px) {
+  .cs-paywall-modal,
+  .cs-signin-modal {
+    align-items: flex-start;
+    padding:
+      max(10px, env(safe-area-inset-top))
+      10px
+      max(10px, env(safe-area-inset-bottom));
+  }
+  .cs-signin-modal .cs-card {
+    width: 100%;
+    max-height: calc(
+      100dvh -
+      max(20px, env(safe-area-inset-top)) -
+      max(20px, env(safe-area-inset-bottom))
+    );
+    padding: 20px 18px 22px;
+    border-radius: 20px;
+  }
+  .cs-signin-modal .cs-brand-copy { padding-right: 38px; }
+  .cs-signin-modal .cs-brand-copy .cs-title { font-size: 1.35rem; line-height: 1.15; }
+  .cs-signin-modal .cs-brand-copy .cs-lead  { font-size: .82rem; line-height: 1.4; }
+  .cs-signin-modal .cs-policy-box { padding: .65rem .7rem; }
+  .cs-signin-modal .cs-input,
+  .cs-signin-modal .cs-google-btn,
+  .cs-signin-modal .cs-cta {
+    min-height: 48px;
+    /* 16px prevents Android/iOS focus-zoom on inputs. */
+    font-size: 16px;
+  }
 }
 .cs-paywall-modal .cs-close, .cs-signin-modal .cs-close {
   position: absolute; top: 12px; right: 12px;
@@ -2125,13 +2197,27 @@ body {
    default; only shown when body.cs-in-app is set by the
    isInShortcutsApp() detection script (i.e., inside the RN WebView).
    Panel content adapts to auth state via body.cs-signed-in.
+
+   STRUCTURE: The button + dropdown are wrapped in a single
+   #cs-account-shell so the panel can be positioned relative to its
+   trigger (instead of being fixed with a hand-calculated top offset
+   that drifted out of alignment). The shell itself is what's fixed
+   to the top-right corner.
    ══════════════════════════════════════════════════════════════════ */
-.cs-account-btn {
+.cs-account-shell {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
+  top: 10px;
   right: 12px;
-  z-index: 20050;
-  display: none; /* toggled via body.cs-in-app */
+  z-index: var(--cs-z-account);
+  display: none;
+}
+body.cs-in-app .cs-account-shell { display: block; }
+
+.cs-account-btn {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  display: inline-flex;
   align-items: center; gap: 8px;
   padding: 5px 12px 5px 5px;
   border-radius: 999px;
@@ -2145,7 +2231,6 @@ body {
   font-family: inherit;
   transition: background .15s ease, transform .1s ease;
 }
-body.cs-in-app .cs-account-btn { display: inline-flex; }
 .cs-account-btn:hover { background: rgba(30,41,59,.85); }
 .cs-account-btn:active { transform: scale(.97); }
 .cs-account-btn .cs-acct-avatar {
@@ -2157,6 +2242,10 @@ body.cs-in-app .cs-account-btn { display: inline-flex; }
 }
 .cs-account-btn .cs-acct-avatar img {
   width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+.cs-acct-avatar svg { width: 18px; height: 18px; color: #fff; }
+.cs-acct-avatar.is-signed-out {
+  background: linear-gradient(135deg, #2563eb, #0891b2);
 }
 .cs-account-btn .cs-acct-label {
   font-size: .8rem; font-weight: 700; letter-spacing: .01em;
@@ -2173,11 +2262,15 @@ body.cs-in-app .cs-account-btn { display: inline-flex; }
 }
 
 .cs-account-panel {
-  position: fixed;
-  top: calc(max(12px, env(safe-area-inset-top)) + 52px);
-  right: 12px;
-  z-index: 20051;
-  min-width: 240px; max-width: 300px;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 2;
+  width: min(280px, calc(100vw - 24px));
+  min-width: 240px;
+  max-width: none;
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
   padding: 8px;
   border-radius: 14px;
   background: rgba(11,23,40,.96);
@@ -2231,6 +2324,47 @@ body.cs-in-app .cs-account-btn { display: inline-flex; }
    users only. */
 body.cs-signed-in .cs-acct-hide-when-in { display: none !important; }
 body:not(.cs-signed-in) .cs-acct-hide-when-out { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════════════
+   [MODAL-OPEN BODY STATE] — one canonical way to lock the page
+   whenever ANY app-level overlay (paywall, sign-in, Terms, Privacy)
+   is visible. Added/removed by refreshCsModalState() in the paywall
+   IIFE below. Never toggle document.body.style.overflow directly.
+   ══════════════════════════════════════════════════════════════════ */
+html.cs-modal-open,
+body.cs-modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+body.cs-modal-open { touch-action: none; }
+
+/* Active overlays still need to accept touch scrolling on their card. */
+body.cs-modal-open .cs-signin-modal,
+body.cs-modal-open .cs-paywall-modal,
+body.cs-modal-open #cs-terms-modal,
+body.cs-modal-open #cs-privacy-modal { touch-action: pan-y; }
+
+/* Account chip must never float over an application modal. */
+body.cs-modal-open .cs-account-shell,
+body.cs-modal-open .cs-account-btn,
+body.cs-modal-open .cs-account-panel {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Kill background taps so the shortcut cards / filter bar / favorites
+   FAB can't intercept touches meant for the modal. */
+body.cs-modal-open .hero,
+body.cs-modal-open .container,
+body.cs-modal-open #favoritesFab { pointer-events: none; }
+
+/* Reserve vertical space in the hero for the account chip so it never
+   overlaps the mode toggle / search box / filter bar on phones. */
+body.cs-in-app .hero { padding-top: 72px; }
+@media (max-width: 480px) {
+  body.cs-in-app .hero { padding-top: 64px; }
+}
 </style>
 </head>
 <body>
@@ -2244,15 +2378,24 @@ body:not(.cs-signed-in) .cs-acct-hide-when-out { display: none !important; }
        Only visible when body.cs-in-app is set by the isInShortcutsApp()
        detection script below (so web visitors never see it). The panel
        adapts its Sign in / Sign out visibility via body.cs-signed-in,
-       which is toggled by the paywall module's onAuthStateChanged. -->
-  <button id="cs-account-btn" class="cs-account-btn" type="button"
-          aria-haspopup="menu" aria-expanded="false"
-          aria-controls="cs-account-panel" aria-label="Account menu">
-    <span id="cs-acct-avatar" class="cs-acct-avatar" aria-hidden="true">?</span>
-    <span id="cs-acct-btn-label" class="cs-acct-label">Account</span>
-    <svg class="cs-acct-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-  </button>
-  <div id="cs-account-panel" class="cs-account-panel hidden" role="menu" aria-labelledby="cs-account-btn">
+       which is toggled by the paywall module's onAuthStateChanged.
+
+       STRUCTURE: Button + panel are wrapped in a single #cs-account-shell
+       so the dropdown can be positioned relative to its trigger (instead
+       of being fixed with a hand-calculated top offset). The shell is
+       what's pinned to the top-right of the WebView; the panel just
+       hangs below the button via absolute positioning. -->
+  <div id="cs-account-shell" class="cs-account-shell">
+    <button id="cs-account-btn" class="cs-account-btn" type="button"
+            aria-haspopup="menu" aria-expanded="false"
+            aria-controls="cs-account-panel" aria-label="Open account menu">
+      <!-- Signed-out state renders a person SVG (see updateAccountMenuUI).
+           Signed-in state renders the user's Google photo or first initial. -->
+      <span id="cs-acct-avatar" class="cs-acct-avatar is-signed-out" aria-hidden="true"></span>
+      <span id="cs-acct-btn-label" class="cs-acct-label">Sign in</span>
+      <svg class="cs-acct-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div id="cs-account-panel" class="cs-account-panel hidden" role="menu" aria-labelledby="cs-account-btn">
     <div class="cs-acct-header">
       <div id="cs-acct-email" class="cs-acct-email">Not signed in</div>
       <div id="cs-acct-status" class="cs-acct-status">Free trial</div>
@@ -2283,6 +2426,7 @@ body:not(.cs-signed-in) .cs-acct-hide-when-out { display: none !important; }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       Sign out
     </button>
+    </div>
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════
@@ -2534,12 +2678,15 @@ body:not(.cs-signed-in) .cs-acct-hide-when-out { display: none !important; }
        They ship with inline `display:none`-equivalent via .hidden, and
        align-items/justify-content on the outer flex container only take
        effect once display:flex is set. Scoped so it doesn't leak to
-       resumebuilder-style modals elsewhere on the site. -->
+       resumebuilder-style modals elsewhere on the site. z-index is
+       promoted to sit above the paywall/sign-in overlays. -->
   <style>
     #cs-terms-modal:not(.hidden),
     #cs-privacy-modal:not(.hidden) { display: flex !important; }
     #cs-terms-modal.hidden,
     #cs-privacy-modal.hidden       { display: none !important; }
+    #cs-terms-modal,
+    #cs-privacy-modal              { z-index: var(--cs-z-legal-modal) !important; }
   </style>
 
   <!-- Hero Section -->
@@ -6178,6 +6325,70 @@ window.testShortcutMobileLayout = function () {
   var LS_PURCHASED_KEY = 'cs-shortcuts-purchased';
   var LS_FIRST_VISIT   = 'cs-shortcuts-first-visit'; // ms since epoch, stamped on very first launch
 
+  // Signed-out avatar icon (person). Replaces the previous '?' fallback
+  // which read like a help button. See updateAccountMenuUI().
+  var CS_ACCOUNT_USER_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
+    'aria-hidden="true">' +
+      '<path d="M20 21a8 8 0 0 0-16 0"/>' +
+      '<circle cx="12" cy="7" r="4"/>' +
+    '</svg>';
+
+  // ── Modal state manager ─────────────────────────────────────────
+  // One canonical function that scans every app-level overlay and
+  // toggles html.cs-modal-open / body.cs-modal-open exactly when at
+  // least one is visible. That CSS class owns background scroll lock,
+  // hides the account chip while any modal is open, and stops
+  // background taps from leaking through. Call it after every open /
+  // close of the paywall, sign-in, Terms, or Privacy modals.
+  var csLastModalTrigger = null;
+  function isCsModalVisible(el) {
+    if (!el) return false;
+    if (el.classList.contains('hidden')) return false;
+    try {
+      var cs = getComputedStyle(el);
+      if (!cs) return false;
+      return cs.display !== 'none' && cs.visibility !== 'hidden';
+    } catch (_) { return true; }
+  }
+  function refreshCsModalState() {
+    var ids = [
+      'cs-shortcuts-paywall',
+      'cs-shortcuts-signin',
+      'cs-terms-modal',
+      'cs-privacy-modal'
+    ];
+    var anyOpen = ids.some(function (id) {
+      return isCsModalVisible(document.getElementById(id));
+    });
+    document.documentElement.classList.toggle('cs-modal-open', anyOpen);
+    document.body.classList.toggle('cs-modal-open', anyOpen);
+    if (!anyOpen) {
+      // Legacy paths may have left an inline style; clear it so page
+      // scroll is fully restored.
+      document.body.style.removeProperty('overflow');
+    }
+  }
+  function rememberCsModalTrigger() {
+    try {
+      csLastModalTrigger =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+    } catch (_) { csLastModalTrigger = null; }
+  }
+  function restoreCsModalFocus() {
+    var target = csLastModalTrigger;
+    csLastModalTrigger = null;
+    if (target && document.contains(target)) {
+      setTimeout(function () {
+        try { target.focus({ preventScroll: true }); }
+        catch (_) { try { target.focus(); } catch (__) {} }
+      }, 0);
+    }
+  }
+
   var FIREBASE_CONFIG = {
     apiKey:            'AIzaSyBupprzs7nXLXXa29T9z3aJcq_7kjm03-U',
     authDomain:        'career-solutions-project-tool.firebaseapp.com',
@@ -6311,17 +6522,27 @@ window.testShortcutMobileLayout = function () {
   function showPaywall() {
     if (window.CS_SHORTCUTS_PAYWALL_ENABLED === false) return;
     if (isOwner()) return;
-    var modal = document.getElementById('cs-shortcuts-paywall');
-    if (!modal) return;
+    var paywallModal = document.getElementById('cs-shortcuts-paywall');
+    var signinModal  = document.getElementById('cs-shortcuts-signin');
+    if (!paywallModal) return;
+    rememberCsModalTrigger();
+    // Never leave two full-screen application overlays competing.
+    toggleAccountPanel(false);
+    if (signinModal) signinModal.classList.add('hidden');
     paywallOpen = true;
-    modal.classList.remove('hidden');
-    try { document.body.style.overflow = 'hidden'; } catch (_) {}
+    paywallModal.classList.remove('hidden');
+    paywallModal.setAttribute('aria-hidden', 'false');
+    refreshCsModalState();
   }
   function hidePaywall() {
     var modal = document.getElementById('cs-shortcuts-paywall');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+    }
     paywallOpen = false;
-    try { document.body.style.overflow = ''; } catch (_) {}
+    refreshCsModalState();
+    restoreCsModalFocus();
   }
 
   // ── Purchase flow ───────────────────────────────────────────────
@@ -6426,21 +6647,42 @@ window.testShortcutMobileLayout = function () {
   }
 
   function showSignin() {
-    var modal = document.getElementById('cs-shortcuts-signin');
-    if (!modal) return;
-    modal.classList.remove('hidden');
+    var signinModal  = document.getElementById('cs-shortcuts-signin');
+    var paywallModal = document.getElementById('cs-shortcuts-paywall');
+    if (!signinModal) return;
+    rememberCsModalTrigger();
+    // Never leave two full-screen application overlays competing — the
+    // paywall's "Sign in to restore" link routes through here, so we
+    // must close the paywall first before showing sign-in.
+    if (paywallModal) paywallModal.classList.add('hidden');
+    paywallOpen = false;
+    toggleAccountPanel(false);
+    signinModal.classList.remove('hidden');
+    signinModal.setAttribute('aria-hidden', 'false');
     setSigninMode('signin');
     // Sync checkbox with stored acceptance so returning users don't re-tick.
     var cb = document.getElementById('cs-signin-policy-accept');
     if (cb) cb.checked = hasAcceptedShortcutsPolicies();
     updateSigninButtonStates();
+    refreshCsModalState();
     var email = document.getElementById('cs-signin-email');
-    setTimeout(function () { try { email && email.focus(); } catch (_) {} }, 30);
+    setTimeout(function () {
+      try { if (email) email.focus({ preventScroll: true }); }
+      catch (_) { try { if (email) email.focus(); } catch (__) {} }
+    }, 100);
   }
   function hideSignin() {
     var modal = document.getElementById('cs-shortcuts-signin');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+      // Clear any inline height/top set by the visualViewport handler.
+      modal.style.removeProperty('height');
+      modal.style.removeProperty('top');
+    }
     setSigninError('');
+    refreshCsModalState();
+    restoreCsModalFocus();
   }
   function setSigninMode(mode) {
     signinMode = (mode === 'signup') ? 'signup' : 'signin';
@@ -6762,29 +7004,35 @@ window.testShortcutMobileLayout = function () {
     var btnLabel = document.getElementById('cs-acct-btn-label');
     var emailEl  = document.getElementById('cs-acct-email');
     var statusEl = document.getElementById('cs-acct-status');
+    var signedIn = !!(currentUser && !currentUser.isAnonymous);
     if (avatar) {
       // Clear then rebuild — supports Google photo when available.
       avatar.textContent = '';
-      var photo = currentUser && !currentUser.isAnonymous && currentUser.photoURL;
+      avatar.classList.toggle('is-signed-out', !signedIn);
+      var photo = signedIn && currentUser.photoURL;
       if (photo) {
         var img = document.createElement('img');
         img.src = photo;
         img.alt = '';
+        img.referrerPolicy = 'no-referrer';
         img.onerror = function () {
           try { avatar.textContent = _acctInitial(); } catch (_) {}
         };
         avatar.appendChild(img);
-      } else {
+      } else if (signedIn) {
         avatar.textContent = _acctInitial();
+      } else {
+        // Person icon (never '?' — which reads like a help button).
+        avatar.innerHTML = CS_ACCOUNT_USER_ICON;
       }
     }
     if (btnLabel) {
-      btnLabel.textContent = (currentUser && !currentUser.isAnonymous)
+      btnLabel.textContent = signedIn
         ? (currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Account'))
-        : 'Account';
+        : 'Sign in';
     }
     if (emailEl) {
-      emailEl.textContent = (currentUser && !currentUser.isAnonymous && currentUser.email)
+      emailEl.textContent = (signedIn && currentUser.email)
         ? currentUser.email
         : 'Not signed in';
     }
@@ -6796,11 +7044,17 @@ window.testShortcutMobileLayout = function () {
     var btn   = document.getElementById('cs-account-btn');
     var panel = document.getElementById('cs-account-panel');
     if (!btn || !panel) return;
+    // Never open the account menu while a modal is active. Explicit
+    // force=false is always honored so callers can close it.
+    if (force !== false && document.body.classList.contains('cs-modal-open')) return;
     var willShow = (typeof force === 'boolean') ? force : panel.classList.contains('hidden');
     if (willShow) {
       updateAccountMenuUI();
       panel.classList.remove('hidden');
       btn.setAttribute('aria-expanded', 'true');
+      // Focus first actionable item for keyboard users.
+      var firstItem = panel.querySelector('button:not([hidden]):not(.hidden), a:not([hidden]):not(.hidden)');
+      setTimeout(function () { try { if (firstItem) firstItem.focus(); } catch (_) {} }, 0);
     } else {
       panel.classList.add('hidden');
       btn.setAttribute('aria-expanded', 'false');
@@ -6873,11 +7127,12 @@ window.testShortcutMobileLayout = function () {
 
     // Terms + Privacy links open the same inline modals the user sees
     // on resumebuilder (ported into this file). Backdrop click / Close
-    // button / Escape all dismiss.
-    function openCsTerms(ev)   { if (ev) ev.preventDefault(); if (termsModal) termsModal.classList.remove('hidden'); }
-    function openCsPrivacy(ev) { if (ev) ev.preventDefault(); if (privModal)  privModal.classList.remove('hidden'); }
-    function closeCsTerms()    { if (termsModal) termsModal.classList.add('hidden'); }
-    function closeCsPrivacy()  { if (privModal)  privModal.classList.add('hidden'); }
+    // button / Escape all dismiss. Each open/close routes through
+    // refreshCsModalState() so body.cs-modal-open reflects the truth.
+    function openCsTerms(ev)   { if (ev) ev.preventDefault(); if (termsModal) { termsModal.classList.remove('hidden'); refreshCsModalState(); } }
+    function openCsPrivacy(ev) { if (ev) ev.preventDefault(); if (privModal)  { privModal.classList.remove('hidden');  refreshCsModalState(); } }
+    function closeCsTerms()    { if (termsModal) { termsModal.classList.add('hidden'); refreshCsModalState(); } }
+    function closeCsPrivacy()  { if (privModal)  { privModal.classList.add('hidden');  refreshCsModalState(); } }
     if (termsLink && !termsLink._csWired) { termsLink._csWired = true; termsLink.addEventListener('click', openCsTerms); }
     if (privLink  && !privLink._csWired)  { privLink._csWired  = true; privLink.addEventListener('click',  openCsPrivacy); }
     if (termsClose && !termsClose._csWired) { termsClose._csWired = true; termsClose.addEventListener('click', closeCsTerms); }
@@ -6895,7 +7150,13 @@ window.testShortcutMobileLayout = function () {
       document.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Escape') return;
         var acctP = document.getElementById('cs-account-panel');
-        if (acctP && !acctP.classList.contains('hidden')) { toggleAccountPanel(false); return; }
+        if (acctP && !acctP.classList.contains('hidden')) {
+          toggleAccountPanel(false);
+          // Return keyboard focus to the trigger.
+          var accountButton = document.getElementById('cs-account-btn');
+          try { accountButton && accountButton.focus(); } catch (_) {}
+          return;
+        }
         if (termsModal && !termsModal.classList.contains('hidden')) { closeCsTerms(); return; }
         if (privModal  && !privModal.classList.contains('hidden'))  { closeCsPrivacy(); return; }
       });
@@ -7019,7 +7280,7 @@ window.testShortcutMobileLayout = function () {
       acctPrivacy.addEventListener('click', function () {
         toggleAccountPanel(false);
         var m = document.getElementById('cs-privacy-modal');
-        if (m) m.classList.remove('hidden');
+        if (m) { m.classList.remove('hidden'); refreshCsModalState(); }
       });
     }
     if (acctTerms && !acctTerms._csWired) {
@@ -7027,7 +7288,7 @@ window.testShortcutMobileLayout = function () {
       acctTerms.addEventListener('click', function () {
         toggleAccountPanel(false);
         var m = document.getElementById('cs-terms-modal');
-        if (m) m.classList.remove('hidden');
+        if (m) { m.classList.remove('hidden'); refreshCsModalState(); }
       });
     }
     // Initial paint (email / status / avatar) even before Firebase resolves.
@@ -7100,6 +7361,54 @@ window.testShortcutMobileLayout = function () {
     startTicker();
     // Kick off Firebase (async — may resolve seconds later; timer works meanwhile).
     initFirebase();
+    // Keyboard-aware sign-in: scroll focused input into view and, where
+    // supported, resize the modal to the visual viewport so the software
+    // keyboard doesn't hide the CTA buttons.
+    wireSigninKeyboardHandling();
+    // Close any open account dropdown on rotation so it can't drift
+    // off-screen. Refresh modal state on resize so the CSS lock stays
+    // consistent when the WebView reflows.
+    window.addEventListener('orientationchange', function () {
+      toggleAccountPanel(false);
+    });
+    window.addEventListener('resize', function () {
+      if (document.body.classList.contains('cs-modal-open')) {
+        refreshCsModalState();
+      }
+    });
+  }
+
+  function wireSigninKeyboardHandling() {
+    function ensureSigninFieldVisible(ev) {
+      var target = ev && ev.target;
+      if (!target || !target.closest || !target.closest('.cs-signin-modal')) return;
+      setTimeout(function () {
+        try {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        } catch (_) {}
+      }, 250);
+    }
+    ['cs-signin-email', 'cs-signin-password', 'cs-signin-password-confirm'].forEach(function (id) {
+      var field = document.getElementById(id);
+      if (field && !field._csViewportWired) {
+        field._csViewportWired = true;
+        field.addEventListener('focus', ensureSigninFieldVisible);
+      }
+    });
+    // visualViewport: on-screen keyboard shrinks the viewport; mirror
+    // that into the modal so the card always fills the visible area.
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function () {
+        var modal = document.getElementById('cs-shortcuts-signin');
+        if (!isCsModalVisible(modal)) return;
+        modal.style.height = Math.round(window.visualViewport.height) + 'px';
+      });
+      window.visualViewport.addEventListener('scroll', function () {
+        var modal = document.getElementById('cs-shortcuts-signin');
+        if (!isCsModalVisible(modal)) return;
+        modal.style.top = Math.round(window.visualViewport.offsetTop) + 'px';
+      });
+    }
   }
 
   if (document.readyState === 'loading') {
