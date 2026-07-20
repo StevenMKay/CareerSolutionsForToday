@@ -6682,6 +6682,14 @@ window.testShortcutMobileLayout = function () {
     }
     setSigninError('');
     refreshCsModalState();
+    // Do not expose gated content after closing sign-in. If the paywall
+    // was open before the user tapped "Sign in to restore" and they
+    // still don't have access, bring the paywall back immediately
+    // instead of waiting for the 60s tick timer.
+    if (!hasAccess()) {
+      showPaywall();
+      return;
+    }
     restoreCsModalFocus();
   }
   function setSigninMode(mode) {
@@ -7052,8 +7060,17 @@ window.testShortcutMobileLayout = function () {
       updateAccountMenuUI();
       panel.classList.remove('hidden');
       btn.setAttribute('aria-expanded', 'true');
-      // Focus first actionable item for keyboard users.
-      var firstItem = panel.querySelector('button:not([hidden]):not(.hidden), a:not([hidden]):not(.hidden)');
+      // Focus first ACTUALLY-VISIBLE actionable item for keyboard users.
+      // The plain :not(.hidden) selector missed items hidden by the
+      // body.cs-signed-in / body:not(.cs-signed-in) CSS rules, so we
+      // filter with getClientRects()+computed visibility instead.
+      var menuItems = Array.from(panel.querySelectorAll('button, a[href]'));
+      var firstItem = menuItems.find(function (item) {
+        try {
+          return item.getClientRects().length > 0 &&
+                 getComputedStyle(item).visibility !== 'hidden';
+        } catch (_) { return false; }
+      });
       setTimeout(function () { try { if (firstItem) firstItem.focus(); } catch (_) {} }, 0);
     } else {
       panel.classList.add('hidden');
@@ -7159,6 +7176,14 @@ window.testShortcutMobileLayout = function () {
         }
         if (termsModal && !termsModal.classList.contains('hidden')) { closeCsTerms(); return; }
         if (privModal  && !privModal.classList.contains('hidden'))  { closeCsPrivacy(); return; }
+        // Paywall + sign-in dismiss on Escape too. hideSignin() will
+        // re-show the paywall itself if the user still doesn't have
+        // access, so the order here (sign-in first, then paywall) is
+        // intentional.
+        var signinModal  = document.getElementById('cs-shortcuts-signin');
+        var paywallModal = document.getElementById('cs-shortcuts-paywall');
+        if (signinModal && !signinModal.classList.contains('hidden')) { hideSignin(); return; }
+        if (paywallModal && !paywallModal.classList.contains('hidden')) { hidePaywall(); return; }
       });
     }
 
