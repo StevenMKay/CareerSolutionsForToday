@@ -6479,23 +6479,33 @@ window.testShortcutMobileLayout = function () {
   var lastFirestoreSyncAt = 0;
   var tickTimer = null;
   var paywallOpen = false;
+  // Mandatory login gate — mirrors resumebuilder.html's #login-landing
+  // pattern. When true, the sign-in modal is treated as a blocking
+  // gate: no close X, backdrop clicks / Escape are ignored, and no
+  // gated app content is shown until the user completes a real
+  // (non-anonymous) sign-in. Silent anonymous sign-in still runs in
+  // the background so we always have a Firebase UID for Firestore,
+  // but the app is unusable until a real account is attached.
+  var loginGateRequired = false;
 
   // ── Local storage helpers (immediate, offline-safe) ─────────────
+  // NOTE: We intentionally do NOT stamp firstVisitAt on first device
+  // load anymore. The 7-day trial clock only starts once a real user
+  // signs in (see stampFirstVisitIfNeeded), so trial timing is
+  // per-account rather than per-device. This matches resumebuilder's
+  // gating model where usage tracking is anchored to auth.currentUser.
   function loadLocal() {
     try {
-      var stored = parseInt(localStorage.getItem(LS_FIRST_VISIT) || '0', 10) || 0;
-      if (!stored) {
-        stored = Date.now();
-        localStorage.setItem(LS_FIRST_VISIT, String(stored));
-      }
-      firstVisitAt = stored;
+      firstVisitAt = parseInt(localStorage.getItem(LS_FIRST_VISIT) || '0', 10) || 0;
     } catch (_) {
-      // Private-mode / storage disabled → fall back to "first visit is right now".
-      firstVisitAt = Date.now();
+      firstVisitAt = 0;
     }
     try { purchased = localStorage.getItem(LS_PURCHASED_KEY) === '1'; } catch (_) {}
   }
   function saveLocalFirstVisit() {
+    // Guard: never persist a zero "trial not yet started" marker — it
+    // would race with a returning device that has a valid stored value.
+    if (!(firstVisitAt > 0)) return;
     try { localStorage.setItem(LS_FIRST_VISIT, String(firstVisitAt)); } catch (_) {}
   }
   function saveLocalPurchased() {
@@ -6510,10 +6520,13 @@ window.testShortcutMobileLayout = function () {
     lastFirestoreSyncAt = now;
     try {
       var patch = {
-        firstVisitAt: firstVisitAt,
         purchased: !!purchased,
         lastVisitAt: firebase.firestore.FieldValue.serverTimestamp()
       };
+      // Only write firstVisitAt when we actually have one — a zero
+      // "trial not yet started" would clobber the server's real value
+      // on a returning device via merge.
+      if (firstVisitAt > 0) patch.firstVisitAt = firstVisitAt;
       db.collection('shortcutsUsage').doc(currentUser.uid)
         .set(patch, { merge: true })
         .catch(function (err) { try { console.debug('[shortcuts-paywall] sync failed', err); } catch (_) {} });
@@ -6546,6 +6559,23 @@ window.testShortcutMobileLayout = function () {
   function isOwner() {
     return !!(currentUser && currentUser.email &&
               String(currentUser.email).toLowerCase() === OWNER_EMAIL);
+  }
+  // A "real" user is one who has completed sign-in with an email or
+  // Google credential (i.e., not the silent anonymous account). The
+  // login gate stays up until this is true — matches resumebuilder's
+  // pattern of only granting workspace access to signed-in users.
+  function hasRealUser() {
+    return !!(currentUser && !currentUser.isAnonymous);
+  }
+  // Stamp the 7-day trial start the FIRST time a real user is seen,
+  // and only if no earlier value exists (localStorage or Firestore).
+  // Firestore-first restore in loadFromFirestore() means returning
+  // users on new devices inherit their original start date.
+  function stampFirstVisitIfNeeded() {
+    if (firstVisitAt > 0) return;
+    firstVisitAt = Date.now();
+    saveLocalFirstVisit();
+    syncToFirestore(true);
   }
   function trialElapsedMs() {
     if (!firstVisitAt) return 0;
@@ -6762,7 +6792,11 @@ window.testShortcutMobileLayout = function () {
     if (submitBtn) submitBtn.disabled = !accepted;
   }
 
-  function showSignin() {
+  function showSignin(opts) {
+    var required = !!(opts && opts.required);
+    // Latch the required flag so subsequent hideSignin() / backdrop /
+    // Escape paths know whether to honor a dismiss request.
+    if (required) loginGateRequired = true;
     var signinModal  = document.getElementById('cs-shortcuts-signin');
     var paywallModal = document.getElementById('cs-shortcuts-paywall');
     if (!signinModal) return;
@@ -6776,6 +6810,18 @@ window.testShortcutMobileLayout = function () {
     signinModal.classList.remove('hidden');
     signinModal.setAttribute('aria-hidden', 'false');
     setSigninMode('signin');
+    // In required-gate mode, hide the close X so the user can't peek
+    // behind the modal. Restored when the gate is released.
+    var closeBtn = document.getElementById('cs-shortcuts-signin-close');
+    if (closeBtn) closeBtn.classList.toggle('hidden', required);
+    // Swap in a friendlier onboarding lead so users understand this is
+    // the entry point to their trial, not just a restore flow.
+    if (required) {
+      var leadEl = document.querySelector('[data-mode-lead]');
+      if (leadEl) {
+        leadEl.textContent = 'Sign in or create a free account to start your 7-day free trial and use Career Shortcuts.';
+      }
+    }
     // Sync checkbox with stored acceptance so returning users don't re-tick.
     var cb = document.getElementById('cs-signin-policy-accept');
     if (cb) cb.checked = hasAcceptedShortcutsPolicies();
@@ -6787,7 +6833,17 @@ window.testShortcutMobileLayout = function () {
       catch (_) { try { if (email) email.focus(); } catch (__) {} }
     }, 100);
   }
+  // Convenience wrapper: opens the sign-in modal as a mandatory,
+  // non-dismissable gate. Called at boot before Firebase resolves and
+  // any time a real user is not present (sign-out, session expiry).
+  function showLoginGate() {
+    showSignin({ required: true });
+  }
   function hideSignin() {
+    // Gate is up and the user still hasn't completed a real sign-in —
+    // refuse to dismiss. This blocks the close X (if it slipped through
+    // a race), backdrop clicks, and the Escape key.
+    if (loginGateRequired && !hasRealUser()) return;
     var modal = document.getElementById('cs-shortcuts-signin');
     if (modal) {
       modal.classList.add('hidden');
@@ -6796,6 +6852,10 @@ window.testShortcutMobileLayout = function () {
       modal.style.removeProperty('height');
       modal.style.removeProperty('top');
     }
+    // Restore the close X for any future non-required uses (e.g., the
+    // paywall's "Sign in to restore" link, which is dismissable).
+    var closeBtn = document.getElementById('cs-shortcuts-signin-close');
+    if (closeBtn) closeBtn.classList.remove('hidden');
     setSigninError('');
     refreshCsModalState();
     // Do not expose gated content after closing sign-in. If the paywall
@@ -7073,14 +7133,41 @@ window.testShortcutMobileLayout = function () {
         } catch (_) {}
         // Keep the profile chip + panel header in sync with the user.
         try { updateAccountMenuUI(); } catch (_) {}
-        if (user) {
+        if (hasRealUser()) {
+          // Real user signed in — release the mandatory login gate,
+          // dismiss the sign-in modal, and hydrate their trial /
+          // purchase state from Firestore. Trial timing is stamped
+          // per-account here so a single user's 7-day clock survives
+          // uninstall / reinstall / new-device restores (earliest
+          // firstVisitAt wins in loadFromFirestore).
+          loginGateRequired = false;
+          var signinModal = document.getElementById('cs-shortcuts-signin');
+          if (signinModal && !signinModal.classList.contains('hidden')) {
+            signinModal.classList.add('hidden');
+            signinModal.setAttribute('aria-hidden', 'true');
+            signinModal.style.removeProperty('height');
+            signinModal.style.removeProperty('top');
+            var closeBtn = document.getElementById('cs-shortcuts-signin-close');
+            if (closeBtn) closeBtn.classList.remove('hidden');
+            refreshCsModalState();
+          }
           loadFromFirestore(user).then(function () {
+            stampFirstVisitIfNeeded();  // starts the 7-day clock on first real sign-in
             // Immediately re-check gating after Firestore load.
             if (!hasAccess()) showPaywall();
             else if (paywallOpen && purchased) hidePaywall();
+            else maybeShowWelcome();    // first-run onboarding banner (once)
             syncToFirestore(true);
             try { updateAccountMenuUI(); } catch (_) {}
           });
+        } else {
+          // Anonymous or signed-out — force the mandatory login gate up
+          // so the app can't be used until a real account is attached.
+          // Web visitors never reach this code (module short-circuits
+          // on !isInShortcutsApp at the top).
+          if (window.CS_SHORTCUTS_PAYWALL_ENABLED !== false) {
+            showLoginGate();
+          }
         }
       });
       // Silent anonymous sign-in on load — gives us a stable UID for tracking
@@ -7200,9 +7287,15 @@ window.testShortcutMobileLayout = function () {
     // or cs-shortcuts-purchased here — the trial timer + on-device unlock
     // should survive a sign-out. See module-level comment.
     auth.signOut().then(function () {
-      // onAuthStateChanged fires and clears body.cs-signed-in.
+      // Force the mandatory login gate back up immediately so the app
+      // becomes unusable until the user (or someone else on the device)
+      // signs back in. onAuthStateChanged will also fire and route
+      // through the anonymous / signed-out branch, but we call it here
+      // too so there is no visual gap while auth resolves.
+      showLoginGate();
       // Kick off a fresh anonymous sign-in so we still have a UID for
-      // Firestore sync going forward.
+      // Firestore sync going forward. The gate stays up regardless
+      // because anon users don't count as hasRealUser().
       if (auth && !auth.currentUser) {
         auth.signInAnonymously().catch(function () {});
       }
@@ -7303,10 +7396,14 @@ window.testShortcutMobileLayout = function () {
         // Paywall + sign-in dismiss on Escape too. hideSignin() will
         // re-show the paywall itself if the user still doesn't have
         // access, so the order here (sign-in first, then paywall) is
-        // intentional.
+        // intentional. hideSignin() no-ops when the mandatory login
+        // gate is up, so Escape can't sneak past it.
         var signinModal  = document.getElementById('cs-shortcuts-signin');
         var paywallModal = document.getElementById('cs-shortcuts-paywall');
-        if (signinModal && !signinModal.classList.contains('hidden')) { hideSignin(); return; }
+        if (signinModal && !signinModal.classList.contains('hidden')) {
+          if (loginGateRequired && !hasRealUser()) return;
+          hideSignin(); return;
+        }
         if (paywallModal && !paywallModal.classList.contains('hidden')) { hidePaywall(); return; }
       });
     }
@@ -7510,12 +7607,22 @@ window.testShortcutMobileLayout = function () {
     }
     loadLocal();
     wire();
-    // If we already know they're gated by localStorage alone, show now.
-    if (!hasAccess()) showPaywall();
-    // First-launch welcome banner (skipped when the paywall is showing).
-    maybeShowWelcome();
+    // Mandatory login gate: raise the sign-in modal BEFORE Firebase
+    // resolves so the app can't be interacted with while auth is
+    // pending. If a real user is restored from the cached session,
+    // onAuthStateChanged will drop the gate. If not (anonymous /
+    // signed-out), the gate stays up and the app is unusable until
+    // the user completes sign-in. Mirrors resumebuilder.html's
+    // #login-landing routing. First-run welcome + paywall now fire
+    // from onAuthStateChanged AFTER a real user is present, so the
+    // trial clock is stamped per-account instead of per-device.
+    showLoginGate();
+    // Trial-expiry watchdog runs regardless — harmless before signin
+    // (firstVisitAt = 0 keeps hasAccess() true) and takes over once a
+    // real user's trial is stamped.
     startTicker();
-    // Kick off Firebase (async — may resolve seconds later; timer works meanwhile).
+    // Kick off Firebase (async — may resolve seconds later; the gate
+    // is already showing so no gated content leaks in the interim).
     initFirebase();
     // Keyboard-aware sign-in: scroll focused input into view and, where
     // supported, resize the modal to the visual viewport so the software
