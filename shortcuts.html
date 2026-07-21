@@ -1645,6 +1645,39 @@ body {
   font-size: .7rem; line-height: 1.4;
 }
 
+/* ── Welcome banner (first-launch onboarding) ──
+   Rides on the same .cs-paywall-modal chrome (dark navy/cyan card,
+   backdrop, close button, mobile top-anchored layout) so we don't
+   duplicate a full modal skeleton. These overrides just recolor the
+   eyebrow to a friendly emerald and add a small perks list. Shown
+   once by [SHORTCUTS PAYWALL JS] when LS_WELCOME_SEEN is unset AND
+   the trial hasn't already expired (paywall wins on expiry). */
+#cs-shortcuts-welcome .cs-eyebrow {
+  background: rgba(52,211,153,.16);
+  border-color: rgba(110,231,183,.35);
+  color: #a7f3d0;
+}
+#cs-shortcuts-welcome .cs-welcome-list {
+  list-style: none; margin: .2rem 0 1rem; padding: 0;
+  display: grid; gap: .5rem;
+  text-align: left;
+}
+#cs-shortcuts-welcome .cs-welcome-list li {
+  display: flex; align-items: flex-start; gap: .55rem;
+  padding: .55rem .7rem;
+  border: 1px solid rgba(226,232,240,.14);
+  border-radius: 12px;
+  background: rgba(255,255,255,.05);
+  color: #e2e8f0; font-size: .85rem; line-height: 1.4;
+}
+#cs-shortcuts-welcome .cs-welcome-list li svg {
+  flex: 0 0 auto; width: 18px; height: 18px;
+  color: #6ee7b7; margin-top: 2px;
+}
+#cs-shortcuts-welcome .cs-welcome-list li strong {
+  color: #f0fdf4; font-weight: 800;
+}
+
 /* Sign-in modal — mini version for cross-device restore */
 .cs-signin-modal .cs-card { padding: 24px 22px 20px; }
 .cs-signin-modal .cs-lead {
@@ -2450,6 +2483,43 @@ body.cs-in-app .hero { padding-top: 72px; }
       <button id="cs-shortcuts-paywall-cta" type="button" class="cs-cta">Unlock Full Access</button>
       <button id="cs-shortcuts-paywall-signin" type="button" class="cs-secondary">Already paid? Sign in to restore</button>
       <p class="cs-footnote">Purchases are managed through your Google Play account. Refunds via Google Play within 48 hours.</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       [SHORTCUTS WELCOME HTML] — first-launch onboarding banner (ISS-033).
+       Hidden by default. Shown ONCE by cs-shortcuts-paywall.js the very
+       first time an in-app user opens Career Shortcuts (i.e., when the
+       'cs-shortcuts-welcome-seen' localStorage flag is unset AND the
+       7-day trial hasn't already expired). Web visitors never see it —
+       gated by isInShortcutsApp() in the module. Uses the same
+       .cs-paywall-modal chrome (see [SHORTCUTS PAYWALL CSS]) with a
+       green eyebrow + perks list added via #cs-shortcuts-welcome scoped
+       overrides.
+       ═══════════════════════════════════════════════════════════════════ -->
+  <div id="cs-shortcuts-welcome" class="cs-paywall-modal hidden" role="dialog" aria-modal="true" aria-labelledby="cs-shortcuts-welcome-title">
+    <div id="cs-shortcuts-welcome-backdrop" class="cs-backdrop" aria-hidden="true"></div>
+    <div class="cs-card" role="document">
+      <button id="cs-shortcuts-welcome-close" type="button" class="cs-close" aria-label="Close">&times;</button>
+      <p class="cs-eyebrow">7-day free trial</p>
+      <h2 id="cs-shortcuts-welcome-title" class="cs-title">Welcome to Career Shortcuts</h2>
+      <p class="cs-lead">Enjoy the full library free for 7 days &mdash; no card required. After that, keep everything forever for a one-time <strong>$0.99</strong>.</p>
+      <ul class="cs-welcome-list">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <span><strong>All shortcuts unlocked</strong> for the full 7 days.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <span><strong>No charges</strong> during the trial &mdash; nothing to cancel.</span>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          <span><strong>One-time $0.99</strong> keeps it unlocked for life.</span>
+        </li>
+      </ul>
+      <button id="cs-shortcuts-welcome-cta" type="button" class="cs-cta">Start Exploring</button>
+      <p class="cs-footnote">You can review the trial anytime from the account menu &rarr; View plan.</p>
     </div>
   </div>
 
@@ -6324,6 +6394,7 @@ window.testShortcutMobileLayout = function () {
 
   var LS_PURCHASED_KEY = 'cs-shortcuts-purchased';
   var LS_FIRST_VISIT   = 'cs-shortcuts-first-visit'; // ms since epoch, stamped on very first launch
+  var LS_WELCOME_SEEN  = 'cs-shortcuts-welcome-seen'; // '1' once the first-launch welcome banner has been dismissed
 
   // Signed-out avatar icon (person). Replaces the previous '?' fallback
   // which read like a help button. See updateAccountMenuUI().
@@ -6356,6 +6427,7 @@ window.testShortcutMobileLayout = function () {
     var ids = [
       'cs-shortcuts-paywall',
       'cs-shortcuts-signin',
+      'cs-shortcuts-welcome',
       'cs-terms-modal',
       'cs-privacy-modal'
     ];
@@ -6543,6 +6615,50 @@ window.testShortcutMobileLayout = function () {
     paywallOpen = false;
     refreshCsModalState();
     restoreCsModalFocus();
+  }
+
+  // ── Welcome banner (first-launch onboarding) ───────────────────
+  // Shown ONCE the very first time an in-app user opens Career
+  // Shortcuts. Never competes with the paywall — if the trial has
+  // already expired (e.g., localStorage was preserved from a prior
+  // session but the welcome flag was cleared), the paywall wins and
+  // the welcome stays hidden.
+  function hasSeenWelcome() {
+    try { return localStorage.getItem(LS_WELCOME_SEEN) === '1'; }
+    catch (_) { return false; }
+  }
+  function markWelcomeSeen() {
+    try { localStorage.setItem(LS_WELCOME_SEEN, '1'); } catch (_) {}
+  }
+  function showWelcome() {
+    if (window.CS_SHORTCUTS_PAYWALL_ENABLED === false) return;
+    var modal = document.getElementById('cs-shortcuts-welcome');
+    if (!modal) return;
+    // Never stack on top of the paywall or sign-in modal.
+    var paywallModal = document.getElementById('cs-shortcuts-paywall');
+    var signinModal  = document.getElementById('cs-shortcuts-signin');
+    if (isCsModalVisible(paywallModal) || isCsModalVisible(signinModal)) return;
+    rememberCsModalTrigger();
+    toggleAccountPanel(false);
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    refreshCsModalState();
+  }
+  function hideWelcome() {
+    var modal = document.getElementById('cs-shortcuts-welcome');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    markWelcomeSeen();
+    refreshCsModalState();
+    restoreCsModalFocus();
+  }
+  function maybeShowWelcome() {
+    if (window.CS_SHORTCUTS_PAYWALL_ENABLED === false) return;
+    if (hasSeenWelcome()) return;
+    if (!hasAccess()) return; // paywall path takes priority
+    showWelcome();
   }
 
   // ── Purchase flow ───────────────────────────────────────────────
@@ -7124,6 +7240,14 @@ window.testShortcutMobileLayout = function () {
     if (payClose && !payClose._csWired)     { payClose._csWired = true;       payClose.addEventListener('click', hidePaywall); }
     if (payBackdrop && !payBackdrop._csWired){ payBackdrop._csWired = true;   payBackdrop.addEventListener('click', hidePaywall); }
     if (paySignin && !paySignin._csWired)   { paySignin._csWired = true;      paySignin.addEventListener('click', showSignin); }
+
+    // Welcome banner (first-launch onboarding).
+    var welCta      = document.getElementById('cs-shortcuts-welcome-cta');
+    var welClose    = document.getElementById('cs-shortcuts-welcome-close');
+    var welBackdrop = document.getElementById('cs-shortcuts-welcome-backdrop');
+    if (welCta && !welCta._csWired)         { welCta._csWired = true;         welCta.addEventListener('click', hideWelcome); }
+    if (welClose && !welClose._csWired)     { welClose._csWired = true;       welClose.addEventListener('click', hideWelcome); }
+    if (welBackdrop && !welBackdrop._csWired){ welBackdrop._csWired = true;   welBackdrop.addEventListener('click', hideWelcome); }
     if (signClose && !signClose._csWired)   { signClose._csWired = true;      signClose.addEventListener('click', hideSignin); }
     if (signBackdrop && !signBackdrop._csWired){signBackdrop._csWired = true; signBackdrop.addEventListener('click', hideSignin); }
     if (signSubmit && !signSubmit._csWired) { signSubmit._csWired = true;     signSubmit.addEventListener('click', submitSignin); }
@@ -7341,6 +7465,7 @@ window.testShortcutMobileLayout = function () {
       purchased: purchased,
       purchasedFromServer: purchasedFromServer,
       paywallOpen: paywallOpen,
+      welcomeSeen: hasSeenWelcome(),
       nativeBridgeAvailable: !!(window.__nativeShortcutsUnlock && window.__nativeShortcutsUnlock.available)
     };
   };
@@ -7350,6 +7475,7 @@ window.testShortcutMobileLayout = function () {
     purchasedFromServer = false;
     saveLocalFirstVisit();
     saveLocalPurchased();
+    try { localStorage.removeItem(LS_WELCOME_SEEN); } catch (_) {}
     try {
       if (currentUser && db) {
         db.collection('shortcutsUsage').doc(currentUser.uid)
@@ -7358,6 +7484,8 @@ window.testShortcutMobileLayout = function () {
       }
     } catch (_) {}
     hidePaywall();
+    var welModal = document.getElementById('cs-shortcuts-welcome');
+    if (welModal) { welModal.classList.add('hidden'); refreshCsModalState(); }
     console.log('[shortcuts-paywall] reset complete');
     return true;
   };
@@ -7370,6 +7498,7 @@ window.testShortcutMobileLayout = function () {
     return firstVisitAt;
   };
   window.showShortcutsPaywall = function () { showPaywall(); };
+  window.showShortcutsWelcome  = function () { showWelcome(); };
   window.markShortcutsPurchased = function () { markPurchased('manual-debug'); hidePaywall(); return true; };
 
   // ── Boot ────────────────────────────────────────────────────────
@@ -7383,6 +7512,8 @@ window.testShortcutMobileLayout = function () {
     wire();
     // If we already know they're gated by localStorage alone, show now.
     if (!hasAccess()) showPaywall();
+    // First-launch welcome banner (skipped when the paywall is showing).
+    maybeShowWelcome();
     startTicker();
     // Kick off Firebase (async — may resolve seconds later; timer works meanwhile).
     initFirebase();
