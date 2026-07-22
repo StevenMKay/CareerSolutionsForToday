@@ -6948,6 +6948,21 @@ window.testShortcutMobileLayout = function () {
   // to signInWithPopup on the public web. If the bridge exists but the app
   // hasn't wired the shortcuts-specific handler yet, we still surface a
   // friendly message rather than a silent no-op.
+  //
+  // BRIDGE-RESPONSE TIMEOUT: The Shortcut Android app's onMessage handler
+  // may not (yet) recognize `google-signin-request` — in that case the
+  // native side silently drops the message and the button would stay
+  // permanently disabled. We arm a watchdog that re-enables the button
+  // and shows a fallback message if the native callback doesn't fire
+  // within GOOGLE_BRIDGE_TIMEOUT_MS. Cleared by __handleNativeGoogleIdToken.
+  var GOOGLE_BRIDGE_TIMEOUT_MS = 5000;
+  var _googleBridgeTimeout = null;
+  function _clearGoogleBridgeTimeout() {
+    if (_googleBridgeTimeout) {
+      try { clearTimeout(_googleBridgeTimeout); } catch (_) {}
+      _googleBridgeTimeout = null;
+    }
+  }
   function signInWithGoogleShortcuts() {
     setSigninError('');
     if (!hasAcceptedShortcutsPolicies()) {
@@ -6960,6 +6975,17 @@ window.testShortcutMobileLayout = function () {
       if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === 'function') {
         var btn = document.getElementById('cs-signin-google-btn');
         if (btn) { btn.disabled = true; }
+        _clearGoogleBridgeTimeout();
+        _googleBridgeTimeout = setTimeout(function () {
+          _googleBridgeTimeout = null;
+          var b = document.getElementById('cs-signin-google-btn');
+          if (b) b.disabled = !hasAcceptedShortcutsPolicies();
+          setSigninError(
+            'Google sign-in isn\u2019t available in this app version yet. ' +
+            'Please sign in with your email and password below \u2014 an update ' +
+            'with Google sign-in is on the way.'
+          );
+        }, GOOGLE_BRIDGE_TIMEOUT_MS);
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'google-signin-request' }));
         return;
       }
@@ -6985,10 +7011,13 @@ window.testShortcutMobileLayout = function () {
 
   // Native RN WebView callback for the ID-token bridge. Mirrors the same
   // window function name resumebuilder uses, so a single native handler
-  // in the RN app can service both surfaces.
-  window.__handleNativeGoogleIdToken = window.__handleNativeGoogleIdToken || function (idToken, errorMsg) {
+  // in the RN app can service both surfaces. Direct assignment (NOT the
+  // `|| fallback` guard used previously) so a real handler is guaranteed
+  // to win over any stub the app may have injected earlier.
+  window.__handleNativeGoogleIdToken = function (idToken, errorMsg) {
+    _clearGoogleBridgeTimeout();
     var btn = document.getElementById('cs-signin-google-btn');
-    if (btn) btn.disabled = !hasAcceptedShortcutsPolicies() ? true : false;
+    if (btn) btn.disabled = !hasAcceptedShortcutsPolicies();
     try {
       if (errorMsg || !idToken) {
         if (errorMsg !== '__cancelled__') {
