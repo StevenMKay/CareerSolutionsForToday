@@ -2015,12 +2015,17 @@ body {
   }
 }
 
-/* Favorites drawer/modal — reuses ps-modal skin */
+/* Favorites drawer/modal — reuses ps-modal skin.
+   Sits above hero (15000), search-container (20000), search-results
+   (25000), and the in-app account chip (--cs-z-account 40000) so
+   none of the top-row chrome bleeds through the backdrop. Stays
+   BELOW the paywall / sign-in overlays (--cs-z-app-modal 50000) so
+   a trial-expiry pop still wins if it fires while favorites is open. */
 .fav-modal-backdrop {
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 10002;
+  z-index: 45000;
   background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(6px);
   align-items: flex-start;
@@ -2184,13 +2189,15 @@ body {
 }
 .fav-empty p { font-size: 14px; margin-top: 4px; }
 
-/* Toast notifications */
+/* Toast notifications — must sit above the favorites modal (45000)
+   AND the paywall/sign-in overlays (--cs-z-app-modal 50000) so copy
+   confirmations and unlock success messages are always visible. */
 .toast-root {
   position: fixed;
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  z-index: 10003;
+  z-index: var(--cs-z-toast);
   pointer-events: none;
   display: flex;
   flex-direction: column;
@@ -6696,6 +6703,22 @@ window.testShortcutMobileLayout = function () {
     return Math.max(0, FREE_TRIAL_MS - trialElapsedMs());
   }
   function hasAccess() {
+    // ── TEMPORARY PAYWALL BYPASS ─────────────────────────────────
+    // Unconditionally grant access while we wait for the upcoming
+    // billing changes to roll out. This short-circuits every
+    // paywall trigger:
+    //   • tick() never pops the wall (hasAccess() stays true)
+    //   • showPaywall() early-returns for automatic callers
+    //     (`hasAccess() && !force` guard at the top)
+    //   • onAuthStateChanged's post-load `if (!hasAccess()) …`
+    //     check no longer fires
+    // The account menu's "View plan" button still works because it
+    // calls showPaywall({ force: true }). Sign-in / login-gate
+    // behavior is untouched.
+    // To restore normal gating, delete this block and the `return
+    // true;` below so the original trial + purchase logic runs.
+    return true;
+    // eslint-disable-next-line no-unreachable
     if (purchased) return true;
     // Honor native Shortcuts Unlock bridge (Play Billing entitlement).
     try {
