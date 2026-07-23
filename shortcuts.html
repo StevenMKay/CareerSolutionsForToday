@@ -2020,18 +2020,29 @@ body {
    (25000), and the in-app account chip (--cs-z-account 40000) so
    none of the top-row chrome bleeds through the backdrop. Stays
    BELOW the paywall / sign-in overlays (--cs-z-app-modal 50000) so
-   a trial-expiry pop still wins if it fires while favorites is open. */
+   a trial-expiry pop still wins if it fires while favorites is open.
+   `isolation: isolate` establishes a fresh stacking context so nothing
+   inside the page (hero, search results, filter bar) can leak through,
+   and `100dvh` / `100svh` keep the backdrop covering the mobile safe
+   area even when the URL bar collapses. */
 .fav-modal-backdrop {
   display: none;
   position: fixed;
   inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100svh;
   z-index: 45000;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(6px);
+  isolation: isolate;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   align-items: flex-start;
   justify-content: center;
-  padding: 40px 16px;
+  padding: max(16px, env(safe-area-inset-top)) 8px
+           max(16px, env(safe-area-inset-bottom));
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .fav-modal-backdrop.visible { display: flex; }
 .fav-modal {
@@ -2383,11 +2394,16 @@ body.cs-modal-open {
 }
 body.cs-modal-open { touch-action: none; }
 
-/* Active overlays still need to accept touch scrolling on their card. */
+/* Active overlays still need to accept touch scrolling on their card.
+   Includes the favorites drawer (#favoritesModal) and the per-program
+   shortcut modal (#modal) so their scrollable content still works
+   while body.cs-modal-open forbids touch-action on the page itself. */
 body.cs-modal-open .cs-signin-modal,
 body.cs-modal-open .cs-paywall-modal,
 body.cs-modal-open #cs-terms-modal,
-body.cs-modal-open #cs-privacy-modal { touch-action: pan-y; }
+body.cs-modal-open #cs-privacy-modal,
+body.cs-modal-open #favoritesModal,
+body.cs-modal-open #modal { touch-action: pan-y; }
 
 /* Account chip must never float over an application modal. */
 body.cs-modal-open .cs-account-shell,
@@ -2399,10 +2415,12 @@ body.cs-modal-open .cs-account-panel {
 }
 
 /* Kill background taps so the shortcut cards / filter bar / favorites
-   FAB can't intercept touches meant for the modal. */
+   FAB / account chip can't intercept touches meant for whichever modal
+   is currently open. */
 body.cs-modal-open .hero,
 body.cs-modal-open .container,
-body.cs-modal-open #favoritesFab { pointer-events: none; }
+body.cs-modal-open #favoritesFab,
+body.cs-modal-open .cs-account-shell { pointer-events: none !important; }
 
 /* Reserve vertical space in the hero for the account chip so it never
    overlaps the mode toggle / search box / filter bar on phones. */
@@ -5477,6 +5495,13 @@ function openFavoritesModal() {
   renderFavoritesModal();
   m.classList.add('visible');
   m.setAttribute('aria-hidden', 'false');
+  // Route through the canonical modal-state manager so body.cs-modal-open
+  // gets set, the account chip is hidden, and background taps are
+  // disabled. The paywall IIFE exposes this on window; falls back to a
+  // no-op if the module hasn't booted yet (public web / pre-init).
+  if (typeof window.refreshCsModalState === 'function') {
+    window.refreshCsModalState();
+  }
   const closeBtn = document.getElementById('closeFavoritesModal');
   if (closeBtn) closeBtn.focus();
 }
@@ -5486,6 +5511,11 @@ function closeFavoritesModal() {
   if (!m) return;
   m.classList.remove('visible');
   m.setAttribute('aria-hidden', 'true');
+  // Refresh central state so cs-modal-open is cleared (unless another
+  // overlay is still visible — e.g., the paywall firing on trial expiry).
+  if (typeof window.refreshCsModalState === 'function') {
+    window.refreshCsModalState();
+  }
 }
 
 // Wires up FAB and favorites modal. Called from the main init IIFE.
@@ -6528,12 +6558,18 @@ window.testShortcutMobileLayout = function () {
     } catch (_) { return true; }
   }
   function refreshCsModalState() {
+    // Every full-screen overlay on the page. `favoritesModal` and `modal`
+    // (the per-program shortcut modal) use a `.visible` class instead of
+    // `.hidden`, so isCsModalVisible falls back to computed display for
+    // those — no separate detection path needed.
     var ids = [
       'cs-shortcuts-paywall',
       'cs-shortcuts-signin',
       'cs-shortcuts-welcome',
       'cs-terms-modal',
-      'cs-privacy-modal'
+      'cs-privacy-modal',
+      'favoritesModal',
+      'modal'
     ];
     var anyOpen = ids.some(function (id) {
       return isCsModalVisible(document.getElementById(id));
@@ -6546,6 +6582,10 @@ window.testShortcutMobileLayout = function () {
       document.body.style.removeProperty('overflow');
     }
   }
+  // Expose so out-of-IIFE callers (openFavoritesModal / closeFavoritesModal,
+  // and the classic shortcut modal open/close) can trigger the same
+  // canonical state refresh instead of forking a second lock system.
+  try { window.refreshCsModalState = refreshCsModalState; } catch (_) {}
   function rememberCsModalTrigger() {
     try {
       csLastModalTrigger =
