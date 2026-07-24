@@ -6928,25 +6928,41 @@ window.testShortcutMobileLayout = function () {
   }
 
   // ── Purchase flow ───────────────────────────────────────────────
+  // TEMPORARY: while the Google Play SKU is being (re)provisioned we
+  // deliberately do NOT call the native Play Billing bridge — doing
+  // so surfaces a raw "sku not found" error string to the user. Since
+  // hasAccess() is force-returning true right now (see the TEMPORARY
+  // PAYWALL BYPASS block in hasAccess), everyone already has full
+  // access, so the correct behavior for the "Unlock Full Access"
+  // button is simply to close the paywall with a friendly message.
+  //
+  // To restore normal billing, delete this override and un-comment the
+  // original bridge call (kept below as a comment for reference), then
+  // remove the hasAccess() bypass so the paywall can actually gate.
   function startPurchase() {
     var cta = document.getElementById('cs-shortcuts-paywall-cta');
-    if (cta) { cta.disabled = true; cta.textContent = 'Opening Google Play\u2026'; }
-    try {
-      var bridge = window.__nativeShortcutsUnlock;
-      if (bridge && bridge.available && typeof bridge.purchase === 'function') {
-        bridge.purchase(SHORTCUTS_PRODUCT_ID);
-        return;
-      }
-    } catch (_) {}
-    // Bridge not wired yet — placeholder alert.
+    if (cta) {
+      cta.disabled = true;
+      cta.textContent = 'You already have access\u2026';
+    }
     try {
       alert(
-        'Thanks for wanting to support Program Shortcuts! Lifetime unlock ($0.99) ' +
-        'is coming in the next app update. If you already purchased, tap ' +
-        '"Sign in to restore" instead.'
+        'You already have full access to Program Shortcuts \u2014 the paid ' +
+        'upgrade isn\u2019t live yet. Just close this window and keep using ' +
+        'the app.'
       );
     } catch (_) {}
-    if (cta) { cta.disabled = false; cta.textContent = 'Unlock Full Access'; }
+    try { hidePaywall({ force: true }); } catch (_) {}
+    if (cta) {
+      cta.disabled = false;
+      cta.textContent = 'Unlock Full Access';
+    }
+    // Original flow (restore when the SKU is live):
+    //   var bridge = window.__nativeShortcutsUnlock;
+    //   if (bridge && bridge.available && typeof bridge.purchase === 'function') {
+    //     bridge.purchase(SHORTCUTS_PRODUCT_ID);
+    //     return;
+    //   }
   }
 
   // Called by the native app when Google Play returns a purchase result.
@@ -6995,7 +7011,15 @@ window.testShortcutMobileLayout = function () {
       } else {
         if (cta) { cta.disabled = false; cta.textContent = 'Unlock Full Access'; }
         var msg = (result && result.message) || 'Purchase did not complete.';
-        if (!/cancel/i.test(String((result && result.code) || msg))) {
+        var code = String((result && result.code) || msg);
+        // Swallow user-cancel AND the "sku not found" / "item unavailable"
+        // errors that fire while the Google Play product is still being
+        // provisioned. Surfacing that raw string as an alert reads like a
+        // real failure to end users, and hasAccess() is force-true right
+        // now so no action is required from them anyway.
+        var isCancel      = /cancel/i.test(code);
+        var isSkuMissing  = /sku\s*not\s*found|item\s*unavailable|product.*not.*found|itemunavailable/i.test(code + ' ' + msg);
+        if (!isCancel && !isSkuMissing) {
           try { alert(msg); } catch (_) {}
         }
       }
